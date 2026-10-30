@@ -8,6 +8,12 @@ const config = {
   baseUrl: '/metis/docs/',
   trailingSlash: false,
   favicon: 'img/metis-mark.png',
+  headTags: [
+    {
+      tagName: 'meta',
+      attributes: {name: 'algolia-site-verification', content: 'B326B139191D7CA5'},
+    },
+  ],
   onBrokenLinks: 'throw',
   markdown: {
     hooks: {onBrokenMarkdownLinks: 'throw'},
