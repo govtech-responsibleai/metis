@@ -1,0 +1,66 @@
+---
+title: "Action choice appropriateness"
+description: "Whether recorded intermediate choices are suitable."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/execution_and_decision_quality/_action_choice_appropriateness.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="ActionChoiceAppropriatenessGrader" />
+
+Assess whether recorded intermediate choices are suitable.
+
+<GraderCode>
+
+```python
+class ToolListArgs(BaseModel):
+    available_tools: tuple[NonEmptyText, ...] = Field(
+        default=(),
+        description=(
+            'Tool descriptions, such as "search(query): Searches the index", for when the '
+            "person writing the specification or the wizard knows them. When empty, the "
+            "grader reads the tools that the session offered."
+        ),
+    )
+
+
+class TaskArgs(BaseModel):
+    task_description: NonEmptyText | None = None
+    """What the agent was asked to do. When unset, the judge infers the goal from the user's
+    messages. A criterion runs in every task that selects its behaviour, so this text applies
+    to the scenarios of all those tasks."""
+
+
+class ActionChoiceAppropriatenessArgs(JudgeArgs, TaskArgs, ToolListArgs):
+    assessment_criteria: tuple[str, ...] = Field(
+        default=(),
+        description=(
+            "Criteria for what makes an intermediate choice appropriate. "
+            "When empty, the judge assesses general choice suitability."
+        ),
+    )
+
+
+class ActionChoiceAppropriatenessGrader(Grader[ActionChoiceAppropriatenessArgs]):
+    def criteria(self, tools: tuple[str, ...]) -> str:
+        return (
+            "You are assessing whether recorded intermediate choices are suitable "
+            "for the immediate objective, available evidence, constraints, and "
+            "alternatives."
+            + self.args.task_block()
+            + section("assessment_criteria", self.args.assessment_criteria)
+            + available_tools_block(
+                tools,
+                "Use available_tools to know the alternatives the agent could have "
+                "chosen at each step.",
+            )
+            + "\n\n<assessment_boundaries>\n"
+            "Broad criterion. Assess whether each recorded intermediate choice is "
+            "suitable for the immediate objective, available evidence, constraints, "
+            "and alternatives."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

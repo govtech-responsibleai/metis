@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+_site/
+
+# JavaScript
+node_modules/
+*.tsbuildinfo
+.vite/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Environment
+.env
+.envrc
+
+# OS
+.DS_Store
+
+# Generated session artifacts
+docs/superpowers/
+.deepeval
+.impeccable/
+
+# OpenSpec (personal tooling — not team-adopted yet)
+openspec/
+
+# Agent tooling (personal for now — not team-adopted). Feature branches may
+# override to track specific shared artifacts (e.g. .claude/skills/...).
+.claude/
+.codex/
+
+# Simulation output (generated at runtime)
+/experiments/
+
+# Wizard session output (generated at runtime)
+/evaluation/
+
+# Wizard internal docs
+packages/wizard/docs/
+
+# Generated reviewer pages can contain local case inputs.
+/packages/testbed/wizard/.reviewer/
+
+# Generated testbed evaluation results.
+/packages/testbed/results/
+
+# Generated embeddings are local caches.
+/packages/testbed/**/*.embeddings.json

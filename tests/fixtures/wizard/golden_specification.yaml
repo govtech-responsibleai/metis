@@ -1,0 +1,117 @@
+schema_version: 1
+id: research-assistant
+runner_factory_ref: metis.engine.simulation.runners.http.HttpRunnerFactory
+target:
+  name: Research assistant
+  users: Policy analysts and their managers. Some know exactly what they want; others are
+    exploring and do not.
+  description: An agent that answers research questions over an internal document library,
+    citing what it used.
+  detail: A router agent with a document search tool and a summariser subagent. Search can
+    time out. Nothing is carried between interviews.
+features:
+- id: F-1
+  name: Answer quality
+  description: Answer research questions accurately and with useful evidence.
+  behaviours:
+  - id: EB-1
+    name: Cite factual claims
+    description: Cites a source for every factual claim
+    measured: true
+    criteria:
+    - id: AC-1-1
+      name: Cite supported answers
+      description: Given a question answerable from the library, when the answer is returned,
+        then every factual claim names the document it came from.
+      grader_fqn: tests.unit.engine.graders_for_tests.FixedScoreGrader
+      grader_args: {}
+    - id: AC-1-2
+      name: Do not cite unrelated sources
+      description: Given a question the library cannot answer, when the answer is returned,
+        then it says so rather than citing an unrelated document.
+      grader_fqn: tests.unit.engine.graders_for_tests.FixedScoreGrader
+      grader_args: {}
+  - id: EB-2
+    name: Keep answers concise
+    description: Keeps answers under a page unless asked otherwise
+    measured: false
+    criteria:
+    - id: AC-2-1
+      name: Default length limit
+      description: Given a question with no length instruction, when the answer is returned,
+        then it is under 500 words.
+      grader_fqn: metis.library.graders.demo.DemoTraceBudgetGrader
+      grader_args: {}
+- id: F-2
+  name: Recovery
+  description: Recover safely when document search cannot complete.
+  behaviours:
+  - id: EB-3
+    name: Stop repeated failures
+    description: Stops after repeated search failures and says what it tried
+    measured: true
+    criteria:
+    - id: AC-3-1
+      name: Report failed retries
+      description: Given a document search that times out repeatedly, when the agent has retried
+        three times, then it stops and reports what it attempted.
+      grader_fqn: metis.library.graders.demo.DemoTraceBudgetGrader
+      grader_args: {}
+personas:
+- id: cooperative-delegator
+  name: Cooperative delegator
+  description: A policy analyst comfortable with AI tools who engages fully, answers questions
+    willingly, and redirects gently if things stall.
+  metadata: {}
+- id: impatient-executive
+  name: Impatient executive
+  description: A time-poor director who writes in curt imperatives, will not answer clarifying
+    questions, and abandons the work quickly.
+  metadata: {}
+scenarios:
+- id: S-1
+  name: Supported literature review
+  description: Ask for a literature review on a topic the library covers well, then ask a
+    follow-up that needs a second document.
+  metadata: {}
+- id: S-2
+  name: Repeated search timeout
+  description: Ask a question whose documents live behind a search that will time out, forcing
+    the retry path.
+  metadata: {}
+tasks:
+- id: TC-001
+  scenario_ref: S-1
+  persona_ref: cooperative-delegator
+  fixtures: []
+  num_trials: 3
+  behaviour_refs:
+  - EB-1
+  max_turns: 20
+  timeout_minutes: 15
+  response_wait_ms: 300000
+  max_run_retries: null
+- id: TC-002
+  scenario_ref: S-1
+  persona_ref: impatient-executive
+  fixtures: []
+  num_trials: 3
+  behaviour_refs:
+  - EB-1
+  max_turns: 20
+  timeout_minutes: 15
+  response_wait_ms: 300000
+  max_run_retries: null
+- id: TC-003
+  scenario_ref: S-2
+  persona_ref: cooperative-delegator
+  fixtures:
+  - policy.pdf
+  num_trials: 3
+  behaviour_refs:
+  - EB-3
+  max_turns: 20
+  timeout_minutes: 15
+  response_wait_ms: 300000
+  max_run_retries: null
+fixture_content_descriptions: {}

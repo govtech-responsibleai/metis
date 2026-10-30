@@ -1,0 +1,78 @@
+---
+title: "Attribution accuracy"
+description: "Whether citations correctly identify evidence that supports claims."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/task_and_output_quality/_attribution_accuracy.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="AttributionAccuracyGrader" />
+
+Assess whether citations correctly identify evidence that supports claims.
+
+Adapted from [DeepEval Citation Faithfulness](https://github.com/confident-ai/deepeval/blob/d6cd78ac44da4623ff07c73310dfca474c212068/deepeval/metrics/community/citation_faithfulness/template.py).
+
+<GraderCode>
+
+```python
+class ArtifactArgs(BaseModel):
+    artifact: NonEmptyText | None = None
+    """The name of the file to judge. When the target revised the file, the judge reads the
+    latest version."""
+
+
+class TraceArgs(BaseModel):
+    turn: Literal["each", "last"] = "each"
+    """``each`` judges every recorded turn, each on its own. ``last`` judges only the final
+    recorded turn."""
+
+
+class AttributionAccuracyArgs(JudgeArgs, TraceArgs, ArtifactArgs):
+    turn: Literal["each", "last"] = "last"
+    """``last`` judges only the final reply. ``each`` judges every reply."""
+    citation_required: bool = Field(
+        default=True,
+        description=(
+            "Whether attribution is required. True: missing citations is a scored "
+            "failure. False: with no citations the criterion does not apply."
+        ),
+    )
+
+
+class AttributionAccuracyGrader(Grader[AttributionAccuracyArgs]):
+    def criteria(self) -> str:
+        citation_policy = (
+            "Attribution is REQUIRED. If the assessed output contains no citations "
+            "or source attributions, score 0 — missing required citations is a failure."
+            if self.args.citation_required
+            else "Attribution is OPTIONAL. If the assessed output contains no citations "
+            "or source attributions, the criterion does not apply."
+        )
+        return (
+            "You are assessing whether stated citations or source attributions in the "
+            "assessed output correctly identify evidence that supports the associated "
+            "claims."
+            + sources_block(
+                self.scope,
+                "If the session has no source content, the criterion does not apply.",
+            )
+            + f"\n\n<citation_policy>\n{citation_policy}\n</citation_policy>"
+            "\n\nA citation may take any form, such as a [N] marker, a source name, a "
+            "link, or a footnote. Match each citation to the source it points to in the "
+            "sources above.\n"
+            "Check each citation: read the source it points to and confirm it supports "
+            "the claim the citation is attached to. Score 0 if any claim carries a "
+            "citation where the cited source does NOT support that claim — even if some "
+            "other source would support it (this is citation misattribution). Judge "
+            "relative to the sources only, not world knowledge."
+            "\n\n<assessment_boundaries>\n"
+            "Assess whether each citation correctly identifies the source material that "
+            "supports the associated claim. Correct source naming (pointing to the right "
+            "document) is distinct from whether the evidence actually supports the claim "
+            "(Claim Support by Evidence). Claims can be supported but incorrectly cited."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

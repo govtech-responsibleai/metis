@@ -1,0 +1,513 @@
+schema_version: 1
+id: enterprise-ai-assistant-eval
+target:
+  name: Enterprise AI Assistant
+  users: 'Knowledge workers, managers, analysts, and other authorised enterprise users who use the assistant
+    for conversational help, research, organisational knowledge retrieval, communications, scheduling,
+    artefact creation, and data work.
+
+    '
+  description: 'A general-purpose enterprise AI assistant that can answer questions, research information,
+    work with authorised enterprise sources, assist with communications and calendars, create documents
+    and artefacts, and analyse structured data.
+
+    '
+  detail: The specification covers conversation, research, enterprise knowledge, communications,
+    calendar work, artefacts, and data analysis. Five pre-launch test cases measure conversational guidance,
+    finding and using enterprise information, communication drafting, and artefact creation. Each case
+    can cover several behaviours. Other expected behaviours remain in the profile for later review.
+features:
+- id: EP-CONV
+  name: Conversational Assistant
+  description: Answer questions, guide users through requests, and continue work across turns.
+  behaviours:
+  - id: EB-CONV-1
+    name: Guide the user through their query
+    description: Understand the user’s intent, answer or explain the requested topic correctly, and keep
+      the response within the requested scope, format, and level of detail.
+    measured: true
+    criteria:
+    - id: AC-CONV-1
+      grader_fqn: null
+      grader_args: {}
+      name: Intent alignment
+      description: "Given a user asks a question or requests help, possibly with a key detail left unclear, when the assistant responds, then the response addresses the user’s actual goal. If the assistant cannot identify the subject or required output from the available context, it asks a focused clarification before making that choice."
+    - id: AC-CONV-2
+      grader_fqn: null
+      grader_args: {}
+      name: Answer correctness
+      description: "Given the request has a verifiable or logically assessable answer, when the assistant responds, then the substantive answer is correct and does not introduce material factual errors."
+    - id: AC-CONV-3
+      grader_fqn: null
+      grader_args: {}
+      name: Appropriate scope
+      description: "Given the user specifies a scope, level of detail, format, or constraint, when the assistant responds, then the response respects those explicit requirements."
+  - id: EB-CONV-3
+    name: Contextual continuation
+    description: 'Continue multi-turn work using relevant prior conversation context, including user corrections
+      and decisions.
+
+      '
+    measured: false
+    criteria:
+    - id: AC-CONV-7
+      grader_fqn: null
+      grader_args: {}
+      name: Context retention
+      description: "Given relevant facts, constraints, or decisions were established earlier in the conversation, when the user continues the task, then the assistant applies the relevant prior context without requiring unnecessary repetition."
+    - id: AC-CONV-8
+      grader_fqn: null
+      grader_args: {}
+      name: Correction uptake
+      description: "Given the user corrects or overrides an earlier assumption or instruction, when the assistant continues, then subsequent responses follow the user's latest correction."
+- id: EP-RESEARCH
+  name: Research Assistant
+  description: 'Investigate questions using public or external information sources and turn retrieved
+    evidence into a useful research answer.
+
+    '
+  behaviours:
+  - id: EB-RESEARCH-1
+    name: Information discovery
+    description: 'Identify and retrieve external sources that are relevant to the research question.
+
+      '
+    measured: false
+    criteria:
+    - id: AC-RESEARCH-1
+      grader_fqn: null
+      grader_args: {}
+      name: Query coverage
+      description: "Given a research question with multiple material aspects, when the assistant conducts research, then the search process covers the aspects necessary to answer the question."
+    - id: AC-RESEARCH-2
+      grader_fqn: null
+      grader_args: {}
+      name: Source relevance
+      description: "Given retrieved sources, when they are used in the answer, then the sources are materially relevant to the claims or conclusions they support."
+    - id: AC-RESEARCH-3
+      grader_fqn: null
+      grader_args: {}
+      name: Source freshness
+      description: "Given the question depends on current or time-sensitive information, when the assistant selects sources, then it uses sources recent enough for the requested time horizon."
+  - id: EB-RESEARCH-2
+    name: Evidence assessment
+    description: 'Distinguish stronger evidence from weaker or conflicting information and select evidence
+      appropriate to the research task.
+
+      '
+    measured: false
+    criteria:
+    - id: AC-RESEARCH-4
+      grader_fqn: null
+      grader_args: {}
+      name: Source quality judgement
+      description: "Given sources of differing authority or reliability, when the assistant forms its answer, then it gives greater weight to sources that are more authoritative and directly relevant."
+    - id: AC-RESEARCH-5
+      grader_fqn: null
+      grader_args: {}
+      name: Conflict handling
+      description: "Given credible sources materially disagree, when the assistant synthesises the evidence, then it represents the disagreement rather than silently collapsing it into a single unsupported conclusion."
+  - id: EB-RESEARCH-3
+    name: Research synthesis
+    description: 'Integrate evidence from one or more sources into a coherent answer that directly addresses
+      the research question.
+
+      '
+    measured: false
+    criteria:
+    - id: AC-RESEARCH-6
+      grader_fqn: null
+      grader_args: {}
+      name: Evidence-grounded synthesis
+      description: "Given the assistant makes claims based on retrieved sources, when the final answer is produced, then material source-derived claims are supported by the retrieved evidence."
+    - id: AC-RESEARCH-7
+      grader_fqn: null
+      grader_args: {}
+      name: Citation faithfulness
+      description: "Given the answer cites or links sources, when a citation is inspected, then the cited source supports the associated claim."
+    - id: AC-RESEARCH-8
+      grader_fqn: null
+      grader_args: {}
+      name: Research question coverage
+      description: "Given the research question contains multiple requested elements, when the final answer is produced, then the answer addresses all material requested elements or clearly identifies any unresolved gaps."
+- id: EP-ENTERPRISE
+  name: Enterprise Search and Knowledge Retrieval
+  description: 'Find and use information from authorised organisational sources such as enterprise files,
+    SharePoint, OneDrive, Teams, and other connected repositories.
+
+    '
+  behaviours:
+  - id: EB-ENTERPRISE-1
+    name: Find and use enterprise information
+    description: Find the authorised internal resource that matches the user's information need and use
+      it accurately in the requested answer or output.
+    measured: true
+    criteria:
+    - id: AC-ENTERPRISE-1
+      grader_fqn: null
+      grader_args: {}
+      name: Retrieval relevance
+      description: "Given a user asks for internal organisational information, when the assistant searches authorised enterprise sources, then the retrieved results are relevant to the user's request."
+    - id: AC-ENTERPRISE-2
+      grader_fqn: null
+      grader_args: {}
+      name: Correct resource resolution
+      description: "Given multiple similar resources, threads, or versions exist, when the assistant selects information to use, then it selects the resource or version that best matches the user's requested subject, context, and recency."
+    - id: AC-ENTERPRISE-3
+      grader_fqn: null
+      grader_args: {}
+      name: Access boundary adherence
+      description: "Given enterprise systems enforce user permissions, when the assistant retrieves organisational information, then it only uses content exposed through the user's authorised access."
+    - id: AC-ENTERPRISE-4
+      grader_fqn: null
+      grader_args: {}
+      name: Internal grounding
+      description: "Given the requested answer or output depends on retrieved enterprise content, when the assistant produces it, then material claims about the organisation are supported by the retrieved internal information."
+    - id: AC-ENTERPRISE-5
+      grader_fqn: null
+      grader_args: {}
+      name: Source traceability
+      description: "Given source references are available, when the assistant presents an output based on enterprise information, then the user can identify the internal sources used for the material claims."
+    - id: AC-ENTERPRISE-6
+      grader_fqn: null
+      grader_args: {}
+      name: Retrieval gap transparency
+      description: "Given the available internal sources do not support part of the requested output, when the assistant produces it, then it identifies the gap rather than inventing organisational information."
+- id: EP-COMMS
+  name: Email and Messaging Assistance
+  description: 'Help users understand communication context, compose messages, and perform supported email
+    or workplace messaging actions.
+
+    '
+  behaviours:
+  - id: EB-COMMS-1
+    name: Communication context retrieval
+    description: 'Find the relevant email, chat, message, or thread and recover enough context to understand
+      the communication task.
+
+      '
+    measured: false
+    criteria:
+    - id: AC-COMMS-1
+      grader_fqn: null
+      grader_args: {}
+      name: Correct thread selection
+      description: "Given multiple potentially relevant communications exist, when the assistant retrieves context, then it selects the thread or message matching the requested subject, participants, and timing."
+    - id: AC-COMMS-2
+      grader_fqn: null
+      grader_args: {}
+      name: Context completeness
+      description: "Given earlier messages are necessary to understand the latest communication, when the assistant interprets the thread, then it uses enough surrounding context to avoid misrepresenting the exchange."
+  - id: EB-COMMS-2
+    name: Communication drafting
+    description: 'Draft a message that reflects the user''s intent, relevant thread context, intended
+      audience, and requested tone.
+
+      '
+    measured: true
+    criteria:
+    - id: AC-COMMS-3
+      grader_fqn: null
+      grader_args: {}
+      name: Intent fidelity
+      description: "Given the user specifies what the message should communicate, when the assistant drafts the message, then the draft conveys the requested intent without materially changing the user's position."
+    - id: AC-COMMS-4
+      grader_fqn: null
+      grader_args: {}
+      name: Contextual appropriateness
+      description: "Given a message is drafted in response to an existing thread, when the draft is produced, then it is consistent with the relevant thread context and does not contradict known facts."
+    - id: AC-COMMS-5
+      grader_fqn: null
+      grader_args: {}
+      name: Audience and tone fit
+      description: "Given the user specifies or implies an audience and tone, when the message is drafted, then the wording is appropriate for that audience and tone."
+  - id: EB-COMMS-3
+    name: Communication action execution
+    description: 'Perform supported send, reply, post, or related messaging actions when the user clearly
+      requests them.
+
+      '
+    measured: false
+    criteria:
+    - id: AC-COMMS-6
+      grader_fqn: null
+      grader_args: {}
+      name: Action intent
+      description: "Given a communication action would create an external side effect, when the assistant performs the action, then the user's instruction clearly authorises that action."
+    - id: AC-COMMS-7
+      grader_fqn: null
+      grader_args: {}
+      name: Recipient and target accuracy
+      description: "Given the user requests a send, reply, or post action, when the assistant executes it, then the action is applied to the intended recipients, conversation, or channel."
+    - id: AC-COMMS-8
+      grader_fqn: null
+      grader_args: {}
+      name: Content fidelity
+      description: "Given the user has approved or specified the communication content, when the assistant sends or posts it, then the executed content materially matches what the user authorised."
+    - id: AC-COMMS-9
+      grader_fqn: null
+      grader_args: {}
+      name: Outcome reporting
+      description: "Given the assistant attempts a communication action, when the tool returns an outcome, then the assistant accurately reports success, failure, or uncertainty."
+- id: EP-CALENDAR
+  name: Calendar and Scheduling Assistant
+  description: Retrieve calendar information, propose available times, and create or update events when
+    requested.
+  behaviours:
+  - id: EB-CALENDAR-1
+    name: Manage calendar and scheduling requests
+    description: Use the correct calendar information to answer questions and schedule events. Avoid known
+      conflicts and preserve the requested time, participants, and event content.
+    measured: false
+    criteria:
+    - id: AC-CALENDAR-1
+      grader_fqn: null
+      grader_args: {}
+      name: Accurate calendar information retrieval
+      description: "Given the user asks about an event, schedule, or availability, when the assistant retrieves and presents calendar information, then it identifies the correct event or time period and represents the available details and free or occupied slots accurately."
+    - id: AC-CALENDAR-2
+      grader_fqn: null
+      grader_args: {}
+      name: Avoid conflicting time slots
+      description: "Given the assistant has access to relevant availability and the user’s scheduling constraints, when it proposes or creates a meeting time, then the time satisfies the known constraints and does not conflict with occupied slots for the required participants."
+    - id: AC-CALENDAR-3
+      grader_fqn: null
+      grader_args: {}
+      name: Accurate event details
+      description: "Given the user asks the assistant to create or change a calendar event, when it prepares or saves the event, then the event has the intended date, time, duration, title, participants, and content, without invented or omitted material details."
+- id: EP-ARTEFACT
+  name: Document and Artefact Generation
+  description: Create and edit documents and other persistent artefacts for the user.
+  behaviours:
+  - id: EB-ARTEFACT-1
+    name: Artefact creation
+    description: Create a new document or artefact in a suitable format with accurate, complete content.
+    measured: true
+    criteria:
+    - id: AC-ARTEFACT-2
+      grader_fqn: null
+      grader_args: {}
+      name: Format suitability
+      description: "Given the user requests a specific artefact type, when the assistant creates the output, then the structure and presentation are appropriate for that artefact type."
+    - id: AC-ARTEFACT-3
+      grader_fqn: null
+      grader_args: {}
+      name: Content accuracy
+      description: "Given the user provides requirements or source material for a new artefact, when the assistant creates its content, then material facts and source-derived statements are accurate, faithful to the supplied material, and free of unsupported additions."
+    - id: AC-ARTEFACT-1
+      grader_fqn: null
+      grader_args: {}
+      name: Deliverable completeness
+      description: "Given the user specifies the content or sections required in an artefact, when the assistant creates it, then all material requested components are present."
+  - id: EB-ARTEFACT-2
+    name: Artefact editing
+    description: Apply the requested changes to an existing document or artefact while keeping unaffected
+      content and the resulting content accurate.
+    measured: false
+    criteria:
+    - id: AC-ARTEFACT-4
+      grader_fqn: null
+      grader_args: {}
+      name: Unaffected content preservation
+      description: "Given parts of the original artefact are outside the requested edit scope, when the assistant modifies the artefact, then those parts remain materially unchanged unless necessary for consistency."
+    - id: AC-ARTEFACT-5
+      grader_fqn: null
+      grader_args: {}
+      name: Content accuracy
+      description: "Given the user asks for edits, rewriting, or summarising of existing content, when the assistant produces the edited artefact, then the requested changes are applied and the result preserves the source meaning and facts unless the user explicitly asks to change them; it adds no unsupported claims."
+- id: EP-DATA
+  name: Data Analysis and Spreadsheet Work
+  description: 'Analyse structured data, perform calculations, manipulate spreadsheet content, and communicate
+    data-driven findings.
+
+    '
+  behaviours:
+  - id: EB-DATA-1
+    name: Analytical computation
+    description: 'Compute requested quantities and perform appropriate analysis on the specified data.
+
+      '
+    measured: false
+    criteria:
+    - id: AC-DATA-1
+      grader_fqn: null
+      grader_args: {}
+      name: Analysis scope
+      description: "Given the user specifies data, quantities, or analytical questions, when the assistant performs the analysis, then it analyses the requested quantities and does not substitute unrelated analyses."
+    - id: AC-DATA-2
+      grader_fqn: null
+      grader_args: {}
+      name: Calculation correctness
+      description: "Given a calculation has a determinable result from the supplied data, when the assistant computes it, then the numerical result is correct within an appropriate tolerance."
+    - id: AC-DATA-3
+      grader_fqn: null
+      grader_args: {}
+      name: Method appropriateness
+      description: "Given an analytical method is specified or clearly required, when the assistant analyses the data, then it applies the specified or appropriate method correctly."
+  - id: EB-DATA-2
+    name: Spreadsheet manipulation
+    description: 'Create or modify spreadsheet structures, formulas, tables, and data while preserving
+      the integrity of the workbook.
+
+      '
+    measured: false
+    criteria:
+    - id: AC-DATA-4
+      grader_fqn: null
+      grader_args: {}
+      name: Cell and range accuracy
+      description: "Given the user requests changes to specific spreadsheet data or regions, when the assistant modifies the workbook, then the intended cells, ranges, sheets, or tables are changed and unrelated areas are not unintentionally altered."
+    - id: AC-DATA-5
+      grader_fqn: null
+      grader_args: {}
+      name: Formula correctness
+      description: "Given spreadsheet formulas are created or modified, when the workbook is evaluated, then the formulas reference the intended data and compute the intended quantities."
+    - id: AC-DATA-6
+      grader_fqn: null
+      grader_args: {}
+      name: Workbook validity
+      description: "Given a spreadsheet file is created or modified, when the resulting workbook is opened, then it is structurally valid and usable in the intended spreadsheet application."
+  - id: EB-DATA-3
+    name: Analytical communication
+    description: 'Present analytical results through clear summaries, tables, or visualisations that accurately
+      reflect the underlying analysis.
+
+      '
+    measured: false
+    criteria:
+    - id: AC-DATA-7
+      grader_fqn: null
+      grader_args: {}
+      name: Result fidelity
+      description: "Given the assistant reports an analytical finding, when the finding is compared with the computed results, then the reported conclusion accurately reflects the underlying analysis."
+    - id: AC-DATA-8
+      grader_fqn: null
+      grader_args: {}
+      name: Visualisation correctness
+      description: "Given the assistant creates a chart or visualisation, when it is compared with the source data, then the encoded values, labels, and chart structure represent the data correctly."
+    - id: AC-DATA-9
+      grader_fqn: null
+      grader_args: {}
+      name: Analytical claim discipline
+      description: "Given the available analysis supports some conclusions but not others, when the assistant communicates findings, then it does not present unsupported interpretations as established results."
+personas:
+- id: cooperative-knowledge-worker
+  name: Collaborative knowledge worker
+  description: A patient, mid-level engineering officer who has worked at the company for about three
+    years. They state their goals clearly and give relevant context or follow-up details when asked.
+    Their work is on the engineering side of the organisation, so they are less familiar with HR and
+    business processes. They do not usually consolidate meeting notes and welcome help with that task.
+  metadata:
+    input_style: Uses clear, everyday workplace language and gives more detail when the assistant asks.
+    occupation: Mid-level engineering officer with about three years at the company.
+    personality: Patient, collaborative, and willing to review drafts or clarify a request.
+- id: time-constrained-manager
+  name: Busy senior manager
+  description: A senior manager who oversees five teams and spends much of the day in meetings. He
+    needs to share clear, consistent information across those teams. He gives the assistant the approved
+    facts but has little time for a detailed review of each draft. He expects the assistant to organise
+    the material, keep details accurate, and make important gaps easy to see.
+  metadata:
+    input_style: Gives short, direct instructions, often as bullet points, and answers focused questions briefly.
+    occupation: Senior manager responsible for five teams and cross-team communication.
+    personality: Pragmatic, decisive, and busy; trusts a clear first draft but wants important risks flagged.
+scenarios:
+- id: expense-claim-question
+  name: How to claim an expense
+  description: A knowledge worker asks how to claim a work-related expense through the company. The
+    expense type can vary, and the user does not name the relevant policy or claim form. The assistant
+    identifies the type of claim, finds the current expense policy and claim instructions in authorised
+    enterprise resources, and explains the steps that apply. If the type of expense is unclear and affects
+    the process, it asks a focused question. The answer stays within what the sources support.
+- id: hr-self-service-question
+  name: Answer a staff HR question
+  description: A staff member asks a simple question about an HR matter, such as leave, claims,
+    hospitalisation benefits, insurance, performance processes, or staff administration. The exact
+    topic can vary. The assistant identifies the information need, finds the relevant current resource
+    in the authorised enterprise knowledge base, and gives a clear answer based on that resource.
+    If a necessary personal detail is missing, it asks a focused question or explains the applicable
+    conditions.
+- id: event-thread-reply
+  name: Draft a reply using a past event record
+  description: A knowledge worker asks for help replying to an existing event-planning thread. The thread
+    links to a presentation and planning documents from a previous event. The user wants to know what
+    those materials say and wants a draft reply that uses the relevant facts and fits the thread. The
+    assistant finds the right thread and linked sources, answers the user's question, and drafts the reply.
+    The user has not asked it to send the message.
+- id: uploaded-meeting-notes-document
+  name: Create a Word document from uploaded meeting notes
+  description: A user uploads a plain-text file with their full notes from a previous meeting and asks
+    the assistant to organise the material into a clear Word document. The uploaded notes are the source
+    for this task. The assistant gives the document a useful structure, preserves the meaning of the notes,
+    and keeps decisions, action items, and unresolved points distinct where they appear. It asks a
+    focused question if a detail needed for the document is unclear and does not add unsupported facts.
+  metadata:
+    start_prompt: can you turn the attached notes into a clear Word document? please separate decisions,
+      action items, and open questions. i took these quickly, so flag anything you cannot tell from them.
+- id: process-guide-and-announcement
+  name: Create a process guide and draft an announcement
+  description: A senior manager provides the approved details of a process change that affects his five
+    teams, including when it starts, what staff must do, and any exceptions. He asks for a short Word
+    guide and a draft email that announces the change to all five teams. The assistant uses the supplied
+    details to create both outputs, keeps their facts consistent, and makes the email clear for its
+    audience. The manager asks for a draft and does not ask the assistant to send it.
+tasks:
+- id: TC-001
+  scenario_ref: expense-claim-question
+  persona_ref: cooperative-knowledge-worker
+  fixtures: []
+  num_trials: 3
+  max_turns: 10
+  timeout_minutes: 10
+  response_wait_ms: 300000
+  behaviour_refs:
+  - EB-CONV-1
+  - EB-ENTERPRISE-1
+- id: TC-002
+  scenario_ref: hr-self-service-question
+  persona_ref: cooperative-knowledge-worker
+  fixtures: []
+  num_trials: 3
+  max_turns: 10
+  timeout_minutes: 10
+  response_wait_ms: 300000
+  behaviour_refs:
+  - EB-CONV-1
+  - EB-ENTERPRISE-1
+- id: TC-003
+  scenario_ref: event-thread-reply
+  persona_ref: cooperative-knowledge-worker
+  fixtures: []
+  num_trials: 3
+  max_turns: 15
+  timeout_minutes: 15
+  response_wait_ms: 300000
+  behaviour_refs:
+  - EB-CONV-1
+  - EB-ENTERPRISE-1
+  - EB-COMMS-2
+- id: TC-004
+  scenario_ref: uploaded-meeting-notes-document
+  persona_ref: cooperative-knowledge-worker
+  fixtures:
+  - service-request-pilot-notes.txt
+  num_trials: 3
+  max_turns: 15
+  timeout_minutes: 20
+  response_wait_ms: 300000
+  behaviour_refs:
+  - EB-CONV-1
+  - EB-ARTEFACT-1
+- id: TC-005
+  scenario_ref: process-guide-and-announcement
+  persona_ref: time-constrained-manager
+  fixtures: []
+  num_trials: 3
+  max_turns: 15
+  timeout_minutes: 20
+  response_wait_ms: 300000
+  behaviour_refs:
+  - EB-CONV-1
+  - EB-COMMS-2
+  - EB-ARTEFACT-1
+runner_factory_ref: ''

@@ -1,0 +1,74 @@
+---
+title: "Planning quality"
+description: "Whether the proposed sequence of actions is feasible and sufficient."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/execution_and_decision_quality/_planning_quality.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="PlanningQualityGrader" />
+
+Assess whether the proposed sequence of actions is feasible and sufficient.
+
+Adapted from [DeepEval Plan Quality](https://github.com/confident-ai/deepeval/blob/d6cd78ac44da4623ff07c73310dfca474c212068/deepeval/metrics/plan_quality/templates/evaluate_plan_quality.txt).
+
+<GraderCode>
+
+```python
+class TaskArgs(BaseModel):
+    task_description: NonEmptyText | None = None
+    """What the agent was asked to do. When unset, the judge infers the goal from the user's
+    messages. A criterion runs in every task that selects its behaviour, so this text applies
+    to the scenarios of all those tasks."""
+
+
+class PlanningQualityArgs(JudgeArgs, TaskArgs):
+    plan_requirements: tuple[str, ...] = Field(
+        default=(),
+        description=(
+            "Specific aspects to assess such as feasibility, sufficiency, ordering, "
+            "or dependency handling. When empty, the judge assesses general plan quality."
+        ),
+    )
+
+
+class PlanningQualityGrader(Grader[PlanningQualityArgs]):
+    def criteria(self) -> str:
+        return (
+            "You are assessing whether the proposed sequence of actions is feasible "
+            "and sufficient to reach the goal."
+            + self.args.task_block()
+            + section("plan_requirements", self.args.plan_requirements)
+            + "\n\n<criteria>\n"
+            "The plan is the plan the agent shows in the evidence.\n\n"
+            "1. Completeness (Most Important)\n"
+            "- The plan must fully address all major requirements of the user task.\n"
+            "- Missing even one critical subtask or dependency should reduce the score "
+            "sharply.\n"
+            "- The plan must include all prerequisite actions necessary for the final "
+            "outcome.\n\n"
+            "2. Logical Coherence\n"
+            "- Steps must follow a clear, rational sequence that leads directly to "
+            "completing the task.\n"
+            "- Disordered, redundant, or circular reasoning should be penalized heavily.\n"
+            "- Every step must have a clear purpose; no filler or irrelevant actions.\n\n"
+            "The plan must explicitly and directly target the user's stated goal."
+            "\n</criteria>"
+            "\n\n<scoring>\n"
+            "Score 1 for a plan that is complete and logically ordered: it covers all, "
+            "or nearly all, aspects of the task with clear logic, and any gaps are minor "
+            "and do not block task completion. Score 0 for a plan with missing critical "
+            "steps or disordered logic."
+            "\n</scoring>" + "\n\n<assessment_boundaries>\n"
+            "Assess feasibility, sufficiency, ordering, or dependencies from the "
+            "observable plan. A plan need not expose an argument. Do not assess "
+            "whether the plan's reasoning is logically valid; only assess whether "
+            "the proposed actions are feasible and sufficient. If the session "
+            "contains no observable plan or sequence of proposed actions, the "
+            "criterion does not apply."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

@@ -1,0 +1,14 @@
+Service request pilot sync — 14 October 2026, 10:00–10:40
+People there: me (engineering), Priya (operations), Daniel (service desk), Farah (team lead)
+
+We looked at the new request form. Priya said it now has a required owner field and a place to add attachments. Daniel has not checked whether everyone in the pilot teams can open the form.
+
+Agreed: run a two-week pilot from 2 November with the Platform and Service Desk teams. Other teams keep using the current request process. No company-wide launch date was agreed.
+
+Priya will draft a short FAQ by 23 October. I will test the form with three sample requests by 21 October. Daniel will check access for both pilot teams by 23 October and report any gaps. Farah will share the pilot plan with the two team leads before the next check-in.
+
+Still open: Can older requests be moved into the new form? Daniel will find out. We also did not decide who will cover support during the pilot if the usual contact is away.
+
+Someone mentioned that the form might make triage 30% faster, but I did not see any data for that. Please do not write it as a confirmed result.
+
+Next check-in: 26 October. I did not note the time.

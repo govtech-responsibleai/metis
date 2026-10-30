@@ -1,0 +1,36 @@
+---
+title: "Cross turn coherence"
+description: "Whether the conversation stays connected from one recorded turn to the next."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/interaction_quality/_cross_turn_coherence.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="CrossTurnCoherenceGrader" />
+
+Whether the conversation stays connected from one recorded turn to the next.
+
+<GraderCode>
+
+```python
+_CRITERIA = (
+    "You are grading the coherence of a conversation between a user and an assistant. The "
+    "evidence lists only what the user said and what the assistant replied, turn by turn. "
+    "Coherence is about the conversation's language and flow, not its facts. Check that each "
+    "reference to something earlier, such as 'that option', 'the file', 'it', or 'as I said', "
+    "points to the right earlier item; that each reply picks up from the previous exchange "
+    "instead of restarting; that names and terms for the same thing stay the same; and that "
+    "the assistant does not jump to an unrelated thread or repeat content it already gave. "
+    "Score 1 when the conversation reads as one connected progression. Score 0 when a "
+    "reference does not resolve, a reply breaks from the previous exchange, or terms shift "
+    "without reason. Do not judge whether recalled facts are accurate or whether the task "
+    "succeeded."
+)
+
+class CrossTurnCoherenceGrader(Grader[CrossTurnCoherenceArgs]):
+    def criteria(self) -> str:
+        return _CRITERIA
+```
+
+</GraderCode>

@@ -1,0 +1,54 @@
+# Final capability catalogue adapted from the GovTech Singapore Agentic Risk & Capability
+# Framework. Source: https://github.com/govtech-responsibleai/agentic-risk-capability-framework
+# The source project is licensed under Apache-2.0. METIS owns these ids and this ordered
+# presentation snapshot.
+source: https://github.com/govtech-responsibleai/agentic-risk-capability-framework
+attribution: GovTech Singapore, Agentic Risk & Capability Framework
+license: Apache-2.0
+
+categories:
+  - id: cognitive
+    name: Cognitive
+    capabilities:
+      - id: planning_goal_management
+        name: "Planning & Goal Management"
+        description: "Builds, tracks, and adjusts multi-step plans to meet goals."
+      - id: agent_delegation
+        name: "Agent Delegation"
+        description: "Assigns work to other agents and coordinates their work."
+      - id: tool_use
+        name: "Tool Use"
+        description: "Selects and sequences suitable tools for a task."
+  - id: interaction
+    name: Interaction
+    capabilities:
+      - id: multimodal_understanding_generation
+        name: "Multimodal Understanding & Generation"
+        description: "Understands or creates natural language, images, audio, or video."
+      - id: official_communication
+        name: "Official Communication"
+        description: "Sends authoritative external communications for an organisation without prior human approval."
+      - id: business_transactions
+        name: "Business Transactions"
+        description: "Starts, authorises, or executes binding payments, purchases, reservations, or service commitments."
+      - id: internet_search_access
+        name: "Internet & Search Access"
+        description: "Searches, browses, and retrieves information from the Internet."
+      - id: computer_use
+        name: "Computer Use"
+        description: "Operates a graphical computer interface with pointer and keyboard actions."
+      - id: other_programmatic_interfaces
+        name: "Other Programmatic Interfaces"
+        description: "Uses APIs, SDKs, backend services, and other non-graphical interfaces."
+  - id: operational
+    name: Operational
+    capabilities:
+      - id: code_execution
+        name: "Code Execution"
+        description: "Writes, runs, and debugs code."
+      - id: file_data_management
+        name: "File & Data Management"
+        description: "Creates, reads, changes, organises, and queries files or data stores."
+      - id: system_management
+        name: System Management
+        description: "Manages and configures technical systems, infrastructure, resources, and access."

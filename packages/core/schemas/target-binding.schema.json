@@ -1,0 +1,294 @@
+{
+  "$defs": {
+    "Advice": {
+      "additionalProperties": false,
+      "description": "Advice for the runner agent. Code does not check these fields.",
+      "properties": {
+        "limits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Limits"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notes": {
+          "default": "",
+          "title": "Notes",
+          "type": "string"
+        }
+      },
+      "title": "Advice",
+      "type": "object"
+    },
+    "Auth": {
+      "additionalProperties": false,
+      "description": "How the engine authenticates every request. The runner agent never sees it.",
+      "properties": {
+        "scheme": {
+          "const": "from_spec",
+          "default": "from_spec",
+          "description": "Use the security scheme the API specification declares.",
+          "title": "Scheme",
+          "type": "string"
+        },
+        "secret_env": {
+          "description": "The environment variable holding the credential.",
+          "pattern": "^[A-Z_][A-Z0-9_]*$",
+          "title": "Secret Env",
+          "type": "string"
+        }
+      },
+      "required": [
+        "secret_env"
+      ],
+      "title": "Auth",
+      "type": "object"
+    },
+    "Limits": {
+      "additionalProperties": false,
+      "description": "The target's rate limits, as the runner agent should pace itself.",
+      "properties": {
+        "submit_per_minute": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Submit Per Minute"
+        },
+        "read_per_minute": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Read Per Minute"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "title": "Limits",
+      "type": "object"
+    },
+    "Login": {
+      "additionalProperties": false,
+      "description": "How the runner agent signs in to a web app before the first trial.",
+      "properties": {
+        "note": {
+          "description": "The sign-in steps in plain words. Write `{{secret:NAME}}` where a secret is typed; the engine fills it in and logs `***`.",
+          "minLength": 1,
+          "title": "Note",
+          "type": "string"
+        },
+        "secrets": {
+          "description": "The environment variables holding the secrets the note types.",
+          "items": {
+            "pattern": "^[A-Z_][A-Z0-9_]*$",
+            "type": "string"
+          },
+          "title": "Secrets",
+          "type": "array"
+        }
+      },
+      "required": [
+        "note"
+      ],
+      "title": "Login",
+      "type": "object"
+    },
+    "SecretHeader": {
+      "additionalProperties": false,
+      "description": "A header the engine adds, from an environment variable, to matching requests.",
+      "properties": {
+        "match": {
+          "pattern": "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|\\*) /[^\\s{}?#]*$",
+          "title": "Match",
+          "type": "string"
+        },
+        "header": {
+          "pattern": "^[A-Za-z0-9-]+$",
+          "title": "Header",
+          "type": "string"
+        },
+        "env": {
+          "description": "The environment variable holding the value.",
+          "pattern": "^[A-Z_][A-Z0-9_]*$",
+          "title": "Env",
+          "type": "string"
+        }
+      },
+      "required": [
+        "match",
+        "header",
+        "env"
+      ],
+      "title": "SecretHeader",
+      "type": "object"
+    },
+    "TargetIdentity": {
+      "additionalProperties": false,
+      "description": "Which app this binding is for.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "TargetIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A hand-written binding of one app to the generic HTTP or browser runner.\n\nAn ``http`` binding needs ``spec_url``. A ``browser`` binding needs ``start_url`` and\nmay add ``login``. Each transport rejects the other's fields.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "identity": {
+      "$ref": "#/$defs/TargetIdentity"
+    },
+    "transport": {
+      "enum": [
+        "http",
+        "browser"
+      ],
+      "title": "Transport",
+      "type": "string"
+    },
+    "spec_url": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Where to fetch the app's OpenAPI specification; required for `http`. `${NAME}` references are expanded from the environment by the engine.",
+      "title": "Spec Url"
+    },
+    "start_url": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The page the browser opens first; required for `browser`. `${NAME}` references are expanded from the environment by the engine.",
+      "title": "Start Url"
+    },
+    "login": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Login"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "tls_verify": {
+      "default": true,
+      "title": "Tls Verify",
+      "type": "boolean"
+    },
+    "auth": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Auth"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "secret_headers": {
+      "description": "Headers the engine adds to matching requests; never shown to the runner agent.",
+      "items": {
+        "$ref": "#/$defs/SecretHeader"
+      },
+      "title": "Secret Headers",
+      "type": "array"
+    },
+    "submissions": {
+      "description": "Endpoints whose calls send the user's message. Empty means the engine's default rule: any POST, PUT or PATCH with a JSON body.",
+      "items": {
+        "pattern": "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|\\*) /[^\\s{}?#]*$",
+        "type": "string"
+      },
+      "title": "Submissions",
+      "type": "array"
+    },
+    "forbidden_calls": {
+      "description": "Calls the engine refuses to send.",
+      "items": {
+        "pattern": "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|\\*) /[^\\s{}?#]*$",
+        "type": "string"
+      },
+      "title": "Forbidden Calls",
+      "type": "array"
+    },
+    "preflight_reads": {
+      "description": "Paths the engine reads before a trial; a failure is a warning only.",
+      "items": {
+        "pattern": "^/[^\\s{}?#]*$",
+        "type": "string"
+      },
+      "title": "Preflight Reads",
+      "type": "array"
+    },
+    "advice": {
+      "$ref": "#/$defs/Advice"
+    }
+  },
+  "required": [
+    "schema_version",
+    "identity",
+    "transport"
+  ],
+  "title": "TargetBinding v1",
+  "type": "object"
+}

@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 356" width="740" height="356" role="img" aria-labelledby="title desc">
+  <title id="title">The specification tree</title>
+  <desc id="desc">A Target has Features. Each Feature has Behaviours, and each Behaviour has Criteria. You choose the Behaviours to measure, and the rest stay out of the tests. Each level answers one question about your application.</desc>
+  <style>
+    text { font-family: Lato, "Helvetica Neue", Arial, sans-serif; }
+    .line { stroke: #9cc3c7; stroke-width: 1.5; fill: none; }
+    .line-off { stroke: #e0e0e0; stroke-width: 1.5; fill: none; }
+    .target { fill: #0e5159; }
+    .feature { fill: #4f8f96; }
+    .behaviour { fill: #cfe6e8; }
+    .criterion { fill: #eef6f7; stroke: #cfe6e8; stroke-width: 1; }
+    .off { fill: #f3f3f3; stroke: #e6e6e6; stroke-width: 1; }
+    .t-white { fill: #ffffff; font-size: 14px; font-weight: 700; }
+    .t-teal { fill: #0e5159; font-size: 12px; font-weight: 700; }
+    .t-crit { fill: #0e5159; font-size: 11px; }
+    .t-off { fill: #b5b5b5; font-size: 12px; }
+    .t-off-crit { fill: #bdbdbd; font-size: 11px; }
+    .q-bar { fill: #9cc3c7; }
+    .q { fill: #404040; font-size: 13px; }
+    .legend { fill: #525252; font-size: 12px; }
+  </style>
+
+  <rect x="0" y="0" width="740" height="356" rx="16" fill="#fafafa"/>
+
+  <g transform="translate(14,14)">
+    <!-- Target to Features -->
+    <path class="line" d="M240,54 V76 M80,76 H240 M80,76 V96 M240,76 V96"/>
+    <path class="line-off" d="M240,76 H400 V96"/>
+
+    <!-- Features to Behaviours -->
+    <path class="line" d="M80,132 V146 M43,146 H80 M43,146 V160 M240,132 V160"/>
+    <path class="line-off" d="M80,146 H117 V160 M400,132 V146 M363,146 H437 M363,146 V160 M437,146 V160"/>
+
+    <!-- Behaviours to Criteria -->
+    <path class="line" d="M16,194 V256 M16,226 H24 M16,256 H24 M176,194 V286 M176,226 H184 M176,256 H184 M176,286 H184"/>
+    <path class="line-off" d="M90,194 V226 H98 M336,194 V256 M336,226 H344 M336,256 H344 M410,194 V226 H418"/>
+
+    <!-- Target -->
+    <rect class="target" x="165" y="14" width="150" height="40" rx="8"/>
+    <text class="t-white" x="240" y="39" text-anchor="middle">Target</text>
+
+    <!-- Features -->
+    <rect class="feature" x="10" y="96" width="140" height="36" rx="8"/>
+    <text class="t-white" x="80" y="119" text-anchor="middle">Feature</text>
+    <rect class="feature" x="170" y="96" width="140" height="36" rx="8"/>
+    <text class="t-white" x="240" y="119" text-anchor="middle">Feature</text>
+    <rect class="off" x="330" y="96" width="140" height="36" rx="8"/>
+    <text class="t-off" x="400" y="119" text-anchor="middle" style="font-size:14px">Feature</text>
+
+    <!-- Behaviours -->
+    <rect class="behaviour" x="10" y="160" width="66" height="34" rx="7"/>
+    <text class="t-teal" x="43" y="181" text-anchor="middle">Behaviour</text>
+    <rect class="off" x="84" y="160" width="66" height="34" rx="7"/>
+    <text class="t-off" x="117" y="181" text-anchor="middle">Behaviour</text>
+    <rect class="behaviour" x="170" y="160" width="140" height="34" rx="7"/>
+    <text class="t-teal" x="240" y="181" text-anchor="middle">Behaviour</text>
+    <rect class="off" x="330" y="160" width="66" height="34" rx="7"/>
+    <text class="t-off" x="363" y="181" text-anchor="middle">Behaviour</text>
+    <rect class="off" x="404" y="160" width="66" height="34" rx="7"/>
+    <text class="t-off" x="437" y="181" text-anchor="middle">Behaviour</text>
+
+    <!-- Criteria -->
+    <rect class="criterion" x="24" y="214" width="52" height="24" rx="5"/>
+    <text class="t-crit" x="50" y="230" text-anchor="middle">Criterion</text>
+    <rect class="criterion" x="24" y="244" width="52" height="24" rx="5"/>
+    <text class="t-crit" x="50" y="260" text-anchor="middle">Criterion</text>
+
+    <rect class="off" x="98" y="214" width="52" height="24" rx="5"/>
+    <text class="t-off-crit" x="124" y="230" text-anchor="middle">Criterion</text>
+
+    <rect class="criterion" x="184" y="214" width="126" height="24" rx="5"/>
+    <text class="t-crit" x="247" y="230" text-anchor="middle">Criterion</text>
+    <rect class="criterion" x="184" y="244" width="126" height="24" rx="5"/>
+    <text class="t-crit" x="247" y="260" text-anchor="middle">Criterion</text>
+    <rect class="criterion" x="184" y="274" width="126" height="24" rx="5"/>
+    <text class="t-crit" x="247" y="290" text-anchor="middle">Criterion</text>
+
+    <rect class="off" x="344" y="214" width="52" height="24" rx="5"/>
+    <text class="t-off-crit" x="370" y="230" text-anchor="middle">Criterion</text>
+    <rect class="off" x="344" y="244" width="52" height="24" rx="5"/>
+    <text class="t-off-crit" x="370" y="260" text-anchor="middle">Criterion</text>
+
+    <rect class="off" x="418" y="214" width="52" height="24" rx="5"/>
+    <text class="t-off-crit" x="444" y="230" text-anchor="middle">Criterion</text>
+
+    <!-- Questions -->
+    <rect class="q-bar" x="500" y="18" width="3" height="32" rx="1.5"/>
+    <text class="q" x="512" y="39">Tell us about your product.</text>
+
+    <rect class="q-bar" x="500" y="96" width="3" height="36" rx="1.5"/>
+    <text class="q" x="512" y="111">What are the key tasks of</text>
+    <text class="q" x="512" y="127">your application?</text>
+
+    <rect class="q-bar" x="500" y="160" width="3" height="34" rx="1.5"/>
+    <text class="q" x="512" y="174">Which behaviours do you</text>
+    <text class="q" x="512" y="190">expect from it?</text>
+
+    <rect class="q-bar" x="500" y="214" width="3" height="54" rx="1.5"/>
+    <text class="q" x="512" y="230">What makes a result</text>
+    <text class="q" x="512" y="246">good? Each Criterion gets</text>
+    <text class="q" x="512" y="262">a grader.</text>
+
+    <!-- Legend -->
+    <rect class="behaviour" x="10" y="312" width="14" height="14" rx="3"/>
+    <text class="legend" x="30" y="324">Chosen to measure</text>
+    <rect class="off" x="160" y="312" width="14" height="14" rx="3"/>
+    <text class="legend" x="180" y="324">Not chosen</text>
+  </g>
+</svg>

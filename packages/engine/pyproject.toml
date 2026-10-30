@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "metis-engine"
+version = "1.0.0b1"
+description = "Evaluation engine — simulation and grading for METIS"
+requires-python = ">=3.11"
+dependencies = [
+    "metis-core>=0.5.0",
+    "metis-library>=0.10.0",
+    "openai>=1.0.0",
+    # Reads the target's traces, and traces the engine's own model calls to the METIS-internal
+    # Langfuse through the `langfuse.openai` drop-in. The code uses the Python SDK v3 API.
+    "langfuse>=3.0,<4.0",
+    "pydantic>=2",
+    "tenacity>=8.0.0",
+    "pyyaml>=6.0",
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+playwright = ["playwright>=1.50.0"]
+
+[project.scripts]
+metis-engine = "metis.engine.cli:app"
+
+[tool.uv.sources]
+metis-core = { workspace = true }
+metis-library = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/metis"]

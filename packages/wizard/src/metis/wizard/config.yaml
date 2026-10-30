@@ -1,0 +1,28 @@
+settings:
+  clarify_turn_cap: 5
+
+opening_question: "Tell me about your product. What does it do, and who uses it?"
+
+perspectives:
+  - id: end_user
+    label: "End user"
+    question: "Is the user getting what they came for?"
+  - id: engineer
+    label: "Engineer"
+    question: "Is the agent performing as intended, correctly and efficiently?"
+  - id: compliance
+    label: "Compliance"
+    question: "Are our responses audited, grounded, and within compliance policy scope?"
+  - id: security
+    label: "Security"
+    question: "Is our target safe against malicious attacks?"
+
+statuses:
+  working: "Working on your Interview…"
+  clarify: "Understanding your agent…"
+  behaviours: "Shaping expected behaviours…"
+  criteria: "Writing testable criteria…"
+  personas: "Designing evaluator personas…"
+  scenarios: "Building coverage scenarios…"
+  test_cases: "Matching personas to scenarios…"
+  done: "Finishing up…"

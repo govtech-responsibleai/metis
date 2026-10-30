@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "metis-library"
+version = "1.0.0b1"
+description = "Shared catalog of metrics, skills, and reusable components for the METIS evaluation suite"
+requires-python = ">=3.11"
+dependencies = [
+    "metis-core>=0.5.0",
+    "openai>=1.0.0",
+    "jsonschema>=4.0.0",
+]
+
+[tool.uv.sources]
+metis-core = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/metis"]

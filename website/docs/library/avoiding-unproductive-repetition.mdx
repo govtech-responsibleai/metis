@@ -1,0 +1,38 @@
+---
+title: "Avoiding unproductive repetition"
+description: "Whether the agent avoids repeating equivalent actions without progress."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/execution_and_decision_quality/_avoiding_unproductive_repetition.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="AvoidingUnproductiveRepetitionGrader" />
+
+Assess whether the agent avoids repeating equivalent actions without progress.
+
+<GraderCode>
+
+```python
+class TaskArgs(BaseModel):
+    task_description: NonEmptyText | None = None
+    """What the agent was asked to do. When unset, the judge infers the goal from the user's
+    messages. A criterion runs in every task that selects its behaviour, so this text applies
+    to the scenarios of all those tasks."""
+
+
+class AvoidingUnproductiveRepetitionGrader(Grader[AvoidingUnproductiveRepetitionArgs]):
+    def criteria(self) -> str:
+        return (
+            "You are assessing whether the agent avoids repeating substantially "
+            "equivalent actions without new evidence or progress."
+            + self.args.task_block()
+            + "\n\n<assessment_boundaries>\n"
+            "Allow retries justified by transient conditions or new information. "
+            "Step count alone does not establish a loop. A session with no repeated "
+            "actions avoids unproductive repetition, so score it 1."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

@@ -1,0 +1,59 @@
+---
+title: "Output naturalness"
+description: "Whether the assistant's replies read as fluent, idiomatic text in their language."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/interaction_quality/_output_naturalness.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="OutputNaturalnessGrader" />
+
+Whether the assistant's replies read as fluent, idiomatic text in their language.
+
+<GraderCode>
+
+```python
+class SubsessionArgs(BaseModel):
+    turn: Literal["each", "last"] = "each"
+    """The recorded turn each subsession ends at: ``each`` recorded turn, or only the ``last``
+    one."""
+    window: int | None = Field(default=None, ge=1, strict=True)
+    """How many recorded turns one subsession holds: its end turn and the recorded turns just
+    before it. ``None`` holds every recorded turn before it, so the judge has the whole
+    conversation so far. The recorded turns before the subsession are not shown to the judge."""
+
+
+class OutputNaturalnessArgs(JudgeArgs, SubsessionArgs):
+    conventions: NonEmptyText | None = Field(
+        default=None,
+        description=(
+            "The norms that a fluent reader or listener of the output expects, such as "
+            '"Singapore English" or "British spelling".'
+        ),
+    )
+
+
+_CRITERIA = (
+    "You are grading output naturalness: whether the assistant's replies read as fluent, "
+    "conventional writing in their language, as a fluent reader would write it. Check "
+    "spelling and grammar; natural word choice and idiom; sentences that flow into each "
+    "other; and the absence of stiff, robotic, garbled, or machine-translated phrasing, "
+    "stray markup, or text that switches language without reason. Score 1 when the replies "
+    "read naturally. Score 0 when a reply has errors or phrasing awkward enough that a "
+    "fluent reader would notice. Naturalness does not require sounding human. Do not judge "
+    "tone, organization, correctness, or task success."
+)
+
+class OutputNaturalnessGrader(Grader[OutputNaturalnessArgs]):
+    def criteria(self) -> str:
+        if self.args.conventions is None:
+            return _CRITERIA
+        return (
+            f"{_CRITERIA} Judge against these conventions: {self.args.conventions} A form "
+            "that these conventions allow is not an error, even when another variety would "
+            "use a different form."
+        )
+```
+
+</GraderCode>

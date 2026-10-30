@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=../../../core/schemas/target-binding.schema.json
+# A chat app that has only a web page, bound to the generic browser runner. The runner
+# has never met a live page, and this file is a template to change: the URL, the secret
+# names and the sign-in steps are made up.
+schema_version: 1
+identity: {name: Example web chat}
+transport: browser
+start_url: ${CHAT_URL}
+login:
+  note: >-
+    Sign in on the start page: type {{secret:CHAT_USER}} in the email box and
+    {{secret:CHAT_PASSWORD}} in the password box, then press Sign in.
+  secrets: [CHAT_USER, CHAT_PASSWORD]
+advice:
+  notes: |
+    Type the message in the chat box and press Send. Wait until the reply has finished
+    before acting again. Attach files with the attach control before sending.

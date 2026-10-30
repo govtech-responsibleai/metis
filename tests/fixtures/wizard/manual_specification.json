@@ -1,0 +1,153 @@
+{
+  "schema_version": 1,
+  "id": "manual-research",
+  "runner_factory_ref": "metis.engine.simulation.runners.http.HttpRunnerFactory",
+  "target": {
+    "name": "manual-research",
+    "description": "Check research answers and recovery.",
+    "users": "The personas defined in this manual experiment.",
+    "detail": ""
+  },
+  "features": [
+    {
+      "id": "EP-1",
+      "name": "Manual experiment",
+      "description": "Check research answers and recovery.",
+      "behaviours": [
+        {
+          "id": "EB-1",
+          "name": "supported-answer: analyst",
+          "description": "Ask for a supported answer.",
+          "measured": true,
+          "criteria": [
+            {
+              "id": "AC-1-1",
+              "name": "Synthesis faithfulness",
+              "description": "Synthesis faithfulness: Checks that the answer uses its evidence.",
+              "grader_fqn": "tests.unit.engine.graders_for_tests.FixedScoreGrader",
+              "grader_args": {}
+            },
+            {
+              "id": "AC-1-2",
+              "name": "Turn budget",
+              "description": "Turn budget: Checks that the conversation stays within its turn budget.",
+              "grader_fqn": "metis.library.graders.demo.DemoTraceBudgetGrader",
+              "grader_args": {}
+            }
+          ]
+        },
+        {
+          "id": "EB-2",
+          "name": "supported-answer: director",
+          "description": "Ask for a supported answer.",
+          "measured": true,
+          "criteria": [
+            {
+              "id": "AC-2-1",
+              "name": "Synthesis faithfulness",
+              "description": "Synthesis faithfulness: Checks that the answer uses its evidence.",
+              "grader_fqn": "tests.unit.engine.graders_for_tests.FixedScoreGrader",
+              "grader_args": {}
+            },
+            {
+              "id": "AC-2-2",
+              "name": "Turn budget",
+              "description": "Turn budget: Checks that the conversation stays within its turn budget.",
+              "grader_fqn": "metis.library.graders.demo.DemoTraceBudgetGrader",
+              "grader_args": {}
+            }
+          ]
+        },
+        {
+          "id": "EB-3",
+          "name": "short-recovery: analyst",
+          "description": "Recover after a failed search.",
+          "measured": true,
+          "criteria": [
+            {
+              "id": "AC-3-1",
+              "name": "Turn budget",
+              "description": "Turn budget: Checks that the conversation stays within its turn budget.",
+              "grader_fqn": "metis.library.graders.demo.DemoTraceBudgetGrader",
+              "grader_args": {}
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "personas": [
+    {
+      "id": "analyst",
+      "name": "analyst",
+      "description": "A careful policy analyst."
+    },
+    {
+      "id": "director",
+      "name": "director",
+      "description": "A time-poor director."
+    }
+  ],
+  "tasks": [
+    {
+      "id": "",
+      "scenario_ref": "supported-answer",
+      "persona_ref": "analyst",
+      "fixtures": [
+        "policy.pdf"
+      ],
+      "num_trials": 2,
+      "max_turns": 20,
+      "timeout_minutes": 15,
+      "response_wait_ms": 300000,
+      "max_run_retries": null,
+      "behaviour_refs": [
+        "EB-1"
+      ]
+    },
+    {
+      "id": "",
+      "scenario_ref": "supported-answer",
+      "persona_ref": "director",
+      "fixtures": [
+        "policy.pdf"
+      ],
+      "num_trials": 2,
+      "max_turns": 20,
+      "timeout_minutes": 15,
+      "response_wait_ms": 300000,
+      "max_run_retries": null,
+      "behaviour_refs": [
+        "EB-2"
+      ]
+    },
+    {
+      "id": "",
+      "scenario_ref": "short-recovery",
+      "persona_ref": "analyst",
+      "fixtures": [
+        "notes.txt"
+      ],
+      "num_trials": 1,
+      "max_turns": 20,
+      "timeout_minutes": 15,
+      "response_wait_ms": 300000,
+      "max_run_retries": null,
+      "behaviour_refs": [
+        "EB-3"
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "supported-answer",
+      "name": "supported-answer",
+      "description": "Ask for a supported answer."
+    },
+    {
+      "id": "short-recovery",
+      "name": "short-recovery",
+      "description": "Recover after a failed search."
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Wizard specification reviewer · METIS</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="reviewer.css">
+    <script src="reviewer.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#case-title">Skip to specification</a>
+    <div class="app-layout">
+      <aside class="sidebar" aria-label="Eval use cases">
+        <div class="sidebar-brand">METIS-testbed</div>
+        <div class="sidebar-heading"><h1>Eval use cases</h1><span id="case-count"></span></div>
+        <nav id="case-list" aria-label="Choose a use case"></nav>
+
+      </aside>
+      <main id="workspace">
+        <div id="loading" role="status">Loading reference specifications…</div>
+        <div id="case-workspace" hidden>
+          <section class="case-header">
+            <div class="case-heading"><h2 id="case-title" tabindex="-1"></h2><dl id="case-summary" class="spec-counts" aria-label="Specification counts"></dl></div>
+            <div class="case-navigation"><button id="previous" aria-label="Previous specification" title="Previous specification"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m14 6-6 6 6 6"/></svg></button><button id="next" aria-label="Next specification" title="Next specification"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m10 6 6 6-6 6"/></svg></button></div>
+          </section>
+          <div class="comparison">
+            <section class="pane input-pane" aria-labelledby="input-heading">
+              <header class="pane-heading"><h3 id="input-heading">Inputs</h3><a id="open-documents" class="text-link" target="_blank" rel="noopener" title="Requires the supporting documents in your local checkout">Open documents folder</a></header>
+              <article id="document" class="document scroll-region" tabindex="0" aria-label="Input prompt"></article>
+            </section>
+            <section class="pane output-pane" aria-labelledby="output-heading">
+              <header class="pane-heading"><h3 id="output-heading">Outputs</h3><label class="yaml-toggle"><input id="yaml-toggle" type="checkbox" aria-label="View YAML">.yaml</label></header>
+              <div id="output" class="output scroll-region" tabindex="0" aria-label="Specification content"></div>
+            </section>
+          </div>
+
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

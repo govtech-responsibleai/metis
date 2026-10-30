@@ -1,0 +1,69 @@
+---
+title: "Task constraint adherence"
+description: "Whether explicit execution or presentation restrictions were respected."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/task_and_output_quality/_task_constraint_adherence.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="TaskConstraintAdherenceGrader" />
+
+Assess whether explicit execution or presentation restrictions were respected.
+
+Adapted from [MLflow Guidelines](https://github.com/mlflow/mlflow/blob/ad8419718140a5d9957722d8196ced9a1d77c14a/mlflow/genai/judges/prompts/guidelines.py).
+
+<GraderCode>
+
+```python
+class ArtifactArgs(BaseModel):
+    artifact: NonEmptyText | None = None
+    """The name of the file to judge. When the target revised the file, the judge reads the
+    latest version."""
+
+
+class TaskConstraintAdherenceArgs(JudgeArgs, ArtifactArgs):
+    constraints: tuple[NonEmptyText, ...] = Field(
+        min_length=1,
+        description="Explicit execution or presentation restrictions to check.",
+    )
+
+
+class TaskConstraintAdherenceGrader(Grader[TaskConstraintAdherenceArgs]):
+    def criteria(self, constraint: str) -> str:
+        return (
+            "Given the following constraint and the assessed evidence, please assess "
+            "whether the evidence fully complies with the provided constraint. Only "
+            "focus on the provided constraint and not the correctness, relevance, or "
+            "effectiveness of the evidence. The constraint is one explicit restriction "
+            "on task execution or response presentation."
+            f"\n\n<constraint>\n{constraint}\n</constraint>"
+            "\n\nScore 0 if the constraint is not satisfied, and state which parts of "
+            "the constraint are not satisfied in your reason. Score 1 if the constraint "
+            "is satisfied."
+            "\n\n<assessment_boundaries>\n"
+            "Assess explicit execution or presentation restrictions. Constraints are "
+            "restrictions such as limits, prohibitions, required formats, and permitted "
+            "resources. Do not treat a request to include something as a constraint "
+            "(that is a required component, not a restriction). "
+            + self._evidence_rule()
+            + "If the evidence is genuinely insufficient to decide the constraint, the "
+            "criterion does not apply."
+            "\n</assessment_boundaries>"
+        )
+
+    def _evidence_rule(self) -> str:
+        if self.scope == Scope.ARTIFACT:
+            return (
+                "Judge only the attached file. A constraint on how the "
+                "agent worked, such as spending or timing, cannot be decided from the "
+                "file. "
+            )
+        return (
+            "Look for evidence in tool call arguments, tool results, and agent responses. "
+            "A constraint on spending, timing, or resource use may be established solely "
+            "by tool results even when the agent does not mention it in conversation. "
+        )
+```
+
+</GraderCode>

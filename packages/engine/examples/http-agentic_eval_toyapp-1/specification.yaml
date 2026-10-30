@@ -1,0 +1,207 @@
+schema_version: 1
+id: toyapp-http-simple
+runner_factory_ref: metis.engine.simulation.runners.http.HttpRunnerFactory
+target_binding: toyapp-api.yaml
+target:
+  name: Employee Policy Assistant
+  users: Employees of Northstar Services, a fictional company.
+  description: A lightweight RAG application that answers employee policy questions using
+    a fixed document collection.
+  detail: ''
+features:
+- id: F-1
+  name: Employee policy question answering
+  description: Answer employees' questions about the supported policies using the fixed policy
+    collection.
+  behaviours:
+  - id: EB-1
+    name: Gives policy answers that are accurate and supported
+    description: Policy claims match the available policy information, preserve important
+      qualifications, and do not invent unsupported details.
+    measured: true
+    criteria:
+    - id: AC-1-1
+      name: Policy details match the available information
+      description: Given available policy source material relevant to the employee’s question,
+        when the target answers the policy question, then the policy details in the answer
+        accurately match the source material.
+      grader_fqn: metis.library.graders.CriterionJudgeGrader
+      grader_args:
+        threshold: 0.5
+    - id: AC-1-2
+      name: Preserves important policy qualifications
+      description: Given policy source material that includes a material qualification or
+        limitation, when the target answers a question about that policy information, then
+        the answer preserves the qualification or limitation so it does not misstate what
+        applies.
+      grader_fqn: metis.library.graders.CriterionJudgeGrader
+      grader_args:
+        threshold: 0.5
+    - id: AC-1-3
+      name: Does not invent unsupported policy details
+      description: Given a policy question and the available policy source material, when
+        the target answers the question, then the answer contains no factual policy detail
+        that is unsupported by the source material.
+      grader_fqn: metis.library.graders.CriterionJudgeGrader
+      grader_args:
+        threshold: 0.5
+  - id: EB-2
+    name: Addresses the employee's actual question and instructions
+    description: The response is relevant to what the employee asked and follows their explicit
+      constraints, without adding unnecessary information or friction.
+    measured: true
+    criteria:
+    - id: AC-2-1
+      name: Addresses the question asked
+      description: Given an employee policy question, when the target responds to the question,
+        then the response addresses the substance of the employee’s actual question.
+      grader_fqn: metis.library.graders.CriterionJudgeGrader
+      grader_args:
+        threshold: 0.5
+    - id: AC-2-2
+      name: Follows explicit response instructions
+      description: Given an employee question that includes explicit instructions about the
+        response, when the target responds to the question, then the response follows those
+        instructions.
+      grader_fqn: metis.library.graders.CriterionJudgeGrader
+      grader_args:
+        threshold: 0.5
+    - id: AC-2-3
+      name: Avoids unrelated additions
+      description: Given an employee policy question with a direct answer available, when
+        the target responds to the question, then the response does not add information
+        unrelated to the question.
+      grader_fqn: metis.library.graders.CriterionJudgeGrader
+      grader_args:
+        threshold: 0.5
+  - id: EB-3
+    name: Resolves material ambiguity or missing information appropriately
+    description: When missing or conflicting details could change the answer, asks a concise,
+      useful clarifying question; when the available information cannot answer the question,
+      makes that limitation clear rather than presenting a guess.
+    measured: true
+    criteria:
+    - id: AC-3-1
+      name: Clarifies material ambiguity
+      description: Given a question missing information whose possible values could materially
+        change the answer, when the target responds to the question, then the target asks
+        a concise clarifying question before giving an answer that depends on the missing
+        information.
+      grader_fqn: metis.library.graders.CriterionJudgeGrader
+      grader_args:
+        threshold: 0.5
+    - id: AC-3-2
+      name: States when policy information is unavailable
+      description: Given a question that cannot be answered from the available policy information,
+        when the target responds to the question, then the response clearly states that
+        the available information does not establish the answer, rather than guessing.
+      grader_fqn: metis.library.graders.CriterionJudgeGrader
+      grader_args:
+        threshold: 0.5
+  - id: EB-4
+    name: Communicates the answer clearly and helpfully
+    description: Presents the information in direct, understandable language and a suitable
+      tone so the employee can tell what applies to them.
+    measured: true
+    criteria:
+    - id: AC-4-1
+      name: Communicates in understandable language
+      description: Given an employee policy question and relevant policy information, when
+        the target presents its response, then the response is direct and understandable
+        to an employee.
+      grader_fqn: metis.library.graders.CriterionJudgeGrader
+      grader_args:
+        threshold: 0.5
+    - id: AC-4-2
+      name: Uses a suitable tone
+      description: Given an employee seeking policy information, when the target presents
+        its response, then the tone is appropriate and helpful for an employee seeking policy
+        guidance.
+      grader_fqn: metis.library.graders.CriterionJudgeGrader
+      grader_args:
+        threshold: 0.5
+personas:
+- id: direct-employee-questioner
+  name: Direct employee questioner
+  description: Asks a straightforward policy question and prefers a direct, understandable
+    answer without extra detail.
+  metadata:
+    role: employee
+- id: fragmented-changing-mind-questioner
+  name: Fragmented, changing-mind questioner
+  description: Provides relevant details in pieces, may revise what they want partway through,
+    and expects the response to reflect the latest information.
+  metadata: {}
+- id: constraint-focused-questioner
+  name: Constraint-focused questioner
+  description: States clear requirements for the answer, such as what to include or leave
+    out, and notices when those instructions are not followed.
+  metadata: {}
+- id: uncertain-policy-seeker
+  name: Uncertain policy seeker
+  description: May leave out a detail that affects the answer; when asked, supplies more information
+    and values a plain explanation of what the policy does or does not establish.
+  metadata: {}
+scenarios:
+- id: S-1
+  name: Concise annual leave answer
+  description: The employee asks, “How many annual leave days do employees get? Please answer
+    in no more than two sentences and mention any important limits.”
+  metadata:
+    policy_area: Annual Leave Policy
+- id: S-2
+  name: Expense question with missing details
+  description: The employee asks, “Can I claim this expense under the policy?” If the assistant
+    asks what the expense was and the circumstances, the employee replies, “It was a taxi
+    fare during a work trip.”
+  metadata:
+    policy_area: Expense Claims Policy
+- id: S-3
+  name: Question outside the policy collection
+  description: The employee asks, “Can I bring my dog to the office?” The policy collection
+    says nothing about pets or the office, and the employee has no additional policy information
+    to offer.
+  metadata: {}
+tasks:
+- id: TC-001
+  scenario_ref: S-1
+  persona_ref: constraint-focused-questioner
+  fixtures: []
+  num_trials: 1
+  behaviour_refs:
+  - EB-1
+  - EB-2
+  - EB-4
+  max_turns: 10
+  timeout_minutes: 10
+  response_wait_ms: 60000
+  max_run_retries: 2
+- id: TC-002
+  scenario_ref: S-2
+  persona_ref: uncertain-policy-seeker
+  fixtures: []
+  num_trials: 1
+  behaviour_refs:
+  - EB-1
+  - EB-2
+  - EB-3
+  - EB-4
+  max_turns: 10
+  timeout_minutes: 10
+  response_wait_ms: 60000
+  max_run_retries: 2
+- id: TC-003
+  scenario_ref: S-3
+  persona_ref: uncertain-policy-seeker
+  fixtures: []
+  num_trials: 1
+  behaviour_refs:
+  - EB-1
+  - EB-2
+  - EB-3
+  - EB-4
+  max_turns: 10
+  timeout_minutes: 10
+  response_wait_ms: 60000
+  max_run_retries: 2
+fixture_content_descriptions: {}

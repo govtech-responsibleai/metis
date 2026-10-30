@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=../../../packages/core/schemas/target-binding.schema.json
+# A chat app's REST API, bound by configuration only. It uses every optional block so the
+# model and the published schema are both exercised.
+schema_version: 1
+identity: { name: Chat App, version: "1.0.0" }
+transport: http
+spec_url: "${CHAT_API_URL}/openapi.json"
+tls_verify: false
+auth: { scheme: from_spec, secret_env: CHAT_API_KEY }
+secret_headers:
+  - { match: "POST /api/v1/chat", header: X-Gateway-Key, env: CHAT_GATEWAY_KEY }
+submissions: ["POST /api/v1/chat"]
+forbidden_calls:
+  - "DELETE /api/v1/**"
+  - "POST /api/v1/chat/cancel"
+preflight_reads: ["/api/v1/usage"]
+advice:
+  limits:
+    submit_per_minute: 6
+    read_per_minute: 120
+    note: "Over a limit is a 429 with Retry-After; code waits and resends. Poll every few seconds."
+  notes: |
+    The first POST /chat without a sessionId starts the session; never call POST /sessions.
+    Upload a file with POST /files first, then list its fileId in the chat turn's files.

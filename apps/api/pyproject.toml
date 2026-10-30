@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "metis-api"
+version = "1.0.0b1"
+description = "METIS REST API service"
+requires-python = ">=3.11"
+dependencies = [
+    "metis-core",
+    # The API is a thin HTTP door over the wizard's public Interview interface. All wizard rules stay
+    # inside metis-wizard; this app translates only HTTP data and status codes.
+    "metis-wizard",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "pydantic>=2.0",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+# FastAPI's TestClient uses httpx; kept as a dev extra so the routes are testable offline.
+test = [
+    "httpx>=0.27",
+    "metis-engine",
+]
+
+[project.scripts]
+metis-api = "metis.api.cli:main"
+
+[tool.uv.sources]
+metis-core = { workspace = true }
+metis-engine = { workspace = true }
+metis-wizard = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/metis"]

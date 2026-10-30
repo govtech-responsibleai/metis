@@ -1,0 +1,69 @@
+---
+title: "Relevance"
+description: "Whether the assistant's replies address what the user needs."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/interaction_quality/_relevance.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="RelevanceGrader" />
+
+Whether the assistant's replies address what the user needs.
+
+Adapted from [DeepEval Turn Relevancy](https://github.com/confident-ai/deepeval/blob/d6cd78ac44da4623ff07c73310dfca474c212068/deepeval/metrics/turn_relevancy/templates/generate_verdicts.txt).
+
+<GraderCode>
+
+```python
+class SubsessionArgs(BaseModel):
+    turn: Literal["each", "last"] = "each"
+    """The recorded turn each subsession ends at: ``each`` recorded turn, or only the ``last``
+    one."""
+    window: int | None = Field(default=None, ge=1, strict=True)
+    """How many recorded turns one subsession holds: its end turn and the recorded turns just
+    before it. ``None`` holds every recorded turn before it, so the judge has the whole
+    conversation so far. The recorded turns before the subsession are not shown to the judge."""
+
+
+class RelevanceArgs(JudgeArgs, SubsessionArgs):
+    purpose: NonEmptyText | None = Field(
+        default=None,
+        description=(
+            'What the assistant is for, such as "answers billing questions for a telecom '
+            'provider". The judge uses it to tell which requests the assistant should '
+            "handle and which it should redirect."
+        ),
+    )
+
+
+_CRITERIA = (
+    "You are grading relevance: whether the assistant's replies are relevant to the context "
+    "in the messages. You MUST USE the previous messages (if any) to make an informed "
+    "judgement on relevancy. A reply is relevant when it responds to the user's current "
+    "message, given what came before. Vague replies to vague inputs, such as greetings, do "
+    "not count as irrelevancies. A needed question or a stated limit can also be relevant. "
+    "A reply is not relevant when it ignores, misreads, or wanders from what the user asked. "
+    "When judging a whole conversation, a few replies that drift do not fail it if the "
+    "conversation as a whole stays on the user's needs. Score 1 for relevant and 0 for not "
+    "relevant."
+)
+
+_BOUNDARIES = (
+    "\n\n<assessment_boundaries>\n"
+    "Do not judge whether a reply is true, complete, or achieves the task."
+    "\n</assessment_boundaries>"
+)
+
+class RelevanceGrader(Grader[RelevanceArgs]):
+    def criteria(self) -> str:
+        if self.args.purpose is None:
+            return _CRITERIA + _BOUNDARIES
+        return (
+            _CRITERIA + f" The operator states that the assistant is for: "
+            f"{self.args.purpose} A reply that redirects or declines a request outside "
+            "that purpose is relevant." + _BOUNDARIES
+        )
+```
+
+</GraderCode>

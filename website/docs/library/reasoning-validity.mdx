@@ -1,0 +1,40 @@
+---
+title: "Reasoning validity"
+description: "Whether recorded conclusions follow from stated premises and evidence."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/execution_and_decision_quality/_reasoning_validity.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="ReasoningValidityGrader" />
+
+Assess whether recorded conclusions follow from stated premises and evidence.
+
+<GraderCode>
+
+```python
+class TaskArgs(BaseModel):
+    task_description: NonEmptyText | None = None
+    """What the agent was asked to do. When unset, the judge infers the goal from the user's
+    messages. A criterion runs in every task that selects its behaviour, so this text applies
+    to the scenarios of all those tasks."""
+
+
+class ReasoningValidityGrader(Grader[ReasoningValidityArgs]):
+    def criteria(self) -> str:
+        return (
+            "You are assessing whether recorded conclusions follow from stated "
+            "premises and evidence under the relevant reasoning rules."
+            + self.args.task_block()
+            + "\n\n<assessment_boundaries>\n"
+            "Evaluate the recorded argument only; do not claim access to hidden "
+            "reasoning. Planning feasibility and decision appropriateness are "
+            "separate. Do not infer a reasoning defect merely from an unsuccessful "
+            "plan; require the argument being assessed. If the session contains no "
+            "recorded reasoning or explicit arguments, the criterion does not apply."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

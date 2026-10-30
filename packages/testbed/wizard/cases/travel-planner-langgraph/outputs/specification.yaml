@@ -1,0 +1,99 @@
+schema_version: 1
+id: travel-planner-langgraph
+runner_factory_ref: ''
+target:
+  name: LangGraph travel planner
+  users: Travellers who need an itinerary within stated constraints.
+  description: The travel planner helps travellers prepare and revise a trip itinerary through a conversation.
+    A traveller can state a destination, travel dates, budget, and preferences. The assistant asks for
+    missing information that it needs to plan the trip.
+  detail: System functions, workflow, and product constraints are described in inputs/prompt.md. The
+    first evaluation measures itinerary validity and accuracy. Scenarios, test cases, and graders are
+    pending review.
+features:
+- id: F-1
+  name: Plan a trip
+  description: Prepare and revise a trip itinerary from the user’s request.
+  behaviours:
+  - id: EB-1
+    name: Present a clear, downloadable itinerary
+    description: Present the itinerary in a consistent format, organised by day and in time order.
+      Use clear headings and show activity times, locations, travel details, and notes so the user can
+      quickly review the plan and follow it during the trip. Provide a downloadable copy that preserves
+      the structure and details shown to the user.
+    measured: false
+    criteria: []
+  - id: EB-2
+    name: Respect and verify the trip budget
+    description: Keep the trip within the user’s budget and verify the total cost. Explain any excess
+      and ask the user what to change.
+    measured: false
+    criteria: []
+  - id: EB-3
+    name: Make sure the itinerary is valid and accurate
+    description: Keep the itinerary consistent with the user’s request and use a feasible schedule. Ground
+      every concrete itinerary detail in an actual tool result. Do not invent details to fill gaps, attribute
+      one tool’s data to another domain, or present stale information as current. Clearly identify synthesis
+      and uncertainty, and attribute claims to the tool evidence that supports them.
+    measured: true
+    criteria:
+    - id: AC-3-1
+      name: Grounding in the user request
+      description: "Given the full user conversation, including the initial request and any explicit requirements from the user, when the planner creates or revises the itinerary, then the planner must ensure that all of the user's clarifications and additions are properly included in the next edit, alongside all the past information that was included in the previous edits. Preserve the user's stated interests, exclusions, and preferences very clearly. If the user's intent is unclear, the planner can clarify with the user or give a best-effort recommendation whilst stating the uncertainty before presenting the choice.."
+      grader_fqn: null
+      grader_args: {}
+    - id: AC-3-2
+      name: Correct and feasible timings
+      description: "Given the user requests a detailed schedule for each day with visit durations and buffer time, when the planner assigns dates and start and end times, then activities fit within the trip dates, have consistent durations, and allow feasible travel and buffer time without overlaps; opening hours and other time constraints are checked against available evidence, and unverified timings are clearly identified."
+      grader_fqn: null
+      grader_args: {}
+    - id: AC-3-3
+      name: Factual accuracy of itinerary details
+      description: "Given the planner can use the actual tool results observed in the conversation, including fixed sample data and gaps in that data, when it states a flight number, airline, hotel name or address, nightly rate, price total, weather figure, entry, visa, health, or safety advisory, or any other concrete itinerary detail, then each detail presented as fact is supported by an actual tool result and attributed to the correct source domain. The planner does not invent plausible destination-specific details to fill gaps, use one tool’s data as evidence for another domain (for example, hotel pricing as flight pricing), or present stale context as current. It distinguishes synthesis and uncertain content from tool-verified facts through clear qualification and attribution. When a requested detail is absent, it declines to supply it or clearly states the uncertainty. Faithful summaries of fixed sample tool values are supported and must not be counted as fabrication.."
+      grader_fqn: null
+      grader_args: {}
+personas:
+- id: P-1
+  name: Detailed trip planner
+  description: A traveller who wants a detailed itinerary for each day. They specify the trip length,
+    days at each destination, and visit durations. They expect consecutive activities with start and end
+    times, travel time, and explicit buffers.
+  metadata:
+    input_style: Gives specific, detailed instructions and clear preferences.
+    personality: Highly organised, detail-focused, and Type A.
+scenarios:
+- id: S-1
+  name: Three days in Seoul at Christmas
+  description: The user wants recommendations for a three-day trip to Seoul in December during the
+    Christmas period. Their flights are already booked. They have visited Seoul several times and do not need a tour of the main landmarks.
+    They want ideas for how to spend these three days, developed into a detailed daily itinerary with
+    activity times, travel time, and buffers. They give clear preferences and refine the plan through
+    follow-up requests.
+  metadata:
+    start_prompt: "hi, i need help planning my korea trip. i already booked the flight and the trip is 3 days."
+    stop_condition: The user has received a three-day itinerary and is satisfied with it.
+- id: S-2
+  name: Two weeks in Europe in July
+  description: The user is starting to plan a two-week summer trip to Europe in July. They have not
+    booked flights and are open to ideas about which cities to visit and how the trip could fit together.
+    They want to explore a route across multiple cities, discuss options, and develop an itinerary
+    for the full two weeks. The destination choices and route are open-ended.
+  metadata:
+    stop_condition: The user says "thank you" or the itinerary is complete for the full two weeks.
+tasks:
+- id: TC-001
+  scenario_ref: S-1
+  persona_ref: P-1
+  fixtures: []
+  num_trials: 1
+  behaviour_refs:
+  - EB-3
+  max_turns: 6
+- id: TC-002
+  scenario_ref: S-2
+  persona_ref: P-1
+  fixtures: []
+  num_trials: 1
+  behaviour_refs:
+  - EB-3
+  max_turns: 6

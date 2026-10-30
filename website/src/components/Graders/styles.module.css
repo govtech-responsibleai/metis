@@ -1,0 +1,113 @@
+.card {
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--muted) / 0.5);
+}
+
+.fqn {
+  display: inline-block;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.tags {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+.tag dt {
+  margin-bottom: 0.15rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tag dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0;
+}
+
+.graderTable {
+  table-layout: fixed;
+  font-size: 0.875rem;
+}
+
+.graderTable th:nth-child(1) {
+  width: 34%;
+}
+
+.graderTable th:nth-child(2) {
+  width: 38%;
+}
+
+.graderTable td:first-child code {
+  white-space: normal;
+}
+
+.code :global(.theme-code-block) code {
+  font-size: 0.75rem;
+}
+
+.code :global(.theme-code-block) pre {
+  max-height: 28rem;
+  overflow: auto;
+}
+
+.sourceFile {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+}
+
+.chip {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid hsl(var(--chip) / 0.35);
+  border-radius: 4px;
+  background: hsl(var(--chip) / 0.1);
+  color: hsl(var(--chip-text));
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+:global([data-theme='dark']) .chip {
+  color: hsl(var(--chip));
+}
+
+.chip[data-tone='measure'] {
+  --chip: 262 70% 62%;
+  --chip-text: 262 50% 42%;
+}
+
+.chip[data-tone='scopes'] {
+  --chip: 212 80% 58%;
+  --chip-text: 212 70% 38%;
+}
+
+.chip[data-tone='grader_types'] {
+  --chip: 152 55% 42%;
+  --chip-text: 152 60% 26%;
+}
+
+.chip[data-tone='reference_types'] {
+  --chip: 356 70% 58%;
+  --chip-text: 356 60% 40%;
+}
+
+.chip[data-tone='judgment_forms'] {
+  --chip: 184 65% 40%;
+  --chip-text: 184 70% 25%;
+}
+
+.chip[data-tone='aggregations'] {
+  --chip: 32 85% 52%;
+  --chip-text: 28 75% 34%;
+}

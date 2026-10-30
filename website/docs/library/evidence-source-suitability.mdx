@@ -1,0 +1,61 @@
+---
+title: "Evidence source suitability"
+description: "Whether evidence sources meet authority, relevance, and currency requirements."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/task_and_output_quality/_evidence_source_suitability.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="EvidenceSourceSuitabilityGrader" />
+
+Assess whether evidence sources meet authority, relevance, and currency requirements.
+
+<GraderCode>
+
+```python
+class ArtifactArgs(BaseModel):
+    artifact: NonEmptyText | None = None
+    """The name of the file to judge. When the target revised the file, the judge reads the
+    latest version."""
+
+
+class TraceArgs(BaseModel):
+    turn: Literal["each", "last"] = "each"
+    """``each`` judges every recorded turn, each on its own. ``last`` judges only the final
+    recorded turn."""
+
+
+class EvidenceSourceSuitabilityArgs(JudgeArgs, TraceArgs, ArtifactArgs):
+    turn: Literal["each", "last"] = "last"
+    """``last`` judges only the final reply. ``each`` judges every reply."""
+    suitability_requirements: tuple[NonEmptyText, ...] = Field(
+        min_length=1,
+        description="Requirements for authority, relevance, and currency of sources.",
+    )
+    sources: tuple[NonEmptyText, ...] = Field(
+        min_length=1,
+        description="Descriptions of the evidence sources to assess.",
+    )
+
+
+class EvidenceSourceSuitabilityGrader(Grader[EvidenceSourceSuitabilityArgs]):
+    def criteria(self, source: str) -> str:
+        return (
+            "You are assessing whether one evidence source meets the task-specific "
+            "requirements for authority, relevance, and currency. Score 1 when the source "
+            "is suitable."
+            f"\n\n<source>\n{source}\n</source>"
+            + section("suitability_requirements", self.args.suitability_requirements)
+            + "\n\n<assessment_boundaries>\n"
+            "Assess whether each source is appropriate to rely on for the task. "
+            "Suitability is independent of whether the source supports a particular "
+            "claim. An outdated manual may support a claim about an old product version "
+            "while being unsuitable for a question about the current version. "
+            "Use Claim Support by Evidence to assess claim-evidence connections, and "
+            "Attribution Accuracy to assess correct source identification."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

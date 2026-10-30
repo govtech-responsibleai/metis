@@ -1,0 +1,50 @@
+---
+title: "Stopping appropriateness"
+description: "Whether the agent stops, continues, or hands over at the appropriate point."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/execution_and_decision_quality/_stopping_appropriateness.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="StoppingAppropriatenessGrader" />
+
+Assess whether the agent stops, continues, or hands over at the appropriate point.
+
+<GraderCode>
+
+```python
+class TaskArgs(BaseModel):
+    task_description: NonEmptyText | None = None
+    """What the agent was asked to do. When unset, the judge infers the goal from the user's
+    messages. A criterion runs in every task that selects its behaviour, so this text applies
+    to the scenarios of all those tasks."""
+
+
+class StoppingAppropriatenessArgs(JudgeArgs, TaskArgs):
+    stopping_criteria: tuple[str, ...] = Field(
+        default=(),
+        description=(
+            "Conditions that define when the agent should stop, continue, or "
+            "hand over. When empty, the judge assesses the termination decision "
+            "against the task description."
+        ),
+    )
+
+
+class StoppingAppropriatenessGrader(Grader[StoppingAppropriatenessArgs]):
+    def criteria(self) -> str:
+        return (
+            "You are assessing whether the agent stops, continues, or hands over "
+            "at the appropriate point."
+            + self.args.task_block()
+            + section("stopping_criteria", self.args.stopping_criteria)
+            + "\n\n<assessment_boundaries>\n"
+            "Assess the termination decision: whether the agent stopped, continued, "
+            "or handed over at the right point. Do not assess repeated non-progress "
+            "before stopping; that belongs to avoiding unproductive repetition."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

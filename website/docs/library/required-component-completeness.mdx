@@ -1,0 +1,69 @@
+---
+title: "Required component completeness"
+description: "Whether every explicitly requested component is present."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/task_and_output_quality/_required_component_completeness.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="RequiredComponentCompletenessGrader" />
+
+Assess whether every explicitly requested component is present.
+
+Adapted from [Phoenix completeness](https://github.com/Arize-ai/phoenix/blob/d5f5e054756e98d05172a1651c6ffa3fc6f2ff27/js/packages/phoenix-evals/src/__generated__/default_templates/COMPLETENESS_CLASSIFICATION_EVALUATOR_CONFIG.ts), [MLflow Completeness](https://github.com/mlflow/mlflow/blob/ad8419718140a5d9957722d8196ced9a1d77c14a/mlflow/genai/judges/prompts/completeness.py).
+
+<GraderCode>
+
+```python
+class ArtifactArgs(BaseModel):
+    artifact: NonEmptyText | None = None
+    """The name of the file to judge. When the target revised the file, the judge reads the
+    latest version."""
+
+
+class TraceArgs(BaseModel):
+    turn: Literal["each", "last"] = "each"
+    """``each`` judges every recorded turn, each on its own. ``last`` judges only the final
+    recorded turn."""
+
+
+class RequiredComponentCompletenessArgs(JudgeArgs, TraceArgs, ArtifactArgs):
+    turn: Literal["each", "last"] = "last"
+    """``last`` judges only the final reply. ``each`` judges every reply."""
+    required_components: tuple[NonEmptyText, ...] = Field(
+        min_length=1,
+        description="Components that must be present in the assessed evidence.",
+    )
+
+
+class RequiredComponentCompletenessGrader(Grader[RequiredComponentCompletenessArgs]):
+    def criteria(self, component: str) -> str:
+        return (
+            "You are an expert evaluator labeling whether the assessed evidence contains "
+            "one explicitly required component."
+            f"\n\n<required_component>\n{component}\n</required_component>"
+            "\n\nArtifacts\n"
+            "- The assistant must deliver the requested artifact.\n"
+            "- The artifact must contain every component the user explicitly required.\n"
+            "- Do not judge general quality beyond those explicit requirements.\n\n"
+            "Answers\n"
+            "- Saying the requested fact is absent, unknown, or not in the "
+            "source/context is not an answer.\n"
+            '- A refusal or "I don\'t know" is likewise not fulfilment.\n\n'
+            "Score 1 when the required component is present. Score 0 when it is "
+            "absent, or when the assistant refused, said it does not know, or said the "
+            "requested fact is absent or unknown in place of the component."
+            "\n\n<assessment_boundaries>\n"
+            "Do not evaluate factual correctness, style, or usefulness beyond whether "
+            "the required component was directly handled. "
+            "Do not make assumptions or bring in external knowledge. "
+            "Assess the PRESENCE of each required component, independently of its "
+            "correctness or quality. A component that is present but contains errors "
+            "still counts as present. A component that is absent or cannot be identified "
+            "is not present, and scores 0."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

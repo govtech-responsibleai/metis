@@ -1,0 +1,12 @@
+# Default owner for everything
+* @mqf20
+
+# Packages
+packages/core/    @mqf20
+packages/library/ @leannetan
+packages/engine/  @mqf20
+packages/wizard/  @leannetan
+
+# Apps
+apps/api/ @mqf20
+apps/web/ @mqf20

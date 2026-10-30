@@ -1,0 +1,72 @@
+---
+title: "Communication clarity"
+description: "Whether the assistant's replies are clear, well organized and free of avoidable ambiguity."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/interaction_quality/_communication_clarity.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="CommunicationClarityGrader" />
+
+Whether the assistant's replies are clear, well organized and free of avoidable ambiguity.
+
+Adapted from [Phoenix conciseness](https://github.com/Arize-ai/phoenix/blob/d5f5e054756e98d05172a1651c6ffa3fc6f2ff27/js/packages/phoenix-evals/src/__generated__/default_templates/CONCISENESS_CLASSIFICATION_EVALUATOR_CONFIG.ts), for the padding check only.
+
+<GraderCode>
+
+```python
+class SubsessionArgs(BaseModel):
+    turn: Literal["each", "last"] = "each"
+    """The recorded turn each subsession ends at: ``each`` recorded turn, or only the ``last``
+    one."""
+    window: int | None = Field(default=None, ge=1, strict=True)
+    """How many recorded turns one subsession holds: its end turn and the recorded turns just
+    before it. ``None`` holds every recorded turn before it, so the judge has the whole
+    conversation so far. The recorded turns before the subsession are not shown to the judge."""
+
+
+class CommunicationClarityArgs(JudgeArgs, SubsessionArgs):
+    audience: NonEmptyText | None = Field(
+        default=None,
+        description=(
+            'Who receives the output and what they already know, such as "members of the '
+            'public with no technical background". When unset, the judge reads the '
+            "audience from the conversation."
+        ),
+    )
+
+
+_CRITERIA = (
+    "You are grading communication clarity: whether the user can get the meaning of the "
+    "assistant's replies without avoidable effort. Check that the main point or answer comes "
+    "first or is easy to find; that the order and structure, such as steps, lists, or "
+    "headings, fit the content; that the meaning has one reasonable reading; that terms the "
+    "user may not know are explained or avoided; and that the point is not hidden under "
+    "repetition, filler, or detail the user did not need. Filler includes unnecessary "
+    "pleasantries, hedging language or excessive qualifiers, meta-commentary about the "
+    "response itself, and unnecessary formatting for simple answers. Score 1 when the "
+    "replies are clear. Score 0 when a reply is ambiguous, disorganized, or padded enough to "
+    "make the meaning hard to get."
+)
+
+_BOUNDARIES = (
+    "\n\n<assessment_boundaries>\n"
+    "Grammar and natural phrasing belong to output naturalness, and politeness and warmth to "
+    "tone, so do not judge them here. Do not judge correctness or task success."
+    "\n</assessment_boundaries>"
+)
+
+class CommunicationClarityGrader(Grader[CommunicationClarityArgs]):
+    def criteria(self) -> str:
+        if self.args.audience is None:
+            return _CRITERIA + _BOUNDARIES
+        return (
+            _CRITERIA
+            + " Judge clarity for this audience, not for the user that the conversation "
+            f"suggests: {self.args.audience} Count a term as unexplained only if this "
+            "audience would not know it." + _BOUNDARIES
+        )
+```
+
+</GraderCode>

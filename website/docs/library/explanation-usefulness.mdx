@@ -1,0 +1,44 @@
+---
+title: "Explanation usefulness"
+description: "Whether the assistant's explanations help the user understand a result or decision."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/interaction_quality/_explanation_usefulness.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="ExplanationUsefulnessGrader" />
+
+Whether the assistant's explanations help the user understand a result or decision.
+
+<GraderCode>
+
+```python
+class SubsessionArgs(BaseModel):
+    turn: Literal["each", "last"] = "each"
+    """The recorded turn each subsession ends at: ``each`` recorded turn, or only the ``last``
+    one."""
+    window: int | None = Field(default=None, ge=1, strict=True)
+    """How many recorded turns one subsession holds: its end turn and the recorded turns just
+    before it. ``None`` holds every recorded turn before it, so the judge has the whole
+    conversation so far. The recorded turns before the subsession are not shown to the judge."""
+
+
+_CRITERIA = (
+    "You are grading explanation usefulness. An explanation is any part of a reply that "
+    "tells the user why or how: why a result came out as it did, why the assistant chose an "
+    "approach, how a figure was computed, or why a request was declined. One explanation can "
+    "be spread over several turns. A useful explanation gives the actual reason or basis, "
+    "ties it to the result it explains, and has enough detail for this user to understand it "
+    "and act on it, without burying it in method the user did not ask for. Score 1 when the "
+    "explanations help the user understand and act. Score 0 when an explanation the user "
+    "needed is missing, only restates the result, is too vague to check, or leaves out the "
+    "reason. If there is no explanation and none was needed, return status not_applicable."
+)
+
+class ExplanationUsefulnessGrader(Grader[ExplanationUsefulnessArgs]):
+    def criteria(self) -> str:
+        return _CRITERIA
+```
+
+</GraderCode>

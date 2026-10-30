@@ -1,0 +1,105 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "metis"
+version = "1.0.0b1"
+description = "Measurement and Evaluation of Trustworthy Intelligent Systems"
+requires-python = ">=3.11"
+dependencies = [
+    "metis-core",
+    "metis-engine",
+    "metis-library",
+    "metis-wizard",
+    "metis-insights",
+    "metis-api",
+    "metis-testbed",
+]
+
+[project.scripts]
+metis = "metis_cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+only-include = ["metis_cli.py"]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+metis-core = { workspace = true }
+metis-engine = { workspace = true }
+metis-library = { workspace = true }
+metis-wizard = { workspace = true }
+metis-insights = { workspace = true }
+metis-api = { workspace = true }
+metis-testbed = { workspace = true }
+
+[tool.uv.workspace]
+members = [
+    "packages/*",
+    "apps/*",
+]
+exclude = ["apps/web"]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+include = ["packages/*/src", "apps/*/src", "metis_cli.py"]
+reportIncompatibleMethodOverride = false
+reportMissingTypeArgument = true
+reportUnnecessaryTypeIgnoreComment = true
+
+[tool.ruff]
+src = ["packages/*/src", "apps/*/src"]
+target-version = "py311"
+
+[tool.ruff.lint]
+preview = true
+select = [
+    "E",        # pycodestyle errors
+    "F",        # Pyflakes
+    "I",        # isort
+    "B",        # flake8-bugbear
+    "UP",       # pyupgrade
+    "SIM",      # flake8-simplify
+    "TCH",      # flake8-type-checking
+    "ANN",      # flake8-annotations
+    "PLW1514",  # unspecified-encoding (preview rule)
+]
+ignore = [
+    "B008",    # function-call-in-default-argument (Typer pattern)
+    "E501",    # line-too-long (formatter enforces line-length)
+    "ANN401",  # typing.Any in function args (allow for flexibility)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["TCH", "ANN", "PLW1514"]
+
+[tool.ruff.lint.flake8-type-checking]
+# Pydantic resolves annotation strings at runtime via `get_type_hints()`, so a field type
+# imported only under `if TYPE_CHECKING:` leaves the model "not fully defined". Telling the
+# TCH rule that BaseModel subclasses are runtime-evaluated stops it from moving field-type
+# imports into a TYPE_CHECKING block (see AGENTS.md — Coding Conventions).
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.11",
+    "jsonschema>=4.20.0",
+]

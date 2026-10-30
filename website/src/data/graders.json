@@ -1,0 +1,1022 @@
+{
+  "groups": [
+    {
+      "title": "Task and Output Quality",
+      "graders": [
+        {
+          "name": "TaskSuccessGrader",
+          "fqn": "metis.library.graders.TaskSuccessGrader",
+          "slug": "task-success",
+          "source_file": "packages/library/src/metis/library/graders/task_and_output_quality/_task_success.py",
+          "adapted_from": "[DeepEval Task Completion](https://github.com/confident-ai/deepeval/blob/d6cd78ac44da4623ff07c73310dfca474c212068/deepeval/metrics/task_completion/templates/extract_task_and_outcome_from_trace.txt) ([verdict](https://github.com/confident-ai/deepeval/blob/d6cd78ac44da4623ff07c73310dfca474c212068/deepeval/metrics/task_completion/templates/generate_verdict.txt))",
+          "taxonomy": {
+            "measure": "task_success",
+            "scopes": [
+              "session",
+              "artifact"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "OutputCorrectnessGrader",
+          "fqn": "metis.library.graders.OutputCorrectnessGrader",
+          "slug": "output-correctness",
+          "source_file": "packages/library/src/metis/library/graders/task_and_output_quality/_output_correctness.py",
+          "adapted_from": "[MLflow Correctness](https://github.com/mlflow/mlflow/blob/ad8419718140a5d9957722d8196ced9a1d77c14a/mlflow/genai/judges/prompts/correctness.py)",
+          "taxonomy": {
+            "measure": "output_correctness",
+            "scopes": [
+              "trace",
+              "artifact"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "FactualAccuracyGrader",
+          "fqn": "metis.library.graders.FactualAccuracyGrader",
+          "slug": "factual-accuracy",
+          "source_file": "packages/library/src/metis/library/graders/task_and_output_quality/_factual_accuracy.py",
+          "adapted_from": "[Braintrust Factuality](https://github.com/braintrustdata/autoevals/blob/586cc167eb625d84b11581936b1e11619ec0d15a/templates/factuality.yaml), [OpenAI Evals fact](https://github.com/openai/evals/blob/8eac7a7de5215c907fbddc30efdaf316913eccdd/evals/registry/modelgraded/fact.yaml)",
+          "taxonomy": {
+            "measure": "factual_accuracy",
+            "scopes": [
+              "trace",
+              "artifact"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "expected_output"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "RequiredComponentCompletenessGrader",
+          "fqn": "metis.library.graders.RequiredComponentCompletenessGrader",
+          "slug": "required-component-completeness",
+          "source_file": "packages/library/src/metis/library/graders/task_and_output_quality/_required_component_completeness.py",
+          "adapted_from": "[Phoenix completeness](https://github.com/Arize-ai/phoenix/blob/d5f5e054756e98d05172a1651c6ffa3fc6f2ff27/js/packages/phoenix-evals/src/__generated__/default_templates/COMPLETENESS_CLASSIFICATION_EVALUATOR_CONFIG.ts), [MLflow Completeness](https://github.com/mlflow/mlflow/blob/ad8419718140a5d9957722d8196ced9a1d77c14a/mlflow/genai/judges/prompts/completeness.py)",
+          "taxonomy": {
+            "measure": "required_component_completeness",
+            "scopes": [
+              "trace",
+              "artifact"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "expected_output"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "pass_if_all"
+            ]
+          }
+        },
+        {
+          "name": "TaskConstraintAdherenceGrader",
+          "fqn": "metis.library.graders.TaskConstraintAdherenceGrader",
+          "slug": "task-constraint-adherence",
+          "source_file": "packages/library/src/metis/library/graders/task_and_output_quality/_task_constraint_adherence.py",
+          "adapted_from": "[MLflow Guidelines](https://github.com/mlflow/mlflow/blob/ad8419718140a5d9957722d8196ced9a1d77c14a/mlflow/genai/judges/prompts/guidelines.py)",
+          "taxonomy": {
+            "measure": "task_constraint_adherence",
+            "scopes": [
+              "session",
+              "artifact"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "policy_rule"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "pass_if_all"
+            ]
+          }
+        },
+        {
+          "name": "FormatSchemaComplianceGrader",
+          "fqn": "metis.library.graders.FormatSchemaComplianceGrader",
+          "slug": "format-schema-compliance",
+          "source_file": "packages/library/src/metis/library/graders/task_and_output_quality/_format_schema_compliance.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "format_and_schema_compliance",
+            "scopes": [
+              "trace",
+              "artifact"
+            ],
+            "grader_types": [
+              "llm",
+              "deterministic"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "ClaimSupportByEvidenceGrader",
+          "fqn": "metis.library.graders.ClaimSupportByEvidenceGrader",
+          "slug": "claim-support-by-evidence",
+          "source_file": "packages/library/src/metis/library/graders/task_and_output_quality/_claim_support_by_evidence.py",
+          "adapted_from": "[DeepEval Faithfulness](https://github.com/confident-ai/deepeval/blob/d6cd78ac44da4623ff07c73310dfca474c212068/deepeval/metrics/faithfulness/templates/generate_claims.txt), [Braintrust Faithfulness](https://github.com/braintrustdata/autoevals/blob/586cc167eb625d84b11581936b1e11619ec0d15a/py/autoevals/ragas.py)",
+          "taxonomy": {
+            "measure": "claim_support_by_evidence",
+            "scopes": [
+              "trace",
+              "artifact"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "expected_output"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "EvidenceSourceSuitabilityGrader",
+          "fqn": "metis.library.graders.EvidenceSourceSuitabilityGrader",
+          "slug": "evidence-source-suitability",
+          "source_file": "packages/library/src/metis/library/graders/task_and_output_quality/_evidence_source_suitability.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "evidence_source_suitability",
+            "scopes": [
+              "trace",
+              "artifact"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "pass_if_all"
+            ]
+          }
+        },
+        {
+          "name": "SpeechRecognitionAccuracyGrader",
+          "fqn": "metis.library.graders.SpeechRecognitionAccuracyGrader",
+          "slug": "speech-recognition-accuracy",
+          "source_file": "packages/library/src/metis/library/graders/task_and_output_quality/_speech_recognition_accuracy.py",
+          "adapted_from": "[DeepEval Transcription Accuracy](https://github.com/confident-ai/deepeval/blob/d6cd78ac44da4623ff07c73310dfca474c212068/deepeval/metrics/transcription_accuracy/templates/generate_verdicts.txt)",
+          "taxonomy": {
+            "measure": "speech_recognition_accuracy",
+            "scopes": [
+              "trace"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "expected_output"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "ContentFidelityGrader",
+          "fqn": "metis.library.graders.ContentFidelityGrader",
+          "slug": "content-fidelity",
+          "source_file": "packages/library/src/metis/library/graders/task_and_output_quality/_content_fidelity.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "content_fidelity",
+            "scopes": [
+              "trace",
+              "artifact"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "expected_output"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "AttributionAccuracyGrader",
+          "fqn": "metis.library.graders.AttributionAccuracyGrader",
+          "slug": "attribution-accuracy",
+          "source_file": "packages/library/src/metis/library/graders/task_and_output_quality/_attribution_accuracy.py",
+          "adapted_from": "[DeepEval Citation Faithfulness](https://github.com/confident-ai/deepeval/blob/d6cd78ac44da4623ff07c73310dfca474c212068/deepeval/metrics/community/citation_faithfulness/template.py)",
+          "taxonomy": {
+            "measure": "attribution_accuracy",
+            "scopes": [
+              "trace",
+              "artifact"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "expected_output"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Execution and Decision Quality",
+      "graders": [
+        {
+          "name": "PlanningQualityGrader",
+          "fqn": "metis.library.graders.PlanningQualityGrader",
+          "slug": "planning-quality",
+          "source_file": "packages/library/src/metis/library/graders/execution_and_decision_quality/_planning_quality.py",
+          "adapted_from": "[DeepEval Plan Quality](https://github.com/confident-ai/deepeval/blob/d6cd78ac44da4623ff07c73310dfca474c212068/deepeval/metrics/plan_quality/templates/evaluate_plan_quality.txt)",
+          "taxonomy": {
+            "measure": "planning_quality",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "ActionChoiceAppropriatenessGrader",
+          "fqn": "metis.library.graders.ActionChoiceAppropriatenessGrader",
+          "slug": "action-choice-appropriateness",
+          "source_file": "packages/library/src/metis/library/graders/execution_and_decision_quality/_action_choice_appropriateness.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "action_choice_appropriateness",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "ToolChoiceAppropriatenessGrader",
+          "fqn": "metis.library.graders.ToolChoiceAppropriatenessGrader",
+          "slug": "tool-choice-appropriateness",
+          "source_file": "packages/library/src/metis/library/graders/execution_and_decision_quality/_tool_choice_appropriateness.py",
+          "adapted_from": "[Phoenix tool_selection](https://github.com/Arize-ai/phoenix/blob/d5f5e054756e98d05172a1651c6ffa3fc6f2ff27/js/packages/phoenix-evals/src/__generated__/default_templates/TOOL_SELECTION_CLASSIFICATION_EVALUATOR_CONFIG.ts)",
+          "taxonomy": {
+            "measure": "tool_choice_appropriateness",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "ToolArgumentCorrectnessGrader",
+          "fqn": "metis.library.graders.ToolArgumentCorrectnessGrader",
+          "slug": "tool-argument-correctness",
+          "source_file": "packages/library/src/metis/library/graders/execution_and_decision_quality/_tool_argument_correctness.py",
+          "adapted_from": "[Phoenix tool_invocation](https://github.com/Arize-ai/phoenix/blob/d5f5e054756e98d05172a1651c6ffa3fc6f2ff27/js/packages/phoenix-evals/src/__generated__/default_templates/TOOL_INVOCATION_CLASSIFICATION_EVALUATOR_CONFIG.ts)",
+          "taxonomy": {
+            "measure": "tool_argument_correctness",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "StateTrackingGrader",
+          "fqn": "metis.library.graders.StateTrackingGrader",
+          "slug": "state-tracking",
+          "source_file": "packages/library/src/metis/library/graders/execution_and_decision_quality/_state_tracking.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "state_tracking",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "UseOfPriorInformationGrader",
+          "fqn": "metis.library.graders.UseOfPriorInformationGrader",
+          "slug": "use-of-prior-information",
+          "source_file": "packages/library/src/metis/library/graders/execution_and_decision_quality/_use_of_prior_information.py",
+          "adapted_from": "[MLflow KnowledgeRetention](https://github.com/mlflow/mlflow/blob/ad8419718140a5d9957722d8196ced9a1d77c14a/mlflow/genai/judges/prompts/knowledge_retention.py), [DeepEval Knowledge Retention](https://github.com/confident-ai/deepeval/blob/d6cd78ac44da4623ff07c73310dfca474c212068/deepeval/metrics/knowledge_retention/templates/generate_verdict.txt)",
+          "taxonomy": {
+            "measure": "use_of_prior_information",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "ErrorDetectionGrader",
+          "fqn": "metis.library.graders.ErrorDetectionGrader",
+          "slug": "error-detection",
+          "source_file": "packages/library/src/metis/library/graders/execution_and_decision_quality/_error_detection.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "error_detection",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "ErrorRecoveryGrader",
+          "fqn": "metis.library.graders.ErrorRecoveryGrader",
+          "slug": "error-recovery",
+          "source_file": "packages/library/src/metis/library/graders/execution_and_decision_quality/_error_recovery.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "error_recovery",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "AdaptationToChangedConditionsGrader",
+          "fqn": "metis.library.graders.AdaptationToChangedConditionsGrader",
+          "slug": "adaptation-to-changed-conditions",
+          "source_file": "packages/library/src/metis/library/graders/execution_and_decision_quality/_adaptation_to_changed_conditions.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "adaptation_to_changed_conditions",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "StoppingAppropriatenessGrader",
+          "fqn": "metis.library.graders.StoppingAppropriatenessGrader",
+          "slug": "stopping-appropriateness",
+          "source_file": "packages/library/src/metis/library/graders/execution_and_decision_quality/_stopping_appropriateness.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "stopping_appropriateness",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "AvoidingUnproductiveRepetitionGrader",
+          "fqn": "metis.library.graders.AvoidingUnproductiveRepetitionGrader",
+          "slug": "avoiding-unproductive-repetition",
+          "source_file": "packages/library/src/metis/library/graders/execution_and_decision_quality/_avoiding_unproductive_repetition.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "avoiding_unproductive_repetition",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "AppropriateHandlingOfCapabilityLimitsGrader",
+          "fqn": "metis.library.graders.AppropriateHandlingOfCapabilityLimitsGrader",
+          "slug": "appropriate-handling-of-capability-limits",
+          "source_file": "packages/library/src/metis/library/graders/execution_and_decision_quality/_appropriate_handling_of_capability_limits.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "appropriate_handling_of_capability_limits",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "OutcomeVerificationGrader",
+          "fqn": "metis.library.graders.OutcomeVerificationGrader",
+          "slug": "outcome-verification",
+          "source_file": "packages/library/src/metis/library/graders/execution_and_decision_quality/_outcome_verification.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "outcome_verification",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "ReasoningValidityGrader",
+          "fqn": "metis.library.graders.ReasoningValidityGrader",
+          "slug": "reasoning-validity",
+          "source_file": "packages/library/src/metis/library/graders/execution_and_decision_quality/_reasoning_validity.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "reasoning_validity",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "CoordinationQualityGrader",
+          "fqn": "metis.library.graders.CoordinationQualityGrader",
+          "slug": "coordination-quality",
+          "source_file": "packages/library/src/metis/library/graders/execution_and_decision_quality/_coordination_quality.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "coordination_quality",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Reliability and Robustness",
+      "graders": [
+        {
+          "name": "RobustnessToToolFailuresGrader",
+          "fqn": "metis.library.graders.RobustnessToToolFailuresGrader",
+          "slug": "robustness-to-tool-failures",
+          "source_file": "packages/library/src/metis/library/graders/reliability_and_robustness/_robustness_to_tool_failures.py",
+          "adapted_from": "[Phoenix tool_response_handling](https://github.com/Arize-ai/phoenix/blob/d5f5e054756e98d05172a1651c6ffa3fc6f2ff27/js/packages/phoenix-evals/src/__generated__/default_templates/TOOL_RESPONSE_HANDLING_CLASSIFICATION_EVALUATOR_CONFIG.ts), for the error-handling rules only",
+          "taxonomy": {
+            "measure": "robustness_to_tool_failures",
+            "scopes": [
+              "trace",
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "LongTaskPerformanceStabilityGrader",
+          "fqn": "metis.library.graders.LongTaskPerformanceStabilityGrader",
+          "slug": "long-task-performance-stability",
+          "source_file": "packages/library/src/metis/library/graders/reliability_and_robustness/_long_task_performance_stability.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "long_task_performance_stability",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "RobustnessToContextDegradationGrader",
+          "fqn": "metis.library.graders.RobustnessToContextDegradationGrader",
+          "slug": "robustness-to-context-degradation",
+          "source_file": "packages/library/src/metis/library/graders/reliability_and_robustness/_robustness_to_context_degradation.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "robustness_to_context_degradation",
+            "scopes": [
+              "subsession",
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Interaction Quality",
+      "graders": [
+        {
+          "name": "RelevanceGrader",
+          "fqn": "metis.library.graders.RelevanceGrader",
+          "slug": "relevance",
+          "source_file": "packages/library/src/metis/library/graders/interaction_quality/_relevance.py",
+          "adapted_from": "[DeepEval Turn Relevancy](https://github.com/confident-ai/deepeval/blob/d6cd78ac44da4623ff07c73310dfca474c212068/deepeval/metrics/turn_relevancy/templates/generate_verdicts.txt)",
+          "taxonomy": {
+            "measure": "relevance",
+            "scopes": [
+              "session",
+              "subsession"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "CommunicationClarityGrader",
+          "fqn": "metis.library.graders.CommunicationClarityGrader",
+          "slug": "communication-clarity",
+          "source_file": "packages/library/src/metis/library/graders/interaction_quality/_communication_clarity.py",
+          "adapted_from": "[Phoenix conciseness](https://github.com/Arize-ai/phoenix/blob/d5f5e054756e98d05172a1651c6ffa3fc6f2ff27/js/packages/phoenix-evals/src/__generated__/default_templates/CONCISENESS_CLASSIFICATION_EVALUATOR_CONFIG.ts), for the padding check only",
+          "taxonomy": {
+            "measure": "communication_clarity",
+            "scopes": [
+              "session",
+              "subsession"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "CrossTurnCoherenceGrader",
+          "fqn": "metis.library.graders.CrossTurnCoherenceGrader",
+          "slug": "cross-turn-coherence",
+          "source_file": "packages/library/src/metis/library/graders/interaction_quality/_cross_turn_coherence.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "cross_turn_coherence",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "ClarificationAppropriatenessGrader",
+          "fqn": "metis.library.graders.ClarificationAppropriatenessGrader",
+          "slug": "clarification-appropriateness",
+          "source_file": "packages/library/src/metis/library/graders/interaction_quality/_clarification_appropriateness.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "clarification_appropriateness",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "UserCorrectionSupportGrader",
+          "fqn": "metis.library.graders.UserCorrectionSupportGrader",
+          "slug": "user-correction-support",
+          "source_file": "packages/library/src/metis/library/graders/interaction_quality/_user_correction_support.py",
+          "adapted_from": "[Phoenix user_friction](https://github.com/Arize-ai/phoenix/blob/d5f5e054756e98d05172a1651c6ffa3fc6f2ff27/js/packages/phoenix-evals/src/__generated__/default_templates/USER_FRICTION_CLASSIFICATION_EVALUATOR_CONFIG.ts)",
+          "taxonomy": {
+            "measure": "user_correction_and_override_support",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "ActionStatusTransparencyGrader",
+          "fqn": "metis.library.graders.ActionStatusTransparencyGrader",
+          "slug": "action-status-transparency",
+          "source_file": "packages/library/src/metis/library/graders/interaction_quality/_action_status_transparency.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "action_status_transparency",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "ExplanationUsefulnessGrader",
+          "fqn": "metis.library.graders.ExplanationUsefulnessGrader",
+          "slug": "explanation-usefulness",
+          "source_file": "packages/library/src/metis/library/graders/interaction_quality/_explanation_usefulness.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "explanation_usefulness",
+            "scopes": [
+              "session",
+              "subsession"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "ToneAppropriatenessGrader",
+          "fqn": "metis.library.graders.ToneAppropriatenessGrader",
+          "slug": "tone-appropriateness",
+          "source_file": "packages/library/src/metis/library/graders/interaction_quality/_tone_appropriateness.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "tone_appropriateness",
+            "scopes": [
+              "session",
+              "subsession"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "OutputNaturalnessGrader",
+          "fqn": "metis.library.graders.OutputNaturalnessGrader",
+          "slug": "output-naturalness",
+          "source_file": "packages/library/src/metis/library/graders/interaction_quality/_output_naturalness.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "output_naturalness",
+            "scopes": [
+              "session",
+              "subsession"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "title": "Fallback judge",
+      "graders": [
+        {
+          "name": "CriterionJudgeGrader",
+          "fqn": "metis.library.graders.CriterionJudgeGrader",
+          "slug": "criterion-judge",
+          "source_file": "packages/library/src/metis/library/graders/_criterion_judge.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": null,
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "llm"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

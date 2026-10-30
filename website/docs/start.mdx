@@ -1,0 +1,102 @@
+---
+title: Intro
+slug: /
+hide_title: true
+hide_table_of_contents: true
+---
+
+import {Hero, PartsMap, PathSteps} from '@site/src/components/Landing';
+
+<Hero
+  eyebrow="Measurement and Evaluation of Trustworthy Intelligent Systems"
+  title="METIS"
+  tagline="Specification-driven evaluation. Evaluate an application's performance against the system requirements that matter most."
+  actions={[
+    {label: 'Install METIS', to: '/install', primary: true},
+    {label: 'Get started', to: '/wizard'},
+  ]}
+/>
+
+## Quick start
+
+<PathSteps
+  steps={[
+    {title: 'Install METIS', links: [{label: 'Installation', to: '/install'}]},
+    {
+      title: 'Prepare the target connection and Langfuse',
+      links: [{label: 'Pre-requisites', to: '/prerequisites'}],
+    },
+    {
+      title: 'Create a specification',
+      links: [
+        {label: 'Use the Wizard', to: '/wizard'},
+        {label: 'configure manually', to: '/specification-file'},
+      ],
+    },
+    {
+      title: 'Run the test suite, then run the graders',
+      links: [
+        {label: 'Simulation', to: '/run-test-suite'},
+        {label: 'Grading', to: '/run-graders'},
+      ],
+    },
+    {title: 'Analyse your results', links: [{label: 'Insights', to: '/report'}]},
+  ]}
+/>
+
+Run all commands from the repository root.
+To use your own evaluation tools, [export the specification](external-evaluation.md).
+
+## Components
+
+Wizard, Engine, and Insights are the three main tools. Web and API give access to them. Library and Core hold the shared parts.
+
+<PartsMap
+  rows={[
+    {name: 'Web', purpose: 'Create and export specifications in a browser.', repo: 'apps/web'},
+    {name: 'API', purpose: 'Connect the web client and other clients to METIS.', repo: 'apps/api'},
+    {
+      tools: [
+        {
+          name: 'Wizard',
+          verb: 'Create a specification',
+          purpose: 'Describe your application in a guided Interview, or write the specification yourself.',
+          repo: 'packages/wizard',
+          to: '/wizard',
+          tone: 'wizard',
+        },
+        {
+          name: 'Engine',
+          verb: 'Run an evaluation',
+          purpose: 'Simulate conversations with your target, then grade each trial.',
+          repo: 'packages/engine',
+          to: '/run-evaluation',
+          tone: 'engine',
+        },
+        {
+          name: 'Insights',
+          verb: 'Create a report',
+          purpose: 'Read pass rates, grader reasons, and trial evidence.',
+          repo: 'packages/insights',
+          to: '/report',
+          tone: 'insights',
+        },
+      ],
+    },
+    {
+      name: 'Library',
+      purpose: 'Provide shared graders and reusable components.',
+      repo: 'packages/library',
+      to: '/library',
+    },
+    {name: 'Core', purpose: 'Define shared models, schemas, and interfaces.', repo: 'packages/core'},
+    {
+      name: 'Testbed',
+      purpose: 'Check METIS components against reference cases.',
+      repo: 'packages/testbed',
+      support: true,
+    },
+  ]}
+/>
+
+The map groups the components by purpose. For package dependencies, read the [architecture specification in the repo](https://github.com/govtech-responsibleai/metis/blob/next/docs/architecture.md).

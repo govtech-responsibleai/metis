@@ -1,0 +1,60 @@
+---
+title: "Tone appropriateness"
+description: "Whether the assistant's tone suits the user, the situation and the task."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/interaction_quality/_tone_appropriateness.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="ToneAppropriatenessGrader" />
+
+Whether the assistant's tone suits the user, the situation and the task.
+
+<GraderCode>
+
+```python
+class SubsessionArgs(BaseModel):
+    turn: Literal["each", "last"] = "each"
+    """The recorded turn each subsession ends at: ``each`` recorded turn, or only the ``last``
+    one."""
+    window: int | None = Field(default=None, ge=1, strict=True)
+    """How many recorded turns one subsession holds: its end turn and the recorded turns just
+    before it. ``None`` holds every recorded turn before it, so the judge has the whole
+    conversation so far. The recorded turns before the subsession are not shown to the judge."""
+
+
+class ToneAppropriatenessArgs(JudgeArgs, SubsessionArgs):
+    expected_tone: NonEmptyText | None = Field(
+        default=None,
+        description=(
+            'The tone that the operator requires, such as "formal and professional" or '
+            '"casual and friendly". When unset, the judge decides which tone suits the '
+            "user and the task."
+        ),
+    )
+
+
+_CRITERIA = (
+    "You are grading tone: whether the assistant's interpersonal delivery suits this user, "
+    "the situation, and the task. Read the user's messages to learn who they are and how "
+    "they feel: their role, the formality they use, and any frustration, urgency, or "
+    "distress. Check that each reply is respectful, matches the formality the user and the "
+    "task call for, shows care when the user is frustrated or the matter is sensitive, and "
+    "keeps the same persona across turns. Score 1 when the tone fits. Score 0 when a reply "
+    "is dismissive, condescending, too casual or too stiff for the situation, or the persona "
+    "shifts without reason. Do not judge fluency, clarity, correctness, or task success."
+)
+
+class ToneAppropriatenessGrader(Grader[ToneAppropriatenessArgs]):
+    def criteria(self) -> str:
+        if self.args.expected_tone is None:
+            return _CRITERIA
+        return (
+            f"{_CRITERIA} The operator requires this tone: {self.args.expected_tone} "
+            "Judge formality and register against this tone, not against the user's own "
+            "style. Respect, care for a user who is upset, and a stable persona still apply."
+        )
+```
+
+</GraderCode>

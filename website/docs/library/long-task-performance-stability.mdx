@@ -1,0 +1,62 @@
+---
+title: "Long task performance stability"
+description: "Whether performance holds as the number of dependent steps increases."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/reliability_and_robustness/_long_task_performance_stability.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="LongTaskPerformanceStabilityGrader" />
+
+Assess whether performance holds as the number of dependent steps increases.
+
+<GraderCode>
+
+```python
+class TaskArgs(BaseModel):
+    task_description: NonEmptyText | None = None
+    """What the agent was asked to do. When unset, the judge infers the goal from the user's
+    messages. A criterion runs in every task that selects its behaviour, so this text applies
+    to the scenarios of all those tasks."""
+
+
+class LongTaskPerformanceStabilityArgs(JudgeArgs, TaskArgs):
+    min_turns: int = Field(
+        default=4,
+        ge=2,
+        strict=True,
+        description=(
+            "Sessions with fewer recorded turns are errored, because a short session "
+            "cannot show a drop."
+        ),
+    )
+
+
+class LongTaskPerformanceStabilityGrader(Grader[LongTaskPerformanceStabilityArgs]):
+    def criteria(self) -> str:
+        return (
+            "You are assessing whether an agent keeps its performance as a long task "
+            "continues. Compare the later turns of the session with the earlier turns."
+            + self.args.task_block()
+            + "\n\nIn each turn, look at these points:\n"
+            "- Correct progress: the reply does what the user asked in that turn, and it "
+            "uses the correct results of earlier steps.\n"
+            "- Instructions in force: the reply follows every earlier instruction that the "
+            "user did not withdraw, such as a format, a limit, or a preference.\n"
+            "- Consistency: the reply does not contradict an earlier decision or fact, and "
+            "it does not redo or undo completed work without a reason.\n\n"
+            "Score 1 when the later turns are as good as the earlier turns on these points. "
+            "Score 0 when the later turns show failures that the earlier turns do not, such "
+            "as an instruction that the agent followed early and then dropped, a loss of "
+            "track of the task, or more errors as the session gets longer. In your reason, "
+            "name the turns that show the change."
+            "\n\n<assessment_boundaries>\n"
+            "Judge the change in performance over the session. A session with the same "
+            "quality in every turn is stable, even when that quality is poor. Do not score "
+            "a failure that is already present in the first turns as a drop."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

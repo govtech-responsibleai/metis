@@ -1,0 +1,440 @@
+@import "tailwindcss";
+
+@import "@fontsource/figtree/400.css";
+@import "@fontsource/figtree/500.css";
+@import "@fontsource/figtree/600.css";
+@import "@fontsource/figtree/700.css";
+@import "@fontsource/jetbrains-mono/400.css";
+
+/* ============================================================
+   METIS design tokens. This file IS the palette — change a colour
+   here, never inline.
+
+   `--primary` is bound to the near-black foreground, not the accent:
+   primary buttons are near-black on purpose, which is what keeps the
+   teal scarce enough to still mean something.
+   ============================================================ */
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 0 0% 4%;
+
+  --muted: 0 0% 96%;
+  --muted-foreground: 0 0% 40%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 4%;
+
+  --primary: 0 0% 9%;
+  --primary-foreground: 0 0% 98%;
+
+  --secondary: 0 0% 96%;
+  --secondary-foreground: 0 0% 9%;
+
+  /* Teal. State only — selection, focus, live status. Never a button fill. */
+  --accent: 187 71% 19%;
+  --accent-foreground: 0 0% 98%;
+
+  --gold: 41 39% 54%;
+
+  /* The taxonomy chips on a grader row. One quiet hue for each taxonomy field. */
+  --tag-type: 187 60% 24%;
+  --tag-scope: 222 45% 38%;
+  --tag-reference: 32 60% 32%;
+  --tag-judgment: 280 30% 38%;
+
+  --destructive: 0 72% 42%;
+  --destructive-foreground: 0 0% 98%;
+
+  --border: 0 0% 90%;
+  --input: 0 0% 90%;
+  --ring: 187 71% 19%;
+
+  /* Radius — two tiers. Small controls (buttons, badges, single-line inputs)
+     take 8px; large surfaces (cards, panels, text areas, dropdowns, floating
+     surfaces) take 16px. The contrast between the two is the point, so don't
+     introduce a third value. Named without the `-sm`/`-lg` suffixes because
+     those are the Tailwind theme keys below, which read from these. */
+  --radius: 8px;
+  --radius-large: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: 0 0% 4%;
+    --foreground: 0 0% 96%;
+
+    --muted: 0 0% 11%;
+    --muted-foreground: 0 0% 64%;
+    --card: 0 0% 6%;
+    --card-foreground: 0 0% 96%;
+
+    /* On a black canvas the strong neutral action becomes near-white. */
+    --primary: 0 0% 96%;
+    --primary-foreground: 0 0% 9%;
+
+    --secondary: 0 0% 13%;
+    --secondary-foreground: 0 0% 96%;
+
+    --accent: 187 46% 45%;
+    --accent-foreground: 0 0% 4%;
+
+    --gold: 42 45% 61%;
+
+    --tag-type: 187 46% 62%;
+    --tag-scope: 222 55% 72%;
+    --tag-reference: 32 60% 64%;
+    --tag-judgment: 280 35% 74%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 16%;
+    --input: 0 0% 16%;
+    --ring: 187 46% 45%;
+  }
+}
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-gold: hsl(var(--gold));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  /* `rounded-sm`/`rounded-md` land on the small tier, so a component that says
+     nothing gets the control radius; `rounded-lg` is the opt-in for a surface. */
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius-large);
+
+  /* One step of padding, margin, and gap. It is 10% under the Tailwind default (0.25rem), so the
+     whole app is slightly tighter and keeps its proportions. */
+  --spacing: 0.225rem;
+
+  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  /* The app fills the window and only its panels scroll. Without this, focus on a field low
+     in a panel (an inline edit, a dialog button) can scroll the page itself, which pushes the
+     whole app up and leaves blank space under it. */
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans);
+    /* 16px, not 14. The conversation is read for minutes at a stretch, and the reference
+       chat apps all sit at 16 for the body; the smaller size read as cramped. `text-sm`
+       and `text-xs` on secondary chrome scale up in proportion, so the hierarchy holds. */
+    font-size: 1rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* One focus treatment everywhere, and it is the accent's main job. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 1px;
+  }
+
+  ::selection {
+    background: hsl(var(--accent) / 0.22);
+  }
+
+  /* Motion marks a state change and nothing else. Anyone who has asked for less
+     gets none. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* A scrollbar toned down rather than reinvented. The platform default is a wide opaque bar, and
+   inside a rounded composer it landed hard against the border and read as a fragment of some other
+   interface. This keeps the native control and native behaviour — it only narrows the thumb and
+   drops it to the same hairline grey as every border in the product, on a track of nothing. The
+   scrollbar still looks and works like a scrollbar; it just stops shouting. */
+.quiet-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+
+.quiet-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.quiet-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.quiet-scrollbar::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border));
+  /* A thumb is a handle, not a surface, so it is not on the two-tier radius scale: fully rounded
+     is what a scrollbar thumb is everywhere, and matching a control radius would look arbitrary. */
+  border-radius: 999px;
+}
+
+.quiet-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* A scrolled field fades out at its top edge. Text scrolling out of a box has to end somewhere,
+   and ending it on a hard horizontal cut a few pixels beneath a rounded border made the composer
+   look broken rather than scrolled. The fade is applied only once the field is actually scrolled,
+   so the first line is never dimmed while it is the only line. */
+.faded-top {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 1rem);
+  mask-image: linear-gradient(to bottom, transparent 0, black 1rem);
+}
+
+/* The one scripted transition in the product: arriving at the conversation. When the opening
+   screen gives way to the chat — the first message sent, or an interview opened — the pane rises
+   and fades in rather than cutting, so the message the user just typed visibly becomes the
+   first turn. It marks a state change, which is the only motion the style allows. */
+@keyframes enter-conversation {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-enter-conversation {
+  animation: enter-conversation 0.28s ease-out both;
+}
+
+/* The opening view enters with a short lateral movement when the user starts a new evaluation.
+   The fill mode is `backwards`, so no transform stays on the view after the animation. A kept
+   transform would make the fixed capability sheet on a small screen position against the view
+   and not against the window. */
+@keyframes enter-opening-step {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-enter-opening-step {
+  animation: enter-opening-step 0.22s ease-out backwards;
+}
+
+/* Content landing in the document. A row that has just been written rises the last few pixels
+   into place instead of appearing cut — the arrival of content is a state change, and this is
+   what marks it. It runs on mount and never again: nothing carries a "recently changed" mark
+   once the animation has finished, so the pane still holds no change history. */
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-arrive {
+  animation: arrive 0.2s ease-out both;
+}
+
+/* A section of the document being written into. The blank rules standing in for the content
+   take a slow teal crest travelling along them, so the one section the model is filling is
+   visibly the live one while every other section's blanks stay flat grey.
+
+   This is the only looping animation in the pane, and it runs strictly while a model call is in
+   flight — it reports the busy state rather than decorating the page. The reduced-motion rule
+   above freezes it, leaving the flat grey rules. */
+@keyframes writing {
+  from {
+    background-position: 180% 0;
+  }
+  to {
+    background-position: -80% 0;
+  }
+}
+
+.is-writing .placeholder-rule {
+  background-image: linear-gradient(
+    90deg,
+    hsl(var(--border)) 0%,
+    hsl(var(--border)) 35%,
+    hsl(var(--accent) / 0.55) 50%,
+    hsl(var(--border)) 65%,
+    hsl(var(--border)) 100%
+  );
+  background-size: 200% 100%;
+  animation: writing 1.6s ease-in-out infinite;
+}
+
+@keyframes section-writing {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.section-writing-marker {
+  animation: section-writing 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .is-writing .placeholder-rule {
+    animation: none !important;
+    background-image: none;
+  }
+
+  .section-writing-marker {
+    animation: none !important;
+  }
+}
+
+/* A surface that opens under the opening box rises a few pixels out of the box edge. It is the
+   result of a click on its trigger, so it is the one movement for that action. */
+@keyframes open-under-box {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The cards that open under the opening box. The stack starts under the box, so the box covers
+   the top edge of the first card. That card gets the overlap as extra top padding, and so does
+   its close button. A sheet on a small screen is not under the box, so it keeps its padding. */
+.under-box-stack {
+  --under-box-overlap: 1rem;
+  margin-top: calc(-1 * var(--under-box-overlap));
+}
+
+/* With no card open, the stack takes no space, so it does not pull the next row up. */
+.under-box-stack:empty {
+  display: none;
+}
+
+.under-box-stack > section:first-of-type {
+  padding-top: calc(0.75rem + var(--under-box-overlap));
+}
+
+.under-box-stack > section:first-of-type > .under-box-close {
+  top: calc(0.625rem + var(--under-box-overlap));
+}
+
+@media (max-width: 39.999rem) {
+  .under-box-stack > section.under-box-sheet {
+    padding-top: 1rem;
+  }
+
+  .under-box-stack > section.under-box-sheet > .under-box-close {
+    top: 0.625rem;
+  }
+}
+
+/* A taxonomy chip: the text in the field's hue on a light wash of the same hue. Both are faded,
+   so the grader name and description stay the strongest text on the row. */
+.tag {
+  color: hsl(var(--tag) / 0.7);
+  background-color: hsl(var(--tag) / 0.07);
+}
+
+.tag-type {
+  --tag: var(--tag-type);
+}
+
+.tag-scope {
+  --tag: var(--tag-scope);
+}
+
+.tag-reference {
+  --tag: var(--tag-reference);
+}
+
+.tag-judgment {
+  --tag: var(--tag-judgment);
+}
+
+.animate-open-under-box {
+  animation: open-under-box 0.16s ease-out both;
+}
+
+/* A menu opens from its trigger: it fades in and drops a few pixels. */
+@keyframes open-menu {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-open-menu {
+  animation: open-menu 0.1s ease-out both;
+}
+
+/* The default Perspective is marked until the user first opens the Perspective control. The teal
+   ring draws in once when the opening appears and then stays as a still marker. It does not loop.
+   The marker goes away when the user opens the control. */
+@keyframes perspective-default-in {
+  from {
+    box-shadow: 0 0 0 6px hsl(var(--accent) / 0);
+  }
+  to {
+    box-shadow: 0 0 0 2px hsl(var(--accent) / 0.45);
+  }
+}
+
+.perspective-default {
+  box-shadow: 0 0 0 2px hsl(var(--accent) / 0.45);
+  animation: perspective-default-in 0.6s ease-out 0.2s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-open-menu,
+  .animate-open-under-box,
+  .perspective-default {
+    animation: none !important;
+  }
+}

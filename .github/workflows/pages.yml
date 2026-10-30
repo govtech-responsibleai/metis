@@ -1,0 +1,51 @@
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths: ['website/**', 'landing-page/**', 'Makefile', '.github/workflows/pages.yml']
+  pull_request:
+    paths: ['website/**', 'landing-page/**', 'Makefile', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: make install-docs install-landing
+      # The landing page is served at /metis/ and the docs at /metis/docs/.
+      - run: make check-docs build-site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  # GitHub Pages on the free plan serves only public repositories.
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && !github.event.repository.private
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

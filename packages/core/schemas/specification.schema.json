@@ -1,0 +1,416 @@
+{
+  "$defs": {
+    "Behaviour": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "measured": {
+          "default": false,
+          "title": "Measured",
+          "type": "boolean"
+        },
+        "criteria": {
+          "items": {
+            "$ref": "#/$defs/Criterion"
+          },
+          "title": "Criteria",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ],
+      "title": "Behaviour",
+      "type": "object"
+    },
+    "Criterion": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "grader_fqn": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Grader Fqn"
+        },
+        "grader_args": {
+          "additionalProperties": true,
+          "title": "Grader Args",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ],
+      "title": "Criterion",
+      "type": "object"
+    },
+    "ExperimentDefaults": {
+      "additionalProperties": false,
+      "description": "Experiment-wide defaults that individual criteria can override.",
+      "properties": {
+        "judge_model": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Judge Model"
+        },
+        "user_agent_model": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "User Agent Model"
+        },
+        "runner_agent_model": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runner Agent Model"
+        }
+      },
+      "title": "ExperimentDefaults",
+      "type": "object"
+    },
+    "Feature": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "behaviours": {
+          "items": {
+            "$ref": "#/$defs/Behaviour"
+          },
+          "title": "Behaviours",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ],
+      "title": "Feature",
+      "type": "object"
+    },
+    "Persona": {
+      "description": "A user type whose id can differ from its display name.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "metadata": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Metadata",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ],
+      "title": "Persona",
+      "type": "object"
+    },
+    "Scenario": {
+      "additionalProperties": false,
+      "description": "The situation in which Tasks evaluate the target.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "metadata": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Metadata",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ],
+      "title": "Scenario",
+      "type": "object"
+    },
+    "Target": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "users": {
+          "title": "Users",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "detail": {
+          "default": "",
+          "title": "Detail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "users",
+        "description"
+      ],
+      "title": "Target",
+      "type": "object"
+    },
+    "Task": {
+      "additionalProperties": false,
+      "description": "One test case. Identity survives edits to its references and inputs.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "scenario_ref": {
+          "title": "Scenario Ref",
+          "type": "string"
+        },
+        "persona_ref": {
+          "title": "Persona Ref",
+          "type": "string"
+        },
+        "fixtures": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Fixtures",
+          "type": "array"
+        },
+        "num_trials": {
+          "default": 3,
+          "title": "Num Trials",
+          "type": "integer"
+        },
+        "behaviour_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Behaviour Refs",
+          "type": "array"
+        },
+        "max_turns": {
+          "default": 20,
+          "exclusiveMinimum": 0,
+          "title": "Max Turns",
+          "type": "integer"
+        },
+        "timeout_minutes": {
+          "default": 15,
+          "exclusiveMinimum": 0,
+          "title": "Timeout Minutes",
+          "type": "integer"
+        },
+        "response_wait_ms": {
+          "default": 300000,
+          "exclusiveMinimum": 0,
+          "title": "Response Wait Ms",
+          "type": "integer"
+        },
+        "max_run_retries": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Run Retries"
+        },
+        "user_agent_model": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "User Agent Model"
+        }
+      },
+      "required": [
+        "id",
+        "scenario_ref",
+        "persona_ref"
+      ],
+      "title": "Task",
+      "type": "object"
+    }
+  },
+  "description": "The flat YAML and API representation of a Specification.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "id": {
+      "default": "",
+      "title": "Id",
+      "type": "string"
+    },
+    "runner_factory_ref": {
+      "default": "metis.engine.simulation.runners.http.HttpRunnerFactory",
+      "title": "Runner Factory Ref",
+      "type": "string"
+    },
+    "target_binding": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Binding"
+    },
+    "defaults": {
+      "$ref": "#/$defs/ExperimentDefaults"
+    },
+    "target": {
+      "$ref": "#/$defs/Target"
+    },
+    "features": {
+      "items": {
+        "$ref": "#/$defs/Feature"
+      },
+      "title": "Features",
+      "type": "array"
+    },
+    "personas": {
+      "items": {
+        "$ref": "#/$defs/Persona"
+      },
+      "title": "Personas",
+      "type": "array"
+    },
+    "scenarios": {
+      "items": {
+        "$ref": "#/$defs/Scenario"
+      },
+      "title": "Scenarios",
+      "type": "array"
+    },
+    "tasks": {
+      "items": {
+        "$ref": "#/$defs/Task"
+      },
+      "title": "Tasks",
+      "type": "array"
+    },
+    "fixture_content_descriptions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Fixture Content Descriptions",
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "runner_factory_ref",
+    "target"
+  ],
+  "title": "Specification v1",
+  "type": "object"
+}

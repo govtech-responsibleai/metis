@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "metis-core"
+version = "1.0.0b1"
+description = "Core data models and abstractions for the METIS suite"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2",
+    "python-dotenv>=1.0.0",
+    "rich>=13.0.0",
+    "structlog>=24.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/metis"]

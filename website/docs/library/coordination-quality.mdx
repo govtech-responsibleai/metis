@@ -1,0 +1,53 @@
+---
+title: "Coordination quality"
+description: "Whether agents appropriately delegate, share information, and reconcile."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/execution_and_decision_quality/_coordination_quality.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="CoordinationQualityGrader" />
+
+Assess whether agents appropriately delegate, share information, and reconcile.
+
+<GraderCode>
+
+```python
+class TaskArgs(BaseModel):
+    task_description: NonEmptyText | None = None
+    """What the agent was asked to do. When unset, the judge infers the goal from the user's
+    messages. A criterion runs in every task that selects its behaviour, so this text applies
+    to the scenarios of all those tasks."""
+
+
+class CoordinationQualityArgs(JudgeArgs, TaskArgs):
+    coordination_requirements: tuple[str, ...] = Field(
+        default=(),
+        description=(
+            "Expected coordination behaviour such as delegation, information "
+            "sharing, or dependency handling. When empty, the judge assesses "
+            "general coordination quality."
+        ),
+    )
+
+
+class CoordinationQualityGrader(Grader[CoordinationQualityArgs]):
+    def criteria(self) -> str:
+        return (
+            "You are assessing whether agents appropriately delegate, share "
+            "information, handle dependencies, and reconcile their contributions."
+            + self.args.task_block()
+            + section("coordination_requirements", self.args.coordination_requirements)
+            + "\n\n<assessment_boundaries>\n"
+            "Assess inter-agent coordination behaviour: delegation, information "
+            "sharing, dependency handling, and contribution reconciliation. The "
+            "presence of multiple agents in the configuration is not evidence of "
+            "coordination; assess observable coordination actions. If the session "
+            "involves only a single agent with no delegation or coordination, "
+            "the criterion does not apply."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

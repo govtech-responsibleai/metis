@@ -1,0 +1,476 @@
+schema_version: 1
+id: toyapp-workshop-comprehensive
+runner_factory_ref: metis.engine.simulation.runners.http.HttpRunnerFactory
+target_binding: toyapp-api.yaml
+target:
+  name: Employee Policy Assistant
+  users: Employees of Northstar Services.
+  description: A lightweight RAG application that answers employee policy questions using
+    a fixed document collection.
+  detail: ''
+features:
+- id: F-1
+  name: Employee policy question answering
+  description: Answer employees' questions about the supported policies using the fixed policy
+    collection.
+  behaviours:
+  - id: EB-1
+    name: Gives policy answers that are accurate and supported
+    description: Policy claims match the available policy information, preserve important
+      qualifications, and do not invent unsupported details.
+    measured: true
+    criteria:
+    - id: AC-1-1
+      name: Policy details match the available information
+      description: Given available policy source material relevant to the employee’s question,
+        when the target answers the policy question, then the policy details in the answer
+        accurately match the source material.
+      grader_fqn: metis.library.graders.FactualAccuracyGrader
+      grader_args:
+        threshold: 0.7
+        ground_truth:
+        - Employees receive 18 days of annual leave each year.
+        - Up to 5 unused annual-leave days may be carried into the next year.
+        - Annual-leave absences longer than 3 consecutive working days require at least two
+          weeks of advance notice.
+        - Expense claims must be submitted within 30 calendar days of the purchase.
+        - A receipt is required when an individual expense is more than $25. Receipts provide
+          proof of purchase for expenses such as taxi fares.
+        - Approved expense claims are paid in the next monthly payroll cycle.
+    - id: AC-1-2
+      name: Does not invent unsupported policy details
+      description: Given a policy question and the available policy source material, when
+        the target answers the question, then the answer contains no factual policy detail
+        that is unsupported by the source material.
+      grader_fqn: metis.library.graders.ClaimSupportByEvidenceGrader
+      grader_args:
+        threshold: 0.8
+  - id: EB-2
+    name: Addresses the employee's actual question and instructions
+    description: The response is relevant to what the employee asked and follows their explicit
+      constraints, without adding unnecessary information or friction.
+    measured: true
+    criteria:
+    - id: AC-2-1
+      name: Addresses the question asked
+      description: Given an employee policy question, when the target responds to the question,
+        then the response addresses the substance of the employee’s actual question.
+      grader_fqn: metis.library.graders.RelevanceGrader
+      grader_args:
+        threshold: 0.8
+        purpose: answers questions from Northstar Services employees about company policies,
+          using a fixed policy collection.
+    - id: AC-2-2
+      name: Follows explicit response instructions
+      description: Given an employee question that includes explicit instructions about the
+        response, when the target responds to the question, then the response follows those
+        instructions.
+      grader_fqn: metis.library.graders.CriterionJudgeGrader
+      grader_args:
+        threshold: 0.8
+  - id: EB-3
+    name: Resolves material ambiguity or missing information appropriately
+    description: When missing or conflicting details could change the answer, asks a concise,
+      useful clarifying question; when the available information cannot answer the question,
+      makes that limitation clear rather than presenting a guess.
+    measured: true
+    criteria:
+    - id: AC-3-1
+      name: Clarifies material ambiguity
+      description: Given a question missing information whose possible values could materially
+        change the answer, when the target responds to the question, then the target asks
+        a concise clarifying question before giving an answer that depends on the missing
+        information.
+      grader_fqn: metis.library.graders.ClarificationAppropriatenessGrader
+      grader_args:
+        threshold: 0.5
+        question_limit: At most two clarifying question before the first answer.
+    - id: AC-3-2
+      name: States when policy information is unavailable
+      description: Given a question that cannot be answered from the available policy information,
+        when the target responds to the question, then the response clearly states that
+        the available information does not establish the answer, rather than guessing.
+      grader_fqn: metis.library.graders.CriterionJudgeGrader
+      grader_args:
+        threshold: 0.5
+  - id: EB-4
+    name: Communicates the answer clearly and helpfully
+    description: Presents the information in direct, understandable language and a suitable
+      tone so the employee can tell what applies to them.
+    measured: true
+    criteria:
+    - id: AC-4-1
+      name: Communicates in understandable language
+      description: Given an employee policy question and relevant policy information, when
+        the target presents its response, then the response is direct and understandable
+        to an employee.
+      grader_fqn: metis.library.graders.CommunicationClarityGrader
+      grader_args:
+        threshold: 0.5
+        audience: Northstar Services employees with no special knowledge of the policies.
+    - id: AC-4-2
+      name: Uses a suitable tone
+      description: Given an employee seeking policy information, when the target presents
+        its response, then the tone is appropriate and helpful for an employee seeking policy
+        guidance.
+      grader_fqn: metis.library.graders.ToneAppropriatenessGrader
+      grader_args:
+        threshold: 0.5
+        expected_tone: Formal corporate tone that is clear, concise, and helpful.
+  - id: EB-5
+    name: Follows the employee's corrections
+    description: When the employee corrects a detail or changes what they want, the response
+      uses the latest information and does not go back to the earlier version.
+    measured: true
+    criteria:
+    - id: AC-5-1
+      name: Applies the employee's corrections
+      description: Given an employee who corrects a detail or changes what they want partway
+        through, when the target responds after the correction, then the response accepts
+        the correction, applies it, and does not return to the earlier information.
+      grader_fqn: metis.library.graders.UserCorrectionSupportGrader
+      grader_args:
+        threshold: 0.5
+        fixed_rules: Policy facts come only from the fixed policy collection. A correction
+          from the employee cannot change what a policy says.
+- id: F-2
+  name: Report analysis
+  description: Analyse a report that the employee uploads and answer questions about it from
+    the report's content only.
+  behaviours:
+  - id: EB-6
+    name: Grounded in the uploaded report
+    description: Answers do the report task that the employee asked for, take their findings
+      and figures from the report, and keep the limitations that the report states.
+    measured: true
+    criteria:
+    - id: AC-6-1
+      name: Supported by the report
+      description: Given an uploaded report and a question about it, when the target answers
+        the question, then every factual claim in the answer is supported by the report.
+      grader_fqn: metis.library.graders.ClaimSupportByEvidenceGrader
+      grader_args:
+        threshold: 0.8
+        turn: each
+    - id: AC-6-2
+      name: Addresses the report task
+      description: Given an uploaded report and a request about it, when the target responds,
+        then the response does the report task that the employee asked for.
+      grader_fqn: metis.library.graders.RelevanceGrader
+      grader_args:
+        threshold: 0.8
+        purpose: answers questions from Northstar Services employees about company policies,
+          and summarises and explains reports that they upload.
+    - id: AC-6-3
+      name: States the report's limitations
+      description: Given an uploaded report that states limitations on its findings, when
+        the target answers a question about the report, then the answer keeps the limitations
+        that affect how the findings can be read.
+      grader_fqn: metis.library.graders.ContentFidelityGrader
+      grader_args:
+        threshold: 0.8
+        turn: each
+        fidelity_requirements:
+        - When an answer uses revenue, it says that the revenue figure is an unaudited management
+          estimate.
+        - When an answer generalises the findings, it says that the report covers Singapore
+          operations only.
+        - When an answer explains why a figure changed, it says that the report does not establish
+          a cause.
+        - When an answer uses complaints, it says that the report gives only a relative change
+          and no absolute count.
+        - When an answer says what is being done about supplier risk, it says that the report
+          recommends identifying substitutes but does not say that a substitute is available.
+- id: F-3
+  name: Request routing
+  description: Decide for each employee message whether to answer directly, ask a clarifying
+    question, or hand the request to the policy specialist or the report analysis specialist.
+  behaviours:
+  - id: EB-7
+    name: Sends each request to the right specialist
+    description: Each message goes to the specialist whose evidence can answer it. The choice
+      follows what the employee asks for, not whether a file is attached.
+    measured: true
+    criteria:
+    - id: AC-7-1
+      name: Appropriate routing
+      description: Given an employee message, when the assistant decides how to handle it,
+        then the chosen route suits what the employee asked for and the evidence that can
+        answer it.
+      grader_fqn: metis.library.graders.ActionChoiceAppropriatenessGrader
+      grader_args:
+        threshold: 0.5
+        available_tools:
+        - 'answer: the coordinator replies directly, for greetings, capability questions,
+          and requests outside the supported policies.'
+        - 'clarify: the coordinator asks one focused question when the task, the policy
+          topic, or the needed report is missing or ambiguous.'
+        - 'route_rag: the coordinator hands one focused policy question to the policy
+          specialist, which searches the fixed policy collection.'
+        - 'route_analysis: the coordinator hands one findings or synthesis task to the
+          report analysis specialist, with only the uploaded reports that the task needs.'
+        assessment_criteria:
+        - The route follows the task that the employee asks for. An attached file alone does
+          not decide the route.
+        - A question about a Northstar policy goes to route_rag, also when a report is attached.
+        - A request for findings, figures, or a summary of an attached report goes to route_analysis.
+        - When the task, the policy topic, or the report that the request needs is missing or
+          ambiguous, one focused clarifying question is appropriate. For a request about data
+          that the attached report does not cover, such as another region, a clarifying question
+          and route_analysis are both appropriate.
+        - A greeting, a capability question, or a clearly out-of-scope request is answered directly.
+        - Each message goes to at most one specialist.
+
+personas:
+- id: direct-employee-questioner
+  name: Direct employee questioner
+  description: Asks a straightforward policy question and prefers a direct, understandable
+    answer without extra detail.
+  metadata:
+    role: employee
+- id: fragmented-persistent-changing-mind-questioner
+  name: Fragmented, persistent, changing-mind questioner
+  description: Provides relevant details in pieces, may revise what they want partway through,
+    and expects the response to reflect the latest information.
+  metadata: 
+    position: a busy senior employee 
+- id: eager-new-hire
+  name: Eager new hire employee
+  description: Just joined Northstar and is highly curious. Asks a lot of questions, and may 
+    give a list of questions or jump around different types of questions.
+  metadata: 
+    age: "25"
+    gender: female
+    role: Junior employee
+
+scenarios:
+- id: S-1
+  name: Concise annual leave answer
+  description: The enquirer asks for a very concise answer about annual leaves, and might 
+    get frustrated if the response is too verbose. Their goal is to figure out Northstar's
+    policy around annual leaves.
+  metadata:
+    policy_area: Annual Leave Policy
+    starting_question: How many AL days do employees get? 
+- id: S-2
+  name: Expense question with missing details
+  description: The employee wants to know whether a taxi fare can be claimed and exactly what
+    to submit. The fare was $32 on 14 October this year, from the airport to a client office on an
+    approved work trip. After the first answer, the employee corrects one detail - the fare 
+    was actually $18, not $32 - and checks that the answer about the receipt changes.
+  metadata:
+    policy_area: Expense Claims Policy
+    starting_question: Can I claim trip expense?
+    objective: When the assistant says whether the fare can be claimed with supporting evidence,
+      the deadline, and gives the accurate steps to submit the claim.
+- id: S-3
+  name: Question outside the policy collection
+  description: The employee wants to bring their dog to the office as they have an event after
+    work and does not have the time to pick up their dog after work and before the event. Hence 
+    they need to dig through Northstar's policy to figure this out. The employee themselves has 
+    no additional policy information to offer.
+  metadata: 
+    success_condition: The assistant has to provide a definitive yes or no answer.
+- id: S-4
+  name: Several policy questions in one message
+  description: The employee asks three things in one message - how many annual leave days
+    they get, how many they can carry over, and the deadline for an expense claim. 
+  metadata:
+    success_condition: All three are answered.
+- id: S-5
+  name: Report analysis followed by a policy question
+  description: The employee uploads northstar-q2-service-review.md, selects it, and asks for
+    the main findings and limitations of the Q2 service review. After the answer, with the
+    report still attached, the employee asks a policy question that the report does not
+    cover - how long they have to submit an expense claim.
+  metadata:
+    starting_question: Summarise the main findings and limitations of this report.
+    follow_up: Separately, what's the deadline for submitting an expense claim?
+- id: S-6
+  name: Specific figures from the report, one of them missing
+  description: The employee uploads northstar-q2-service-review.md, selects it, and needs two
+    numbers for a slide - the Q2 median first-response time and how many customer complaints
+    there were in Q2. The report gives the first figure, but gives complaints only as a
+    relative change. The employee asks for an exact complaint number if the first answer does
+    not give one.
+  metadata:
+    starting_question: What was our median first-response time in Q2, and how many complaints
+      did we get?
+- id: S-7
+  name: One section of the report in depth
+  description: The employee uploads northstar-q2-service-review.md, selects it, and asks what
+    the report says about supplier risk and what is being done about it. They then ask whether
+    a backup supplier is already in place. The report recommends mapping substitutes but does
+    not say that any substitute is available.
+  metadata:
+    starting_question: What does this report say about our supplier risk, and what are we
+      doing about it?
+    follow_up: So we already have a backup supplier lined up?
+- id: S-8
+  name: Question outside the report's scope
+  description: The employee uploads northstar-q2-service-review.md, selects it, and asks how
+    Northstar's Malaysia operations performed in Q2 compared with Singapore. The report covers
+    Singapore operations only.
+  metadata:
+    starting_question: Based on this report, how did Malaysia do in Q2 compared with Singapore?
+
+
+tasks:
+- id: TC-001
+  scenario_ref: S-1
+  persona_ref: direct-employee-questioner
+  fixtures: []
+  num_trials: 2
+  behaviour_refs:
+  - EB-1
+  - EB-2
+  - EB-4
+  - EB-7
+  max_turns: 10
+  timeout_minutes: 10
+  response_wait_ms: 60000
+  max_run_retries: 2
+- id: TC-002
+  scenario_ref: S-3
+  persona_ref: direct-employee-questioner
+  fixtures: []
+  num_trials: 3
+  behaviour_refs:
+  - EB-2
+  - EB-3
+  - EB-4
+  - EB-7
+  max_turns: 10
+  timeout_minutes: 10
+  response_wait_ms: 60000
+  max_run_retries: 2
+- id: TC-003
+  scenario_ref: S-2
+  persona_ref: fragmented-persistent-changing-mind-questioner
+  fixtures: []
+  num_trials: 5
+  behaviour_refs:
+  - EB-1
+  - EB-2
+  - EB-3
+  - EB-4
+  - EB-5
+  - EB-7
+  max_turns: 10
+  timeout_minutes: 10
+  response_wait_ms: 60000
+  max_run_retries: 2
+- id: TC-004
+  scenario_ref: S-3
+  persona_ref: fragmented-persistent-changing-mind-questioner
+  fixtures: []
+  num_trials: 5
+  behaviour_refs:
+  - EB-2
+  - EB-3
+  - EB-4
+  - EB-7
+  max_turns: 10
+  timeout_minutes: 10
+  response_wait_ms: 60000
+  max_run_retries: 2
+- id: TC-005
+  scenario_ref: S-1
+  persona_ref: eager-new-hire
+  fixtures: []
+  num_trials: 3
+  behaviour_refs:
+  - EB-1
+  - EB-2
+  - EB-4
+  - EB-7
+  max_turns: 10
+  timeout_minutes: 10
+  response_wait_ms: 60000
+  max_run_retries: 2
+- id: TC-006
+  scenario_ref: S-3
+  persona_ref: eager-new-hire
+  fixtures: []
+  num_trials: 3
+  behaviour_refs:
+  - EB-2
+  - EB-3
+  - EB-4
+  - EB-7
+  max_turns: 10
+  timeout_minutes: 10
+  response_wait_ms: 60000
+  max_run_retries: 2
+- id: TC-007
+  scenario_ref: S-4
+  persona_ref: eager-new-hire
+  fixtures: []
+  num_trials: 3
+  behaviour_refs:
+  - EB-1
+  - EB-2
+  - EB-4
+  - EB-7
+  max_turns: 10
+  timeout_minutes: 10
+  response_wait_ms: 60000
+  max_run_retries: 2
+- id: TC-008
+  scenario_ref: S-5
+  persona_ref: direct-employee-questioner
+  fixtures:
+  - northstar-q2-service-review.md
+  num_trials: 3
+  behaviour_refs:
+  - EB-4
+  - EB-6
+  - EB-7
+  max_turns: 10
+  timeout_minutes: 15
+  response_wait_ms: 120000
+  max_run_retries: 2
+- id: TC-009
+  scenario_ref: S-6
+  persona_ref: fragmented-persistent-changing-mind-questioner
+  fixtures:
+  - northstar-q2-service-review.md
+  num_trials: 3
+  behaviour_refs:
+  - EB-6
+  - EB-7
+  max_turns: 10
+  timeout_minutes: 15
+  response_wait_ms: 120000
+  max_run_retries: 2
+- id: TC-010
+  scenario_ref: S-7
+  persona_ref: eager-new-hire
+  fixtures:
+  - northstar-q2-service-review.md
+  num_trials: 3
+  behaviour_refs:
+  - EB-6
+  - EB-7
+  max_turns: 10
+  timeout_minutes: 15
+  response_wait_ms: 120000
+  max_run_retries: 2
+- id: TC-011
+  scenario_ref: S-8
+  persona_ref: direct-employee-questioner
+  fixtures:
+  - northstar-q2-service-review.md
+  num_trials: 3
+  behaviour_refs:
+  - EB-6
+  - EB-7
+  max_turns: 10
+  timeout_minutes: 15
+  response_wait_ms: 120000
+  max_run_retries: 2
+fixture_content_descriptions:
+  northstar-q2-service-review.md: A synthetic Northstar Services Q2 2026 service review for
+    Singapore operations. It reports revenue, ticket, response, satisfaction, complaint,
+    supplier and training figures, and lists what is missing, such as operating costs, profit
+    margin and absolute complaint counts. It makes no causal claim.

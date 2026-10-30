@@ -1,0 +1,60 @@
+---
+title: "Output correctness"
+description: "Whether an answer or deliverable is substantively correct."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/task_and_output_quality/_output_correctness.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="OutputCorrectnessGrader" />
+
+Assess whether an answer or deliverable is substantively correct.
+
+Adapted from [MLflow Correctness](https://github.com/mlflow/mlflow/blob/ad8419718140a5d9957722d8196ced9a1d77c14a/mlflow/genai/judges/prompts/correctness.py).
+
+<GraderCode>
+
+```python
+class ArtifactArgs(BaseModel):
+    artifact: NonEmptyText | None = None
+    """The name of the file to judge. When the target revised the file, the judge reads the
+    latest version."""
+
+
+class TraceArgs(BaseModel):
+    turn: Literal["each", "last"] = "each"
+    """``each`` judges every recorded turn, each on its own. ``last`` judges only the final
+    recorded turn."""
+
+
+class OutputCorrectnessArgs(JudgeArgs, TraceArgs, ArtifactArgs):
+    turn: Literal["each", "last"] = "last"
+    """``last`` judges only the final reply. ``each`` judges every reply."""
+    correctness_conditions: tuple[NonEmptyText, ...] = Field(
+        min_length=1,
+        description="Conditions that define substantive correctness of the output.",
+    )
+
+
+class OutputCorrectnessGrader(Grader[OutputCorrectnessArgs]):
+    def criteria(self) -> str:
+        return (
+            "You are assessing whether the target response is substantively correct."
+            + section("correctness_conditions", self.args.correctness_conditions)
+            + "\n\nYou must determine whether the response satisfies every correctness "
+            "condition above. Do not make assumptions, approximations, or bring in "
+            "external knowledge."
+            "\n\nScore 1 only if the response satisfies every correctness condition, "
+            "and score 0 otherwise. If any condition is not met, state in the reason "
+            "which condition fails." + "\n\n<assessment_boundaries>\n"
+            "Assess substantive correctness of the assessed evidence under the explicit "
+            "correctness conditions above. A correct answer does not establish that an "
+            "external action was completed. Focus on whether the content of the response "
+            "is correct, not on whether the broader task was completed. "
+            "Earlier messages or user-supplied content are not part of the assessed output."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

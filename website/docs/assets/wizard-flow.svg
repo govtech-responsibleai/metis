@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 532" width="720" height="532" role="img" aria-labelledby="title desc">
+  <title id="title">Wizard flow</title>
+  <desc id="desc">The Wizard has four stages: set up, define product requirements, design Test Cases, and get the specification. In the browser, you can skip the rest of the interview at any step, or skip the interview and write the specification yourself in a form or in YAML.</desc>
+  <style>
+    text { font-family: Lato, "Helvetica Neue", Arial, sans-serif; fill: #171717; }
+    .card { fill: #ffffff; stroke: #d4d4d4; stroke-width: 1.5; }
+    .gold { fill: #f5efe2; stroke: #b39a63; stroke-width: 1.5; }
+    .next { fill: #ffffff; stroke: #a3a3a3; stroke-width: 1.5; stroke-dasharray: 5 4; }
+    .title { font-size: 16px; font-weight: 700; }
+    .label { font-size: 15px; font-weight: 700; }
+    .sub { font-size: 13px; fill: #525252; }
+    .path-label { font-size: 12.5px; font-weight: 700; fill: #0e5159; }
+    .path-note { font-size: 12px; fill: #525252; }
+    .edge { stroke: #737373; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+    .shortcut { stroke: #0e5159; stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; marker-end: url(#arrow-teal); }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#737373"/>
+    </marker>
+    <marker id="arrow-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0e5159"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="720" height="532" rx="16" fill="#fafafa"/>
+
+  <!-- Main column -->
+  <path class="edge" d="M360,64 V90"/>
+  <path class="edge" d="M360,156 V182"/>
+  <path class="edge" d="M360,248 V274"/>
+  <path class="edge" d="M360,340 V366"/>
+  <path class="edge" d="M360,432 V458"/>
+
+  <!-- Shortcut: skip the rest of the interview -->
+  <path class="shortcut" d="M530,124 H592 V400 H532"/>
+  <text class="path-label" x="602" y="244">Skip the</text>
+  <text class="path-label" x="602" y="260">interview</text>
+  <text class="path-note" x="602" y="278">Web only</text>
+
+  <!-- Shortcut: write it yourself -->
+  <path class="shortcut" d="M240,42 H80 V202"/>
+  <path class="shortcut" d="M80,258 V400 H188"/>
+
+  <!-- Start -->
+  <rect class="gold" x="240" y="20" width="240" height="44" rx="22"/>
+  <text class="label" x="360" y="47" text-anchor="middle">Start the Wizard</text>
+
+  <!-- Stages -->
+  <rect class="card" x="190" y="92" width="340" height="64" rx="10"/>
+  <text class="title" x="360" y="119" text-anchor="middle">Set up</text>
+  <text class="sub" x="360" y="140" text-anchor="middle">Describe the target and add supporting files</text>
+
+  <rect class="card" x="190" y="184" width="340" height="64" rx="10"/>
+  <text class="title" x="360" y="211" text-anchor="middle">Define product requirements</text>
+  <text class="sub" x="360" y="232" text-anchor="middle">Explain the target, then pick behaviours and criteria</text>
+
+  <rect class="card" x="190" y="276" width="340" height="64" rx="10"/>
+  <text class="title" x="360" y="303" text-anchor="middle">Design Test Cases</text>
+  <text class="sub" x="360" y="324" text-anchor="middle">Check personas, scenarios, and test cases</text>
+
+  <rect class="gold" x="190" y="368" width="340" height="64" rx="10"/>
+  <text class="title" x="360" y="395" text-anchor="middle">Get the specification</text>
+  <text class="sub" x="360" y="416" text-anchor="middle">Download a ZIP with specification.yaml</text>
+
+  <!-- Next step -->
+  <rect class="next" x="240" y="460" width="240" height="52" rx="8"/>
+  <text class="label" x="360" y="482" text-anchor="middle">Run the evaluation</text>
+  <text class="sub" x="360" y="501" text-anchor="middle">metis engine run</text>
+
+  <!-- Manual form -->
+  <rect class="card" x="15" y="202" width="130" height="56" rx="8"/>
+  <text class="label" x="80" y="226" text-anchor="middle">Write it yourself</text>
+  <text class="sub" x="80" y="246" text-anchor="middle">Form or YAML</text>
+</svg>

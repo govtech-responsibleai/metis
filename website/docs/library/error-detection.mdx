@@ -1,0 +1,38 @@
+---
+title: "Error detection"
+description: "Whether the agent observably identifies failed or erroneous actions."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/execution_and_decision_quality/_error_detection.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="ErrorDetectionGrader" />
+
+Assess whether the agent observably identifies failed or erroneous actions.
+
+<GraderCode>
+
+```python
+class TaskArgs(BaseModel):
+    task_description: NonEmptyText | None = None
+    """What the agent was asked to do. When unset, the judge infers the goal from the user's
+    messages. A criterion runs in every task that selects its behaviour, so this text applies
+    to the scenarios of all those tasks."""
+
+
+class ErrorDetectionGrader(Grader[ErrorDetectionArgs]):
+    def criteria(self) -> str:
+        return (
+            "You are assessing whether the agent observably identifies failed or "
+            "erroneous actions, assumptions, or results."
+            + self.args.task_block()
+            + "\n\n<assessment_boundaries>\n"
+            "Require a visible flag, statement, or corrective behaviour. Do not infer "
+            "unobserved internal recognition. If no errors or failures are observable "
+            "in the session, the criterion does not apply."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

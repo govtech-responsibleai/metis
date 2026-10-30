@@ -1,0 +1,447 @@
+/* Inter is the Singapore Government Design System typeface; JetBrains Mono matches the Insights report */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import 'tailwindcss';
+
+:root {
+  --navy: #021220; --navy-soft: #0a2a3d;
+  --paper: #FAF8F3; --tint: rgba(2,18,32,.04);
+  --gold: #E5AE4F; --gold-dark: #9B7520;
+  --periwinkle: #3C468B; --rose: #AB596A; --peach: #F6D6CB; --green: #5E9B6D;
+  --line: #E0D9CB; --muted: #5C6569;
+  --sans: 'Inter', system-ui, sans-serif; --mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+* { box-sizing: border-box }
+/* `clip`, not `hidden`: hidden makes a scroll container and stops the header sticking */
+html { scroll-behavior: smooth; overflow-x: clip; background: var(--paper) }
+body { min-height: 100vh; margin: 0; background: var(--paper); color: var(--navy); font-family: var(--sans); font-size: 16px; -webkit-font-smoothing: antialiased; overflow-x: clip }
+#root { min-height: 100vh; background: var(--paper) }
+a { color: inherit; text-decoration: none } button { font: inherit }
+.site-shell { display: block; overflow: clip; background: var(--paper) }
+.site-shell > main, .site-shell > footer { width: 100%; position: relative; z-index: 1 }
+.container { width: calc(100% - 48px); max-width: 1180px; margin-inline: auto }
+section[id] { scroll-margin-top: 64px }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
+
+/* ── Header ── */
+.site-header { position: sticky; top: 0; z-index: 50; background: rgba(2,18,32,.82); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid rgba(229,174,79,.14) }
+.header-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 60px }
+.header-brand { display: flex; align-items: center; gap: 10px; color: var(--paper); min-width: 0 }
+.header-brand img { width: 34px; height: 34px; object-fit: contain; flex: 0 0 auto }
+.header-brand strong { font-size: 18px; font-weight: 800; letter-spacing: .1em }
+.header-brand span { font: 600 14px var(--sans); letter-spacing: .06em; color: #8CA0A6; padding-left: 12px; border-left: 1px solid rgba(229,174,79,.25); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.button.header-github { min-height: 36px; padding: 0 14px; font-size: 14px; gap: 8px }
+.button.secondary.header-github svg { width: 16px; fill: currentColor; stroke: none }
+
+.button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 0 24px; border-radius: 8px; font-size: 14px; font-weight: 700; transition: .2s; white-space: nowrap; flex-wrap: nowrap; flex-shrink: 0 }
+.button:hover { transform: translateY(-2px) }
+.button.primary { background: var(--gold); color: var(--navy); box-shadow: 0 10px 35px rgba(229,174,79,.18) }
+.button.primary svg { fill: currentColor; stroke: none; width: 19px }
+/* Gold primary buttons sit on navy; on warm-white sections the primary button is navy */
+.button.primary.on-light { background: var(--navy); color: var(--paper); box-shadow: 0 10px 30px rgba(2,18,32,.18) }
+.button.secondary { background: rgba(255,255,255,.06); border: 1px solid rgba(229,174,79,.3); color: var(--paper) }
+.button.secondary svg { fill: none; stroke: currentColor; stroke-width: 1.8; width: 18px }
+
+/* ── Hero ── */
+.hero { position: relative; min-height: 480px; color: #fff; padding-block: 64px 72px; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.1fr); gap: 56px; align-items: center }
+.hero:after { content: ''; position: absolute; z-index: -3; inset: 0; left: 50%; width: 100vw; transform: translateX(-50%); background: radial-gradient(circle at 79% 31%,rgba(60,70,139,.2),transparent 28%),radial-gradient(circle at 19% 83%,rgba(229,174,79,.08),transparent 31%),linear-gradient(135deg,#021220,#0a2a3d 62%,#021220) }
+.hero-copy { display: flex; flex-direction: column; align-items: flex-start }
+/* Trace art spans the whole navy hero, behind the text and the card stack (see traceArt.ts) */
+.hero-art { position: absolute; z-index: -2; top: 0; bottom: 0; left: 50%; width: 100vw; height: 100%; transform: translateX(-50%); pointer-events: none }
+/* A soft navy halo keeps the hero text crisp over the art */
+.hero h1, .hero-lede { text-shadow: 0 0 18px var(--navy), 0 0 6px var(--navy), 0 0 2px var(--navy) }
+.hero-credit { margin: 18px 0 0; font-size: 14px; color: #B8C8CC }
+.section-kicker { font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase }
+h1,h2,h3,p { margin-top: 0 }
+/* Tailwind's base styles reset heading weights to 400; section and card headings are semibold */
+h2, h3 { font-weight: 600 }
+.hero h1 { font-size: clamp(34px,4.2vw,54px); line-height: 1.08; letter-spacing: -.03em; margin: 0 0 20px; color: var(--paper); font-weight: 700 }
+.hero h1 em { font-family: 'Instrument Serif',serif; font-weight: 400; color: var(--gold); font-style: italic; letter-spacing: -.02em }
+.hero-lede { max-width: 520px; color: #B8C8CC; font-size: 16px; line-height: 1.7; margin: 0 }
+.hero-actions { display: flex; gap: 12px; margin: 28px 0 0; flex-wrap: wrap }
+
+/* Card stack: depth 0 is the front card; deeper cards sit higher and smaller */
+.hero-stack { min-width: 0 }
+.stack-cards { position: relative; aspect-ratio: 16 / 10; margin-top: 48px }
+.stack-card { position: absolute; inset: 0; margin: 0; border-radius: 12px; overflow: hidden; background: #fff; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 24px 60px rgba(0,0,0,.35); transform-origin: 50% 0; transition: transform .6s cubic-bezier(.2,.7,.2,1), opacity .6s ease }
+.stack-card.depth-0 { transform: none; opacity: 1 }
+.stack-card.depth-1 { transform: translateY(-22px) scale(.96); opacity: .85 }
+.stack-card.depth-2 { transform: translateY(-44px) scale(.92); opacity: .6 }
+.stack-card.depth-hidden { transform: translateY(16px) scale(.98); opacity: 0; pointer-events: none }
+.stack-card img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top left }
+.stack-chip { position: absolute; left: 12px; bottom: 12px; z-index: 1; font: 600 12px var(--sans); letter-spacing: .06em; color: var(--paper); background: rgba(2,18,32,.82); border: 1px solid rgba(229,174,79,.3); border-radius: 99px; padding: 4px 10px }
+.stack-nav { display: flex; align-items: center; gap: 14px; margin-top: 16px }
+.stack-dots { display: flex; gap: 6px }
+.stack-dots button { width: 8px; height: 8px; padding: 0; border-radius: 50%; border: 0; background: rgba(250,248,243,.28); cursor: pointer; transition: background .2s, transform .2s }
+.stack-dots button:hover { background: rgba(250,248,243,.6) }
+.stack-dots button[aria-pressed="true"] { background: var(--gold); transform: scale(1.25) }
+.stack-dots button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px }
+.stack-label { font-size: 14px; color: #B8C8CC }
+.section-kicker { color: var(--gold-dark); margin-bottom: 16px }
+/* Heading on the left, supporting text in a wide right column so it sits on about two lines */
+.section-heading { display: grid; grid-template-columns: minmax(0,1.15fr) minmax(0,1fr); align-items: end; gap: 48px; margin-bottom: 40px }
+.section-heading > p { justify-self: end; color: var(--muted); font-size: 15px; line-height: 1.7; margin: 0 0 5px }
+.inline-link { color: var(--gold-dark); text-decoration: underline; text-underline-offset: 2px; font-weight: 600; transition: color .2s }
+.inline-link:hover { color: var(--navy) }
+h2 { font-size: clamp(32px,3.8vw,48px); line-height: 1.08; letter-spacing: -.03em; margin-bottom: 0 }
+
+/* ── Methodology ── */
+.methodology { background: var(--paper); color: var(--navy); padding: 64px 0; border-top: 1px solid var(--line) }
+.steps { display: grid; grid-template-columns: repeat(4,1fr); border-top: 1px solid var(--line) }
+.step { position: relative; isolation: isolate; padding: 28px 28px 24px 0; border-right: 1px solid var(--line); margin-right: 28px; display: flex; flex-direction: column; transition: transform .3s }
+.step:last-child { border: 0; margin-right: 0 }
+/* The hover tint sits on its own layer, so the text never moves or rewraps */
+.step:before { content: ''; position: absolute; z-index: -1; inset: 0 12px 0 -14px; border-radius: 10px; background: linear-gradient(180deg,rgba(229,174,79,.08),transparent); opacity: 0; transition: opacity .3s }
+.step:hover { transform: translateY(-4px) }
+.step:hover:before { opacity: 1 }
+.step-top { display: flex; align-items: center; justify-content: space-between }
+.step-top span { font: 600 12px var(--sans); letter-spacing: .12em; color: var(--gold-dark) }
+.step-top b { font: 500 12px var(--sans); color: var(--muted) }
+.step h3 { font-size: 20px; line-height: 1.25; letter-spacing: -.02em; margin: 24px 0 12px }
+.step > p { color: var(--muted); font-size: 14px; line-height: 1.7 }
+
+/* ── Why METIS ── */
+
+/* ══ WALKTHROUGH ══ */
+.walkthrough { background: var(--paper); padding: 64px 0 48px; border-top: 1px solid var(--line) }
+.walkthrough .section-heading { padding-bottom: 24px; margin-bottom: 32px; border-bottom: 1px solid var(--line) }
+.wt-stages { display: flex; flex-direction: column }
+.wt-stage { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 20px 24px; opacity: 0; transform: translateY(20px); transition: opacity .5s ease,transform .5s ease }
+.wt-stage.vis { opacity: 1; transform: none }
+.wt-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px }
+.wt-head h3 { font-size: 20px; letter-spacing: -.015em; margin: 0 }
+.wt-head small { font: 600 12px var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: block; margin-top: 2px }
+.wt-num { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 8px; font: 600 12px/1 var(--sans); letter-spacing: .04em; flex: 0 0 auto; background: rgba(2,18,32,.07); color: var(--navy) }
+.wt-replay { margin-left: auto; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; color: var(--muted); cursor: pointer }
+.wt-replay:hover { border-color: var(--gold-dark) }
+.wt-replay:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px }
+
+/* ── Wizard ── */
+.wt-wizard-layout { display: grid; grid-template-columns: 1.1fr .9fr; gap: 24px; align-items: start }
+.wt-wizard-left { display: flex; flex-direction: column }
+.wt-wizard-right { position: sticky; top: 20px }
+
+/* ── Chat ── */
+.wt-chat { display: flex; flex-direction: column; gap: 10px }
+.wt-chat.compact { gap: 8px }
+.wt-chat.compact .wt-msg-bubble { font-size: 12px; padding: 8px 12px }
+/* Capped chats scroll inside themselves; useFollowLatest keeps the newest message in view */
+.wt-chat.capped { position: relative; max-height: 340px; overflow-y: auto; overscroll-behavior: contain; padding-right: 8px; scrollbar-width: thin; scrollbar-color: var(--line) transparent }
+.wt-chat.compact.capped { max-height: 236px }
+.wt-chat.capped.scrolled { mask-image: linear-gradient(to bottom,transparent,#000 32px); -webkit-mask-image: linear-gradient(to bottom,transparent,#000 32px) }
+.wt-msg { display: flex; flex-direction: column; gap: 3px; opacity: 0; transform: translateY(8px); transition: opacity .35s ease,transform .35s ease }
+.wt-msg.show { opacity: 1; transform: none }
+.wt-msg.user { align-items: flex-end }
+.wt-msg-head { display: flex; align-items: center; gap: 6px }
+.wt-msg.user .wt-msg-head { flex-direction: row-reverse }
+.wt-msg-icon { width: 20px; height: 20px; border-radius: 4px; object-fit: contain; flex: 0 0 auto }
+.wt-msg-role { font: 600 12px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted) }
+.wt-msg-bubble { font-size: 14px; line-height: 1.55; padding: 10px 14px; border-radius: 10px; max-width: 480px }
+.wt-msg.user .wt-msg-bubble { background: white; border: 1px solid var(--line); border-top-right-radius: 2px }
+.wt-msg.wizard .wt-msg-bubble { background: #FBF0D4; border: 1px solid #EAD9A8; border-top-left-radius: 2px }
+.wt-msg.assistant .wt-msg-bubble { background: var(--tint); border: 1px solid var(--line); border-top-left-radius: 2px }
+
+/* Typing indicator */
+.wt-typing-bubble { display: flex; gap: 5px; padding: 12px 18px !important }
+.wt-typing-bubble i { width: 7px; height: 7px; border-radius: 50%; background: var(--gold-dark) }
+.wt-typing-bubble i:nth-child(1) { animation: dotsThink .8s ease infinite }
+.wt-typing-bubble i:nth-child(2) { animation: dotsThink .8s ease .2s infinite }
+.wt-typing-bubble i:nth-child(3) { animation: dotsThink .8s ease .4s infinite }
+
+/* File chips */
+.wt-msg-files { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap }
+.wt-file-chip { display: inline-flex; align-items: center; gap: 4px; font: 12px var(--mono); color: var(--navy-soft); background: var(--tint); border: 1px solid var(--line); padding: 4px 8px; border-radius: 6px }
+.wt-file-chip svg { width: 14px; height: 14px; fill: none; stroke: var(--navy-soft); stroke-width: 1.5 }
+
+/* Spec */
+.wt-spec { border-radius: 8px; overflow: hidden; border: 1px solid #1E3040; opacity: 0; transform: translateY(8px); transition: opacity .4s ease,transform .4s ease }
+.wt-spec.vis { opacity: 1; transform: none }
+.wt-spec-chrome { background: var(--navy); padding: 7px 14px; font: 12px var(--mono); letter-spacing: .06em; color: #8CA0A6; border-bottom: 1px solid #1E3040 }
+.wt-spec code { display: block; background: #061827; padding: 12px 14px; min-height: 100px }
+.wt-spec pre { margin: 0; font: 12px/1.75 var(--mono); color: var(--gold); white-space: pre-wrap }
+.wt-spec-line { display: block; opacity: 0; transform: translateX(4px); transition: opacity .3s ease,transform .3s ease; height: 0; overflow: hidden }
+.wt-spec-line.vis { opacity: 1; transform: none; height: auto }
+.wt-cursor { color: var(--gold); animation: blink .7s step-end infinite }
+
+/* ── Connector ── */
+.wt-connector { display: flex; flex-direction: column; align-items: center; height: 80px; position: relative; justify-content: center }
+.wt-conn-track { width: 1px; height: 100%; position: absolute; background: repeating-linear-gradient(to bottom,var(--line) 0 4px,transparent 4px 8px) }
+.wt-conn-runner { position: absolute; z-index: 2; width: 26px; height: 26px; display: grid; place-items: center; background: var(--navy); border-radius: 50%; top: 0; opacity: 0 }
+.wt-conn-runner svg { width: 13px; height: 13px; fill: none; stroke: var(--gold); stroke-width: 1.5 }
+.wt-connector.vis .wt-conn-runner { animation: artifactDrop 2.5s ease-in-out infinite }
+.wt-conn-label { position: relative; z-index: 1; font: 12px var(--mono); letter-spacing: .06em; background: var(--navy); color: var(--paper); padding: 4px 10px; border-radius: 99px; white-space: nowrap }
+
+/* ── Spinner ── */
+.wt-spin { width: 12px; height: 12px; fill: none; stroke: #6ed8a0; stroke-width: 2.5; stroke-linecap: round; animation: spin .8s linear infinite; flex: 0 0 auto; margin-right: 4px }
+
+/* ── Engine TUI ── */
+.wt-engine-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px }
+.wt-tui { background: #0B1928; border-radius: 8px; overflow: hidden; color: #B8C8CC; font: 12px/1.6 var(--mono) }
+.wt-tui-head { padding: 8px 14px; border-bottom: 1px solid #1E3040; color: #8CA0A6; font-size: 12px; letter-spacing: .06em }
+.wt-tui-body { padding: 10px 14px }
+.wt-tui-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px }
+.wt-tui-row span { width: 70px; color: #6A8090; font-size: 12px }
+.wt-tui-row b { font-size: 12px; min-width: 32px; text-align: right }
+.wt-timer { color: var(--gold) }
+.wt-tui-bar { flex: 1; height: 6px; background: #1E3040; border-radius: 3px; overflow: hidden }
+.wt-tui-bar > div { height: 100%; background: var(--gold); border-radius: 3px; transition: width .5s ease }
+.wt-tui-workers { margin-top: 10px; font-size: 12px; display: flex; flex-direction: column; gap: 4px }
+.wt-tui-workers > div { display: flex; align-items: center; gap: 4px }
+.wt-tui-workers b { color: var(--gold) }
+.wt-sim { color: #6ed8a0 }
+.wt-wait { color: #6A8090 }
+.wt-tui-log { margin-top: 10px; padding-top: 8px; border-top: 1px solid #1E3040; font-size: 12px; color: #6A8090; display: flex; flex-direction: column; gap: 2px }
+
+/* ── Trace ── */
+.wt-trace { background: white; border: 1px solid var(--line); border-radius: 8px; overflow: hidden }
+.wt-trace-head { padding: 8px 14px; font: 12px var(--mono); letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--line) }
+.wt-trace-body { padding: 8px 10px }
+.wt-span { display: grid; grid-template-columns: 46px 1fr 80px 72px; align-items: center; gap: 6px; padding: 4px 0; font-size: 12px; opacity: 0; transform: translateX(-4px); transition: opacity .4s ease,transform .4s ease }
+.wt-span.show { opacity: 1; transform: none }
+.wt-span-type { font: 12px var(--mono); font-weight: 500; letter-spacing: .06em; padding: 2px 4px; border-radius: 3px; text-align: center }
+.wt-span-type.trace { background: var(--navy); color: #8CA0A6 }
+.wt-span-type.llm { background: #FBF0D4; color: var(--gold-dark) }
+.wt-span-type.tool { background: #E0E3F0; color: var(--periwinkle) }
+.wt-span-type.agent { background: #DFF0E4; color: var(--green) }
+.wt-span-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--navy-soft); font: 12px var(--mono) }
+.wt-span-bar { height: 5px; background: var(--tint); border-radius: 3px; overflow: hidden }
+.wt-span-bar > div { height: 100%; border-radius: 3px; transition: width .8s ease }
+.wt-span.llm .wt-span-bar > div { background: var(--gold) }
+.wt-span.tool .wt-span-bar > div { background: var(--periwinkle) }
+.wt-span.trace .wt-span-bar > div { background: var(--navy-soft) }
+.wt-span.agent .wt-span-bar > div { background: var(--green) }
+.wt-span-ms { font: 12px var(--mono); color: var(--muted); text-align: right; white-space: nowrap }
+
+/* ── Scenario banner ── */
+.wt-scenario-banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 16px; margin-bottom: 12px; background: var(--paper); border: 1px solid var(--line); border-radius: 8px }
+.wt-banner-tag { font: 600 12px var(--sans); letter-spacing: .1em; background: var(--navy); color: var(--paper); padding: 3px 8px; border-radius: 4px }
+.wt-scenario-banner strong { font-size: 14px; color: var(--navy) }
+.wt-banner-meta { font: 600 12px var(--sans); color: var(--muted); margin-left: auto }
+
+/* ══ EVALUATION PIPELINE ══ */
+.wt-pipeline { display: flex; flex-direction: column; gap: 16px }
+
+/* Trace summary */
+.wt-pipe-trace { border: 1px solid var(--line); border-radius: 8px; padding: 10px 16px 6px; background: #F2F2F0; opacity: 0; transform: translateY(8px); transition: opacity .5s ease,transform .5s ease }
+.wt-pipe-trace.vis { opacity: 1; transform: none }
+.wt-pipe-trace-label { display: flex; justify-content: space-between; gap: 12px; font: 12px var(--mono); letter-spacing: .1em; color: var(--muted); margin-bottom: 2px }
+.wt-pipe-trace-label span { letter-spacing: 0; color: var(--gold-dark) }
+
+/* Trace graph: nodes appear, then edges draw. A grader's evidence nodes turn its verdict colour. */
+.wt-graph-scroll { overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent }
+.wt-graph { display: block; width: 100%; min-width: 900px; height: auto }
+.wt-graph marker.step path { fill: #B9B2A3 }
+.wt-graph marker.loop path { fill: var(--gold-dark) }
+.wt-graph-edge path { fill: none; stroke: #C9C2B3; stroke-width: 1.2; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset .6s ease }
+.wt-graph-edge.loop path { stroke: var(--gold-dark); stroke-width: 1.3 }
+.wt-pipe-trace.vis .wt-graph-edge path { stroke-dashoffset: 0 }
+.wt-graph-node { opacity: 0; transition: opacity .4s ease; color: var(--muted) }
+.wt-pipe-trace.vis .wt-graph-node { opacity: 1 }
+.wt-graph-node > rect { fill: white; stroke: var(--line); stroke-width: 1; transition: fill .3s ease, stroke .3s ease }
+.wt-graph-node .icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: stroke .3s ease }
+.wt-graph-node .name { font: 500 12px var(--mono); fill: var(--navy) }
+.wt-graph-node.persona .name, .wt-graph-node.output .name { font: 500 12px var(--sans) }
+.wt-graph-node.persona > rect, .wt-graph-node.output > rect { fill: white }
+.wt-graph-node.agent { color: var(--periwinkle) }
+.wt-graph-node.tool { color: var(--gold-dark) }
+.wt-graph-node.tool > rect { stroke-dasharray: 3 2.5 }
+.wt-graph-node.pass { color: var(--gold-dark) }
+.wt-graph-node.pass > rect { fill: #FBF3E2; stroke: var(--gold); stroke-width: 1.5; stroke-dasharray: none }
+.wt-graph-node.fail { color: var(--rose) }
+.wt-graph-node.fail > rect { fill: #F7E9EC; stroke: var(--rose); stroke-width: 1.5; stroke-dasharray: none }
+.wt-pipe-grader.active { box-shadow: 0 0 0 2px var(--line) }
+
+/* Fan-out/converge */
+.wt-pipe-fanout { display: flex; align-items: center; gap: 12px; opacity: 0; transition: opacity .4s ease }
+.wt-pipe-fanout.vis { opacity: 1 }
+.wt-fanout-line { flex: 1; height: 1px; background: repeating-linear-gradient(to right,var(--line) 0 4px,transparent 4px 8px) }
+.wt-pipe-fanout > span { font: 600 12px var(--sans); color: var(--muted); white-space: nowrap }
+
+/* Grader cards */
+.wt-pipe-graders { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; opacity: 0; transform: translateY(8px); transition: opacity .5s ease,transform .5s ease }
+.wt-pipe-graders.vis { opacity: 1; transform: none }
+.wt-pipe-grader { padding: 14px 16px; border-radius: 8px; background: white; border: 1px solid var(--line); border-top: 3px solid var(--line); transition: border-color .3s ease }
+.wt-pipe-grader.pass { border-top-color: var(--gold) }
+.wt-pipe-grader.fail { border-top-color: var(--rose) }
+.wt-pipe-grader.running { border-top-color: var(--muted) }
+.wt-pipe-grader-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px }
+.wt-pipe-grader-type { font: 12px var(--mono); color: var(--muted); letter-spacing: .06em }
+.wt-pipe-grader strong { font-size: 14px; display: block; margin-bottom: 8px; color: var(--navy) }
+.wt-pipe-score { font: 12px var(--mono); margin-bottom: 6px; color: var(--navy) }
+.wt-pipe-score b { font-size: 14px }
+.wt-pipe-score span { color: var(--muted); font-size: 12px }
+.wt-pipe-reason { font-size: 12px; line-height: 1.5; color: var(--muted); margin: 6px 0 0 }
+.wt-pipe-evaluating { font: 12px var(--mono); color: var(--muted); margin: 0 }
+
+/* Aggregated result */
+.wt-pipe-result { border: 2px solid var(--gold); border-radius: 10px; padding: 16px 20px; background: white; opacity: 0; transform: translateY(8px); transition: opacity .5s ease,transform .5s ease }
+.wt-pipe-result.vis { opacity: 1; transform: none }
+.wt-pipe-result-head { font: 12px var(--mono); letter-spacing: .1em; color: var(--gold-dark); margin-bottom: 10px }
+.wt-pipe-result-body { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px }
+.wt-pipe-result-row { display: flex; align-items: center; gap: 10px; font-size: 12px; padding: 6px 0; border-bottom: 1px solid var(--line) }
+.wt-pipe-result-row:last-child { border-bottom: 0 }
+.wt-pipe-result-row span:first-child { flex: 1; color: var(--navy) }
+.wt-pipe-result-row b { font: 12px var(--mono); width: 36px; text-align: right }
+.wt-pipe-result-row.pass b { color: var(--gold-dark) }
+.wt-pipe-result-row.fail b { color: var(--rose) }
+.wt-pipe-result-summary { font-size: 12px; line-height: 1.55; color: var(--muted); padding-top: 10px; border-top: 1px solid var(--line) }
+.wt-pipe-result-summary strong { color: var(--navy) }
+
+/* Badges (shared) */
+.wt-badge { display: inline-flex; align-items: center; gap: 3px; font: 12px var(--mono); letter-spacing: .06em; padding: 2px 7px; border-radius: 99px; white-space: nowrap }
+.wt-badge svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2 }
+.wt-badge.fail { background: rgba(171,89,106,.1); color: var(--rose) }
+.wt-badge.pass { background: #FBF0D4; color: var(--gold-dark) }
+
+/* ── Insights ── */
+.wt-insights { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px }
+.wt-ins-panel { padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: white; opacity: 0; transform: translateY(10px); transition: opacity .5s ease,transform .5s ease }
+.wt-ins-panel.vis { opacity: 1; transform: none }
+.wt-ins-title { font: 12px var(--mono); letter-spacing: .1em; color: var(--muted); margin-bottom: 10px }
+.wt-tree { display: flex; flex-direction: column; gap: 4px }
+.wt-tree-node { display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 1.4; opacity: 0; transform: translateX(-6px); transition: opacity .3s ease,transform .3s ease }
+.wt-ins-panel.vis .wt-tree-node { opacity: 1; transform: none }
+.wt-tree-branch { width: 10px; height: 10px; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); flex: 0 0 auto }
+.wt-tree-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--navy) }
+.wt-tree-val { font: 12px var(--mono); font-weight: 600; white-space: nowrap }
+.wt-tree-val.pass { color: var(--gold-dark) }
+.wt-tree-val.fail { color: var(--rose) }
+.wt-tree-val.pop { animation: passJiggle .5s ease .5s }
+.wt-bars { display: flex; flex-direction: column; gap: 7px }
+.wt-bar-row { display: grid; grid-template-columns: 130px 1fr 30px 28px; align-items: center; gap: 5px }
+.wt-bar-row.jiggle { animation: passJiggle .5s ease }
+.wt-bar-label { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--navy) }
+.wt-bar-track { height: 8px; border-radius: 4px; background: rgba(2,18,32,.07); overflow: hidden; position: relative }
+.wt-bar-threshold { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--navy); opacity: .25; z-index: 1 }
+.wt-bar-fill { height: 100%; border-radius: 4px; width: 0; transition: width 1.2s ease-out }
+.wt-ins-panel.vis .wt-bar-fill { width: var(--pct) }
+.wt-bar-fill.pass { background: var(--gold); transition: width 1.2s ease-out, background .4s ease }
+.wt-bar-row.jiggle .wt-bar-fill.pass { background: var(--green) }
+.wt-bar-fill.fail { background: var(--rose) }
+.wt-bar-val { font: 12px var(--mono); font-weight: 600; text-align: right }
+.wt-bar-val.pass { color: var(--gold-dark); transition: color .4s ease }
+.wt-bar-row.jiggle .wt-bar-val.pass { color: #4A7F59 }
+.wt-bar-val.fail { color: var(--rose) }
+.wt-bar-count { font: 12px var(--mono); color: var(--muted); text-align: right }
+.wt-mini-chat { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px }
+.wt-mini-msg { font-size: 12px; line-height: 1.45; padding: 6px 10px; border-radius: 6px; max-width: 200px }
+.wt-mini-msg.user { background: var(--tint); border: 1px solid var(--line); align-self: flex-end }
+.wt-mini-msg.asst { background: white; border: 1px solid var(--line) }
+.wt-verdicts { display: flex; flex-direction: column; gap: 6px }
+.wt-verdict { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; padding: 6px 8px; border-radius: 6px }
+.wt-verdict.fail { background: rgba(171,89,106,.06) }
+.wt-verdict.pass { background: rgba(155,117,32,.06) }
+.wt-verdict svg { width: 14px; height: 14px; flex: 0 0 auto; fill: none; stroke-width: 2; margin-top: 1px }
+.wt-verdict.fail svg { stroke: var(--rose) }
+.wt-verdict.pass svg { stroke: var(--gold-dark) }
+.wt-verdict strong { display: block; font-size: 12px; color: var(--navy) }
+.wt-verdict span { font-size: 12px; color: var(--muted) }
+
+/* ── Keyframes ── */
+@keyframes dotsThink { 0%,100% { opacity: .2 } 50% { opacity: 1 } }
+@keyframes artifactDrop { 0% { top: -4px; opacity: 0 } 12% { opacity: 1 } 88% { opacity: 1 } 100% { top: calc(100% - 22px); opacity: 0 } }
+@keyframes passJiggle { 0%,100% { transform: none } 20% { transform: translateX(-3px) } 40% { transform: translateX(3px) } 60% { transform: translateX(-2px) } 80% { transform: translateX(1px) } }
+@keyframes blink { 50% { opacity: 0 } }
+@keyframes spin { to { transform: rotate(360deg) } }
+
+/* ── Closing CTA ── */
+.cta-section { background: var(--paper); padding: 16px 0 40px }
+.cta-panel { position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 40px; align-items: center; padding: 44px 48px; border-radius: 16px; color: var(--paper); background: radial-gradient(circle at 85% 20%,rgba(60,70,139,.28),transparent 40%),linear-gradient(135deg,#021220,#0a2a3d 70%,#021220) }
+.cta-panel h2 { color: var(--paper); margin-bottom: 14px }
+.cta-copy p { color: #B8C8CC; font-size: 15px; line-height: 1.7; margin: 0; max-width: 440px }
+.cta-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px }
+.cta-install { min-width: 0; border: 1px solid #1E3040; border-radius: 10px; background: #061827; overflow: hidden }
+.cta-install-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; border-bottom: 1px solid #1E3040; font: 600 12px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: #8CA0A6 }
+.cta-install-head button { display: inline-flex; align-items: center; gap: 4px; font: 600 12px var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--paper); background: rgba(255,255,255,.06); border: 1px solid rgba(229,174,79,.3); border-radius: 6px; padding: 4px 10px; cursor: pointer }
+.cta-install-head button:hover { border-color: var(--gold) }
+.cta-install-head button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px }
+.cta-install-head svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2 }
+.cta-install pre { margin: 0; padding: 16px; font: 14px/1.7 var(--mono); color: var(--gold); white-space: pre-wrap; overflow-wrap: break-word }
+.cta-install pre span { color: #6A8090 }
+
+/* ── Footer ── */
+footer { background: var(--paper); border-top: 1px solid var(--line) }
+.footer-inner { padding: 48px 0; display: flex; flex-direction: column; gap: 24px }
+.footer-top { display: flex; align-items: center; justify-content: space-between; gap: 24px }
+.footer-brand-group { display: flex; align-items: center; gap: 14px; flex-shrink: 0 }
+.footer-logo { width: 42px; height: 42px; object-fit: contain }
+.footer-name { display: block; font-size: 19px; font-weight: 800; letter-spacing: .1em; color: var(--navy) }
+.footer-full-name { display: block; font-size: 14px; color: var(--muted); margin-top: 2px }
+.footer-links { display: flex; gap: 24px; flex-wrap: wrap }
+.footer-links a { font-size: 15px; color: var(--navy); text-decoration: none; font-weight: 500; transition: color .2s }
+.footer-links a:hover { color: var(--gold-dark) }
+.footer-bottom { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 20px; border-top: 1px solid var(--line) }
+.footer-attr { font: 600 14px var(--sans); color: var(--muted) }
+.footer-copy { font: 14px var(--sans); color: var(--muted) }
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *,*:before,*:after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important }
+  .wt-stage,.wt-msg,.wt-spec,.wt-ins-panel,.wt-span,.wt-tree-node,.wt-spec-line,.wt-pipe-trace,.wt-pipe-graders,.wt-pipe-result,.wt-pipe-fanout { opacity: 1 !important; transform: none !important; height: auto !important }
+  .wt-conn-runner { animation: none !important; top: 50% !important; opacity: 1 !important; transform: translateY(-50%) }
+  .wt-bar-fill { transition: none !important; width: var(--pct) !important }
+  .wt-graph-edge path { stroke-dashoffset: 0 !important; transition: none !important }
+  .wt-graph-node { opacity: 1 !important; transition: none !important }
+  .wt-spin { animation: none !important }
+  .stack-card { transition: none !important }
+}
+
+/* ── 900px ── */
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; gap: 40px; padding-block: 48px 56px }
+  .cta-panel { grid-template-columns: 1fr; gap: 28px; padding: 36px 32px }
+  .steps { grid-template-columns: repeat(2,1fr) }
+  .step { margin-bottom: 20px }
+  .step:nth-child(2) { border-right: 0 }
+  .wt-wizard-layout { grid-template-columns: 1fr }
+  .wt-wizard-right { position: static }
+  .wt-engine-panels { grid-template-columns: 1fr }
+  .wt-insights { grid-template-columns: 1fr }
+  .wt-pipe-graders { grid-template-columns: 1fr }
+}
+
+/* ── 680px ── */
+@media (max-width: 680px) {
+  .container { width: min(100% - 32px,1180px) }
+  .header-brand span { display: none }
+  .hero { min-height: auto; padding-block: 36px 44px }
+  .hero-lede { font-size: 15px }
+  .hero-actions .button { flex: 1 1 auto }
+  .section-heading { grid-template-columns: 1fr; gap: 16px; margin-bottom: 28px }
+  .section-heading > p { justify-self: start }
+  .methodology { padding: 48px 0 }
+  .steps { grid-template-columns: 1fr }
+  .step { border-right: 0; border-bottom: 1px solid var(--line); margin: 0; padding: 20px 0 }
+  .step:before { inset: 0 -10px }
+  .step h3 { margin-top: 16px }
+  .walkthrough { padding: 48px 0 40px }
+  .cta-section { padding: 8px 0 32px }
+  .cta-panel { padding: 28px 20px; border-radius: 12px }
+  .cta-actions .button { flex: 1 1 auto }
+  .wt-stage { padding: 16px }
+  .wt-head h3 { font-size: 18px }
+  .wt-msg-bubble { max-width: 100% }
+  .wt-scenario-banner { flex-direction: column; align-items: flex-start; gap: 6px }
+  .wt-banner-meta { margin-left: 0 }
+  .wt-span { grid-template-columns: 38px 1fr 60px 56px; font-size: 12px }
+  .footer-inner { align-items: center; text-align: center; gap: 20px; padding: 36px 0 }
+  .footer-top { flex-direction: column; gap: 16px }
+  .footer-brand-group { justify-content: center }
+  .footer-links { justify-content: center }
+  .footer-bottom { flex-direction: column; gap: 8px; text-align: center }
+  .footer-attr { white-space: normal }
+}
+
+/* ── 420px ── */
+@media (max-width: 420px) {
+  .container { width: calc(100% - 24px) }
+  h2 { font-size: clamp(28px,8.5vw,34px) }
+  .stack-chip { left: 8px; bottom: 8px; font-size: 12px }
+  .wt-stage { padding: 16px }
+  .wt-num { width: 28px; height: 28px; font-size: 12px }
+  .wt-tui { font-size: 12px }
+  .wt-span { grid-template-columns: 34px 1fr 50px; font-size: 12px }
+  .wt-span-ms { display: none }
+  .wt-bar-row { grid-template-columns: 90px 1fr 26px 24px }
+  .wt-bar-label { font-size: 12px }
+  .wt-mini-msg { max-width: 100% }
+}
