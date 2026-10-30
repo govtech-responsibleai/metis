@@ -75,6 +75,10 @@ Branch off `main` with a descriptive prefix:
 
 Example: `feat/langfuse-ingester`, `fix/score-validation`
 
+While v1 is in beta, `next` replaces `main` in the rule above. Branch off `next` and open your
+pull request against `next`. `main` only changes at release time (see "Beta releases"), so it
+always matches the latest beta tag.
+
 ### Running Checks
 
 ```bash
@@ -204,7 +208,8 @@ When adding a new workspace package:
 
 ### Merging
 
-PRs require at least one approval. CI must pass. Squash-merge is preferred for single-concern branches; merge commits are acceptable for larger feature branches with meaningful intermediate commits.
+PRs require at least one approval. CI must pass. Squash-merge is preferred for single-concern branches; merge commits are acceptable for larger feature branches with meaningful intermediate commits. While v1 is in beta, the release merge of `next` into `main` is
+always a merge commit, never a squash (see "Beta releases").
 
 ## Dependency Rules
 
@@ -241,6 +246,24 @@ version (`1.0.0b1`, `1.0.0b2`, and so on), all `pyproject.toml` versions bump to
 re-locked with `uv lock`, and each beta gets one suite tag, `v1.0.0bN`, instead of one tag per
 package. The scoped `<package-name>/v<semver>` tags return for independent releases after v1.0.0.
 Betas promise no compatibility with each other.
+
+A beta has no release branch. It is released in three steps:
+
+1. Open a pull request into `next` that bumps every `pyproject.toml` version and re-locks with
+   `uv lock`, for example from a `chore/bump-1.0.0bN` branch.
+2. Merge `next` into `main` with a merge commit, not a squash, so that `next` never diverges
+   from `main`. Tag the merge commit on `main` with an annotated `v1.0.0bN` tag.
+3. Publish a GitHub prerelease for the tag.
+
+```
+feat/*, fix/*, chore/bump-* ──PR──▶ next ──●──●──●
+                                                 │ merge commit
+main ────────────────────────────────────────────●  tag v1.0.0bN
+```
+
+After v1.0.0, releases return to the per-package release branches described above. Until then,
+do not use `make release-branch`, which branches from `origin/main` and is meant for that stable
+flow.
 
 ### Release Make Target
 
