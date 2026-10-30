@@ -163,6 +163,62 @@ html {
   margin-right: -0.14em;
 }
 
+/* Search */
+
+/* Set on the search elements, because the DocSearch stylesheet loads after this file and sets
+   the same variables on :root. The modal is outside the navbar, so it needs its own selector. */
+.DocSearch-Button,
+.DocSearch-Container {
+  --docsearch-primary-color: hsl(var(--foreground));
+  --docsearch-highlight-color: hsl(var(--foreground));
+  --docsearch-text-color: hsl(var(--foreground));
+  --docsearch-muted-color: hsl(var(--muted-foreground));
+  --docsearch-secondary-text-color: hsl(var(--muted-foreground));
+  --docsearch-icon-color: hsl(var(--muted-foreground));
+  --docsearch-focus-color: hsl(var(--muted-foreground));
+  --docsearch-search-button-background: hsl(var(--background));
+  --docsearch-search-button-text-color: hsl(var(--muted-foreground));
+  --docsearch-key-background: hsl(var(--muted));
+  --docsearch-key-color: hsl(var(--muted-foreground));
+  --docsearch-modal-background: hsl(var(--popover));
+  --docsearch-searchbox-background: hsl(var(--background));
+  --docsearch-searchbox-focus-background: hsl(var(--background));
+  --docsearch-hit-background: hsl(var(--card));
+  --docsearch-hit-color: hsl(var(--card-foreground));
+  --docsearch-hit-highlight-color: hsl(var(--muted));
+  --docsearch-soft-primary-color: hsl(var(--muted));
+  --docsearch-subtle-color: hsl(var(--border));
+  --docsearch-footer-background: hsl(var(--popover));
+  --docsearch-border-radius: var(--radius-sm);
+}
+
+.DocSearch-Button {
+  border: 1px solid hsl(var(--border));
+  box-shadow: none;
+}
+
+.DocSearch-Button:hover {
+  border-color: hsl(var(--muted-foreground));
+  box-shadow: none;
+}
+
+.DocSearch-Button-Placeholder {
+  font-size: 0.9375rem;
+}
+
+.DocSearch-Button-Key {
+  font-family: inherit;
+  font-size: 0.75rem;
+}
+
+.DocSearch-Input {
+  font-family: inherit;
+}
+
+.DocSearch-Hits mark {
+  font-weight: 700;
+}
+
 .navbar__item:has(> .navbar-docs-label) {
   padding-left: 0;
 }
