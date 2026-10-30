@@ -32,6 +32,13 @@ const config = {
     ],
   ],
   themeConfig: {
+    algolia: {
+      appId: 'G7MDKDSIX0',
+      // Public search-only key, so it is safe to commit.
+      apiKey: '603cd515734c8d2325db9d0f0f10c9b5',
+      indexName: 'metis_docs',
+      contextualSearch: false,
+    },
     colorMode: {defaultMode: 'light', respectPrefersColorScheme: false},
     prism: {
       theme: jettwaveTealLight,
