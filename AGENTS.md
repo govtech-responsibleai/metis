@@ -126,6 +126,10 @@ temporary fields, abandoned approaches, and the sequence of feedback.
 - Every merge to `main` MUST be tagged with a version bump for the affected package(s)
 - Beta exception: while v1 is in beta, all packages share one version (`1.0.0bN`) and each beta gets
   one suite tag `v1.0.0bN`; see "Beta releases" in [CONTRIBUTING.md](CONTRIBUTING.md)
+- Beta branching: while v1 is in beta, branch feature and fix work off `next` and open PRs against
+  `next`. A beta has no release branch: the version bump is an ordinary PR into `next`, `main`
+  receives `next` through a merge commit, and the suite tag goes on that merge commit. After
+  v1.0.0, the default is `main` and per-package `release/` branches again.
 - Commit messages MUST use a Conventional Commit type and the package scope in parentheses:
   `feat(wizard): split prompt configuration ownership`. Use the affected package name as the
   scope (`core`, `library`, `engine`, `wizard`, or `insights`), not the `metis-` distribution
