@@ -86,7 +86,8 @@ def handle_turn(user_id: str, session_id: str, user_message: str) -> str:
             as_type="agent",
             input={"message": user_message},
         ) as root:
-            final_answer = run_agent(user_message)  # your code; its steps nest under root
+            # Your code. Its steps nest under root.
+            final_answer = run_agent(user_message)
             root.update(output={"answer": final_answer})
             return final_answer
 ```
