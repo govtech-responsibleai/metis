@@ -316,6 +316,22 @@ class TestThresholdRule:
         assert recorded.outcome == "errored"
         assert "returned no results" in recorded.reason
 
+    @pytest.mark.parametrize("status", ["scored", "skipped", "errored"])
+    def test_measurements_are_recorded(self, status: str) -> None:
+        """A grader that reaches no verdict keeps the numbers it measured."""
+        output = GradingOutput(
+            results=[
+                GraderResult(
+                    status=status,  # type: ignore[arg-type]
+                    score=0.73 if status == "scored" else None,
+                    reason="r",
+                    measurements={"applicable": 0.89, "satisfied": 0.73},
+                )
+            ]
+        )
+        (recorded,) = record_results(output, 0.8)
+        assert recorded.measurements == {"applicable": 0.89, "satisfied": 0.73}
+
 
 class TestGradeSession:
     def test_one_record_per_grader_with_run_facts(self) -> None:
