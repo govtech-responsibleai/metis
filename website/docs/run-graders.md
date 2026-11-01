@@ -27,9 +27,10 @@ Langfuse can take time to show a trace after your application sends it. METIS wa
 metis engine evaluate --experiment-dir experiments/execute/<your-run> --langfuse-timeout 300
 ```
 
-Traces from older SDKs can arrive several minutes late. If you see missing traces, upgrade the
-application's SDK first (Python `langfuse` 4.7.0 or later, JS/TS `@langfuse/*` 5.4.0 or later),
-and only then raise the timeout. A longer timeout hides the delay but does not remove it. Also
+Traces from older Langfuse Client SDKs can arrive several minutes late. If you see missing
+traces, upgrade the [Langfuse Client SDK](make-app-eval-friendly.md#langfuse-client-sdk) in your
+application first (Python `langfuse` 4.7.0 or later, JS/TS `@langfuse/*` 5.4.0 or later), and
+only then raise the timeout. A longer timeout hides the delay but does not remove it. Also
 check the keys in `.env` and the [troubleshooting table](make-app-eval-friendly.md#troubleshooting).
 
 `metis engine run` takes the same `--langfuse-timeout` option.

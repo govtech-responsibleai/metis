@@ -14,7 +14,7 @@ key, and exits non-zero if a required check fails. A missing `LANGFUSE_*` variab
 warning, not a failure: you can still simulate, but you cannot run `metis engine evaluate`.
 
 If the Langfuse check fails, see
-[Verify the traces](make-app-eval-friendly.md#verify-the-traces).
+[Verify your setup yourself](make-app-eval-friendly.md#verify-your-setup).
 
 ## Next step
 
