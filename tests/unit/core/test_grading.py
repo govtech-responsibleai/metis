@@ -41,6 +41,33 @@ class TestGraderResult:
         with pytest.raises(ValidationError):
             GraderResult(status="passed", score=1.0, reason="r")  # type: ignore[arg-type]
 
+    def test_measurements_default_to_none(self) -> None:
+        assert GraderResult(status="scored", score=1.0, reason="r").measurements is None
+
+    @pytest.mark.parametrize("status", ["scored", "skipped", "errored"])
+    def test_any_status_can_carry_measurements(self, status: str) -> None:
+        """A grader that reaches no verdict still reports what it measured."""
+        score = 1.0 if status == "scored" else None
+        result = GraderResult(
+            status=status,  # type: ignore[arg-type]
+            score=score,
+            reason="r",
+            measurements={"applicable": 0.49},
+        )
+        assert result.measurements == {"applicable": 0.49}
+
+    def test_measurements_are_omitted_when_unset(self) -> None:
+        dumped = GraderResult(status="skipped", reason="r").model_dump()
+        assert "measurements" not in dumped
+
+    def test_measurements_reject_values_that_are_not_numbers(self) -> None:
+        with pytest.raises(ValidationError, match="measurements"):
+            GraderResult(
+                status="skipped",
+                reason="r",
+                measurements={"applicable": "high"},  # type: ignore[dict-item]
+            )
+
 
 class TestGradingOutput:
     def test_holds_results(self) -> None:
@@ -66,3 +93,18 @@ class TestRecordedResult:
     def test_verdict_score_must_be_in_range(self) -> None:
         with pytest.raises(ValidationError):
             RecordedResult(outcome="passed", score=1.5, reason="r")
+
+    @pytest.mark.parametrize("outcome", ["passed", "skipped", "errored"])
+    def test_any_outcome_can_carry_measurements(self, outcome: str) -> None:
+        score = 1.0 if outcome == "passed" else None
+        result = RecordedResult(
+            outcome=outcome,  # type: ignore[arg-type]
+            score=score,
+            reason="r",
+            measurements={"satisfied": 0.73},
+        )
+        assert result.measurements == {"satisfied": 0.73}
+
+    def test_measurements_are_omitted_when_unset(self) -> None:
+        dumped = RecordedResult(outcome="errored", reason="r").model_dump()
+        assert "measurements" not in dumped
