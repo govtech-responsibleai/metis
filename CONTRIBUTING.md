@@ -242,6 +242,32 @@ re-locked with `uv lock`, and each beta gets one suite tag, `v1.0.0bN`, instead 
 package. The scoped `<package-name>/v<semver>` tags return for independent releases after v1.0.0.
 Betas promise no compatibility with each other.
 
+### Milestones
+
+A git tag marks a commit that has shipped. A GitHub milestone groups the issues and pull requests
+that should land together, so it looks forward at work still to do. The two are linked only by
+name, and a tag does not need a milestone of its own.
+
+Create one milestone per major or minor release you are planning, named `vMAJOR.MINOR`. Major
+releases are the ones ending in `.0`.
+
+| Milestone | Collects | Closes when |
+|-----------|----------|-------------|
+| `v1.0` | work needed before 1.0.0 | `v1.0.0` is tagged |
+| `v1.1` | features planned for the next minor release | `v1.1.0` is tagged |
+| `v2.0` | breaking changes deferred to the next major release | `v2.0.0` is tagged |
+| `backlog` | triaged work with no release scheduled | never |
+
+- Create a milestone when you first assign an issue to it, not in advance.
+- Betas (`v1.0.0bN`) do not get their own milestones; they are snapshots on the way to `v1.0`.
+- Patch releases such as `v1.0.1` do not get a milestone, because they ship fixes that have
+  already landed.
+
+Assign a milestone to an issue or pull request when you decide which release it belongs to, and
+close the milestone when its release tag ships. If a beta needs a hard line between "must be in
+this beta" and "can wait", you may add a temporary `v1.0.0bN` milestone for it and close it with
+the tag.
+
 ### Release Make Target
 
 ```bash
