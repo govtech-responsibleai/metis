@@ -142,6 +142,8 @@ trace that carries that ID. So your application must stamp the same ID on every 
 trial, and it must return that ID to the caller. If each turn gets a new ID, METIS finds one
 turn instead of the conversation.
 
+---
+
 ### Verify your setup yourself (optional) {#verify-your-setup}
 
 This step is optional, and you do it by hand: METIS never runs it for you. It is worth doing
