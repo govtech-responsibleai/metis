@@ -76,8 +76,22 @@ Branch off `main` with a descriptive prefix:
 Example: `feat/langfuse-ingester`, `fix/score-validation`
 
 While v1 is in beta, `next` replaces `main` in the rule above. Branch off `next` and open your
-pull request against `next`. `main` only changes at release time (see "Beta releases"), so it
-always matches the latest beta tag.
+pull request against `next`.
+
+The one exception is documentation for released behaviour. The published site is built from
+`main` alone, so a change under `website/` or `landing-page/` that corrects or clarifies something
+already in the latest beta goes to `main`. Documentation for anything that exists only on `next`
+stays on `next` with its code. `main` therefore holds the latest beta tag plus documentation-only
+commits, and nothing else lands there except release merges.
+
+After a pull request lands on `main`, merge `main` into `next` with a merge commit before the next
+release. This keeps `next` from missing anything `main` has, so the release merge does not turn into
+a conflict.
+
+An urgent fix goes to `next` like any other fix, followed by an early beta release (see "Beta
+releases"). If `next` holds work that is not ready to ship, open the pull request against `main`
+instead, tag the fix as a new beta, and merge `main` into `next` the same day so the fix is not
+lost from the next release.
 
 ### Running Checks
 
@@ -209,7 +223,8 @@ When adding a new workspace package:
 ### Merging
 
 PRs require at least one approval. CI must pass. Squash-merge is preferred for single-concern branches; merge commits are acceptable for larger feature branches with meaningful intermediate commits. While v1 is in beta, the release merge of `next` into `main` is
-always a merge commit, never a squash (see "Beta releases").
+always a merge commit, never a squash (see "Beta releases"). The same applies to merging `main` back
+into `next`.
 
 ## Dependency Rules
 
@@ -257,8 +272,11 @@ A beta has no release branch. It is released in three steps:
 
 ```
 feat/*, fix/*, chore/bump-* ──PR──▶ next ──●──●──●
-                                                 │ merge commit
-main ────────────────────────────────────────────●  tag v1.0.0bN
+                                     ▲           │ merge commit
+                                     │           │
+                          merge back │           │
+                                     │           ▼
+docs/* (released behaviour) ──PR──▶ main ────────●  tag v1.0.0bN
 ```
 
 After v1.0.0, releases return to the per-package release branches described above. Until then,
