@@ -61,7 +61,7 @@ export function GraderCode({children}) {
   return <div className={styles.code}>{children}</div>;
 }
 
-const SOURCE_BASE = 'https://github.com/govtech-responsibleai/metis/blob/next/';
+const SOURCE_BASE = 'https://github.com/govtech-responsibleai/metis/blob/main/';
 
 function Markdown({text}) {
   return text

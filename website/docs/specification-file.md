@@ -90,7 +90,7 @@ the run starts, the Engine checks the file, the fixture names, and the settings 
 a check fails, the Engine names the error and does not start the run.
 
 The JSON schema of the file is
-[`packages/core/schemas/specification.schema.json`](https://github.com/govtech-responsibleai/metis/blob/next/packages/core/schemas/specification.schema.json).
+[`packages/core/schemas/specification.schema.json`](https://github.com/govtech-responsibleai/metis/blob/main/packages/core/schemas/specification.schema.json).
 Your editor can use it to check the file as you type.
 
 ## Field reference
@@ -120,7 +120,7 @@ Your editor can use it to check the file as you type.
 
 When `runner_factory_ref` is not set, it defaults to the HTTP runner. To
 write a runner for your own application, see the
-[engine guide](https://github.com/govtech-responsibleai/metis/blob/next/docs/guide/engine.md).
+[engine guide](https://github.com/govtech-responsibleai/metis/blob/main/docs/guide/engine.md).
 
 ### `target`
 
@@ -181,7 +181,7 @@ The `description` of a Criterion is the instruction for the
 | `runner_agent_model` | The model that drives the HTTP or browser runner. |
 
 A field that you leave out uses the value in `.env`. See the
-[model guide](https://github.com/govtech-responsibleai/metis/blob/next/docs/guide/models.md).
+[model guide](https://github.com/govtech-responsibleai/metis/blob/main/docs/guide/models.md).
 
 ## Next step
 

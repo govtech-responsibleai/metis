@@ -33,7 +33,7 @@ export function Hero({eyebrow, title, tagline, actions}) {
 
 function RepoLink({repo}) {
   return (
-    <a className={styles.repo} href={`https://github.com/govtech-responsibleai/metis/tree/next/${repo}`}>
+    <a className={styles.repo} href={`https://github.com/govtech-responsibleai/metis/tree/main/${repo}`}>
       <code>{repo}</code>
     </a>
   );
