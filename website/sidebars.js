@@ -4,8 +4,17 @@ import graderData from './src/data/graders.json';
 const sidebars = {
   tutorial: [
     {type: 'doc', id: 'start', label: 'Intro'},
-    {type: 'doc', id: 'install', label: 'Installation'},
-    {type: 'doc', id: 'prerequisites', label: 'Pre-requisites'},
+    {type: 'doc', id: 'install', label: 'Installation and Setup'},
+    {
+      type: 'category',
+      label: 'Pre-requisites',
+      link: {type: 'doc', id: 'prerequisites'},
+      collapsed: false,
+      items: [
+        {type: 'doc', id: 'make-app-eval-friendly', label: 'Make your application eval-friendly'},
+        {type: 'doc', id: 'check-environment', label: 'Check your environment'},
+      ],
+    },
     {type: 'html', value: '<hr class="sidebar-divider" aria-hidden="true" />'},
     {
       type: 'category',

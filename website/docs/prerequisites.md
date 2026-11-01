@@ -5,41 +5,18 @@ title: Pre-requisites
 Prepare your application and Langfuse before you run an evaluation.
 You can build a specification before this setup is complete.
 
-## Connect your application
+An application that METIS can evaluate is **eval-friendly**. That means two things. METIS
+can **reach** your application to simulate a user, which you set up in the
+[target connection](target-connection.md). And your application **records** each conversation in
+Langfuse in a form the graders can read.
 
-<p className="draft-note">
-  Draft. Write this section when the user simulation work defines the target binding.
-</p>
+## Prepare in two steps
 
-## Connect Langfuse
-
-Your application must send its traces to Langfuse. Group the traces of each trial
-under the session ID that the runner returns. The Engine uses this ID to get the
-conversation for grading.
-
-Add the Langfuse credentials to `.env`:
-
-```dotenv
-LANGFUSE_PUBLIC_KEY=your-public-key
-LANGFUSE_SECRET_KEY=your-secret-key
-LANGFUSE_BASE_URL=https://your-langfuse-host
-```
-
-Make sure that a test conversation shows in Langfuse before you run the graders.
-
-## Check your environment
-
-Run the check before your first evaluation:
-
-```bash
-make check-env    # or: metis doctor
-```
-
-It confirms that `OPENAI_API_KEY` is set and accepted by the model gateway, that the install
-is sound, and that the `LANGFUSE_*` keys work. It prints one line per check, never prints a
-key, and exits non-zero if a required check fails. A missing `LANGFUSE_*` variable is a
-warning, not a failure: you can still simulate, but you cannot run `metis engine evaluate`.
+1. [Make your application eval-friendly](make-app-eval-friendly.md). Make your application record
+   its conversations in Langfuse, and check that it does.
+2. [Check your environment](check-environment.md). Confirm that your keys and install work before
+   your first evaluation.
 
 ## Next step
 
-[Build your specification](wizard.md).
+[Make your application eval-friendly](make-app-eval-friendly.md).
