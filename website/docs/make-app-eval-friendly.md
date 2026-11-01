@@ -15,8 +15,7 @@ them.
 | [Expose an API or web UI](#expose-an-api-or-web-ui) | METIS can interact with your application programmatically, through an API or through a web page. |
 | [Use Langfuse for observability](#use-langfuse-for-observability) | A Langfuse v4 server, a current Langfuse Client SDK in your application, and traces that follow Langfuse's instrumentation best practices. |
 
-Each part has a section below, with how to check it. [Verify the traces](#verify-the-traces) then
-tests the whole setup.
+Each part has a section below, with how to check it.
 
 ## Expose an API or web UI
 
@@ -65,10 +64,11 @@ application's environment, and upgrade if the version is lower.
 ### Follow instrumentation best practices
 
 Langfuse describes how to instrument an application in its
-[best-practices page](https://langfuse.com/docs/observability/best-practices). Three of those
+[best-practices page](https://langfuse.com/docs/observability/best-practices). Three of its
 practices matter most to METIS, because they decide whether the graders can read the conversation:
 a root observation for each turn, attributes on every step, and one session ID for the whole
-trial.
+trial. The `propagate_attributes()` call that sets the attributes comes from Langfuse's
+[instrumentation guide](https://langfuse.com/docs/observability/sdk/instrumentation).
 
 #### Root observation
 
@@ -133,7 +133,7 @@ step inherits them. The example above does this: `propagate_attributes()` wraps 
 observation, so the attributes are set before any child step starts.
 
 To check, look for the right `userId` and `sessionId` on the root observation and on its child
-steps. See [Verify the traces](#verify-the-traces).
+steps. See [Verify your setup yourself](#verify-your-setup).
 
 #### Session ID
 
@@ -142,9 +142,13 @@ trace that carries that ID. So your application must stamp the same ID on every 
 trial, and it must return that ID to the caller. If each turn gets a new ID, METIS finds one
 turn instead of the conversation.
 
-### Verify the traces
+### Verify your setup yourself (optional) {#verify-your-setup}
 
-This check tests the whole setup at once: the server, the Langfuse Client SDK and the
+This step is optional, and you do it by hand: METIS never runs it for you. It is worth doing
+before your first evaluation, because without it a mistake shows up only after a full simulation,
+when `metis engine evaluate` cannot find the traces.
+
+The check tests all three Langfuse parts at once: the server, the Langfuse Client SDK and the
 instrumentation.
 
 1. Make sure `.env` holds the keys of the Langfuse project that your application sends its traces
@@ -177,13 +181,6 @@ hold, your application is eval-friendly.
 | `UnsupportedTraceError`, "recorded before this Langfuse server's v4 upgrade" | The trace was recorded before the server moved to v4 | Run that trial again. METIS still grades your other sessions |
 | The session has fewer traces than turns | A framework overwrote the session ID on some of its spans | Compare the `sessionId` of the root and the child steps in the Langfuse web page. Set the session ID after the framework starts its spans, or turn off the framework's own session handling |
 | Traces arrive minutes late | An older Langfuse Client SDK | Upgrade the Langfuse Client SDK first. See [Run the graders](run-graders.md#when-traces-are-missing) |
-
-## What has been tested
-
-METIS reads traces through the Langfuse v4 observations API. The instructions on this
-page have **not** been run end to end against a Langfuse server for this release, neither a
-self-hosted v4 server in `events_only` mode nor Langfuse Cloud. Treat them as untested, and run
-the check in [Verify the traces](#verify-the-traces) against your own server.
 
 ## Next step
 

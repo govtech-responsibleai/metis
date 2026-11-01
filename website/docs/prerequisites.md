@@ -6,8 +6,8 @@ Prepare your application and Langfuse before you run an evaluation.
 You can build a specification before this setup is complete.
 
 An application that METIS can evaluate is **eval-friendly**. That means two things. METIS
-can **reach** your application to simulate a user, which you set up in the
-[target connection](target-connection.md). And your application **records** each conversation in
+can **reach** your application to simulate a user, through an
+[API or a web UI](make-app-eval-friendly.md#expose-an-api-or-web-ui). And your application **records** each conversation in
 Langfuse in a form the graders can read.
 
 ## Prepare in two steps
