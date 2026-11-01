@@ -4,7 +4,8 @@ title: Run the test suite
 
 `metis engine simulate` runs your test cases against your application. For each trial, a
 simulated user talks to the application through the runner, and METIS records the result.
-It does not grade anything.
+It does not grade anything. METIS must first be able to reach your application. See
+[Expose an API or web UI](expose-an-api-or-web-ui.md).
 
 ## Start a run
 
@@ -58,7 +59,7 @@ metis engine run --resume --experiment-dir experiments/execute/<your-run>
 | `--log-format` | `text` (default) or `json` for the log files |
 | `--log-dir` | Write the logs to another folder |
 
-## The output folder
+## Outputs
 
 ```text
 experiments/execute/<your-run>/

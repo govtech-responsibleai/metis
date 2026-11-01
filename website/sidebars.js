@@ -8,10 +8,18 @@ const sidebars = {
     {
       type: 'category',
       label: 'Pre-requisites',
-      link: {type: 'doc', id: 'prerequisites'},
       collapsed: false,
       items: [
-        {type: 'doc', id: 'make-app-eval-friendly', label: 'Make your application eval-friendly'},
+        {type: 'doc', id: 'prerequisites', label: 'What you need'},
+        {
+          type: 'category',
+          label: 'Make your application eval-friendly',
+          collapsed: false,
+          items: [
+            {type: 'doc', id: 'expose-an-api-or-web-ui', label: 'Expose an API or web UI'},
+            {type: 'doc', id: 'set-up-observability', label: 'Set up observability'},
+          ],
+        },
         {type: 'doc', id: 'check-environment', label: 'Check your environment'},
       ],
     },
@@ -39,9 +47,12 @@ const sidebars = {
     {
       type: 'category',
       label: 'Run your evaluations',
-      link: {type: 'doc', id: 'run-evaluation'},
       collapsed: false,
-      items: ['run-test-suite', 'run-graders'],
+      items: [
+        {type: 'doc', id: 'run-evaluation', label: 'Evaluation engine'},
+        'run-test-suite',
+        'run-graders',
+      ],
     },
     {
       type: 'category',

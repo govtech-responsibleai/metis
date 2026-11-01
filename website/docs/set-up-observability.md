@@ -1,46 +1,14 @@
 ---
-title: Make your application eval-friendly
+title: Set up observability
 ---
 
-METIS needs two things from your application: a way to talk to it, and traces that it can read.
 METIS does not read your application's answers from the simulation itself. It reads the traces
 that your application sends to Langfuse, so if a trace is missing, or is recorded in an old
-format, the graders have nothing to grade. This page shows how to provide both, and how to check
-them.
+format, the graders have nothing to grade. Three things have to be right: the Langfuse Server
+that stores the traces, the Langfuse Client SDK that sends them, and the way you instrument your
+code.
 
-## What makes an application eval-friendly
-
-| Part | Requirement |
-|---|---|
-| [Expose an API or web UI](#expose-an-api-or-web-ui) | METIS can interact with your application programmatically, through an API or through a web page. |
-| [Use Langfuse for observability](#use-langfuse-for-observability) | A Langfuse v4 server, a current Langfuse Client SDK in your application, and traces that follow Langfuse's instrumentation best practices. |
-
-Each part has a section below, with how to check it.
-
-## Expose an API or web UI
-
-METIS simulates a user, so it needs a way to send messages to your application and read the
-replies without a person at the keyboard. There are two ways to provide that:
-
-- **An API with an OpenAPI description.** METIS calls the endpoints that the description lists.
-  This is the one we recommend, because it is faster and more stable.
-- **A web page.** METIS opens the page, signs in with a username and password, and then clicks and
-  types like a user. Choose this if users can reach your application only through a web page.
-
-Tell METIS which one you have, and where to find it, in a target connection. See
-[Target connection](target-connection.md) for the fields and examples.
-
-To check, select **Test connection** on the Target connection card in the browser wizard. It runs
-a set of checks against your application with the details you gave, and shows which passed and
-which failed.
-
-## Use Langfuse for observability
-
-METIS reads your application's traces from Langfuse, so your application must record them there.
-Three things have to be right: the Langfuse Server that stores the traces, the Langfuse Client SDK
-that sends them, and the way you instrument your code.
-
-### Langfuse Server
+## Langfuse Server
 
 Use Langfuse v4, self-hosted or Cloud. This is the version of the server, not of the Langfuse Client SDK.
 
@@ -48,10 +16,7 @@ A self-hosted Langfuse v4 server runs in `events_only` mode. In that mode, the s
 legacy ingestion API and the `/api/public/traces`, `/spans`, `/generations` and `/events`
 endpoints. It also no longer builds trace-level input, output and attributes for you.
 
-Langfuse Cloud keeps accepting the legacy path until **2026-11-16**. If your application runs on
-Cloud and you skip these rules, it breaks on that date, so make the change now.
-
-### Langfuse Client SDK
+## Langfuse Client SDK
 
 The Langfuse Client SDK is the library inside your application that sends its traces to the
 Langfuse server. Use the Python `langfuse` package at 4.7.0 or later, or the JS/TS `@langfuse/*`
@@ -61,16 +26,21 @@ needs.
 To check, run `pip show langfuse` (Python) or `npm ls @langfuse/tracing` (JS/TS) in your
 application's environment, and upgrade if the version is lower.
 
-### Follow instrumentation best practices
+## Follow instrumentation best practices
 
 Langfuse describes how to instrument an application in its
 [best-practices page](https://langfuse.com/docs/observability/best-practices). Three of its
-practices matter most to METIS, because they decide whether the graders can read the conversation:
-a root observation for each turn, attributes on every step, and one session ID for the whole
-trial. The `propagate_attributes()` call that sets the attributes comes from Langfuse's
+practices matter most to METIS, because they decide whether the graders can read the
+conversation:
+
+1. [A root observation for each turn](#1-root-observation).
+2. [Attributes on every step](#2-attributes).
+3. [One session ID for the whole trial](#3-session-id).
+
+The `propagate_attributes()` call that sets the attributes comes from Langfuse's
 [instrumentation guide](https://langfuse.com/docs/observability/sdk/instrumentation).
 
-#### Root observation
+### 1. Root observation
 
 Wrap each turn in one enclosing root observation, of type `agent` or `span`. Put the user message
 in its `input`, and put the final answer in its `output`. Instrument fully and do not trim: any
@@ -126,7 +96,7 @@ the whole turn, and make sure it records the user message as its input and the a
 output. The examples on this page are Python. For JS/TS, follow the same steps with
 [Langfuse's own guide](https://langfuse.com/docs/observability/sdk/instrumentation).
 
-#### Attributes
+### 2. Attributes
 
 Propagate `user_id`, `session_id` and `tags` with `propagate_attributes()`, so that every child
 step inherits them. The example above does this: `propagate_attributes()` wraps the root
@@ -135,14 +105,14 @@ observation, so the attributes are set before any child step starts.
 To check, look for the right `userId` and `sessionId` on the root observation and on its child
 steps. See [Verify your setup yourself](#verify-your-setup).
 
-#### Session ID
+### 3. Session ID
 
 The runner copies the session ID from your application's response, and METIS fetches every
 trace that carries that ID. So your application must stamp the same ID on every trace of one
 trial, and it must return that ID to the caller. If each turn gets a new ID, METIS finds one
 turn instead of the conversation.
 
-### Verify your setup yourself (optional) {#verify-your-setup}
+## Verify your setup yourself (optional) {#verify-your-setup}
 
 This step is optional, and you do it by hand: METIS never runs it for you. It is worth doing
 before your first evaluation, because without it a mistake shows up only after a full simulation,
@@ -169,7 +139,7 @@ The test conversation should appear with:
 - the right `userId` and `sessionId`.
 
 You can also open the trace in the Langfuse web page and check the same three things. If they all
-hold, your application is eval-friendly.
+hold, your application records traces that METIS can read.
 
 ## Troubleshooting
 
