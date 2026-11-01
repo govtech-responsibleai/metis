@@ -34,18 +34,41 @@
 
 ### Prerequisites
 
-- Python >= 3.11
-- [uv](https://docs.astral.sh/uv/) (workspace and package manager)
+- [Git](https://git-scm.com/downloads)
+- [GNU Make](https://www.gnu.org/software/make/)
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) (workspace and package manager)
+- Python 3.11 or later
+- [Node.js](https://nodejs.org/en/download) 22 or later, with npm (for the web client)
 
 ### Install
-
-Clone the repository and run `make install`:
 
 ```bash
 git clone https://github.com/govtech-responsibleai/metis.git
 cd metis
 make install
+make help                       # list all make commands
 ```
+
+Optional: to run `metis` without `uv run`, install it as a uv tool:
+
+```bash
+uv tool install --editable .
+uv tool update-shell            # then open a new terminal
+metis --help
+```
+
+### Start the Wizard web client
+
+Copy `.env.example` to `.env` and set `OPENAI_API_KEY`. Then run:
+
+```bash
+make run-web
+```
+
+Open the `web` address in the output, for example `http://localhost:5173`.
+
+If you already have a specification, go straight to the [Engine guide](docs/guide/engine.md) to
+run the evaluation.
 
 ### Usage
 
@@ -80,22 +103,22 @@ make clean          # remove generated/cached files
                         │  METIS-api  │
                         └──────┬──────┘
                                │
-       ┌───────────────────────┼───────────────────────┐
-       │                       │                       │
-┌──────▼──────┐   ┌────────────▼──────────┐   ┌────────▼─────┐
-│ METIS-wizard│   │     METIS-engine      │   │METIS-insights│
-│  Config Gen │   │  Evaluation Runtime   │   │  Analytics   │
-└──────┬──────┘   └───────────────────────┘   └──────┬───────┘
-       │                      │                      │
-       │               ┌──────▼───────┐              │
-       └──────────────►│METIS-library │◄─────────────┘
-                       │   Catalog    │
-                       └──────┬───────┘
-                              │
-                       ┌──────▼───────┐
-                       │  METIS-core  │
-                       │Domain Schemas│
-                       └──────────────┘
+        ┌──────────────────────┼──────────────────────┐
+        │                      │                      │
+┌───────▼───────┐  ┌───────────▼───────────┐  ┌───────▼───────┐
+│  METIS-wizard │  │      METIS-engine     │  │ METIS-insights│
+│   Config Gen  │  │   Evaluation Runtime  │  │   Analytics   │
+└───────┬───────┘  └───────────┬───────────┘  └───────┬───────┘
+        │                      │                      │
+        │              ┌───────▼───────┐              │
+        └─────────────►│ METIS-library │◄─────────────┘
+                       │    Catalog    │
+                       └───────┬───────┘
+                               │
+                       ┌───────▼───────┐
+                       │   METIS-core  │
+                       │ Domain Schemas│
+                       └───────────────┘
 ```
 
 | Package | Description |
