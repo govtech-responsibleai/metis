@@ -123,7 +123,11 @@ temporary fields, abandoned approaches, and the sequence of feedback.
 - CLIs use Typer with sub-app composition (see `metis_cli.py`)
 - Versioning: independent per package via static `version` in `pyproject.toml`; scoped git tags `<package-name>/v<semver>`
 - Release workflow: develop on `release/<package>/v<semver>` branch → merge to `main` → tag the merge commit (`<package>/v<semver>`)
-- Every merge to `main` MUST be tagged with a version bump for the affected package(s)
+- Every release merge to `main` MUST be tagged with a version bump for the affected package(s).
+  Documentation-only merges to `main` need no tag and no version bump.
+- Beta branching: while v1 is in beta, documentation for released behaviour under `website/` or
+  `landing-page/` goes to `main`, because the site is published from `main`. All other work goes to
+  `next`. Merge `main` into `next` with a merge commit after any pull request lands on `main`.
 - Beta exception: while v1 is in beta, all packages share one version (`1.0.0bN`) and each beta gets
   one suite tag `v1.0.0bN`; see "Beta releases" in [CONTRIBUTING.md](CONTRIBUTING.md)
 - Commit messages MUST use a Conventional Commit type and the package scope in parentheses:

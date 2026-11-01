@@ -75,6 +75,21 @@ Branch off `main` with a descriptive prefix:
 
 Example: `feat/langfuse-ingester`, `fix/score-validation`
 
+While v1 is in beta, `main` is the branch we present to users, and the published site is built from
+`main` alone. A change under `website/` or `landing-page/` that corrects or clarifies something
+already in the latest beta therefore goes to `main`, so it does not have to wait for the next
+release. Documentation for anything that exists only on `next` stays on `next` with its code, and
+all other work goes to `next`.
+
+After a pull request lands on `main`, merge `main` into `next` with a merge commit before the next
+release. This keeps `next` from missing anything `main` has, so the release merge does not turn into
+a conflict.
+
+An urgent fix goes to `next` like any other fix, followed by an early beta release (see "Beta
+releases"). If `next` holds work that is not ready to ship, open the pull request against `main`
+instead, tag the fix as a new beta, and merge `main` into `next` the same day so the fix is not
+lost from the next release.
+
 ### Running Checks
 
 ```bash
@@ -204,7 +219,8 @@ When adding a new workspace package:
 
 ### Merging
 
-PRs require at least one approval. CI must pass. Squash-merge is preferred for single-concern branches; merge commits are acceptable for larger feature branches with meaningful intermediate commits.
+PRs require at least one approval. CI must pass. Squash-merge is preferred for single-concern branches; merge commits are acceptable for larger feature branches with meaningful intermediate commits. Merging
+`main` into `next` is always a merge commit, never a squash.
 
 ## Dependency Rules
 
