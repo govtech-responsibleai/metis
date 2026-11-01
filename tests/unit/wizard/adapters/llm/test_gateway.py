@@ -13,6 +13,7 @@ from metis.wizard.adapters.llm.gateway import (
     CredentialsMissing,
     GatewayInterviewer,
     ModelOutputError,
+    _strict_schema,
     check_credentials,
     tracing_key,
 )
@@ -445,6 +446,33 @@ def test_model_schema_has_no_persisted_or_runtime_fields() -> None:
         "num_trials",
         "origin",
         "options",
+    }
+
+
+def test_a_described_model_field_has_no_ref_siblings_in_the_strict_schema() -> None:
+    """Strict providers reject a `$ref` that has other keywords, such as `description`."""
+    from pydantic import BaseModel, Field
+
+    class Settings(BaseModel):
+        threshold: float = 0.5
+
+    class Configuration(BaseModel):
+        grader_args: Settings = Field(description="Exact settings.")
+
+    def refs_with_siblings(node: object) -> list[dict]:
+        if isinstance(node, list):
+            return [found for item in node for found in refs_with_siblings(item)]
+        if not isinstance(node, dict):
+            return []
+        own = [node] if "$ref" in node and len(node) > 1 else []
+        return own + refs_with_siblings(list(node.values()))
+
+    schema = _strict_schema(Configuration.model_json_schema())
+
+    assert refs_with_siblings(schema) == []
+    assert schema["properties"]["grader_args"] == {
+        "description": "Exact settings.",
+        "anyOf": [{"$ref": "#/$defs/Settings"}],
     }
 
 
