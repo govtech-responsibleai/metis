@@ -11,7 +11,7 @@ help:
 	@printf "  make install-web                 Install apps/web dependencies from its lockfile\n"
 	@printf "  make install-docs                Install website dependencies from its lockfile\n"
 	@printf "  make install-landing             Install landing-page dependencies from its lockfile\n"
-	@printf "  make install-extras              Install all optional extras\n"
+	@printf "  make install-extras              Install all optional extras (Playwright, docs, landing page)\n"
 	@printf "  make install-extras-playwright   Install Playwright Python package + Chromium binary\n"
 	@printf "\n"
 	@printf "Run (development servers):\n"
@@ -97,7 +97,7 @@ build-site: build-landing build-docs
 generate-grader-docs:
 	uv run python packages/library/scripts/generate_grader_docs.py
 
-install-extras: install-extras-playwright
+install-extras: install-extras-playwright install-docs install-landing
 
 install-extras-playwright:
 	uv sync --all-packages --group dev --extra test --extra playwright
