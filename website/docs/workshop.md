@@ -20,6 +20,12 @@ for everyone. **Option 2** uses what you made in the earlier steps. Pick one.
 The facilitator gives you a `.env` file. It already has your keys and `TOYAPP_API_URL`, the
 address of the toy application.
 
+The learning objectives are:
+
+1. Tell agentic evaluations apart from traditional LLM evals.
+2. Run the METIS workflow from specification to report.
+3. Use Langfuse to inspect how an agent moved through a conversation.
+
 | Step | What you do | Time | Objective |
 |---|---|---|---|
 | [Step 1](#step-1) | Install METIS and set up your environment | 3 min | 2 |
@@ -30,12 +36,6 @@ address of the toy application.
 | [Step 6](#step-6) | Grade the traces | 8 min | 2 |
 | [Step 7](#step-7) | Read the report | 5 min | 2 |
 | [Step 8](#step-8) | Wrap-up and questions | 3 min | 1, 2, 3 |
-
-The learning objectives are:
-
-1. Tell agentic evaluations apart from traditional LLM evals.
-2. Run the METIS workflow from specification to report.
-3. Use Langfuse to inspect how an agent moved through a conversation.
 
 ## Step 1: Install METIS and set up your environment (3 min) {#step-1}
 
@@ -91,14 +91,14 @@ specialist, or hand over to the report specialist.
 
 ![The toy app in a demo session: an employee asks for a definitive yes or no about bringing a dog to the office](./assets/toyapp-demo-session.png)
 
-In the demo session, the policy has no answer, yet the employee asks for a plain yes or no. A check
+In the demo session, the policy collection has no answer, yet the employee asks for a plain yes or no. A check
 on the final answer alone cannot tell you whether the app picked the right specialist, retrieved
 the right policy, or should have asked a question first. Those choices happen along the way, so
 METIS grades the whole conversation.
 
-The example's
+The prepared workshop example has a
 [`toyapp-api.yaml`](https://github.com/govtech-responsibleai/metis/blob/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs/toyapp-api.yaml)
-is the target connection that tells METIS how to reach the app.
+file. This is the [target connection](target-connection.md), which tells METIS how to reach the app.
 
 <details>
 <summary>Workshop participants: the address of the toy app</summary>
@@ -115,38 +115,61 @@ answer alone would miss.
 
 A specification says what your application should do and how to test it. The Wizard interviews you
 about your application and drafts it. See [Start the interview](wizard-interview.md) for every
-option. Start the Wizard:
+option. Start the Wizard in the browser or in the terminal:
+
+<OptionSwitch>
+
+<Option label="Browser">
 
 ```bash
 make run-web
 ```
 
 Each line of output starts with `api` or `web`. Keep the terminal open, and open the address that
-the `web` lines show, for example `http://localhost:5173`. Then:
+the `web` lines show, for example `http://localhost:5173`.
+
+</Option>
+
+<Option label="CLI">
+
+```bash
+uv run metis wizard init
+```
+
+The interview runs in the terminal.
+
+</Option>
+
+</OptionSwitch>
+
+Then:
 
 1. Leave the mode on **Build Spec only**.
 2. Describe the target. Type this:
 
    ```text
-   An employee assistant for Northstar Services. It answers policy questions from a fixed policy
-   collection and analyses reports that employees upload.
+   An employee assistant for Northstar Services. It answers policy questions from a fixed policy collection and analyses reports that employees upload.
    ```
 
 3. Leave the Perspective on **End user**, and skip **Capabilities**.
-4. Select Send, then answer the Wizard's questions and accept its drafts through the six steps:
-   the target, the Features and Behaviours, the Criteria and their graders, the Personas, the
-   Scenarios and the Test Cases. Choose a few of each. You do not need to review every draft.
-5. When the Test Cases are chosen, select **Download specification**. Extract the ZIP into
-   `experiments/design/`, and press Ctrl-C in the terminal to stop the servers.
+4. Select Send, then answer the Wizard's questions and accept its drafts: the target, the Features
+   and Behaviours, the Criteria and their graders, the Personas, the Scenarios and the Test Cases.
+   Choose a few of each. You do not need to review every draft.
+5. When the Test Cases are chosen, save the specification:
+   - **Browser:** select **Download specification**. Extract the ZIP into `experiments/design/`,
+     and press Ctrl-C in the terminal to stop the servers.
+   - **CLI:** the Wizard saves the files in `experiments/design/<date>-<time>-interview/` when you
+     finish.
 
 The specification you built here is for learning. The next steps run a prepared specification, so
 that everyone gets the same results.
 
-If time is short, select **Skip interview and download specification** to finish with what the
-Wizard has drafted so far.
+:::tip[Short on time?]
+You can finish the interview early in the browser if you want. Select **Skip interview and download
+specification**, and the Wizard finishes with what it has drafted so far.
+:::
 
-**Checkpoint:** you have downloaded the specification ZIP and extracted it into
-`experiments/design/`.
+**Checkpoint:** your specification is in a folder in `experiments/design/`.
 
 ## Step 4: Simulate user interactions (8 min) {#step-4}
 
@@ -246,12 +269,12 @@ Either way, you land on the session:
 ![A Langfuse session with the conversation on the left and one trace open on the right, showing its tree of steps](./assets/langfuse-session.png)
 
 - **Left:** the conversation, one block per step the app took, with its input and output. The
-  header shows the session ID, the number of traces (one for each message you sent), and the cost.
+  header shows the session ID, the number of traces (one for each user message), and the cost.
 - **Right:** select a trace to open it. The **Tree** tab lists the steps in order. Here the app
   first runs `coordinator-action`, which chooses the route (the output says `route_rag`). It then
   hands the question to `delegate-rag`, which calls `search_knowledge_base` and the model several
   times, and ends with `validate_answer`.
-- **Select a step** in the tree to see its input and output, and its metadata, on the right.
+- **Select a step** in the tree to see its input, output and metadata.
 
 **Checkpoint:** the session opens. You can find the `coordinator-action` step and say which route
 it chose, and you can open a `search_knowledge_base` step to see what it was called with.
@@ -265,7 +288,7 @@ it chose, and you can open a `search_knowledge_base` step to see what it was cal
 uv run metis engine evaluate --experiment-dir experiments/execute/<your-run>
 ```
 
-Each trial is graded in turn, with a progress bar for the criteria. It ends with a summary:
+Each trial is graded in turn, with a progress bar for each trial. It ends with a summary:
 
 <TerminalOutput
   command="uv run metis engine evaluate --experiment-dir experiments/execute/<your-run>"
@@ -350,9 +373,9 @@ judge model, the pass mark and the result of each test case on the right.
 
 In the prepared example, most criteria pass, but **Follows explicit response instructions**
 (AC-2-2) is red at 50%: 2 of its 4 graded results passed. It checks whether the app follows the
-employee's instruction to give a plain yes or no. Behind it, **States when policy information is
-unavailable** (AC-3-2) passed 3 of 4, and it sits under the behaviour **Resolves material ambiguity
-or missing information appropriately**, which you open with the **+** next to it.
+employee's instruction to give a plain yes or no. A related criterion, **States when policy
+information is unavailable** (AC-3-2), passed 3 of 4. To see it, select **+** next to the behaviour
+**Resolves material ambiguity or missing information appropriately**.
 
 **Checkpoint:** the report opens, shows a result for each criterion, and you can find AC-2-2 and
 AC-3-2.
