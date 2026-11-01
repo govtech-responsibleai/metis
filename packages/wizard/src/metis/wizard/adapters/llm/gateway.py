@@ -91,11 +91,16 @@ def _strict_schema(node: Any) -> Any:
     Strict providers such as Azure OpenAI require every property in `required`. A field with a
     default becomes required and nullable, and the model returns `null` to leave it unset.
     `_drop_defaulted_nulls` removes those nulls before validation, so Pydantic applies the default.
+    A `$ref` cannot have sibling keywords, so a `$ref` that Pydantic gives a `description` moves
+    into a one-branch `anyOf` that keeps the description.
     """
     if isinstance(node, list):
         return [_strict_schema(item) for item in node]
     if not isinstance(node, dict):
         return node
+    if "$ref" in node and len(node) > 1:
+        siblings = {key: value for key, value in node.items() if key != "$ref"}
+        return _strict_schema({**siblings, "anyOf": [{"$ref": node["$ref"]}]})
     node = {key: _strict_schema(value) for key, value in node.items()}
     properties = node.get("properties")
     if isinstance(properties, dict):
