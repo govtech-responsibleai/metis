@@ -88,7 +88,7 @@ login:
 </Tabs>
 
 The JSON schema is in
-[`target-binding.schema.json`](https://github.com/govtech-responsibleai/metis/blob/next/packages/core/schemas/target-binding.schema.json).
+[`target-binding.schema.json`](https://github.com/govtech-responsibleai/metis/blob/main/packages/core/schemas/target-binding.schema.json).
 
 ## Field reference
 
