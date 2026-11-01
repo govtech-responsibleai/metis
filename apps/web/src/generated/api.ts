@@ -1206,7 +1206,7 @@ export interface components {
          * @description Procedures that a grader can use to assess one scope item.
          * @enum {string}
          */
-        GraderType: "deterministic" | "statistical_metric" | "learned_discriminative_model" | "embedding_similarity" | "llm" | "hybrid" | "human";
+        GraderType: "deterministic" | "statistical_metric" | "learned_discriminative_model" | "embedding_similarity" | "llm" | "decision_model" | "hybrid" | "human";
         /**
          * InterviewConfig
          * @description Package-owned values that a wizard door needs to render its opening screen.

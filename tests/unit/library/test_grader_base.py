@@ -285,7 +285,7 @@ class TestTaxonomyDeclarationCheck:
             class _Undefined(Grader[TwoScopeArgs]):
                 args_model = TwoScopeArgs
                 taxonomy: ClassVar[GraderTaxonomy] = _taxonomy(
-                    judgment_forms=(JudgmentForm.SCALAR,)
+                    judgment_forms=(JudgmentForm.ORDINAL,)
                 )
 
 
