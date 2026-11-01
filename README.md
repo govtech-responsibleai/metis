@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  METIS is an extensible agentic evaluation suite for assessing AI safety, alignment, and operational reliability. It ingests agent execution traces (from platforms like Langfuse and OpenTelemetry), runs configurable evaluation metrics against them, and produces diagnostics and compliance analytics.
+  METIS is a tool for spec-driven evaluation of agentic AI systems. Instead of scoring an agent against generic metrics, METIS starts from your product's own requirements: a Wizard interviews you about your application and turns it into a specification of expected behaviours, assessable criteria and test scenarios. The Engine runs those scenarios with simulated personas across multi-turn trajectories and several trials, grades each full execution trace against the criteria, and Insights reports pass rates for every requirement. It's built to work across different applications, so teams don't have to rebuild evaluation infrastructure for each new agent.
 </p>
 
 ## Table of Contents
