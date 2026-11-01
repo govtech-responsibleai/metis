@@ -1,5 +1,5 @@
 ---
-title: Installation
+title: Installation and Setup
 ---
 
 Install METIS and set up your model provider.
