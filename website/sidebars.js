@@ -5,6 +5,7 @@ const sidebars = {
   tutorial: [
     {type: 'doc', id: 'start', label: 'Intro'},
     {type: 'doc', id: 'install', label: 'Installation and Setup'},
+    {type: 'doc', id: 'workshop', label: 'Workshop walkthrough'},
     {
       type: 'category',
       label: 'Pre-requisites',

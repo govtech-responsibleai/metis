@@ -70,3 +70,39 @@
 .comment {
   color: #7a7a7a;
 }
+
+.prompt {
+  color: #7a7a7a;
+}
+
+.pass {
+  color: #7ee787;
+}
+
+.warn {
+  color: #e3b341;
+}
+
+.fail {
+  color: #ff7b72;
+}
+
+.accent {
+  color: #79c0ff;
+}
+
+.strong {
+  font-weight: 600;
+}
+
+.bar {
+  color: #ff5f87;
+}
+
+.barDone {
+  color: #7ee787;
+}
+
+.barRest {
+  color: #3a3a3a;
+}
