@@ -2,8 +2,7 @@
 title: Installation
 ---
 
-Install METIS and set up your model provider. These steps work on Windows, macOS, and Linux.
-Windows does not need WSL.
+Install METIS and set up your model provider.
 
 ## 1. Install the tools
 
