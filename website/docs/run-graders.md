@@ -43,10 +43,4 @@ reason, and the other trials are still graded.
 
 ## Next step
 
-Turn the results into a report:
-
-```bash
-metis insights report --results-file experiments/execute/<your-run>/outputs/reports/results.json
-```
-
-`evaluate` prints this command with your path. See [Read your report](report.md).
+Turn your [results into a report](report.md).
