@@ -433,6 +433,10 @@ Either way, you land on the session:
   times, and ends with `validate_answer`.
 - **Select a step** in the tree to see its input, output and metadata.
 
+Langfuse nests these three levels: a session holds the traces of one conversation, and a trace holds
+the steps, which Langfuse calls observations. See the
+[Langfuse data model](https://langfuse.com/docs/observability/data-model) for the full picture.
+
 **Checkpoint:** the session opens. You can find the `coordinator-action` step and say which route
 it chose, and you can open a `search_knowledge_base` step to see what it was called with.
 
