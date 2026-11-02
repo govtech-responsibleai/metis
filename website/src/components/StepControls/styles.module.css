@@ -1,0 +1,55 @@
+/* The slot only groups the two controls. The checkbox floats to the right end of the heading, in
+   small type so that it does not compete with the step title, and the chevron stays at the start. */
+.slot {
+  display: contents;
+}
+
+.done {
+  float: right;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0 0 0 1rem;
+  color: var(--ifm-font-color-base);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 2rem;
+  cursor: pointer;
+}
+
+/* The fold chevron, as in a Google Doc: faint until the reader points at the heading, pointing
+   down while the step is open and right once it is folded. */
+.chevron {
+  display: inline-block;
+  margin: 0 0.5rem 0 0;
+  padding: 0 0.25rem;
+  border: none;
+  border-radius: var(--ifm-global-radius);
+  background: transparent;
+  color: var(--ifm-color-content-secondary);
+  font-size: 0.875em;
+  line-height: 1;
+  vertical-align: middle;
+  opacity: 0.35;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+:global(h2[data-step-heading]):hover .chevron,
+.chevron:focus-visible,
+.closed {
+  opacity: 1;
+}
+
+.chevron:hover {
+  background: var(--ifm-color-emphasis-100);
+}
+
+.closed {
+  transform: rotate(-90deg);
+}
+
+/* A step that is ticked has a muted title, so that the unfinished ones stand out. */
+:global(h2[data-step-done]) {
+  color: var(--ifm-color-content-secondary);
+}

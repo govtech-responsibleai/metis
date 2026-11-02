@@ -6,6 +6,7 @@ import OptionSwitch, {Option} from '@site/src/components/OptionSwitch';
 import AnnotatedYaml, {YamlHide, YamlNote} from '@site/src/components/AnnotatedYaml';
 import AnnotatedTree, {TreeNote} from '@site/src/components/AnnotatedTree';
 import SystemDiagram from '@site/src/components/SystemDiagram';
+import StepControls from '@site/src/components/StepControls';
 import TocToggle from '@site/src/components/TocToggle';
 
 export default {
@@ -22,5 +23,6 @@ export default {
   AnnotatedTree,
   TreeNote,
   SystemDiagram,
+  StepControls,
   TocToggle,
 };

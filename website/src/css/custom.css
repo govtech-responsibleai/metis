@@ -603,6 +603,24 @@ html.toc-hidden.docs-doc-id-stack-2026-workshop [class*='docItemCol'] {
   max-width: 100% !important;
 }
 
+/* StepControls marks the parts of a folded step, which are hidden until the reader unfolds it. */
+[data-step-folded] {
+  display: none !important;
+}
+
+/* With the contents hidden, a progress bar sits under the navbar. A step reached from it, or from
+   the table at the top, stops below the bar rather than behind it. */
+html.toc-hidden.docs-doc-id-stack-2026-workshop h2[id^='step-'] {
+  scroll-margin-top: calc(var(--ifm-navbar-height) + 4rem);
+}
+
+/* The bar is fixed, so the page leaves room for it above the content. */
+@media (min-width: 997px) {
+  html.toc-hidden.docs-doc-id-stack-2026-workshop main {
+    padding-top: 3.5rem;
+  }
+}
+
 .theme-code-block + .code-caption {
   margin-top: -0.5rem;
 }

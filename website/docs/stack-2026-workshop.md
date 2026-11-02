@@ -6,6 +6,7 @@ import toyappApi from '@examples/http-agentic_eval_toyapp-workshop-lite/inputs/t
 import specification from '@examples/http-agentic_eval_toyapp-workshop-lite/inputs/specification.yaml?raw';
 
 <TocToggle />
+<StepControls />
 
 :::warning
 
