@@ -33,12 +33,12 @@ const config = {
   ],
   themeConfig: {
     // Docusaurus sets og:title, og:description and og:url for each page. The landing page
-    // publishes this image at the site root.
-    image: 'https://govtech-responsibleai.github.io/metis/og-image.png',
+    // publishes the logo at the site root.
+    image: 'https://govtech-responsibleai.github.io/metis/metis-logo.png',
     metadata: [
-      {name: 'twitter:card', content: 'summary_large_image'},
-      {property: 'og:image:width', content: '1200'},
-      {property: 'og:image:height', content: '630'},
+      {name: 'twitter:card', content: 'summary'},
+      {property: 'og:image:width', content: '1254'},
+      {property: 'og:image:height', content: '1254'},
     ],
     algolia: {
       appId: 'G7MDKDSIX0',
