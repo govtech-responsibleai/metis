@@ -86,9 +86,7 @@ build-landing:
 # layout of /metis/ and /metis/docs/ is only visible in build-site output.
 # The landing page waits until the docs answer, so the landing-page address is the last line at startup.
 run-site:
-	@scripts/run-dev.sh \
-		"docs=npm --prefix website start" \
-		"landing=until curl -so /dev/null http://127.0.0.1:3000/metis/docs/; do sleep 0.5; done; pnpm --dir landing-page dev"
+	@uv run python metis_dev.py site
 
 # GitHub Pages serves the landing page at /metis/ and the docs at /metis/docs/.
 build-site: build-landing build-docs
@@ -112,16 +110,16 @@ run:
 	@printf "Or start the API server only:\n"
 	@printf "  make run-api    # API server on port 8001\n"
 
-# Each line of output carries its service label, Ctrl-C stops the servers, and a server that stops
-# on its own takes the other one with it. To start the API server only, use run-api.
+# metis_dev.py runs the servers on every platform. Each line of output carries its service label,
+# Ctrl-C stops the servers, and a server that stops on its own takes the other one with it.
 # The web server waits until the API answers, so the web address is the last line at startup.
 run-web:
-	@scripts/run-dev.sh \
-		"api=HOST=127.0.0.1 PORT=8001 uv run metis-api" \
-		"web=until curl -so /dev/null http://127.0.0.1:8001/; do sleep 0.5; done; npm --prefix apps/web run dev"
+	@uv run metis web
 
+run-api: export HOST = 127.0.0.1
+run-api: export PORT = 8001
 run-api:
-	HOST=127.0.0.1 PORT=8001 uv run metis-api
+	uv run metis-api
 
 format-check-web:
 	npm --prefix apps/web run format:check

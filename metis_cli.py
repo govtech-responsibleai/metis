@@ -48,6 +48,14 @@ def doctor() -> None:
         raise typer.Exit(1)
 
 
+@app.command()
+def web() -> None:
+    """Start the API server and the web dev server together. Ctrl-C stops both."""
+    from metis_dev import launch, web_services
+
+    raise typer.Exit(launch(web_services))
+
+
 app.add_typer(engine_app, name="engine")
 app.add_typer(wizard_app, name="wizard")
 app.add_typer(insights_app, name="insights")
