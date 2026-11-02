@@ -178,6 +178,11 @@ package. The evaluation runtime in PR #445 adds the installable
 All inputs are tracked.
 See the [Wizard guide](../packages/testbed/wizard/README.md) for the review process.
 
+The Engine cases in `packages/testbed/engine/` run METIS against the toy apps of Project
+Touchstone, which plant known flaws and score an evaluator's verdicts with an answer key.
+Each case maps its Specification's IDs to the app's suite, and the testbed writes METIS
+runs in the app's verdicts format. See the [Engine guide](../packages/testbed/engine/README.md).
+
 A testbed runtime MAY depend on `metis-core`, `metis-engine`, `metis-wizard`, and
 `metis-insights`. Product packages MUST NOT depend on the testbed. Component
 adapters belong in the testbed so the same case data can support other systems.
