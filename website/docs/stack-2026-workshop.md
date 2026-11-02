@@ -1,16 +1,23 @@
 ---
-title: Workshop walkthrough
+title: STACK 2026 Workshop
 ---
 
 :::warning
 This walkthrough is written for the workshop that is presented in person at STACK Conference 2026.
 It depends on a toy app, keys and a Langfuse server that the facilitator provides, so you cannot
-follow it on your own.
+follow it on your own. Refer to the **2026-11-03 | STACK Workshop Participant Guide** Google Doc
+for your credentials and instructions.
+
+The addresses you need:
+
+1. Langfuse server UI: [https://gcapdev.aip.gov.sg/langfuse/project/cmvp7vt5e0007021vi1dalc3x](https://gcapdev.aip.gov.sg/langfuse/project/cmvp7vt5e0007021vi1dalc3x)
+2. Toy app URL: [https://metis-agentic-eval-toyapp.app.tc1.airbase.sg](https://metis-agentic-eval-toyapp.app.tc1.airbase.sg)
+3. Toy app source code: [https://github.com/govtech-responsibleai/agentic-eval-toyapp](https://github.com/govtech-responsibleai/agentic-eval-toyapp)
 :::
 
 This is the hands-on part of the 1-hour METIS workshop: 45 minutes, eight steps. You run the whole
 METIS workflow against the [agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp),
-which the facilitator hosts. Each step ends with a
+which the facilitator hosts [here](https://metis-agentic-eval-toyapp.app.tc1.airbase.sg). Each step ends with a
 **checkpoint**, which is what you should see before you move on. If your screen does not match,
 raise your hand.
 
@@ -84,8 +91,8 @@ a JSON document.
 
 ## Step 2: Inspect the toy application (5 min) {#step-2}
 
-The [agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp) is an
-employee assistant. It answers policy questions and analyses uploaded reports, and for each message
+The [agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp)
+(deployed [here](https://metis-agentic-eval-toyapp.app.tc1.airbase.sg)) is an employee assistant. It answers policy questions and analyses uploaded reports, and for each message
 it chooses one of four actions: answer, ask a clarifying question, hand over to the policy
 specialist, or hand over to the report specialist.
 
@@ -99,14 +106,6 @@ METIS grades the whole conversation.
 The prepared workshop example has a
 [`toyapp-api.yaml`](https://github.com/govtech-responsibleai/metis/blob/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs/toyapp-api.yaml)
 file. This is the [target connection](target-connection.md), which tells METIS how to reach the app.
-
-<details>
-<summary>Workshop participants: the address of the toy app</summary>
-
-Open [https://metis-agentic-eval-toyapp.app.tc1.airbase.sg](https://metis-agentic-eval-toyapp.app.tc1.airbase.sg). It is the same app that
-`TOYAPP_API_URL` in your `.env` points to.
-
-</details>
 
 **Checkpoint:** you can name the four actions, and you can give one thing that a check on the final
 answer alone would miss.
@@ -224,6 +223,11 @@ ls experiments/execute/<your-run>/outputs/trials/*/record.json
 
 A Langfuse session holds the whole conversation. Open one of two sessions:
 
+:::info
+The credentials for the Langfuse UI are in the **2026-11-03 | STACK Workshop Participant Guide**
+Google Doc.
+:::
+
 <OptionSwitch>
 
 <Option label="Option 1: Demo session">
@@ -257,8 +261,8 @@ List the session IDs of all your trials, and pick any one:
 grep -H target_session_id experiments/execute/*/outputs/trials/*/record.json
 ```
 
-Open the Langfuse address the facilitator gives you, go to **Sessions**, and paste the session ID
-into the search.
+Open the [Langfuse UI](https://gcapdev.aip.gov.sg/langfuse/project/cmvp7vt5e0007021vi1dalc3x),
+go to **Sessions**, and paste the session ID into the search.
 
 </Option>
 

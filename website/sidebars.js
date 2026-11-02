@@ -10,7 +10,7 @@ const sidebars = {
       label: 'Walkthrough',
       collapsed: false,
       items: [
-        {type: 'doc', id: 'workshop', label: 'STACK 2026 Workshop'},
+        {type: 'doc', id: 'stack-2026-workshop', label: 'STACK 2026 Workshop'},
       ],
     },
     {
