@@ -7,6 +7,14 @@ const sidebars = {
     {type: 'doc', id: 'install', label: 'Installation and Setup'},
     {
       type: 'category',
+      label: 'Walkthrough',
+      collapsed: false,
+      items: [
+        {type: 'doc', id: 'stack-2026-workshop', label: 'STACK 2026 Workshop'},
+      ],
+    },
+    {
+      type: 'category',
       label: 'Pre-requisites',
       collapsed: false,
       items: [
