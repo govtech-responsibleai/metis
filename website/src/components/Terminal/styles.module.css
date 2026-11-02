@@ -1,10 +1,48 @@
+/* The box is dark by default, which stands out on the light page. In dark mode it turns light, so
+   that it still stands out. All colours come from the variables here, and dark mode swaps them. */
 .window {
+  --term-bg: #0d0d0d;
+  --term-border: #262626;
+  --term-fg: #ededed;
+  --term-header: #a3a3a3;
+  --term-hover: #262626;
+  --term-icon: #d4d4d4;
+  --term-line-number: #5c5c5c;
+  --term-muted: #7a7a7a;
+  --term-program: #ff7b72;
+  --term-pass: #7ee787;
+  --term-warn: #e3b341;
+  --term-fail: #ff7b72;
+  --term-accent: #79c0ff;
+  --term-bar: #ff5f87;
+  --term-bar-done: #7ee787;
+  --term-bar-rest: #3a3a3a;
+
   margin: 0 0 var(--ifm-leading);
   overflow: hidden;
-  border: 1px solid #262626;
+  border: 1px solid var(--term-border);
   border-radius: 12px;
-  background: #0d0d0d;
-  color: #ededed;
+  background: var(--term-bg);
+  color: var(--term-fg);
+}
+
+:global(html[data-theme='dark']) .window {
+  --term-bg: #f6f6f3;
+  --term-border: #d0d7de;
+  --term-fg: #1f2328;
+  --term-header: #57606a;
+  --term-hover: #e4e4e0;
+  --term-icon: #424a53;
+  --term-line-number: #8c959f;
+  --term-muted: #6e7781;
+  --term-program: #cf222e;
+  --term-pass: #1a7f37;
+  --term-warn: #9a6700;
+  --term-fail: #cf222e;
+  --term-accent: #0550ae;
+  --term-bar: #c2255c;
+  --term-bar-done: #1a7f37;
+  --term-bar-rest: #c9d1d9;
 }
 
 .header {
@@ -13,7 +51,7 @@
   justify-content: space-between;
   padding: 0.45rem 0.6rem 0 1rem;
   font-size: 0.75rem;
-  color: #a3a3a3;
+  color: var(--term-header);
 }
 
 .copy {
@@ -26,14 +64,14 @@
 }
 
 .copy:hover {
-  background: #262626;
+  background: var(--term-hover);
 }
 
 .copy svg {
   width: 14px;
   height: 14px;
   fill: none;
-  stroke: #d4d4d4;
+  stroke: var(--term-icon);
   stroke-width: 1.3;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -46,7 +84,7 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: #ededed;
+  color: var(--term-fg);
   font-family: var(--ifm-font-family-monospace);
   font-size: 0.85rem;
   line-height: 1.6;
@@ -59,36 +97,36 @@
 .lineNumber {
   display: inline-block;
   width: 1.6rem;
-  color: #5c5c5c;
+  color: var(--term-line-number);
   user-select: none;
 }
 
 .program {
-  color: #ff7b72;
+  color: var(--term-program);
 }
 
 .comment {
-  color: #7a7a7a;
+  color: var(--term-muted);
 }
 
 .prompt {
-  color: #7a7a7a;
+  color: var(--term-muted);
 }
 
 .pass {
-  color: #7ee787;
+  color: var(--term-pass);
 }
 
 .warn {
-  color: #e3b341;
+  color: var(--term-warn);
 }
 
 .fail {
-  color: #ff7b72;
+  color: var(--term-fail);
 }
 
 .accent {
-  color: #79c0ff;
+  color: var(--term-accent);
 }
 
 .strong {
@@ -96,13 +134,13 @@
 }
 
 .bar {
-  color: #ff5f87;
+  color: var(--term-bar);
 }
 
 .barDone {
-  color: #7ee787;
+  color: var(--term-bar-done);
 }
 
 .barRest {
-  color: #3a3a3a;
+  color: var(--term-bar-rest);
 }
