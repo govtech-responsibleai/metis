@@ -5,7 +5,14 @@ const sidebars = {
   tutorial: [
     {type: 'doc', id: 'start', label: 'Intro'},
     {type: 'doc', id: 'install', label: 'Installation and Setup'},
-    {type: 'doc', id: 'workshop', label: 'Workshop walkthrough'},
+    {
+      type: 'category',
+      label: 'Walkthrough',
+      collapsed: false,
+      items: [
+        {type: 'doc', id: 'workshop', label: 'STACK 2026 Workshop'},
+      ],
+    },
     {
       type: 'category',
       label: 'Pre-requisites',
