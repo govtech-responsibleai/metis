@@ -1,0 +1,107 @@
+/* The file on the left and its notes on the right. Below the width where Docusaurus switches to
+   its mobile layout, the notes go under the file. */
+.wrapper {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 1rem;
+  align-items: start;
+  margin: 0 0 var(--ifm-leading);
+}
+
+@media (max-width: 996px) {
+  .wrapper {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.window {
+  margin: 0;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: var(--ifm-pre-border-radius);
+  background: var(--file-surface);
+  overflow: hidden;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 1.25rem;
+  border-bottom: 1px solid var(--ifm-color-emphasis-300);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.code {
+  position: relative;
+  /* Tighter than the site's code blocks (1.6), so that more of a long file shows at once. */
+  line-height: 1.35;
+  margin: 0;
+  padding: 0.75rem 0;
+  overflow: auto;
+}
+
+.line {
+  padding: 0 1.25rem;
+  border-left: 3px solid transparent;
+}
+
+.explained {
+  cursor: help;
+}
+
+/* The mark that stands for a stretch of lines left out of the view. */
+.gap {
+  padding: 0 1.25rem;
+  border-left: 3px solid transparent;
+  color: var(--ifm-color-content-secondary);
+  font-style: italic;
+  user-select: none;
+}
+
+.showAll {
+  padding: 0.125rem 0.625rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ifm-font-color-base);
+  font-family: var(--ifm-font-family-base);
+  font-size: 0.75rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.showAll:hover {
+  background: var(--ifm-color-emphasis-100);
+}
+
+/* The same tint marks a lit line and a lit note, so the eye can pair them. */
+.lit {
+  border-left-color: var(--ifm-color-primary);
+  background: color-mix(in srgb, var(--ifm-color-primary) 22%, transparent);
+}
+
+/* A long file scrolls, so its notes stay in view beside it. */
+.notes {
+  position: sticky;
+  top: calc(var(--ifm-navbar-height) + 1rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.note {
+  margin: 0 0 0.25rem;
+  padding: 0.25rem 0.75rem;
+  border-left: 3px solid transparent;
+  border-radius: 0 var(--ifm-global-radius) var(--ifm-global-radius) 0;
+}
+
+.note > :last-child {
+  margin-bottom: 0;
+}
+
+.note.lit {
+  border-left-color: var(--ifm-color-primary);
+}

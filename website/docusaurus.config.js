@@ -14,6 +14,21 @@ const config = {
       attributes: {name: 'algolia-site-verification', content: 'B326B139191D7CA5'},
     },
   ],
+  plugins: [
+    // Lets a page import a file's text with `?raw`, so that `YamlFile` can show the real
+    // example files from `packages/` without a copy.
+    function rawImports() {
+      return {
+        name: 'raw-imports',
+        configureWebpack() {
+          return {
+            module: {rules: [{resourceQuery: /raw/, type: 'asset/source'}]},
+            resolve: {alias: {'@examples': new URL('../packages/engine/examples', import.meta.url).pathname}},
+          };
+        },
+      };
+    },
+  ],
   onBrokenLinks: 'throw',
   markdown: {
     hooks: {onBrokenMarkdownLinks: 'throw'},
@@ -32,6 +47,8 @@ const config = {
     ],
   ],
   themeConfig: {
+    // A collapse arrow at the foot of the left sidebar gives a wide page more room.
+    docs: {sidebar: {hideable: true}},
     // Docusaurus sets og:title, og:description and og:url for each page. The landing page
     // publishes the logo at the site root.
     image: 'https://govtech-responsibleai.github.io/metis/metis-logo.png',

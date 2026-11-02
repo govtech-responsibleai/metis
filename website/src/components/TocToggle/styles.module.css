@@ -1,0 +1,26 @@
+/* Fixed under the navbar at the right edge. The contents list is only shown on wide screens, so
+   the button is too. */
+.toggle {
+  display: none;
+}
+
+@media (min-width: 997px) {
+  .toggle {
+    display: block;
+    position: fixed;
+    top: calc(var(--ifm-navbar-height) + 0.75rem);
+    right: 1rem;
+    z-index: 10;
+    padding: 0.25rem 0.75rem;
+    border: 1px solid var(--ifm-color-emphasis-300);
+    border-radius: 999px;
+    background: var(--ifm-background-surface-color);
+    color: var(--ifm-font-color-base);
+    font-size: 0.8125rem;
+    cursor: pointer;
+  }
+
+  .toggle:hover {
+    background: var(--ifm-color-emphasis-100);
+  }
+}

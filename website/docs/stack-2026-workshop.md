@@ -2,6 +2,11 @@
 title: STACK 2026 Workshop
 ---
 
+import toyappApi from '@examples/http-agentic_eval_toyapp-workshop-lite/inputs/toyapp-api.yaml?raw';
+import specification from '@examples/http-agentic_eval_toyapp-workshop-lite/inputs/specification.yaml?raw';
+
+<TocToggle />
+
 :::warning
 This walkthrough is written for the workshop that is presented in person at STACK Conference 2026.
 It depends on a toy app, keys and a Langfuse server that the facilitator provides, so you cannot
@@ -105,11 +110,6 @@ no. A check on the final answer alone cannot tell you whether the app picked the
 retrieved the right policy, or should have asked a question first. Those choices happen along the
 way, so METIS grades the whole conversation.
 
-The prepared workshop example has a
-[`toyapp-api.yaml`](https://github.com/govtech-responsibleai/metis/blob/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs/toyapp-api.yaml)
-file. That file is the [target connection](target-connection.md), which tells METIS how to reach the
-app.
-
 **Checkpoint:** you can name the four actions, and you can give one thing that a check on the final
 answer alone would miss.
 
@@ -117,26 +117,39 @@ answer alone would miss.
 
 A specification says what your application should do and how to test it. The Wizard interviews you
 about your application and drafts it. See [Start the interview](wizard-interview.md) for every
-option. Start the Wizard in the browser:
+option. This step has three parts: you build a specification, learn how METIS reaches the app, and
+read the prepared files that the next steps use.
+
+### Build a specification
+
+Start the Wizard in the browser:
 
 ```bash
 make run-web
 ```
 
-Each line of output starts with `api` or `web`. Keep the terminal open, and open the address that
-the `web` lines show, for example `http://localhost:5173`. Then:
+Keep the terminal open, and open the address that the output shows, for example
+`http://localhost:5173`. The Wizard opens on this screen. The text in the box is only an example,
+and you write your own below:
+
+![The Wizard's opening screen, with the Build Spec only mode selected, an example product description in the box, and the End user and Capabilities menus below it](./assets/wizard-opening.png)
+
+Then:
 
 1. Leave the mode on **Build Spec only**.
-2. Describe the target. Type this:
+2. Describe the target. Read
+   [what the toy app does](https://github.com/govtech-responsibleai/agentic-eval-toyapp/blob/main/README.md#what-it-does)
+   first: a coordinator reads each message and answers, asks a clarifying question, or hands the
+   task to the policy or report specialist. Then type this, or put it in your own words:
 
    ```text
    An employee assistant for Northstar Services. It answers policy questions from a fixed policy collection and analyses reports that employees upload.
    ```
 
 3. Leave the Perspective on **End user**, and skip **Capabilities**.
-4. Select **Send**, then answer the Wizard's questions and accept its drafts: the target, the Features
-   and Behaviours, the Criteria and their graders, the Personas, the Scenarios and the Test Cases.
-   Choose a few of each. You do not need to review every draft.
+4. Select **Send**, then answer the Wizard's questions and accept its drafts: the target, the
+   Features and Behaviours, the Criteria and their graders, the Personas, the Scenarios and the Test
+   Cases. Choose a few of each. You do not need to review every draft.
 5. When the Test Cases are chosen, select **Download specification**. Extract the ZIP into
    `experiments/design/`, and press Ctrl-C in the terminal to stop the servers.
 
@@ -153,7 +166,93 @@ specification**, and the Wizard finishes with what it has drafted so far.
 files in `experiments/design/<date>-<time>-interview/`.
 :::
 
-**Checkpoint:** your specification is in a folder in `experiments/design/`.
+### Connect the target
+
+A specification says what to test, but not how to reach the app. The **target connection**, also
+called the target binding, covers that. It is a second file, which tells METIS how to send a
+message to the app and read the reply. Building one is outside this workshop, so the Wizard only
+drafted the specification for you. The prepared example already has a target connection, named
+[`toyapp-api.yaml`](https://github.com/govtech-responsibleai/metis/blob/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs/toyapp-api.yaml),
+and the line `target_binding: toyapp-api.yaml` in its `specification.yaml` points to it. If you run
+your own specification in step 4, you reuse this file. See
+[Target connection](target-connection.md) to build your own later.
+
+### Review the prepared files
+
+Open the two files of the prepared example in your editor. They are in
+[`packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs/`](https://github.com/govtech-responsibleai/metis/tree/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs).
+
+[`toyapp-api.yaml`](https://github.com/govtech-responsibleai/metis/tree/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs/toyapp-api.yaml)
+is the target connection. It is short enough to read in full. Hover over a line, or over a note
+beside it, to see what goes with what:
+
+<AnnotatedYaml title="toyapp-api.yaml" source={toyappApi}>
+  <YamlNote match="transport:">
+    <code>transport: http</code> makes METIS call the app's REST API.
+  </YamlNote>
+  <YamlNote match="spec_url:">
+    <code>spec_url</code> is where METIS reads the API description. <code>${'{'}TOYAPP_API_URL{'}'}</code> is
+    filled in from the <code>.env</code> file, which is why step 1 checked it with <code>curl</code>.
+  </YamlNote>
+  <YamlNote match="submissions:">
+    <code>submissions</code> names the call that carries the simulated user's message. Opening a
+    session is a different call, so it is not listed.
+  </YamlNote>
+  <YamlNote>
+    There is no <code>auth</code> block, because the toy app needs no key.
+  </YamlNote>
+</AnnotatedYaml>
+
+[`specification.yaml`](https://github.com/govtech-responsibleai/metis/tree/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs/specification.yaml)
+is what the Wizard drafts. It is long, so the page folds the repeated and routine parts, and a
+grey line shows how many lines are folded. Hover over a note to see the part that it explains, or
+select **Show all** to see the whole file:
+
+<AnnotatedYaml title="specification.yaml" source={specification} height="28rem">
+  <YamlHide match="schema_version:" />
+  <YamlHide match="id: toyapp-workshop-lite" />
+  <YamlHide match="runner_factory_ref:" />
+  <YamlHide match="detail:" />
+  <YamlHide match="- id: AC-2-1" block />
+  <YamlHide match="- id: F-2" block keep={4} />
+  <YamlHide match="- id: F-3" block keep={4} />
+  <YamlHide match="- id: fragmented-persistent" block keep={2} />
+  <YamlHide match="- id: eager-new-hire" block keep={2} />
+  <YamlHide match="- id: S-5" block keep={2} />
+  <YamlHide match="- id: TC-006" block keep={3} />
+  <YamlHide match="- id: TC-008" block keep={3} />
+  <YamlHide match="fixture_content_descriptions:" section />
+  <YamlNote match="target_binding:">
+    <code>target_binding</code> points to the target connection above. It is the one line that ties
+    the two files together.
+  </YamlNote>
+  <YamlNote match="target:" section>
+    <code>target</code>: who uses the app and what it does.
+  </YamlNote>
+  <YamlNote match="features:" section>
+    <code>features</code>: each feature has behaviours, and each behaviour has criteria. A
+    criterion names the grader that scores it.
+  </YamlNote>
+  <YamlNote match="- id: AC-2-2" block>
+    <code>AC-2-2</code>, <strong>Follows explicit response instructions</strong>, is one criterion.
+    You meet it again in step 7.
+  </YamlNote>
+  <YamlNote match="personas:" section>
+    <code>personas</code>: who the simulated users are and how they behave.
+  </YamlNote>
+  <YamlNote match="scenarios:" section>
+    <code>scenarios</code>: what the simulated users ask. Scenario <code>S-3</code> is the dog
+    question from step 2.
+  </YamlNote>
+  <YamlNote match="tasks:" section>
+    <code>tasks</code>: each pairs one scenario with one persona, and sets how many trials to run.
+  </YamlNote>
+</AnnotatedYaml>
+
+Compare it with the specification that you downloaded. Yours will have the same sections.
+
+**Checkpoint:** your specification is in a folder in `experiments/design/`. You can say what
+`toyapp-api.yaml` tells METIS, and which line of `specification.yaml` points to it.
 
 ## Step 4: Simulate user interactions (8 min) {#step-4}
 
@@ -175,7 +274,23 @@ uv run metis engine simulate \
 
 <Option label="Option 2: Your specification from step 3">
 Use the `outputs/` folder inside the folder that you extracted. Replace `<date>-<time>` with the
-date and time in your folder name:
+date and time in your folder name.
+
+Your specification has no target connection yet, because you chose **Build Spec only**. Give it the
+prepared one. First copy the file into your `outputs/` folder:
+
+```bash
+cp packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs/toyapp-api.yaml \
+  experiments/design/<date>-<time>-interview/outputs/
+```
+
+Then open `specification.yaml` in that folder, and add this line below the `id:` line:
+
+```yaml
+target_binding: toyapp-api.yaml
+```
+
+Now run the simulation:
 
 ```bash
 uv run metis engine simulate \
