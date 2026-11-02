@@ -4,8 +4,25 @@ import graderData from './src/data/graders.json';
 const sidebars = {
   tutorial: [
     {type: 'doc', id: 'start', label: 'Intro'},
-    {type: 'doc', id: 'install', label: 'Installation'},
-    {type: 'doc', id: 'prerequisites', label: 'Pre-requisites'},
+    {type: 'doc', id: 'install', label: 'Installation and Setup'},
+    {
+      type: 'category',
+      label: 'Pre-requisites',
+      collapsed: false,
+      items: [
+        {type: 'doc', id: 'prerequisites', label: 'What you need'},
+        {
+          type: 'category',
+          label: 'Make your application eval-friendly',
+          collapsed: false,
+          items: [
+            {type: 'doc', id: 'expose-an-api-or-web-ui', label: 'Expose an API or web UI'},
+            {type: 'doc', id: 'set-up-observability', label: 'Set up observability'},
+          ],
+        },
+        {type: 'doc', id: 'check-environment', label: 'Check your environment'},
+      ],
+    },
     {type: 'html', value: '<hr class="sidebar-divider" aria-hidden="true" />'},
     {
       type: 'category',
@@ -30,9 +47,12 @@ const sidebars = {
     {
       type: 'category',
       label: 'Run your evaluations',
-      link: {type: 'doc', id: 'run-evaluation'},
       collapsed: false,
-      items: ['run-test-suite', 'run-graders'],
+      items: [
+        {type: 'doc', id: 'run-evaluation', label: 'Evaluation engine'},
+        'run-test-suite',
+        'run-graders',
+      ],
     },
     {
       type: 'category',

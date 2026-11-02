@@ -1,45 +1,27 @@
 ---
-title: Pre-requisites
+title: What you need
 ---
 
 Prepare your application and Langfuse before you run an evaluation.
 You can build a specification before this setup is complete.
 
-## Connect your application
+## Make your application eval-friendly
 
-<p className="draft-note">
-  Draft. Write this section when the user simulation work defines the target binding.
-</p>
+An application that METIS can evaluate is **eval-friendly**. METIS needs two things from it: a
+way to talk to it, and traces that it can read.
 
-## Connect Langfuse
+| Part | Requirement |
+|---|---|
+| [Expose an API or web UI](expose-an-api-or-web-ui.md) | METIS can interact with your application programmatically, through an API or through a web page. |
+| [Set up observability](set-up-observability.md) | A Langfuse v4 server, a current Langfuse Client SDK in your application, and traces that follow Langfuse's instrumentation best practices. |
 
-Your application must send its traces to Langfuse. Group the traces of each trial
-under the session ID that the runner returns. The Engine uses this ID to get the
-conversation for grading.
-
-Add the Langfuse credentials to `.env`:
-
-```dotenv
-LANGFUSE_PUBLIC_KEY=your-public-key
-LANGFUSE_SECRET_KEY=your-secret-key
-LANGFUSE_BASE_URL=https://your-langfuse-host
-```
-
-Make sure that a test conversation shows in Langfuse before you run the graders.
+Each page shows how to provide its part, and how to check it.
 
 ## Check your environment
 
-Run the check before your first evaluation:
-
-```bash
-make check-env    # or: metis doctor
-```
-
-It confirms that `OPENAI_API_KEY` is set and accepted by the model gateway, that the install
-is sound, and that the `LANGFUSE_*` keys work. It prints one line per check, never prints a
-key, and exits non-zero if a required check fails. A missing `LANGFUSE_*` variable is a
-warning, not a failure: you can still simulate, but you cannot run `metis engine evaluate`.
+When your application is ready, [check your environment](check-environment.md). Confirm that your
+keys and install work before your first evaluation.
 
 ## Next step
 
-[Build your specification](wizard.md).
+[Expose an API or web UI](expose-an-api-or-web-ui.md).

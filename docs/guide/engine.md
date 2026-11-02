@@ -50,7 +50,7 @@ Set Langfuse and OpenAI credentials, plus the variables your target binding name
 
 | Group | Variables | Purpose |
 |-------|-----------|---------|
-| Langfuse | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` | The Langfuse of the system under test. The engine reads the target's traces from it. The engine never traces its own model calls there. |
+| Langfuse | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` | The Langfuse of the system under test. The engine reads the target's traces from it and never traces its own model calls there. The server must be Langfuse v4, and the target needs Python `langfuse >= 4.7.0` or JS/TS `@langfuse/* >= 5.4.0` with a root observation per turn. See [Set up observability](https://govtech-responsibleai.github.io/metis/docs/set-up-observability). |
 | METIS-internal Langfuse (optional) | `METIS_INTERNAL_LANGFUSE_PUBLIC_KEY`, `METIS_INTERNAL_LANGFUSE_SECRET_KEY`, `METIS_INTERNAL_LANGFUSE_BASE_URL` | Where the engine and the wizard trace their own model calls. Each trial attempt and each grader run is one trace, and a trial's traces share one session. Tracing is off unless all three are set. |
 | Models | `OPENAI_API_KEY`, `OPENAI_BASE_URL` | The shared gateway of the user agent, the runner agent, and the judge. Each role can have its own model and gateway. See the [model guide](models.md). |
 | Target binding | for the example, `TOYAPP_API_URL` | The URL, key and login variables that the binding names. See the [simulation README](../../packages/engine/src/metis/engine/simulation/README.md). |
@@ -110,6 +110,10 @@ metis engine evaluate --experiment-dir experiments/execute/toyapp-http-simple-20
 ```
 
 `experiments/execute/toyapp-http-simple-20260820-143000/` is the output directory that `simulate` created. The name is only a sample: `simulate` makes the real name from the experiment `id` and the start time of the run, so use the path that `simulate` printed.
+
+If `evaluate` reports missing traces, upgrade the target's Langfuse SDK first, then raise `--langfuse-timeout` (default 90 seconds). Traces from older SDKs can arrive several minutes late.
+
+The website explains each step in full: [Run your evaluations](https://govtech-responsibleai.github.io/metis/docs/run-evaluation), [Run the test suite](https://govtech-responsibleai.github.io/metis/docs/run-test-suite) and [Run the graders](https://govtech-responsibleai.github.io/metis/docs/run-graders).
 
 If simulation stops before all runs finish, continue the output directory that you name. `simulate` prints this exact command, so you never retype a timestamp:
 
@@ -1040,10 +1044,12 @@ You lose:
 
 If you want evaluation, instrument your target with the Langfuse SDK:
 
-1. Add `langfuse` to your target's dependencies
-2. Wrap your LLM calls with Langfuse's `@observe` decorator or use the callback handler
-3. Ensure each conversation session gets a consistent `session_id`
+1. Use a Langfuse v4 server and add `langfuse >= 4.7.0` (or JS/TS `@langfuse/* >= 5.4.0`) to your target's dependencies
+2. Wrap each turn in a root observation (`agent` or `span`) whose `input` is the user message and whose `output` is the final answer, and propagate `user_id`, `session_id` and `tags` with `propagate_attributes()`
+3. Ensure all traces of one trial share the `session_id` that the runner returns
 4. Return that `session_id` from your runner's `session_id` property
+
+The [website](https://govtech-responsibleai.github.io/metis/docs/set-up-observability) has the before-and-after example, the verification query and the troubleshooting table.
 
 The engine then fetches traces using:
 - `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_BASE_URL` from your `.env`
