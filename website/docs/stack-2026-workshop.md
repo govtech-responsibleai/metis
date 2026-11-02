@@ -8,7 +8,9 @@ import specification from '@examples/http-agentic_eval_toyapp-workshop-lite/inpu
 <TocToggle />
 
 :::warning
-This walkthrough is written for the workshop that is presented in person at STACK Conference 2026.
+
+This walkthrough is written for a 45-minute workshop that is presented in person at 
+STACK Conference 2026.
 It depends on a toy app, keys and a Langfuse server that the facilitator provides, so you cannot
 follow it on your own. Refer to the **2026-11-03 | STACK Workshop Participant Guide** Google Doc
 for your credentials and instructions.
@@ -20,20 +22,15 @@ The addresses you need:
 3. Toy app source code: [https://github.com/govtech-responsibleai/agentic-eval-toyapp](https://github.com/govtech-responsibleai/agentic-eval-toyapp)
 :::
 
-This is the hands-on part of the 1-hour METIS workshop: 45 minutes, nine steps. You run the whole
-METIS workflow against the
-[agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp), which the
-facilitator hosts at the [workshop address](https://metis-agentic-eval-toyapp.app.tc1.airbase.sg).
-Each step ends with a **checkpoint**, which is what you should see before you move on. If your
-screen does not match, raise your hand.
+In this walkthrough, you will run the whole METIS workflow against the 
+[agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp),
+which the facilitator hosts [here](https://metis-agentic-eval-toyapp.app.tc1.airbase.sg). 
+Each step ends with a **checkpoint**, which is what you should see before you move on. 
 
-Steps 4, 5 and 7 each offer two options. **Option 1** uses the prepared example, so it works
-for everyone. **Option 2** uses what you made in the earlier steps. Pick one.
+You have to download an `.env` file from the participant guide. 
+It already has your keys and `TOYAPP_API_URL`, the address of the toy application.
 
-The facilitator gives you a `.env` file. It already has your keys and `TOYAPP_API_URL`, the
-address of the toy application.
-
-The learning objectives are:
+This walk through will teach participants to:
 
 1. Tell agentic evaluations apart from traditional LLM evals.
 2. Run the METIS workflow from specification to report.
