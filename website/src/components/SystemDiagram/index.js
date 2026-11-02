@@ -74,8 +74,7 @@ export default function SystemDiagram({step}) {
         </g>
         <g className={part('browser')}>
           <rect x="64" y="360" width="252" height="64" rx="12" fill="#ffffff" stroke="#3b82f6" strokeWidth="2" filter={`url(#${shadow})`} />
-          <text x="84" y="388" fontSize="15" fontWeight="700" fill="#1e293b">Browser</text>
-          <text x="84" y="408" fontSize="12.5" fill="#64748b">Langfuse UI and report.html</text>
+          <text x="84" y="398" fontSize="15" fontWeight="700" fill="#1e293b">Browser</text>
         </g>
 
         {/* Toy app */}

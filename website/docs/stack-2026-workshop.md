@@ -206,14 +206,6 @@ Hover over a file, or over a note beside it, to see what goes with what:
 │   └── northstar-q2-service-review.md
 ├── specification.yaml
 └── toyapp-api.yaml`}>
-  <TreeNote match="specification.yaml">
-    <code>specification.yaml</code> says what to test: who uses the app, what it should do, how
-    each behaviour is graded, and which simulated conversations to run.
-  </TreeNote>
-  <TreeNote match="toyapp-api.yaml">
-    <code>toyapp-api.yaml</code> is the target binding. It says how to reach the app: where its API
-    is, and which call carries a message.
-  </TreeNote>
   <TreeNote match="fixtures/">
     <code>fixtures/</code> holds the files that simulated users bring to a conversation.
   </TreeNote>
@@ -222,6 +214,14 @@ Hover over a file, or over a note beside it, to see what goes with what:
     conversations that test the report specialist, the simulated user uploads it to the app. The
     specification lists it under the task that uses it, and describes its contents so that the
     graders know what the right answers are.
+  </TreeNote>
+  <TreeNote match="specification.yaml">
+    <code>specification.yaml</code> says what to test: who uses the app, what it should do, how
+    each behaviour is graded, and which simulated conversations to run.
+  </TreeNote>
+  <TreeNote match="toyapp-api.yaml">
+    <code>toyapp-api.yaml</code> is the target binding. It says how to reach the app: where its API
+    is, and which call carries a message.
   </TreeNote>
 </AnnotatedTree>
 
@@ -232,7 +232,7 @@ is what the Wizard drafts. It is long, so the page folds the repeated and routin
 grey line shows how many lines are folded. Hover over a note to see the part that it explains, or
 select **Show all** to see the whole file:
 
-<AnnotatedYaml title="specification.yaml" source={specification} height="28rem" fitNotes>
+<AnnotatedYaml title="specification.yaml" source={specification} height="28rem">
   <YamlHide match="schema_version:" />
   <YamlHide match="id: toyapp-workshop-lite" />
   <YamlHide match="runner_factory_ref:" />
@@ -281,7 +281,7 @@ Compare it with the specification that you downloaded. Yours will have the same 
 is the target binding, the target connection from the previous part. It is short enough to read in
 full. Hover over a line, or over a note beside it, to see what goes with what:
 
-<AnnotatedYaml title="toyapp-api.yaml" source={toyappApi}>
+<AnnotatedYaml title="toyapp-api.yaml" source={toyappApi} stacked>
   <YamlNote match="transport:">
     <code>transport: http</code> makes METIS call the app's REST API.
   </YamlNote>

@@ -1,4 +1,4 @@
-import {Children, useEffect, useMemo, useRef, useState} from 'react';
+import {Children, useMemo, useRef, useState} from 'react';
 import {usePrismTheme} from '@docusaurus/theme-common';
 import {Highlight} from 'prism-react-renderer';
 import styles from './styles.module.css';
@@ -80,22 +80,18 @@ function hiddenRuns(texts, hides) {
 }
 
 // A file shown as read-only YAML, with a note for each part worth explaining. Hovering or
-// focusing a note lights up its lines and scrolls the file to them, and hovering a line lights
-// up its note. `source` is the file's text, imported with `?raw`, so the page shows the real
-// file. Notes and hidden parts are matched by the start of a line, so editing the file does not
-// break them. `height` caps the height of the file, which then scrolls. Parts marked with
-// YamlHide are replaced by a count of the lines left out, and a button in the title bar shows
-// the whole file. `fitNotes` makes the file exactly as tall as the column of notes beside it,
-// with `height` as the cap when the notes sit under the file instead.
-export default function AnnotatedYaml({source, title, height, fitNotes, children}) {
+// focusing a note lights up its lines, and hovering a line lights up its note. Nothing scrolls
+// on hover; selecting a note scrolls the file to its lines. `source` is the file's text, imported
+// with `?raw`, so the page shows the real file. Notes and hidden parts are matched by the start of
+// a line, so editing the file does not break them. `height` caps the height of the file and its
+// notes together: past it they scroll as one, and the notes stay in view at the top of the box.
+// `stacked` puts the notes under the file in one column instead of beside it, which suits a short
+// file; it is not meant to be used with `height`. Parts marked with YamlHide are replaced by a
+// count of the lines left out, and a button in the title bar shows the whole file.
+export default function AnnotatedYaml({source, title, height, stacked, children}) {
   const prismTheme = usePrismTheme();
   const [active, setActive] = useState(null);
   const [showAll, setShowAll] = useState(false);
-  const [fitted, setFitted] = useState(null);
-  const codeRef = useRef(null);
-  const notesRef = useRef(null);
-  const titleRef = useRef(null);
-  const lineRefs = useRef([]);
   const parts = Children.toArray(children);
   const notes = parts.filter((child) => child.type === YamlNote);
   const hides = parts.filter((child) => child.type === YamlHide);
@@ -104,41 +100,34 @@ export default function AnnotatedYaml({source, title, height, fitNotes, children
   const owners = useMemo(() => ownersOf(texts, notes), [code, notes]);
   const {hidden, runs} = useMemo(() => hiddenRuns(texts, hides), [code, hides]);
   const hiddenTotal = hidden.filter(Boolean).length;
+  const boxRef = useRef(null);
+  const lineRefs = useRef([]);
 
-  // With `fitNotes`, the file is as tall as the notes beside it, less its title bar and borders.
-  // Under the width where the notes move below the file, there is nothing to match.
-  useEffect(() => {
-    const list = notesRef.current;
-    if (!fitNotes || !list) return undefined;
-    const measure = () => {
-      const stacked = window.matchMedia('(max-width: 996px)').matches;
-      const chrome = (titleRef.current?.offsetHeight ?? 0) + 2;
-      setFitted(stacked ? null : list.offsetHeight - chrome);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(list);
-    return () => observer.disconnect();
-  }, [fitNotes]);
-
-  // A note hovered far from the lines it explains scrolls the file to them. A line that is
-  // already in view, or is hidden, is left alone.
-  useEffect(() => {
-    const pre = codeRef.current;
-    const first = owners.findIndex((list) => list.includes(active));
+  // Selecting a note scrolls the box to the first line that it explains, and does nothing when
+  // the file is not in a scrolling box. Hovering only lights lines up, and never scrolls.
+  const jumpTo = (noteIndex) => {
+    const box = boxRef.current;
+    const first = owners.findIndex((list, line) => list.includes(noteIndex) && lineRefs.current[line]);
     const line = lineRefs.current[first];
-    if (active === null || !pre || !line) return;
-    const top = line.offsetTop;
-    if (top < pre.scrollTop || top + line.offsetHeight > pre.scrollTop + pre.clientHeight) {
-      pre.scrollTo({top: Math.max(0, top - 16), behavior: 'smooth'});
-    }
-  }, [active, owners]);
+    if (!height || !box || !line) return;
+    const offset = line.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+    box.scrollTo({top: Math.max(0, offset - 16), behavior: 'smooth'});
+  };
 
   return (
-    <div className={styles.wrapper}>
+    <div
+      ref={boxRef}
+      className={
+        height
+          ? `${styles.wrapper} ${styles.together}`
+          : stacked
+            ? `${styles.wrapper} ${styles.stacked}`
+            : styles.wrapper
+      }
+      style={height ? {maxHeight: height} : undefined}>
       <figure className={styles.window}>
         {title && (
-          <figcaption ref={titleRef} className={styles.title}>
+          <figcaption className={styles.title}>
             <span>{title}</span>
             {hiddenTotal > 0 && (
               <button type="button" className={styles.showAll} onClick={() => setShowAll(!showAll)}>
@@ -149,14 +138,7 @@ export default function AnnotatedYaml({source, title, height, fitNotes, children
         )}
         <Highlight theme={prismTheme} code={code} language="yaml">
           {({tokens, getLineProps, getTokenProps, style}) => (
-            <pre
-              ref={codeRef}
-              className={styles.code}
-              style={{
-                ...style,
-                background: 'transparent',
-                ...(fitted === null ? {maxHeight: height} : {minHeight: fitted, maxHeight: fitted}),
-              }}>
+            <pre className={styles.code} style={{...style, background: 'transparent'}}>
               {tokens.map((line, index) => {
                 if (hidden[index] && !showAll) {
                   return runs[index] > 0 ? (
@@ -200,7 +182,7 @@ export default function AnnotatedYaml({source, title, height, fitNotes, children
           )}
         </Highlight>
       </figure>
-      <ul ref={notesRef} className={styles.notes}>
+      <ul className={styles.notes}>
         {notes.map((note, index) => (
           <li
             key={index}
@@ -209,7 +191,14 @@ export default function AnnotatedYaml({source, title, height, fitNotes, children
             onMouseEnter={() => setActive(index)}
             onMouseLeave={() => setActive(null)}
             onFocus={() => setActive(index)}
-            onBlur={() => setActive(null)}>
+            onBlur={() => setActive(null)}
+            onClick={() => jumpTo(index)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                jumpTo(index);
+              }
+            }}>
             {note}
           </li>
         ))}

@@ -14,6 +14,40 @@
   }
 }
 
+/* With a `height`, the file and its notes sit in one box that scrolls as a whole. The code no
+   longer scrolls on its own, and the notes stay at the top of the box, so that selecting one is
+   always possible and scrolls the file to its lines. */
+.together {
+  overflow-y: auto;
+  align-items: start;
+  padding: 0.25rem 0.5rem 0.25rem 0;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: var(--ifm-pre-border-radius);
+}
+
+.together .code {
+  overflow: visible;
+}
+
+.together .notes {
+  top: 0;
+}
+
+/* Only a note in a scrolling box does anything when selected, so only it looks selectable. */
+.together .note {
+  cursor: pointer;
+}
+
+/* With `stacked`, the notes go under the file in one column, as in the folder tree. The file is
+   short, so the notes need not stay in view beside it. */
+.stacked {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.stacked .notes {
+  position: static;
+}
+
 .window {
   margin: 0;
   border: 1px solid var(--ifm-color-emphasis-300);
