@@ -36,6 +36,11 @@ This walk through will teach participants to:
 2. Run the METIS workflow from specification to report.
 3. Use Langfuse to inspect how an agent moved through a conversation.
 
+The picture shows how the pieces fit together. Each step below repeats it with the parts that the
+step uses lit up, so that you can see where you are.
+
+<SystemDiagram />
+
 | Step | What you do | Time |
 |---|---|---|
 | [Step 1](#step-1) | Install METIS and set up your environment | 3 min |
@@ -49,6 +54,8 @@ This walk through will teach participants to:
 | [Step 9](#step-9) | Provide feedback | 1 min |
 
 ## Step 1: Install METIS and set up your environment (3 min) {#step-1}
+
+<SystemDiagram step={1} />
 
 Install METIS by following [Installation and Setup](install.md). In short:
 
@@ -94,6 +101,8 @@ a JSON document.
 
 ## Step 2: Inspect the toy application (5 min) {#step-2}
 
+<SystemDiagram step={2} />
+
 The [agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp), which runs
 at the [workshop address](https://metis-agentic-eval-toyapp.app.tc1.airbase.sg), is an employee
 assistant. It answers policy questions and analyses uploaded reports, and for each message it
@@ -111,6 +120,8 @@ way, so METIS grades the whole conversation.
 answer alone would miss.
 
 ## Step 3: Build a specification in the Wizard (8 min) {#step-3}
+
+<SystemDiagram step={3} />
 
 A specification says what your application should do and how to test it. The Wizard interviews you
 about your application and drafts it. See [Start the interview](wizard-interview.md) for every
@@ -293,6 +304,8 @@ full. Hover over a line, or over a note beside it, to see what goes with what:
 
 ## Step 4: Simulate user interactions (8 min) {#step-4}
 
+<SystemDiagram step={4} />
+
 `simulate` plays a simulated user against the toy application and records each conversation as a
 trial. See [Run the test suite](run-test-suite.md). Run it with one of two inputs:
 
@@ -358,6 +371,8 @@ ls experiments/execute/<your-run>/outputs/trials/*/record.json
 
 ## Step 5: Inspect the traces in Langfuse (5 min) {#step-5}
 
+<SystemDiagram step={5} />
+
 :::info[Langfuse credentials]
 The credentials for the Langfuse UI are in the **2026-11-03 | STACK Workshop Participant Guide**
 Google Doc.
@@ -422,6 +437,8 @@ it chose, and you can open a `search_knowledge_base` step to see what it was cal
 
 ## Step 6: Grade the traces (8 min) {#step-6}
 
+<SystemDiagram step={6} />
+
 `evaluate` reads each conversation from Langfuse and runs the graders from the specification. See
 [Run the graders](run-graders.md). Use the output folder that `simulate` printed:
 
@@ -473,6 +490,8 @@ show a trace.
 trial failed, run the command again.
 
 ## Step 7: Read the report (5 min) {#step-7}
+
+<SystemDiagram step={7} />
 
 Open a report from one of two sources:
 
