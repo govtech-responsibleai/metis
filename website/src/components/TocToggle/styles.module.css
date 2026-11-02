@@ -1,0 +1,106 @@
+/* The progress bar sits under the navbar and spans the window. Its circles are centred, so that
+   the toggle button at the right edge stays clear of them. The bar exists only while the contents
+   are hidden, which the button can do only on wide screens. */
+.bar {
+  position: fixed;
+  top: var(--ifm-navbar-height);
+  left: 0;
+  right: 0;
+  z-index: 9;
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem 8rem;
+  border-bottom: 1px solid var(--ifm-color-emphasis-300);
+  background: var(--ifm-background-surface-color);
+}
+
+.steps {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A line joins each circle to the one before it. */
+.step {
+  display: flex;
+  align-items: center;
+}
+
+.step + .step::before {
+  content: '';
+  width: 2rem;
+  height: 2px;
+  background: var(--ifm-color-emphasis-300);
+}
+
+.step.done::before,
+.step.current::before {
+  background: var(--ifm-color-primary);
+}
+
+.circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 2px solid var(--ifm-color-emphasis-400);
+  border-radius: 50%;
+  background: var(--ifm-background-surface-color);
+  color: var(--ifm-color-content-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.circle:hover {
+  border-color: var(--ifm-color-primary);
+  color: var(--ifm-color-primary);
+  text-decoration: none;
+}
+
+/* Steps already read are filled. */
+.done .circle {
+  border-color: var(--ifm-color-primary);
+  background: var(--ifm-color-primary);
+  color: #fff;
+}
+
+/* The current step is larger and has a halo, so that it stands out from the filled ones. */
+.current .circle {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-color: var(--ifm-color-primary);
+  background: var(--ifm-color-primary);
+  color: #fff;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ifm-color-primary) 28%, transparent);
+}
+
+/* Fixed under the navbar at the right edge. The contents list is only shown on wide screens, so
+   the button is too. */
+.toggle {
+  display: none;
+}
+
+@media (min-width: 997px) {
+  .toggle {
+    display: block;
+    position: fixed;
+    top: calc(var(--ifm-navbar-height) + 0.75rem);
+    right: 1rem;
+    z-index: 10;
+    padding: 0.25rem 0.75rem;
+    border: 1px solid var(--ifm-color-emphasis-300);
+    border-radius: 999px;
+    background: var(--ifm-background-surface-color);
+    color: var(--ifm-font-color-base);
+    font-size: 0.8125rem;
+    cursor: pointer;
+  }
+
+  .toggle:hover {
+    background: var(--ifm-color-emphasis-100);
+  }
+}

@@ -1,0 +1,22 @@
+.figure {
+  margin: 0 0 var(--ifm-leading);
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: var(--ifm-pre-border-radius);
+  overflow: hidden;
+}
+
+.figure svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* A part that the step uses stays as drawn; the others fade back. */
+.on,
+.off {
+  transition: opacity 0.2s ease;
+}
+
+.off {
+  opacity: 0.22;
+}

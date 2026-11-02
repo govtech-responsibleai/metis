@@ -446,6 +446,13 @@ code {
   vertical-align: baseline;
 }
 
+/* The background of a file shown from the repository (YamlFile and AnnotatedYaml): the code
+   surface with a little of the accent mixed in, so that a real file reads differently from a
+   command or a snippet. */
+:root {
+  --file-surface: color-mix(in srgb, hsl(var(--accent)) 8%, hsl(var(--code-surface)));
+}
+
 .theme-code-block {
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius-lg);
@@ -565,6 +572,53 @@ blockquote > :last-child {
 
 .docs-doc-id-start .theme-doc-markdown {
   max-width: 54rem;
+}
+
+/* The workshop page shows files beside their notes, so it needs more width than a text page.
+   Three wrappers limit the text: the container (1140px), the column (75% of the container, to
+   leave room for the contents), and the text itself. All three are widened here. The page class
+   is on <html>, so a rule that depends on the TocToggle button joins both classes without a
+   space. The button hides the contents, and the column then takes the full container. */
+.docs-doc-id-stack-2026-workshop main > .container {
+  max-width: 96rem !important;
+}
+
+.docs-doc-id-stack-2026-workshop .theme-doc-markdown {
+  max-width: 70rem;
+}
+
+/* Hiding either side lets the text use the room: the cap comes off, and the container's own
+   limit (96rem) is what stops it. Docusaurus marks a collapsed sidebar with a class on the
+   container, whose hashed suffix can change, so the match is on the stable prefix. */
+html.toc-hidden.docs-doc-id-stack-2026-workshop .theme-doc-markdown,
+.docs-doc-id-stack-2026-workshop main > [class*='docItemWrapperEnhanced'] .theme-doc-markdown {
+  max-width: none;
+}
+
+html.toc-hidden.docs-doc-id-stack-2026-workshop .theme-doc-toc-desktop {
+  display: none;
+}
+
+html.toc-hidden.docs-doc-id-stack-2026-workshop [class*='docItemCol'] {
+  max-width: 100% !important;
+}
+
+/* StepControls marks the parts of a folded step, which are hidden until the reader unfolds it. */
+[data-step-folded] {
+  display: none !important;
+}
+
+/* With the contents hidden, a progress bar sits under the navbar. A step reached from it, or from
+   the table at the top, stops below the bar rather than behind it. */
+html.toc-hidden.docs-doc-id-stack-2026-workshop h2[id^='step-'] {
+  scroll-margin-top: calc(var(--ifm-navbar-height) + 4rem);
+}
+
+/* The bar is fixed, so the page leaves room for it above the content. */
+@media (min-width: 997px) {
+  html.toc-hidden.docs-doc-id-stack-2026-workshop main {
+    padding-top: 3.5rem;
+  }
 }
 
 .theme-code-block + .code-caption {
