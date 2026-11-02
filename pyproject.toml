@@ -22,7 +22,7 @@ metis = "metis_cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]
-only-include = ["metis_cli.py"]
+only-include = ["metis_cli.py", "metis_dev.py"]
 
 [tool.uv]
 package = true
@@ -46,7 +46,7 @@ exclude = ["apps/web"]
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
-include = ["packages/*/src", "apps/*/src", "metis_cli.py"]
+include = ["packages/*/src", "apps/*/src", "metis_cli.py", "metis_dev.py"]
 reportIncompatibleMethodOverride = false
 reportMissingTypeArgument = true
 reportUnnecessaryTypeIgnoreComment = true
