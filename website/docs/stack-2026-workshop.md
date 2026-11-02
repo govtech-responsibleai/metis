@@ -15,11 +15,12 @@ The addresses you need:
 3. Toy app source code: [https://github.com/govtech-responsibleai/agentic-eval-toyapp](https://github.com/govtech-responsibleai/agentic-eval-toyapp)
 :::
 
-This is the hands-on part of the 1-hour METIS workshop: 45 minutes, eight steps. You run the whole
-METIS workflow against the [agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp),
-which the facilitator hosts [here](https://metis-agentic-eval-toyapp.app.tc1.airbase.sg). Each step ends with a
-**checkpoint**, which is what you should see before you move on. If your screen does not match,
-raise your hand.
+This is the hands-on part of the 1-hour METIS workshop: 45 minutes, nine steps. You run the whole
+METIS workflow against the
+[agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp), which the
+facilitator hosts at the [workshop address](https://metis-agentic-eval-toyapp.app.tc1.airbase.sg).
+Each step ends with a **checkpoint**, which is what you should see before you move on. If your
+screen does not match, raise your hand.
 
 Steps 4, 5 and 7 each offer two options. **Option 1** uses the prepared example, so it works
 for everyone. **Option 2** uses what you made in the earlier steps. Pick one.
@@ -42,7 +43,8 @@ The learning objectives are:
 | [Step 5](#step-5) | Inspect the traces in Langfuse | 5 min | 3 |
 | [Step 6](#step-6) | Grade the traces | 8 min | 2 |
 | [Step 7](#step-7) | Read the report | 5 min | 2 |
-| [Step 8](#step-8) | Wrap-up and questions | 3 min | 1, 2, 3 |
+| [Step 8](#step-8) | Wrap-up and questions | 2 min | 1, 2, 3 |
+| [Step 9](#step-9) | Provide feedback | 1 min | None |
 
 ## Step 1: Install METIS and set up your environment (3 min) {#step-1}
 
@@ -54,8 +56,7 @@ cd metis
 make install
 ```
 
-Copy the `.env` file from the facilitator into this folder, the repository root. Then check your
-environment:
+Copy the `.env` file from the facilitator into the `metis` folder. Then check your environment:
 
 ```bash
 make check-env
@@ -91,21 +92,23 @@ a JSON document.
 
 ## Step 2: Inspect the toy application (5 min) {#step-2}
 
-The [agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp)
-(deployed [here](https://metis-agentic-eval-toyapp.app.tc1.airbase.sg)) is an employee assistant. It answers policy questions and analyses uploaded reports, and for each message
-it chooses one of four actions: answer, ask a clarifying question, hand over to the policy
-specialist, or hand over to the report specialist.
+The [agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp), which runs
+at the [workshop address](https://metis-agentic-eval-toyapp.app.tc1.airbase.sg), is an employee
+assistant. It answers policy questions and analyses uploaded reports, and for each message it
+chooses one of four actions: answer, ask a clarifying question, hand over to the policy specialist,
+or hand over to the report specialist.
 
 ![The toy app in a demo session: an employee asks for a definitive yes or no about bringing a dog to the office](./assets/toyapp-demo-session.png)
 
-In the demo session, the policy collection has no answer, yet the employee asks for a plain yes or no. A check
-on the final answer alone cannot tell you whether the app picked the right specialist, retrieved
-the right policy, or should have asked a question first. Those choices happen along the way, so
-METIS grades the whole conversation.
+In the demo session, the policy collection has no answer, yet the employee asks for a plain yes or
+no. A check on the final answer alone cannot tell you whether the app picked the right specialist,
+retrieved the right policy, or should have asked a question first. Those choices happen along the
+way, so METIS grades the whole conversation.
 
 The prepared workshop example has a
 [`toyapp-api.yaml`](https://github.com/govtech-responsibleai/metis/blob/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs/toyapp-api.yaml)
-file. This is the [target connection](target-connection.md), which tells METIS how to reach the app.
+file. That file is the [target connection](target-connection.md), which tells METIS how to reach the
+app.
 
 **Checkpoint:** you can name the four actions, and you can give one thing that a check on the final
 answer alone would miss.
@@ -114,34 +117,14 @@ answer alone would miss.
 
 A specification says what your application should do and how to test it. The Wizard interviews you
 about your application and drafts it. See [Start the interview](wizard-interview.md) for every
-option. Start the Wizard in the browser or in the terminal:
-
-<OptionSwitch>
-
-<Option label="Browser">
+option. Start the Wizard in the browser:
 
 ```bash
 make run-web
 ```
 
 Each line of output starts with `api` or `web`. Keep the terminal open, and open the address that
-the `web` lines show, for example `http://localhost:5173`.
-
-</Option>
-
-<Option label="CLI">
-
-```bash
-uv run metis wizard init
-```
-
-The interview runs in the terminal.
-
-</Option>
-
-</OptionSwitch>
-
-Then:
+the `web` lines show, for example `http://localhost:5173`. Then:
 
 1. Leave the mode on **Build Spec only**.
 2. Describe the target. Type this:
@@ -151,21 +134,23 @@ Then:
    ```
 
 3. Leave the Perspective on **End user**, and skip **Capabilities**.
-4. Select Send, then answer the Wizard's questions and accept its drafts: the target, the Features
+4. Select **Send**, then answer the Wizard's questions and accept its drafts: the target, the Features
    and Behaviours, the Criteria and their graders, the Personas, the Scenarios and the Test Cases.
    Choose a few of each. You do not need to review every draft.
-5. When the Test Cases are chosen, save the specification:
-   - **Browser:** select **Download specification**. Extract the ZIP into `experiments/design/`,
-     and press Ctrl-C in the terminal to stop the servers.
-   - **CLI:** the Wizard saves the files in `experiments/design/<date>-<time>-interview/` when you
-     finish.
+5. When the Test Cases are chosen, select **Download specification**. Extract the ZIP into
+   `experiments/design/`, and press Ctrl-C in the terminal to stop the servers.
 
 The specification you built here is for learning. The next steps run a prepared specification, so
 that everyone gets the same results.
 
 :::tip[Short on time?]
-You can finish the interview early in the browser if you want. Select **Skip interview and download
+You can finish the interview early if you want. Select **Skip interview and download
 specification**, and the Wizard finishes with what it has drafted so far.
+:::
+
+:::tip[Prefer the terminal?]
+`uv run metis wizard init` runs the same interview in the terminal. When you finish, it saves the
+files in `experiments/design/<date>-<time>-interview/`.
 :::
 
 **Checkpoint:** your specification is in a folder in `experiments/design/`.
@@ -221,12 +206,12 @@ ls experiments/execute/<your-run>/outputs/trials/*/record.json
 
 ## Step 5: Inspect the traces in Langfuse (5 min) {#step-5}
 
-A Langfuse session holds the whole conversation. Open one of two sessions:
-
-:::info
+:::info[Langfuse credentials]
 The credentials for the Langfuse UI are in the **2026-11-03 | STACK Workshop Participant Guide**
 Google Doc.
 :::
+
+A Langfuse session holds the whole conversation. Open one of two sessions:
 
 <OptionSwitch>
 
@@ -298,7 +283,7 @@ Each trial is graded in turn, with a progress bar for each trial. It ends with a
   command="uv run metis engine evaluate --experiment-dir experiments/execute/<your-run>"
   output={`Selected experiment: /path/to/metis/experiments/execute/toyapp-workshop-lite-20261102-004033
   Loaded 6 trial record(s)
-Models: Judge gpt-6-luna
+Models: Judge bedrock.claude-sonnet-5-5
 
 ############################################################
   SESSION 1/6: fragmented-persistent-changing-mind-questioner x S-3
@@ -331,8 +316,9 @@ Evaluation complete ━━━━━━━━━━━━━━━━━━━━
 If the command reports missing traces, wait a little and run it again. Langfuse can take time to
 show a trace.
 
-**Checkpoint:** the output ends with "EVALUATION COMPLETE" and `0 failed`, and
-`experiments/execute/<your-run>/outputs/reports/results.json` exists.
+**Checkpoint:** the output ends with "EVALUATION COMPLETE", and
+`experiments/execute/<your-run>/outputs/reports/results.json` exists. The goal is `0 failed`. If a
+trial failed, run the command again.
 
 ## Step 7: Read the report (5 min) {#step-7}
 
@@ -362,7 +348,7 @@ Open `outputs/reports/report.html` in the same experiment folder, in your browse
 
 </OptionSwitch>
 
-See [Read your report](report.md) for how to read it.
+See [Read your report](report.md) for details.
 
 The screenshot below is from the report of the
 [prepared lite example](https://github.com/govtech-responsibleai/metis/tree/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite),
@@ -384,10 +370,17 @@ information is unavailable** (AC-3-2), passed 3 of 4. To see it, select **+** ne
 **Checkpoint:** the report opens, shows a result for each criterion, and you can find AC-2-2 and
 AC-3-2.
 
-## Step 8: Wrap-up and questions (3 min) {#step-8}
+## Step 8: Wrap-up and questions (2 min) {#step-8}
 
 You ran the whole workflow: a specification, simulated conversations, traces in Langfuse, graded
 results, and a report. Think of one failure that you can see in the trajectory but not in the final
 answer.
 
 **Checkpoint:** you can name one such failure.
+
+## Step 9: Provide feedback (1 min) {#step-9}
+
+Tell us how the workshop went. Please complete the
+[workshop feedback form](https://go.gov.sg/metis-stack26-workshop-feedback).
+
+**Checkpoint:** you have submitted the feedback form.
