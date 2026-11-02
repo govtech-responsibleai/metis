@@ -36,17 +36,17 @@ This walk through will teach participants to:
 2. Run the METIS workflow from specification to report.
 3. Use Langfuse to inspect how an agent moved through a conversation.
 
-| Step | What you do | Time | Objective |
-|---|---|---|---|
-| [Step 1](#step-1) | Install METIS and set up your environment | 3 min | 2 |
-| [Step 2](#step-2) | Inspect the toy application | 5 min | 1 |
-| [Step 3](#step-3) | Build a specification in the Wizard | 8 min | 2 |
-| [Step 4](#step-4) | Simulate user interactions | 8 min | 2 |
-| [Step 5](#step-5) | Inspect the traces in Langfuse | 5 min | 3 |
-| [Step 6](#step-6) | Grade the traces | 8 min | 2 |
-| [Step 7](#step-7) | Read the report | 5 min | 2 |
-| [Step 8](#step-8) | Wrap-up and questions | 2 min | 1, 2, 3 |
-| [Step 9](#step-9) | Provide feedback | 1 min | None |
+| Step | What you do | Time |
+|---|---|---|
+| [Step 1](#step-1) | Install METIS and set up your environment | 3 min |
+| [Step 2](#step-2) | Inspect the toy application | 5 min |
+| [Step 3](#step-3) | Build a specification in the Wizard | 8 min |
+| [Step 4](#step-4) | Simulate user interactions | 8 min |
+| [Step 5](#step-5) | Inspect the traces in Langfuse | 5 min |
+| [Step 6](#step-6) | Grade the traces | 8 min |
+| [Step 7](#step-7) | Read the report | 5 min |
+| [Step 8](#step-8) | Wrap-up and questions | 2 min |
+| [Step 9](#step-9) | Provide feedback | 1 min |
 
 ## Step 1: Install METIS and set up your environment (3 min) {#step-1}
 
