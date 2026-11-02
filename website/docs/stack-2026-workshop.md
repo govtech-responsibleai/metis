@@ -37,7 +37,7 @@ This walk through will teach participants to:
 2. Run the METIS workflow from specification to report.
 3. Use Langfuse to inspect how an agent moved through a conversation.
 
-The picture shows how the pieces fit together. Each step below repeats it with the parts that the
+The picture shows how the pieces fit together. Steps 2 to 7 repeat it with the parts that the
 step uses lit up, so that you can see where you are.
 
 <SystemDiagram />
@@ -55,8 +55,6 @@ step uses lit up, so that you can see where you are.
 | [Step 9](#step-9) | Provide feedback | 1 min |
 
 ## Step 1: Install METIS and set up your environment (3 min) {#step-1}
-
-<SystemDiagram step={1} />
 
 Install METIS by following [Installation and Setup](install.md). In short:
 

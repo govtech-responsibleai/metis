@@ -1,10 +1,10 @@
 import {useId} from 'react';
 import styles from './styles.module.css';
 
-// What each step of the workshop walkthrough uses. A part that the step does not use is dimmed.
+// What each step of the workshop walkthrough uses. Step 1 is the installation, which no part of
+// the picture stands for, so it has no entry. A part that the step does not use is dimmed.
 // Without a `step`, every part is lit, which gives the overview.
 const IN_USE = {
-  1: ['engine', 'app', 'langfuse', 'gateway', 'callApp', 'readTraces', 'modelCalls'],
   2: ['browser', 'app'],
   3: ['wizard', 'gateway', 'modelCalls'],
   4: ['engine', 'app', 'langfuse', 'gateway', 'callApp', 'logTraces', 'modelCalls'],
