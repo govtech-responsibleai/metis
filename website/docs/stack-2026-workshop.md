@@ -137,11 +137,18 @@ Then:
 2. Describe the target. Read
    [what the toy app does](https://github.com/govtech-responsibleai/agentic-eval-toyapp/blob/main/README.md#what-it-does)
    first: a coordinator reads each message and answers, asks a clarifying question, or hands the
-   task to the policy or report specialist. Then type this, or put it in your own words:
+   task to the policy or report specialist. Then type the example below, or put it in your own
+   words. The example is the toy app's introduction, taken from the
+   [agentic-eval-toyapp repository](https://github.com/govtech-responsibleai/agentic-eval-toyapp).
+
+   <details>
+   <summary>Example description of the toy app</summary>
 
    ```text
-   An employee assistant for Northstar Services. It answers policy questions from a fixed policy collection and analyses reports that employees upload.
+   Agentic Eval Toy App is a small assistant you can use through a web chat page or call directly through a REST API. In either one you can ask questions about an employee-policy corpus, or upload a report and ask for a summary or its key findings. Behind the chat sits a coordinator that reads each message and decides how to handle it: it answers directly, asks you a clarifying question, or delegates the task to a specialist agent. There are two specialists, and each has one job. The policy RAG agent handles questions about the policy corpus: it retrieves the relevant passages first, then answers using only those and cites them. The report-analysis agent handles uploaded reports: it reads the whole document, answers from it alone, and points back to the pages or sections it relied on. Langfuse instrumentation is optional; when enabled, each turn is exported as a trace.
    ```
+
+   </details>
 
 3. Leave the Perspective on **End user**, and skip **Capabilities**.
 4. Select **Send**, then answer the Wizard's questions and accept its drafts: the target, the
@@ -176,36 +183,46 @@ your own specification in step 4, you reuse this file. See
 
 ### Review the prepared files
 
-Open the two files of the prepared example in your editor. They are in
+The prepared example is a folder of inputs that `simulate` reads. Its specification was generated
+earlier by the Wizard, in the same way as the one you just built. Open the folder in your editor:
 [`packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs/`](https://github.com/govtech-responsibleai/metis/tree/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs).
 
-[`toyapp-api.yaml`](https://github.com/govtech-responsibleai/metis/tree/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs/toyapp-api.yaml)
-is the target connection. It is short enough to read in full. Hover over a line, or over a note
-beside it, to see what goes with what:
+Hover over a file, or over a note beside it, to see what goes with what:
 
-<AnnotatedYaml title="toyapp-api.yaml" source={toyappApi}>
-  <YamlNote match="transport:">
-    <code>transport: http</code> makes METIS call the app's REST API.
-  </YamlNote>
-  <YamlNote match="spec_url:">
-    <code>spec_url</code> is where METIS reads the API description. <code>${'{'}TOYAPP_API_URL{'}'}</code> is
-    filled in from the <code>.env</code> file, which is why step 1 checked it with <code>curl</code>.
-  </YamlNote>
-  <YamlNote match="submissions:">
-    <code>submissions</code> names the call that carries the simulated user's message. Opening a
-    session is a different call, so it is not listed.
-  </YamlNote>
-  <YamlNote>
-    There is no <code>auth</code> block, because the toy app needs no key.
-  </YamlNote>
-</AnnotatedYaml>
+<AnnotatedTree
+  title="inputs/"
+  source={`inputs/
+├── fixtures/
+│   └── northstar-q2-service-review.md
+├── specification.yaml
+└── toyapp-api.yaml`}>
+  <TreeNote match="specification.yaml">
+    <code>specification.yaml</code> says what to test: who uses the app, what it should do, how
+    each behaviour is graded, and which simulated conversations to run.
+  </TreeNote>
+  <TreeNote match="toyapp-api.yaml">
+    <code>toyapp-api.yaml</code> is the target binding. It says how to reach the app: where its API
+    is, and which call carries a message.
+  </TreeNote>
+  <TreeNote match="fixtures/">
+    <code>fixtures/</code> holds the files that simulated users bring to a conversation.
+  </TreeNote>
+  <TreeNote match="northstar-q2-service-review.md">
+    <code>fixtures/northstar-q2-service-review.md</code> is a synthetic management report. In the
+    conversations that test the report specialist, the simulated user uploads it to the app. The
+    specification lists it under the task that uses it, and describes its contents so that the
+    graders know what the right answers are.
+  </TreeNote>
+</AnnotatedTree>
+
+#### `specification.yaml`
 
 [`specification.yaml`](https://github.com/govtech-responsibleai/metis/tree/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs/specification.yaml)
 is what the Wizard drafts. It is long, so the page folds the repeated and routine parts, and a
 grey line shows how many lines are folded. Hover over a note to see the part that it explains, or
 select **Show all** to see the whole file:
 
-<AnnotatedYaml title="specification.yaml" source={specification} height="28rem">
+<AnnotatedYaml title="specification.yaml" source={specification} height="28rem" fitNotes>
   <YamlHide match="schema_version:" />
   <YamlHide match="id: toyapp-workshop-lite" />
   <YamlHide match="runner_factory_ref:" />
@@ -247,6 +264,29 @@ select **Show all** to see the whole file:
 </AnnotatedYaml>
 
 Compare it with the specification that you downloaded. Yours will have the same sections.
+
+#### `toyapp-api.yaml` (the target binding)
+
+[`toyapp-api.yaml`](https://github.com/govtech-responsibleai/metis/tree/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs/toyapp-api.yaml)
+is the target binding, the target connection from the previous part. It is short enough to read in
+full. Hover over a line, or over a note beside it, to see what goes with what:
+
+<AnnotatedYaml title="toyapp-api.yaml" source={toyappApi}>
+  <YamlNote match="transport:">
+    <code>transport: http</code> makes METIS call the app's REST API.
+  </YamlNote>
+  <YamlNote match="spec_url:">
+    <code>spec_url</code> is where METIS reads the API description. <code>${'{'}TOYAPP_API_URL{'}'}</code> is
+    filled in from the <code>.env</code> file, which is why step 1 checked it with <code>curl</code>.
+  </YamlNote>
+  <YamlNote match="submissions:">
+    <code>submissions</code> names the call that carries the simulated user's message. Opening a
+    session is a different call, so it is not listed.
+  </YamlNote>
+  <YamlNote>
+    There is no <code>auth</code> block, because the toy app needs no key.
+  </YamlNote>
+</AnnotatedYaml>
 
 **Checkpoint:** your specification is in a folder in `experiments/design/`. You can say what
 `toyapp-api.yaml` tells METIS, and which line of `specification.yaml` points to it.

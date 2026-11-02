@@ -85,12 +85,16 @@ function hiddenRuns(texts, hides) {
 // file. Notes and hidden parts are matched by the start of a line, so editing the file does not
 // break them. `height` caps the height of the file, which then scrolls. Parts marked with
 // YamlHide are replaced by a count of the lines left out, and a button in the title bar shows
-// the whole file.
-export default function AnnotatedYaml({source, title, height, children}) {
+// the whole file. `fitNotes` makes the file exactly as tall as the column of notes beside it,
+// with `height` as the cap when the notes sit under the file instead.
+export default function AnnotatedYaml({source, title, height, fitNotes, children}) {
   const prismTheme = usePrismTheme();
   const [active, setActive] = useState(null);
   const [showAll, setShowAll] = useState(false);
+  const [fitted, setFitted] = useState(null);
   const codeRef = useRef(null);
+  const notesRef = useRef(null);
+  const titleRef = useRef(null);
   const lineRefs = useRef([]);
   const parts = Children.toArray(children);
   const notes = parts.filter((child) => child.type === YamlNote);
@@ -100,6 +104,22 @@ export default function AnnotatedYaml({source, title, height, children}) {
   const owners = useMemo(() => ownersOf(texts, notes), [code, notes]);
   const {hidden, runs} = useMemo(() => hiddenRuns(texts, hides), [code, hides]);
   const hiddenTotal = hidden.filter(Boolean).length;
+
+  // With `fitNotes`, the file is as tall as the notes beside it, less its title bar and borders.
+  // Under the width where the notes move below the file, there is nothing to match.
+  useEffect(() => {
+    const list = notesRef.current;
+    if (!fitNotes || !list) return undefined;
+    const measure = () => {
+      const stacked = window.matchMedia('(max-width: 996px)').matches;
+      const chrome = (titleRef.current?.offsetHeight ?? 0) + 2;
+      setFitted(stacked ? null : list.offsetHeight - chrome);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [fitNotes]);
 
   // A note hovered far from the lines it explains scrolls the file to them. A line that is
   // already in view, or is hidden, is left alone.
@@ -118,7 +138,7 @@ export default function AnnotatedYaml({source, title, height, children}) {
     <div className={styles.wrapper}>
       <figure className={styles.window}>
         {title && (
-          <figcaption className={styles.title}>
+          <figcaption ref={titleRef} className={styles.title}>
             <span>{title}</span>
             {hiddenTotal > 0 && (
               <button type="button" className={styles.showAll} onClick={() => setShowAll(!showAll)}>
@@ -132,7 +152,11 @@ export default function AnnotatedYaml({source, title, height, children}) {
             <pre
               ref={codeRef}
               className={styles.code}
-              style={{...style, background: 'transparent', maxHeight: height}}>
+              style={{
+                ...style,
+                background: 'transparent',
+                ...(fitted === null ? {maxHeight: height} : {minHeight: fitted, maxHeight: fitted}),
+              }}>
               {tokens.map((line, index) => {
                 if (hidden[index] && !showAll) {
                   return runs[index] > 0 ? (
@@ -176,7 +200,7 @@ export default function AnnotatedYaml({source, title, height, children}) {
           )}
         </Highlight>
       </figure>
-      <ul className={styles.notes}>
+      <ul ref={notesRef} className={styles.notes}>
         {notes.map((note, index) => (
           <li
             key={index}

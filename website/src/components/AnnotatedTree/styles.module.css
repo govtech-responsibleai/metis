@@ -1,0 +1,14 @@
+/* The tree is short, so its notes go under it rather than beside it. */
+.wrapper {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  margin: 0 0 var(--ifm-leading);
+}
+
+/* Under the tree there is no long file to scroll past, so the notes need not stay in view. */
+.notes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

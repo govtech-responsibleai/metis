@@ -4,6 +4,7 @@ import Terminal from '@site/src/components/Terminal';
 import TerminalOutput from '@site/src/components/TerminalOutput';
 import OptionSwitch, {Option} from '@site/src/components/OptionSwitch';
 import AnnotatedYaml, {YamlHide, YamlNote} from '@site/src/components/AnnotatedYaml';
+import AnnotatedTree, {TreeNote} from '@site/src/components/AnnotatedTree';
 import TocToggle from '@site/src/components/TocToggle';
 
 export default {
@@ -17,5 +18,7 @@ export default {
   AnnotatedYaml,
   YamlNote,
   YamlHide,
+  AnnotatedTree,
+  TreeNote,
   TocToggle,
 };
