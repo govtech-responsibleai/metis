@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import mimetypes
 import time
 from dataclasses import dataclass
 from json import loads
@@ -26,6 +25,7 @@ import httpx
 import openai
 from openai import AsyncOpenAI
 
+from metis.core.artifacts import media_type
 from metis.core.logging import get_logger
 from metis.core.target_binding import call_matches
 
@@ -67,8 +67,6 @@ MAX_ROUNDS = 12
 """Most LLM rounds one action may take."""
 ACT_MARGIN = 60.0
 """Seconds added to ``response_wait_ms`` for one action's time limit."""
-_MEDIA_TYPES = {".md": "text/markdown", ".markdown": "text/markdown"}
-"""Extensions the standard library's table lacks, so an upload is not sent as octet-stream."""
 _sleep = asyncio.sleep  # names tests replace
 _now = time.monotonic
 
@@ -542,8 +540,11 @@ class HttpRunner(Runner):
             held = next((a for a in self.ledger.artifacts() if a.name == name), None)
             if held is None or held.path is None:
                 raise ToolRefused(f"{name!r} is not a file you hold")
-            kind = _media_type(name)
-            files[part] = (name, (self._root / held.path).read_bytes(), kind)
+            files[part] = (
+                name,
+                (self._root / held.path).read_bytes(),
+                media_type(name),
+            )
             self.ledger.record_upload(name, at_simulated_turn=self._turn)
         return data or None, files or None
 
@@ -833,16 +834,6 @@ def trimmed(messages: list[Any]) -> list[Any]:
             continue
         sent[i] = {**message, "content": json.dumps(result, ensure_ascii=False)}
     return sent
-
-
-def _media_type(name: str) -> str:
-    """The type an uploaded file part is sent with, guessed from its extension."""
-    suffix = Path(name).suffix.lower()
-    return (
-        _MEDIA_TYPES.get(suffix)
-        or mimetypes.guess_type(name)[0]
-        or "application/octet-stream"
-    )
 
 
 def _skipped(name: str | None, why: str) -> dict[str, Any]:
