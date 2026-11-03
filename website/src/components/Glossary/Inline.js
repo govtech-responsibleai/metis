@@ -1,12 +1,13 @@
 import Link from '@docusaurus/Link';
+import TermHover from '@site/src/components/Term/TermHover';
 import {parseInline, pageFor} from '@site/src/glossary/inline';
 
 import {glossary, sectionIds} from './data';
 
 /**
  * Renders one line of the glossary. A bold word that names another term links to that term's
- * entry, except inside the term's own entry (`ownSlug`). `linkTerms={false}` leaves them as
- * plain bold, for a place that is already inside a link.
+ * entry and shows its definition on hover, except inside the term's own entry (`ownSlug`).
+ * `linkTerms={false}` leaves them as plain bold, for the text inside a hover card.
  */
 export default function Inline({text, ownSlug, linkTerms = true}) {
   return parseInline(text).map((token, index) => {
@@ -15,9 +16,14 @@ export default function Inline({text, ownSlug, linkTerms = true}) {
         const term = linkTerms ? glossary.find(token.text) : undefined;
         if (term && term.slug !== ownSlug) {
           return (
-            <a key={index} href={`#${term.slug}`}>
+            <TermHover
+              key={index}
+              term={term}
+              href={`#${term.slug}`}
+              card={<Inline text={term.definition} ownSlug={term.slug} linkTerms={false} />}
+            >
               <strong>{token.text}</strong>
-            </a>
+            </TermHover>
           );
         }
         return <strong key={index}>{token.text}</strong>;
