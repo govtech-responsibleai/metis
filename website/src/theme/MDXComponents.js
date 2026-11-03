@@ -8,6 +8,7 @@ import AnnotatedTree, {TreeNote} from '@site/src/components/AnnotatedTree';
 import SystemDiagram from '@site/src/components/SystemDiagram';
 import StepControls from '@site/src/components/StepControls';
 import TocToggle from '@site/src/components/TocToggle';
+import Term from '@site/src/components/Term';
 
 export default {
   ...MDXComponents,
@@ -25,4 +26,5 @@ export default {
   SystemDiagram,
   StepControls,
   TocToggle,
+  Term,
 };

@@ -1,0 +1,52 @@
+.term {
+  position: relative;
+}
+
+.word {
+  color: inherit;
+  text-decoration: underline dotted;
+  text-decoration-color: hsl(var(--accent));
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: 2px;
+}
+
+.word:hover,
+.word:focus-visible {
+  color: hsl(var(--accent));
+  text-decoration-style: solid;
+}
+
+/* The card is hidden until the word is hovered or focused. Hovering the card keeps it open, so
+   that the reader can move the pointer onto it. */
+.card {
+  position: absolute;
+  z-index: 10;
+  top: 100%;
+  left: 0;
+  display: none;
+  width: max-content;
+  max-width: min(22rem, 80vw);
+  margin-top: 0.4rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  box-shadow: 0 6px 20px hsl(0 0% 0% / 0.18);
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+}
+
+.term:hover .card,
+.term:focus-within .card {
+  display: block;
+}
+
+.name {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: hsl(var(--accent));
+}
