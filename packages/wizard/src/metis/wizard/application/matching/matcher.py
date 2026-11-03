@@ -193,7 +193,11 @@ def default_grader_args(criterion: Criterion) -> dict[str, Any]:
 def validate_grader_args(
     fqn: str | None, args: Any, *, description: str | None = None
 ) -> None:
-    """Check ``args`` against the grader's ``args_model``, as the engine will before a run.
+    """Check ``args`` as the engine will before a run.
+
+    The args must match the grader's ``args_model``, and the grader must accept the
+    ``scope``, ``judgment_form`` and ``aggregation`` they set. The grader checks the second
+    rule when it is created, so the grader is created here too.
 
     A model-based grader's ``model`` is filled in with a placeholder when absent: the engine
     resolves it at run time, so its absence here is not an error.
@@ -215,7 +219,7 @@ def validate_grader_args(
     if issubclass(cls.args_model, JudgeArgs):
         candidate.setdefault("model", "resolved-at-run-time")
     try:
-        cls.args_model.model_validate(candidate)
+        cls(cls.args_model.model_validate(candidate))
     except ValidationError as exc:
         raise ValueError(
             "; ".join(
