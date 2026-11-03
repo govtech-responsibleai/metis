@@ -40,6 +40,17 @@
   white-space: normal;
 }
 
+/* The card sits a little below the word. This invisible strip fills that gap, so the pointer is
+   still over the term while it travels from the word to the card. */
+.card::before {
+  content: '';
+  position: absolute;
+  top: -0.8rem;
+  left: 0;
+  right: 0;
+  height: 0.8rem;
+}
+
 .term:hover .card,
 .term:focus-within .card {
   display: block;
