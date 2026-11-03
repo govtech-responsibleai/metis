@@ -72,6 +72,7 @@ build-docs:
 	npm --prefix website run build
 
 check-docs: build-docs
+	npm --prefix website test
 
 install-landing:
 	pnpm --dir landing-page install --frozen-lockfile
