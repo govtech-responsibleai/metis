@@ -34,7 +34,7 @@ It already has your keys and `TOYAPP_API_URL`, the address of the toy applicatio
 This walk through will teach participants to:
 
 1. Tell agentic evaluations apart from traditional LLM evals.
-2. Run the METIS workflow from specification to report.
+2. Run the METIS workflow from <Term>specification</Term> to report.
 3. Use Langfuse to inspect how an agent moved through a conversation.
 
 The picture shows how the pieces fit together. Steps 2 to 7 repeat it with the parts that the
@@ -122,7 +122,7 @@ answer alone would miss.
 
 <SystemDiagram step={3} />
 
-A specification says what your application should do and how to test it. The Wizard interviews you
+A <Term>specification</Term> says what your application should do and how to test it. The Wizard interviews you
 about your application and drafts it. See [Start the interview](wizard-interview.md) for every
 option. This step has three parts: you build a specification, learn how METIS reaches the app, and
 read the prepared files that the next steps use.
@@ -144,7 +144,7 @@ and you write your own below:
 Then:
 
 1. Leave the mode on **Build Spec only**.
-2. Describe the target. Read
+2. Describe the <Term>target</Term>. Read
    [what the toy app does](https://github.com/govtech-responsibleai/agentic-eval-toyapp/blob/main/README.md#what-it-does)
    first: a coordinator reads each message and answers, asks a clarifying question, or hands the
    task to the policy or report specialist. Then type the example below, or put it in your own
@@ -162,7 +162,7 @@ Then:
 
 3. Leave the Perspective on **End user**, and skip **Capabilities**.
 4. Select **Send**, then answer the Wizard's questions and accept its drafts: the target, the
-   Features and Behaviours, the Criteria and their graders, the Personas, the Scenarios and the Test
+   Features and Behaviours, the <Term>Criteria</Term> and their <Term>graders</Term>, the Personas, the Scenarios and the Test
    Cases. Choose a few of each. You do not need to review every draft.
 5. When the Test Cases are chosen, select **Download specification**. Extract the ZIP into
    `experiments/design/`, and press Ctrl-C in the terminal to stop the servers.
@@ -306,7 +306,7 @@ full. Hover over a line, or over a note beside it, to see what goes with what:
 <SystemDiagram step={4} />
 
 `simulate` plays a simulated user against the toy application and records each conversation as a
-trial. See [Run the test suite](run-test-suite.md). Run it with one of two inputs:
+<Term>trial</Term>. See [Run the test suite](run-test-suite.md). Run it with one of two inputs:
 
 <OptionSwitch>
 
@@ -358,7 +358,7 @@ The screen shows the progress of each trial, with the log below it:
 
 ![The simulate dashboard, with the progress of the trials above and the log tail below](./assets/simulate-dashboard.png)
 
-The prepared specification has three test cases, which give six trials. In one of them, the policy
+The prepared <Term>specification</Term> has three test cases, which give six trials. In one of them, the policy
 has no answer and the employee asks for a plain yes or no. Wait for the command to finish. It
 prints the output folder and the `evaluate` command.
 
@@ -377,7 +377,7 @@ The credentials for the Langfuse UI are in the **2026-11-03 | STACK Workshop Par
 Google Doc.
 :::
 
-A Langfuse session holds the whole conversation. Open one of two sessions:
+A Langfuse <Term>session</Term> holds the whole conversation. Open one of two sessions:
 
 <OptionSwitch>
 
@@ -424,7 +424,7 @@ Either way, you land on the session:
 ![A Langfuse session with the conversation on the left and one trace open on the right, showing its tree of steps](./assets/langfuse-session.png)
 
 - **Left:** the conversation, one block per step the app took, with its input and output. The
-  header shows the session ID, the number of traces (one for each user message), and the cost.
+  header shows the session ID, the number of <Term>traces</Term> (one for each user message), and the cost.
 - **Right:** select a trace to open it. The **Tree** tab lists the steps in order. Here the app
   first runs `coordinator-action`, which chooses the route (the output says `route_rag`). It then
   hands the question to `delegate-rag`, which calls `search_knowledge_base` and the model several
@@ -442,14 +442,14 @@ it chose, and you can open a `search_knowledge_base` step to see what it was cal
 
 <SystemDiagram step={6} />
 
-`evaluate` reads each conversation from Langfuse and runs the graders from the specification. See
+`evaluate` reads each conversation from Langfuse and runs the <Term>graders</Term> from the <Term>specification</Term>. See
 [Run the graders](run-graders.md). Use the output folder that `simulate` printed:
 
 ```bash
 uv run metis engine evaluate --experiment-dir experiments/execute/<your-run>
 ```
 
-Each trial is graded in turn, with a progress bar for each trial. It ends with a summary:
+Each <Term>trial</Term> is graded in turn, with a progress bar for each trial. It ends with a summary:
 
 <TerminalOutput
   command="uv run metis engine evaluate --experiment-dir experiments/execute/<your-run>"
@@ -531,8 +531,8 @@ which is Option 1. Your own report has the same layout, with your own numbers.
 ![The evaluation report in its tree view: the target, its features, behaviours and criteria with pass rates, and the selected criterion on the right](./assets/workshop-report.png)
 
 The numbers at the top summarise the run: the average pass rate, how many behaviours fall below the
-target, and how many trials reached their goal. Below them, the tree runs from the target to its
-features, behaviours and criteria, each with a pass rate. Select a criterion to see its grader, the
+target, and how many <Term>trials</Term> reached their goal. Below them, the tree runs from the <Term>target</Term> to its
+features, behaviours and <Term>criteria</Term>, each with a pass rate. Select a criterion to see its <Term>grader</Term>, the
 judge model, the pass mark and the result of each test case on the right.
 
 In the prepared example, most criteria pass, but **Follows explicit response instructions**

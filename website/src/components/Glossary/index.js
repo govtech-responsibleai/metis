@@ -1,3 +1,4 @@
+import useBrokenLinks from '@docusaurus/useBrokenLinks';
 import Table from '@site/src/components/Table';
 
 import {glossary} from './data';
@@ -16,18 +17,40 @@ function List({items}) {
   );
 }
 
+/**
+ * One term. Docusaurus checks a link's anchor against the ids that components register, so the
+ * entry registers its own. Without it, the build cannot tell a link to `/glossary#trial` from a
+ * link to a term that no longer exists.
+ */
+function Entry({term, name, children}) {
+  useBrokenLinks().collectAnchor(term.slug);
+  return (
+    <div id={term.slug} className="glossary-entry">
+      <dt>{name}</dt>
+      <dd>{children}</dd>
+    </div>
+  );
+}
+
+function SectionHeading({block}) {
+  useBrokenLinks().collectAnchor(block.id);
+  const Heading = `h${block.level}`;
+  return (
+    <Heading id={block.id}>
+      <Inline text={block.text} />
+    </Heading>
+  );
+}
+
 function TermTable({rows}) {
   return (
     <dl className="glossary-terms">
       {rows.map(([name, definition]) => {
         const term = glossary.find(name);
         return (
-          <div key={term.slug} id={term.slug} className="glossary-entry">
-            <dt>{name}</dt>
-            <dd>
-              <Inline text={definition} ownSlug={term.slug} />
-            </dd>
-          </div>
+          <Entry key={term.slug} term={term} name={name}>
+            <Inline text={definition} ownSlug={term.slug} />
+          </Entry>
         );
       })}
     </dl>
@@ -61,14 +84,8 @@ function PlainTable({header, rows}) {
 
 function Block({block}) {
   switch (block.type) {
-    case 'heading': {
-      const Heading = `h${block.level}`;
-      return (
-        <Heading id={block.id}>
-          <Inline text={block.text} />
-        </Heading>
-      );
-    }
+    case 'heading':
+      return <SectionHeading block={block} />;
     case 'paragraph':
       return (
         <p>
