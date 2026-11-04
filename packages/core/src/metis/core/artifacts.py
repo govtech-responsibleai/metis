@@ -18,6 +18,7 @@ artifact references baked into ``record.json``.
 from __future__ import annotations
 
 import mimetypes
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Literal, Self
 from uuid import uuid4
 
@@ -25,6 +26,20 @@ from pydantic import BaseModel, Field, computed_field, model_validator
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+_MEDIA_TYPES = {".md": "text/markdown", ".markdown": "text/markdown"}
+"""Extensions that the standard library's table lacks before Python 3.12."""
+
+
+def _media_type_from_extension(name: str) -> str | None:
+    """The MIME type that the extension of ``name`` maps to, or None for an unknown one."""
+    suffix = PurePosixPath(name).suffix.lower()
+    return _MEDIA_TYPES.get(suffix) or mimetypes.guess_type(name)[0]
+
+
+def media_type(name: str) -> str:
+    """The MIME type a file is sent with: the type of its extension, or octet-stream."""
+    return _media_type_from_extension(name) or "application/octet-stream"
 
 
 class Artifact(BaseModel):
@@ -88,17 +103,16 @@ class Artifact(BaseModel):
     @computed_field
     @property
     def media_type(self) -> str | None:
-        """Best-effort MIME type guessed from the filename (or path as fallback).
+        """The MIME type of the filename's extension, or of the path's when the name has none.
 
         None unless state=="received": a file METIS never got has no bytes,
-        so a guessed MIME type would misrepresent it as one that exists.
+        so a MIME type would misrepresent it as one that exists.
         """
         if self.state != "received":
             return None
-        guessed, _ = mimetypes.guess_type(self.name)
-        if guessed is None and self.path:
-            guessed, _ = mimetypes.guess_type(self.path)
-        return guessed
+        return _media_type_from_extension(self.name) or (
+            _media_type_from_extension(self.path) if self.path else None
+        )
 
 
 def resolve_artifact_path(experiment_root: Path, path: str | None) -> Path | None:
