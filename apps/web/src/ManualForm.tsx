@@ -1302,7 +1302,7 @@ function TaxonomyChips({ grader }: { grader: GraderSpec }) {
         <span
           key={chip.key}
           title={chip.label}
-          className={cn("tag rounded px-1.5 py-px text-[11px]", chip.tone)}
+          className={cn("tag rounded px-1.5 py-px text-xs", chip.tone)}
         >
           <span className="sr-only">{chip.label}: </span>
           {taxonomyLabel(chip.value)}

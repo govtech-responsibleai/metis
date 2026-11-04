@@ -79,7 +79,7 @@ export function InterviewRail({
                 time, so the colour stays as scarce as it was.
 
                 Everything inside the row inherits the fill's foreground rather than keeping its
-                own grey: muted text on a dark teal ground is unreadable, so the icon and the
+                own grey: muted text on a dark accent ground is unreadable, so the icon and the
                 timestamp step up with it, the timestamp held back by opacity so the title still
                 leads. */}
             <div
