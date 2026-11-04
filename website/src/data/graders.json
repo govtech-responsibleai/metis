@@ -992,6 +992,31 @@
       "title": "Fallback judge",
       "graders": [
         {
+          "name": "CriterionDecisionGrader",
+          "fqn": "metis.library.graders.CriterionDecisionGrader",
+          "slug": "criterion-decision",
+          "source_file": "packages/library/src/metis/library/graders/_criterion_decision.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": null,
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "decision_model"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "scalar"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
           "name": "CriterionJudgeGrader",
           "fqn": "metis.library.graders.CriterionJudgeGrader",
           "slug": "criterion-judge",

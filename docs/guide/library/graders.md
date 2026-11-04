@@ -17,12 +17,68 @@ grader_args:
 
 After a simulation, the engine gives the grader the recorded session for one trial. The
 grader returns one result for each part of the session that it judged. A result is `scored`
-with a score of `1` (pass) or `0` (fail), or it is `errored` with a reason. An errored result
+with a score from `0` to `1`, or it is `errored` with a reason. The engine applies the
+criterion's threshold to a scored result. An errored result
 has no score and does not count as a failure. The scope sets how many results there are (see
 [Results and records](#results-and-records)).
 
 A grader does not see the scenario, the persona, or the stop reason. It sees only the
 recorded traces and the files that the run produced (`GradingInput`).
+
+## Use a decision grader
+
+`CriterionDecisionGrader` uses the criterion description as its rubric and judges the whole
+session. It sends the session to a decision model in place of an LLM judge. A decision model
+returns a probability for each question and gives no reason.
+
+Use a decision grader when you need fast results. Use an LLM judge when you need an
+explanation of why a criterion failed.
+
+The grader asks two questions in one request: does the criterion apply, and does the session
+satisfy it. If the probability that it applies is below `0.5`, the result is `errored`. If not,
+the score is the probability that the session satisfies the criterion. Each result records
+both probabilities as measurements, and the report shows them as bars.
+The grader type is `decision_model`, and the judgment form is `scalar`.
+
+### Supported decision models
+
+| Provider | `provider` | `model` | `JUDGE_BASE_URL` | API reference |
+|---|---|---|---|---|
+| TypeSafe Jev | `typesafe` | `jev-latest` | `https://api.typesafe.ai/v1` | [System One](https://docs.typesafe.ai/api/system-one) |
+| OpenAI Decisions | `openai` | `gpt-6-luna` | `https://api.openai.com/v1` | [Decisions](https://developers.openai.com/api/reference/resources/decisions/methods/create) |
+
+Only these two APIs are supported now. To add a provider, see
+[CONTRIBUTING.md](../../../CONTRIBUTING.md).
+
+### Set up a decision grader
+
+Set the grader on a criterion in `specification.yaml`:
+
+```yaml
+description: The assistant names the source of its answer.
+grader_fqn: metis.library.graders.CriterionDecisionGrader
+grader_args:
+  provider: typesafe
+  model: jev-latest
+  threshold: 0.8
+```
+
+Set `JUDGE_API_KEY` to the provider's key and `JUDGE_BASE_URL` to the URL in the table (see
+[model settings](../models.md)). All graders in one evaluation use the same judge gateway, so
+run each provider in a separate evaluation. The grader sends the session text only. It does
+not attach artifact files. To score existing sessions again, use `metis engine evaluate` (see
+the [engine guide](../engine.md#run-it)).
+
+### Test the providers
+
+The live tests call each provider directly. Set `TYPESAFE_API_KEY` and `OPENAI_API_KEY` in
+`.env`, then run:
+
+```bash
+METIS_RUN_DECISION_SMOKE=1 uv run pytest tests/integration/library/test_decision_providers.py -q -s
+```
+
+The tests use billable requests. Normal test runs skip them.
 
 ## The parts of a grader
 
@@ -63,7 +119,7 @@ rest:
 |---|---|
 | `metis.library.scope` | Selects the part of the session to judge and renders it for the judge. |
 | `metis.library.judge` | Builds the prompt, calls the model, checks the input size, and turns the reply into a result. |
-| `metis.library.judgment_form` | Gives the binary output rules and validates the reply. |
+| `metis.library.judgment_form` | Gives the output rules for each judgment form and validates the judge's reply. |
 | `metis.library.aggregation` | Combines the results of a grader that checks several rules. |
 | `metis.core.trace_processing` | Reads the traces: recorded turns, tool calls, errors, and files. |
 
@@ -218,8 +274,8 @@ of supported values. It does not show that the grader is accurate.
 
 Some graders adapt their rubric from a metric in another evaluation package, such as DeepEval
 or MLflow. These prompts are in wide use, so METIS copies the wording that fits the measure.
-METIS removes the upstream output format, because every grader replies in the shared binary
-form. It keeps the rule that a criterion that does not apply has no score. A grader with no
+METIS removes the upstream output format, because every LLM grader replies in the shared
+binary form. It keeps the rule that a criterion that does not apply has no score. A grader with no
 suitable upstream prompt uses a rubric written for METIS.
 
 When you adapt a prompt:
@@ -268,10 +324,12 @@ measure that, compare its results with human labels on representative sessions.
 | `ActionStatusTransparencyGrader` | An errored result before the judge call when the evidence is missing |
 | `demo.DemoTraceBudgetGrader` | A deterministic grader with no judge call |
 | `CriterionJudgeGrader` | The fallback judge, with `measure=None`. See the [Criterion Judge guide](criterionjudge.md). |
+| `CriterionDecisionGrader` | A provider decision endpoint in place of `judge`, and measurements on each result. See [Use a decision grader](#use-a-decision-grader). |
 
 ## Current limits
 
-- Every grader gives a binary score. No other judgment form exists yet.
+- Every LLM grader gives a binary score. Only `CriterionDecisionGrader` gives a score between
+  `0` and `1`.
 - The engine reads only the aggregation rule from the taxonomy. Insights and the report do
   not read it.
 - Insights combines the results of one grader run with an equal-weight mean. How results
