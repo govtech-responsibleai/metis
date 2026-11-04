@@ -162,9 +162,10 @@ Then:
 
 3. Leave the Perspective on **End user**, and skip **Capabilities**.
 4. Select **Send**, then answer the Wizard's questions and accept its drafts: the target, the
-   Features and Behaviours, the <Term>Criteria</Term> and their <Term>graders</Term>, the Personas, the Scenarios and the Test
-   Cases. Choose a few of each. You do not need to review every draft.
-5. When the Test Cases are chosen, select **Download specification**. Extract the ZIP into
+   <Term>features</Term> and <Term>expected behaviours</Term>, the <Term>criteria</Term> and their
+   <Term>graders</Term>, the <Term>personas</Term>, the <Term>scenarios</Term> and the
+   <Term>test cases</Term>. Choose a few of each. You do not need to review every draft.
+5. When the test cases are chosen, select **Download specification**. Extract the ZIP into
    `experiments/design/`, and press Ctrl-C in the terminal to stop the servers.
 
 The specification you built here is for learning. The next steps run a prepared specification, so
@@ -358,7 +359,7 @@ The screen shows the progress of each trial, with the log below it:
 
 ![The simulate dashboard, with the progress of the trials above and the log tail below](./assets/simulate-dashboard.png)
 
-The prepared <Term>specification</Term> has three test cases, which give six trials. In one of them, the policy
+The prepared <Term>specification</Term> has three <Term>test cases</Term>, which give six trials. In one of them, the policy
 has no answer and the employee asks for a plain yes or no. Wait for the command to finish. It
 prints the output folder and the `evaluate` command.
 
@@ -530,10 +531,10 @@ which is Option 1. Your own report has the same layout, with your own numbers.
 
 ![The evaluation report in its tree view: the target, its features, behaviours and criteria with pass rates, and the selected criterion on the right](./assets/workshop-report.png)
 
-The numbers at the top summarise the run: the average pass rate, how many behaviours fall below the
+The numbers at the top summarise the run: the average pass rate, how many <Term>expected behaviours</Term> fall below the
 target, and how many <Term>trials</Term> reached their goal. Below them, the tree runs from the <Term>target</Term> to its
-features, behaviours and <Term>criteria</Term>, each with a pass rate. Select a criterion to see its <Term>grader</Term>, the
-judge model, the pass mark and the result of each test case on the right.
+<Term>features</Term>, <Term>expected behaviours</Term> and <Term>criteria</Term>, each with a pass rate. Select a criterion to see its <Term>grader</Term>, the
+judge model, the pass mark and the result of each <Term>test case</Term> on the right.
 
 In the prepared example, most criteria pass, but **Follows explicit response instructions**
 (AC-2-2) is red at 50%: 2 of its 4 graded results passed. It checks whether the app follows the
