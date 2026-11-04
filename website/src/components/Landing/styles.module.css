@@ -187,8 +187,7 @@
 }
 
 a.layerName {
-  text-decoration: underline !important;
-  text-decoration-color: hsl(var(--foreground) / 0.25) !important;
+  text-decoration: none !important;
 }
 
 a.layerName::after {
@@ -205,7 +204,6 @@ a.layerName::after {
 
 .layer:hover a.layerName {
   color: hsl(var(--foreground));
-  text-decoration-color: hsl(var(--foreground)) !important;
 }
 
 .layerPurpose {
