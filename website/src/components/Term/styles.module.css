@@ -2,27 +2,35 @@
   position: relative;
 }
 
+/* The word reveals a definition. It is not a link, so it keeps the text colour and does not turn
+   accent-coloured or solid on hover, which is how this site's links behave. */
 .word {
-  color: inherit;
+  border-radius: 3px;
+  cursor: help;
   text-decoration: underline dotted;
-  text-decoration-color: hsl(var(--accent));
+  text-decoration-color: hsl(var(--muted-foreground));
+  text-decoration-thickness: 1.5px;
   text-underline-offset: 0.2em;
-  text-decoration-thickness: 2px;
 }
 
 .word:hover,
+.term:focus-within .word {
+  background: hsl(var(--accent) / 0.1);
+}
+
 .word:focus-visible {
-  color: hsl(var(--accent));
-  text-decoration-style: solid;
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
 }
 
 /* The card is hidden until the word is hovered or focused. Hovering the card keeps it open, so
-   that the reader can move the pointer onto it. */
+   that the reader can move the pointer onto its link. */
 .card {
   position: absolute;
   z-index: 10;
   top: 100%;
   left: 0;
+  transform: translateX(var(--card-shift, 0));
   display: none;
   width: max-content;
   max-width: min(22rem, 80vw);
@@ -40,8 +48,8 @@
   white-space: normal;
 }
 
-/* The card sits a little below the word. This invisible strip fills that gap, so the pointer is
-   still over the term while it travels from the word to the card. */
+/* The card sits a little away from the word. This invisible strip fills that gap, so the pointer
+   is still over the term while it travels from the word to the card. */
 .card::before {
   content: '';
   position: absolute;
@@ -56,8 +64,42 @@
   display: block;
 }
 
+/* Escape closes the card until the pointer or focus leaves the term. */
+.dismissed .card {
+  display: none !important;
+}
+
+/* Near the bottom edge of the window, the card opens upward. */
+.up .card {
+  top: auto;
+  bottom: 100%;
+  margin-top: 0;
+  margin-bottom: 0.4rem;
+}
+
+.up .card::before {
+  top: auto;
+  bottom: -0.8rem;
+}
+
 .name {
   display: block;
   margin-bottom: 0.2rem;
   color: hsl(var(--accent));
+}
+
+/* The one link in the card. */
+.more {
+  display: block;
+  margin-top: 0.5rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid hsl(var(--border));
+  color: hsl(var(--accent));
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.more:hover,
+.more:focus-visible {
+  text-decoration: underline;
 }

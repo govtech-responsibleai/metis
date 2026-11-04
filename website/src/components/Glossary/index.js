@@ -1,3 +1,4 @@
+import {useLocation} from '@docusaurus/router';
 import useBrokenLinks from '@docusaurus/useBrokenLinks';
 import Table from '@site/src/components/Table';
 
@@ -24,8 +25,11 @@ function List({items}) {
  */
 function Entry({term, name, children}) {
   useBrokenLinks().collectAnchor(term.slug);
+  // The browser's `:target` does not update when the site changes the address without a page load,
+  // as a link from another docs page does, so the entry reads the address from the router.
+  const targeted = useLocation().hash === `#${term.slug}`;
   return (
-    <div id={term.slug} className="glossary-entry">
+    <div id={term.slug} className={targeted ? 'glossary-entry glossary-entry--targeted' : 'glossary-entry'}>
       <dt>{name}</dt>
       <dd>{children}</dd>
     </div>

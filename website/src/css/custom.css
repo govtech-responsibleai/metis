@@ -643,7 +643,8 @@ html.toc-hidden.docs-doc-id-stack-2026-workshop h2[id^='step-'] {
   scroll-margin-top: calc(var(--ifm-navbar-height) + 1rem);
 }
 
-.glossary-entry:target {
+.glossary-entry:target,
+.glossary-entry--targeted {
   background: hsl(var(--accent) / 0.1);
 }
 
