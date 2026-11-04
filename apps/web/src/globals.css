@@ -19,6 +19,7 @@
    ============================================================ */
 
 :root {
+  color-scheme: light;
   --background: 0 0% 100%;
   --foreground: 0 0% 4%;
 
@@ -74,46 +75,47 @@
 }
 
 /* Dark mode keeps neutral black and grey surfaces. The accent is a light teal
-   (#59B9C0) that reads well on black. */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: 0 0% 4%;
-    --foreground: 0 0% 96%;
+   (#59B9C0) that reads well on black. The user picks System, Light, or Dark in the rail.
+   `theme.ts` and the script in `index.html` resolve that choice and set `data-theme` on <html>,
+   so this one block serves both the browser setting and an explicit choice. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: 0 0% 4%;
+  --foreground: 0 0% 96%;
 
-    --muted: 0 0% 11%;
-    --muted-foreground: 0 0% 64%;
-    --card: 0 0% 6%;
-    --card-foreground: 0 0% 96%;
+  --muted: 0 0% 11%;
+  --muted-foreground: 0 0% 64%;
+  --card: 0 0% 6%;
+  --card-foreground: 0 0% 96%;
 
-    /* On a black canvas the strong neutral action becomes near-white. */
-    --primary: 0 0% 96%;
-    --primary-foreground: 0 0% 9%;
+  /* On a black canvas the strong neutral action becomes near-white. */
+  --primary: 0 0% 96%;
+  --primary-foreground: 0 0% 9%;
 
-    --secondary: 0 0% 13%;
-    --secondary-foreground: 0 0% 96%;
+  --secondary: 0 0% 13%;
+  --secondary-foreground: 0 0% 96%;
 
-    --accent: 184 45% 55%;
-    --accent-foreground: 0 0% 4%;
+  --accent: 184 45% 55%;
+  --accent-foreground: 0 0% 4%;
 
-    --gold: 38 74% 60%;
+  --gold: 38 74% 60%;
 
-    --tag-type: 199 31% 66%;
-    --tag-scope: 232 50% 76%;
-    --tag-reference: 38 74% 60%;
-    --tag-judgment: 135 33% 66%;
+  --tag-type: 199 31% 66%;
+  --tag-scope: 232 50% 76%;
+  --tag-reference: 38 74% 60%;
+  --tag-judgment: 135 33% 66%;
 
-    --destructive: 348 50% 69%;
-    --destructive-foreground: 0 0% 4%;
+  --destructive: 348 50% 69%;
+  --destructive-foreground: 0 0% 4%;
 
-    --success: 160 50% 48%;
-    --fail: 356 70% 66%;
-    --warning: 36 70% 58%;
-    --skipped: 0 0% 55%;
+  --success: 160 50% 48%;
+  --fail: 356 70% 66%;
+  --warning: 36 70% 58%;
+  --skipped: 0 0% 55%;
 
-    --border: 0 0% 16%;
-    --input: 0 0% 16%;
-    --ring: 184 45% 55%;
-  }
+  --border: 0 0% 16%;
+  --input: 0 0% 16%;
+  --ring: 184 45% 55%;
 }
 
 @theme inline {
