@@ -77,18 +77,34 @@ def grader_record(
     *results: float | str,
     threshold: object = 0.5,
     model: str = "judge-a",
+    measurements: dict[str, float] | None = None,
 ) -> GraderRecord:
-    """Build one grader run. A float is a scored result; a string is an unscored outcome."""
+    """Build one grader run. A float is a scored result; a string is an unscored outcome.
+
+    ``measurements`` goes on every result of the run, as a decision grader records the
+    same questions for each.
+    """
     recorded = []
     for value in results:
         if isinstance(value, str):
             recorded.append(
-                RecordedResult.model_validate({"outcome": value, "reason": value})
+                RecordedResult.model_validate(
+                    {
+                        "outcome": value,
+                        "reason": value,
+                        "measurements": measurements,
+                    }
+                )
             )
         else:
             outcome = "passed" if value >= 0.5 else "failed"
             recorded.append(
-                RecordedResult(outcome=outcome, score=value, reason="scored")
+                RecordedResult(
+                    outcome=outcome,
+                    score=value,
+                    reason="scored",
+                    measurements=measurements,
+                )
             )
     return GraderRecord(
         session_id=f"{task_id}-{trial}",

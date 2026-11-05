@@ -182,6 +182,17 @@ def test_evidence_keeps_recorded_facts_and_settings(experiment: Path) -> None:
         0.4,
         "passed",
     )
+    assert first["measurements"] is None
+
+
+def test_evidence_keeps_the_numbers_a_grader_measured(experiment: Path) -> None:
+    records = [
+        grader_record(
+            "T-1", 1, "C-1", 0.73, measurements={"applicable": 0.89, "satisfied": 0.73}
+        )
+    ]
+    (item,) = _build(experiment, records)["criteria"]["C-1"]["evidence"]
+    assert item["measurements"] == {"applicable": 0.89, "satisfied": 0.73}
 
 
 def test_partial_error_stays_in_raw_evidence(experiment: Path) -> None:

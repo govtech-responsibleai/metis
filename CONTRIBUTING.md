@@ -34,6 +34,13 @@ make check      # verify everything passes (lint + format + typecheck)
 
 If you use direnv, the `.envrc` will activate the virtualenv automatically. Otherwise, prefix commands with `uv run` or activate `.venv` manually.
 
+Shared agent skills are in `.agents/skills/`, which Codex reads. To use them in Claude Code, copy
+them to `.claude/skills/`, and run the command again after a pull that changes a skill:
+
+```bash
+mkdir -p .claude/skills && cp -R .agents/skills/. .claude/skills/
+```
+
 ## Monorepo Orientation
 
 ```

@@ -40,7 +40,7 @@ Each grader page lists its own settings. These also shape how a grader judges:
 | Setting | Description |
 | --- | --- |
 | `scope` | The part of the session that one result is about: one turn (`trace`), one turn with the turns before it (`subsession`), the whole session (`session`), or one file that the target produced (`artifact`). `turn`, `window`, and `artifact` refine the scope. When you do not set `scope`, the grader uses the first scope in its tag. |
-| `judgment_form` | The form of each score, for example `binary`, a score of `0` or `1`. |
+| `judgment_form` | The form of each score: `binary`, a score of `0` or `1`, or `scalar`, a score from `0` to `1`. |
 | `aggregation` | How a grader that checks several rules combines them. With `pass_if_all`, the score is `1` only when every rule passes. |
 | Reference type | What the grader judges against: a fixed rubric, a reference that you supply, or rules that you list. It is not a setting itself. You give the reference through the grader's own settings, such as `ground_truth` or `constraints`. |
 

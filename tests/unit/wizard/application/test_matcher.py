@@ -221,3 +221,11 @@ def test_a_concrete_grader_with_valid_args_passes() -> None:
     validate_grader_args(
         "tests.unit.engine.graders_for_tests.FixedScoreGrader", {"score": 1.0}
     )
+
+
+def test_a_setting_the_grader_does_not_support_is_a_value_error() -> None:
+    with pytest.raises(ValueError, match="does not support judgment_form 'scalar'"):
+        validate_grader_args(
+            "metis.library.graders.ClarificationAppropriatenessGrader",
+            {"judgment_form": "scalar"},
+        )

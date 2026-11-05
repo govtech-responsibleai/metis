@@ -23,6 +23,9 @@ recreate wizard validation rules in TypeScript. Regenerate `src/generated/api.ts
 runtime OpenAPI document with `npm run generate:api`; `npm run check:api` fails when the committed
 module is stale.
 
+Colours, type, status themes, and dark mode follow [the design guide](../../docs/design.md).
+Use the tokens in `src/globals.css`. Do not write a colour value directly in a component.
+
 Useful commands:
 
 ```bash

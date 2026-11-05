@@ -4,6 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>METIS wizard</title>
+    <script>
+      // Set the theme before the first paint. src/theme.ts keeps it current after that.
+      (function () {
+        var choice = null;
+        try {
+          choice = localStorage.getItem("metis-web:theme");
+        } catch (e) {}
+        var dark =
+          choice === "dark" ||
+          (choice !== "light" &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

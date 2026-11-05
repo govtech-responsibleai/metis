@@ -151,4 +151,5 @@ When working on a specific package, read its local `AGENTS.md` for package-speci
 - [`apps/api/AGENTS.md`](apps/api/AGENTS.md) — metis-api
 - [`apps/web/AGENTS.md`](apps/web/AGENTS.md) — metis-web
 
-See `docs/architecture.md` for the full normative specification.
+See `docs/architecture.md` for the full normative specification. See `docs/design.md` for the
+colours, type, and UI rules of the landing page and the web app, which includes the report.

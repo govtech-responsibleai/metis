@@ -75,6 +75,11 @@ Partial skipped or errored results stay visible as raw evidence when a run has s
 results. They do not add extra run verdicts. Original result outcomes and scores stay
 unchanged.
 
+A result can also record measurements: the named numbers that the grader computed, such as a
+decision model's probability for each question it was asked. The page shows each one as a
+bar, and shows the score and the pass mark above the bars. The pass mark applies to the score
+only. The measurements are evidence for the reader. No rate or mean score includes them.
+
 The page uses these result words: Passed, Failed, Skipped, and Errored. Errored means that a
 grader run failed. This says something about the grader, not the target. A behaviour that
 the specification does not measure shows "Not measured". An item with no graded run shows

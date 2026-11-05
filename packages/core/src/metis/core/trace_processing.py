@@ -85,13 +85,14 @@ from __future__ import annotations
 
 import base64
 import json
-import mimetypes
 import re
 from datetime import datetime  # noqa: TC003
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel
+
+from metis.core.artifacts import media_type
 
 # Pydantic field types (Turn.trace, ToolCall.observation), so runtime imports.
 from metis.core.traces import Observation, Trace  # noqa: TC001
@@ -513,9 +514,10 @@ def render_artifact(path: Path | Problem) -> FileInput | Problem:
             kind="unsupported",
             detail=f"The file {path.name} is larger than {MAX_FILE_BYTES:,} bytes.",
         )
-    mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     encoded = base64.b64encode(data).decode("ascii")
-    return FileInput(filename=path.name, data_url=f"data:{mime};base64,{encoded}")
+    return FileInput(
+        filename=path.name, data_url=f"data:{media_type(path.name)};base64,{encoded}"
+    )
 
 
 # ---------------------------------------------------------------------------

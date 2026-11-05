@@ -442,7 +442,7 @@ function Placeholder({
   boxed?: boolean;
   widths?: string[];
 }) {
-  // The lines carry `placeholder-rule`, so they take the travelling teal crest while the model is
+  // The lines carry `placeholder-rule`, so they take the travelling accent crest while the model is
   // writing into this section (`is-writing`, in globals.css). The frame stays still — it is
   // structure, and animating it would make the reserved region itself look unsettled.
   const rules = (
@@ -525,7 +525,7 @@ function ProgressSegments({
 // negative inline margin lets it span the sheet's padding and cover the content passing beneath,
 // which is what a sticky heading over an opaque page has to do.
 // While a review is open, the sections it fills are `current` and the other written sections are
-// `frozen`. A current section gets a teal rule at the left of its heading and a "Now reviewing"
+// `frozen`. A current section gets an accent rule at the left of its heading and a "Now reviewing"
 // label, so the user always sees where they work. A frozen section looks the same as an idle
 // one; it only has no actions. With no review open, every section is `idle`.
 type SectionMode = "idle" | "current" | "frozen";
@@ -864,8 +864,8 @@ function BehaviourView({
         dormant && "opacity-45",
       )}
     >
-      {/* The id goes teal on a behaviour that is measured, and stays grey otherwise. Dimming
-          the dormant rows says which ones are out; the teal ids say which are in, and they form
+      {/* The id takes the accent on a behaviour that is measured, and stays grey otherwise. Dimming
+          the dormant rows says which ones are out; the accent ids say which are in, and they form
           a straight column to read down. */}
       <Mono
         tone={behaviour.measured ? "accent" : "muted"}

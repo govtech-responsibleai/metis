@@ -57,7 +57,7 @@ RELIABILITY_AND_ROBUSTNESS = {
     "RobustnessToToolFailuresGrader",
 }
 EXPECTED = (
-    {"CriterionJudgeGrader"}
+    {"CriterionJudgeGrader", "CriterionDecisionGrader"}
     | EXECUTION_AND_DECISION_QUALITY
     | INTERACTION_QUALITY
     | RELIABILITY_AND_ROBUSTNESS

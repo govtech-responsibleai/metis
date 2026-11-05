@@ -9,6 +9,11 @@ measure needs, the event it looks for did not happen, or a grader LLM call faile
 could not be parsed. An error says something about the grading, not the target, so it is never
 a fail. ``skipped`` is never a pass. Library graders do not return it; it stays for graders
 outside the library. Both are left out of pass rates and averages and reported separately.
+
+A result can also carry ``measurements``: the named numbers the grader computed on the way to
+its result. A decision model records the probability of each question it was asked. These are
+evidence for a reader, not scores, so nothing aggregates them. A result of any status can
+carry them, because a grader that reaches no verdict can still report what it measured.
 """
 
 from __future__ import annotations
@@ -29,6 +34,12 @@ class GraderResult(BaseModel):
     scope: str | None = None
     """The label of what the result is about, such as ``"session"``, ``"turn:3"`` or
     ``"artifact:report.pdf"``. ``None`` when the grader does not divide the session."""
+    measurements: dict[str, float] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    """The named numbers the grader computed to reach this result, such as a decision model's
+    probability for each question. Reported as evidence and never scored. ``None`` when the
+    grader measures nothing beyond its score."""
 
     @model_validator(mode="after")
     def _score_matches_status(self) -> Self:
@@ -64,6 +75,10 @@ class RecordedResult(BaseModel):
     reason: str
     scope: str | None = None
     """Carried through from ``GraderResult.scope``."""
+    measurements: dict[str, float] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    """Carried through from ``GraderResult.measurements``."""
 
     @model_validator(mode="after")
     def _score_matches_outcome(self) -> Self:
