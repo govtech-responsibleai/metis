@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ._report_styles import REPORT_CSS
+from ._report_styles import PALETTE, REPORT_CSS
 
 REPORT_BODY = """\
 <main class="report-shell">
@@ -30,6 +30,9 @@ const pct=rate=>rate===null||rate===undefined?"—":`${rate}%`;
 const isLow=(V,rate)=>rate!==null&&rate!==undefined&&rate<V.passRateTarget;
 const lowClass=(V,rate)=>isLow(V,rate)?" low":"";
 const tip=text=>`<span class="ibtn" tabindex="0" aria-label="About this">i<span class="tip">${text}</span></span>`;
+// The report palette, from `PALETTE` in _report_styles.py.
+const C=__PALETTE__;
+// The pass-rate scale: soft rose at 0%, neutral at 50%, soft teal at 100%.
 const SCALE=[[242,207,210],[246,230,231],[241,242,242],[224,240,236],[198,230,222]];
 const scaleStyle=rate=>{const p=Math.max(0,Math.min(100,rate))/25,i=Math.min(3,Math.floor(p)),t=p-i;
  return `background:rgb(${SCALE[i].map((v,j)=>Math.round(v+(SCALE[i+1][j]-v)*t)).join(",")})`};
@@ -88,12 +91,12 @@ function renderTree(V,S){
  const sel=S.selected,onPath=new Set();
  if(sel){onPath.add(sel);const bc=behaviourOf(V,sel);const bid=V.behaviours[sel]?sel:bc?bc[0]:null;if(bid){onPath.add(bid);const f=featureOf(V,bid);if(f)onPath.add(f.id)}}
  const fit=t=>{t=String(t??"");return t.length>24?t.slice(0,23)+"…":t};
- const dot=rate=>rate===null||rate===undefined?"#98a1aa":isLow(V,rate)?"#c73b45":"#087f73";
- const path=([x1,y1,x2,y2,to])=>`<path d="M${x1} ${y1+BH/2} C ${x1+20} ${y1+BH/2}, ${x2-20} ${y2+BH/2}, ${x2} ${y2+BH/2}" fill="none" stroke="${onPath.has(to)?"#087f73":"#c9d1d3"}" stroke-width="${onPath.has(to)?2:1.3}"/>`;
+ const dot=rate=>rate===null||rate===undefined?C.faint:isLow(V,rate)?C.red:C.green;
+ const path=([x1,y1,x2,y2,to])=>`<path d="M${x1} ${y1+BH/2} C ${x1+20} ${y1+BH/2}, ${x2-20} ${y2+BH/2}, ${x2} ${y2+BH/2}" fill="none" stroke="${onPath.has(to)?C.accent:C.edge}" stroke-width="${onPath.has(to)?2:1.3}"/>`;
  const box=n=>{const picked=n.id&&n.id===sel,lit=picked||(n.id&&onPath.has(n.id));
-  const toggle=n.toggle?`<g class="tree-toggle" ${n.toggle.attr} transform="translate(${BW},${BH/2})" role="button" tabindex="0" aria-label="${n.toggle.open?"Close":"Open"}"><circle r="8" fill="${n.toggle.open?"#dff3ef":"#fff"}" stroke="${n.toggle.open?"#087f73":"#b9c2c4"}" stroke-width="1.3"/><path d="M-4 0H4${n.toggle.open?"":"M0 -4V4"}" stroke="${n.toggle.open?"#087f73":"#5b6870"}" stroke-width="1.4" stroke-linecap="round"/></g>`:"";
-  return `<g class="tree-node" transform="translate(${n.x},${n.y})" ${n.attr} role="button" tabindex="0"><title>${esc(n.name)}</title><rect width="${BW}" height="${BH}" rx="8" fill="${lit?"#dff3ef":"#fff"}" stroke="${lit?"#087f73":"#dce2e3"}" stroke-width="${picked?1.8:1.3}"/><circle cx="14" cy="16" r="4" fill="${dot(n.rate)}"/><text x="26" y="20" font-size="13" font-weight="700" fill="#172126">${esc(fit(n.name))}</text><text x="26" y="36" font-size="13" font-weight="700" font-family="JetBrains Mono,SFMono-Regular,Consolas,monospace" fill="${isLow(V,n.rate)?"#c73b45":"#5b6870"}">${n.rate===null||n.rate===undefined?(n.unmeasured?"Not measured":"Not graded"):n.rate+"%"}</text>${toggle}</g>`};
- const labels=["Target","Feature","Behaviour","Criterion"].map((l,k)=>`<text x="${X[k]+4}" y="16" font-size="12" font-weight="700" letter-spacing=".05em" fill="#5b6870">${l.toUpperCase()}</text>`).join("");
+  const toggle=n.toggle?`<g class="tree-toggle" ${n.toggle.attr} transform="translate(${BW},${BH/2})" role="button" tabindex="0" aria-label="${n.toggle.open?"Close":"Open"}"><circle r="8" fill="${n.toggle.open?C["accent-wash"]:"#fff"}" stroke="${n.toggle.open?C.accent:C.edge}" stroke-width="1.3"/><path d="M-4 0H4${n.toggle.open?"":"M0 -4V4"}" stroke="${n.toggle.open?C.accent:C.muted}" stroke-width="1.4" stroke-linecap="round"/></g>`:"";
+  return `<g class="tree-node" transform="translate(${n.x},${n.y})" ${n.attr} role="button" tabindex="0"><title>${esc(n.name)}</title><rect width="${BW}" height="${BH}" rx="8" fill="${lit?C["accent-wash"]:"#fff"}" stroke="${lit?C.accent:C.line}" stroke-width="${picked?1.8:1.3}"/><circle cx="14" cy="16" r="4" fill="${dot(n.rate)}"/><text x="26" y="20" font-size="13" font-weight="700" fill="${C.ink}">${esc(fit(n.name))}</text><text x="26" y="36" font-size="13" font-weight="700" font-family="JetBrains Mono,SFMono-Regular,Consolas,monospace" fill="${isLow(V,n.rate)?C.red:C.muted}">${n.rate===null||n.rate===undefined?(n.unmeasured?"Not measured":"Not graded"):n.rate+"%"}</text>${toggle}</g>`};
+ const labels=["Target","Feature","Behaviour","Criterion"].map((l,k)=>`<text x="${X[k]+4}" y="16" font-size="12" font-weight="700" letter-spacing=".05em" fill="${C.muted}">${l.toUpperCase()}</text>`).join("");
  return `<svg width="${X[3]+BW+16}" height="${y}" font-family="Lato,Helvetica Neue,Arial,sans-serif" aria-label="Specification tree">${labels}${links.map(path).join("")}${nodes.map(box).join("")}</svg>`;
 }
 const WORDS={pass:"Passed",fail:"Failed",skip:"Skipped",error:"Errored"};
@@ -150,10 +153,10 @@ function trialCriteria(V,row,trial){
   return {cid,outcome,results:ev.map(e=>({outcome:e.outcome,score:e.score,reason:e.message}))}}).filter(x=>x.outcome);
 }
 const STATUS={succeeded:["ok","Reached its goal"],abandoned:["stop","Stopped"],error:["bad","Error"],timedOut:["time","Timed out"]};
-const STATUS_SVG={ok:'<circle cx="9" cy="9" r="7.5" fill="none" stroke="#087f73" stroke-width="1.6"/><path d="M5.5 9.2l2.3 2.3 4.7-4.9" fill="none" stroke="#087f73" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
- bad:'<circle cx="9" cy="9" r="7.5" fill="none" stroke="#c73b45" stroke-width="1.6"/><path d="M6.2 6.2l5.6 5.6M11.8 6.2l-5.6 5.6" stroke="#c73b45" stroke-width="1.6" stroke-linecap="round"/>',
- stop:'<circle cx="9" cy="9" r="7.5" fill="none" stroke="#98a1aa" stroke-width="1.6"/><path d="M6 9h6" stroke="#98a1aa" stroke-width="1.6" stroke-linecap="round"/>',
- time:'<circle cx="9" cy="9" r="7.5" fill="none" stroke="#b7791f" stroke-width="1.6"/><path d="M9 5.5V9l2.5 1.8" fill="none" stroke="#b7791f" stroke-width="1.6" stroke-linecap="round"/>'};
+const STATUS_SVG={ok:`<circle cx="9" cy="9" r="7.5" fill="none" stroke="${C.green}" stroke-width="1.6"/><path d="M5.5 9.2l2.3 2.3 4.7-4.9" fill="none" stroke="${C.green}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`,
+ bad:`<circle cx="9" cy="9" r="7.5" fill="none" stroke="${C.red}" stroke-width="1.6"/><path d="M6.2 6.2l5.6 5.6M11.8 6.2l-5.6 5.6" stroke="${C.red}" stroke-width="1.6" stroke-linecap="round"/>`,
+ stop:`<circle cx="9" cy="9" r="7.5" fill="none" stroke="${C.faint}" stroke-width="1.6"/><path d="M6 9h6" stroke="${C.faint}" stroke-width="1.6" stroke-linecap="round"/>`,
+ time:`<circle cx="9" cy="9" r="7.5" fill="none" stroke="${C.amber}" stroke-width="1.6"/><path d="M9 5.5V9l2.5 1.8" fill="none" stroke="${C.amber}" stroke-width="1.6" stroke-linecap="round"/>`};
 const statusIcon=category=>{const [key,label]=STATUS[category]||["stop",category||"Unknown"];return `<svg class="st" viewBox="0 0 18 18" width="18" height="18" role="img" aria-label="${esc(label)}"><title>${esc(label)}</title>${STATUS_SVG[key]}</svg>`};
 const turnCount=t=>{const n=(t.conversation||[]).length;return n?` · ${n} turn${n===1?"":"s"}`:""};
 const endingLine=t=>t.category==="succeeded"?`Reached its goal${turnCount(t)}`:`${ENDING[t.category]||t.category}: ${t.message||t.stopReason}${t.attempt>1?` · retried, attempt ${t.attempt}`:""}`;
@@ -220,6 +223,8 @@ function renderRunDetails(V){
  return `<details class="run"><summary>Run details ▸</summary><div class="rd">${facts.map(([k,v])=>`<div><span>${esc(k)}</span>${esc(v)}</div>`).join("")}</div></details>`;
 }
 """
+
+RENDER_SCRIPT = RENDER_SCRIPT.replace("__PALETTE__", json.dumps(PALETTE))
 
 WIRING_SCRIPT = r"""
 const S={view:"list",open:new Set(),closed:new Set(),selected:null,openCase:null,trialByCase:{},markCol:null,markRow:null};

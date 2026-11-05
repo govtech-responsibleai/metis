@@ -2,8 +2,17 @@
 // last touched, and where in the interview it got to. The current one is marked; a control
 // at the top starts a new one.
 
-import { CirclePlus, FolderClosed, PanelLeft, Trash2 } from "lucide-react";
+import {
+  CirclePlus,
+  FolderClosed,
+  Monitor,
+  Moon,
+  PanelLeft,
+  Sun,
+  Trash2,
+} from "lucide-react";
 import type { InterviewSummary } from "./transport/api";
+import { useThemeChoice, type ThemeChoice } from "./theme";
 import type { LocalStorageProblem } from "./storage/repository";
 import { relativeTime } from "./relative-time";
 import { Button, cn } from "./ui";
@@ -79,7 +88,7 @@ export function InterviewRail({
                 time, so the colour stays as scarce as it was.
 
                 Everything inside the row inherits the fill's foreground rather than keeping its
-                own grey: muted text on a dark teal ground is unreadable, so the icon and the
+                own grey: muted text on a dark accent ground is unreadable, so the icon and the
                 timestamp step up with it, the timestamp held back by opacity so the title still
                 leads. */}
             <div
@@ -173,6 +182,48 @@ export function InterviewRail({
           </li>
         ))}
       </ul>
+      <div className="border-t border-border p-3">
+        <ThemeSwitch />
+      </div>
     </nav>
+  );
+}
+
+const THEMES: Array<{ id: ThemeChoice; label: string; Icon: typeof Sun }> = [
+  { id: "system", label: "System theme", Icon: Monitor },
+  { id: "light", label: "Light theme", Icon: Sun },
+  { id: "dark", label: "Dark theme", Icon: Moon },
+];
+
+// The colour theme control at the foot of the rail. It is a quiet three-way switch: the chosen
+// option takes the background fill, and the others stay muted.
+function ThemeSwitch() {
+  const [choice, setChoice] = useThemeChoice();
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Colour theme"
+      className="flex w-fit items-center gap-0.5 rounded-md border border-border bg-background p-0.5"
+    >
+      {THEMES.map(({ id, label, Icon }) => (
+        <button
+          key={id}
+          type="button"
+          role="radio"
+          aria-checked={choice === id}
+          aria-label={label}
+          title={label}
+          onClick={() => setChoice(id)}
+          className={cn(
+            "rounded p-1.5 transition-colors",
+            choice === id
+              ? "bg-muted text-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Icon size={14} strokeWidth={1.75} aria-hidden />
+        </button>
+      ))}
+    </div>
   );
 }

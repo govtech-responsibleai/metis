@@ -1,5 +1,5 @@
 // The house style, in as few primitives as the three panes need. Every rule the style
-// checklist enforces lives here once — near-black primary (never teal), borders not shadows,
+// checklist enforces lives here once — near-black primary (never the accent), borders not shadows,
 // the two radius tiers from the token file — `rounded-md` for small controls, `rounded-lg` for
 // surfaces — sentence case left to the package's own strings.
 
@@ -203,7 +203,7 @@ export function Chevron({
 // Neutral is the default and covers almost every chip, because most of them mark *what a thing
 // refers to* — a behaviour, a persona, a file — and a reference is not a state. The accent tone is
 // for the few that report one: a count that has become non-zero, something live. It is drawn as
-// teal text and a teal edge rather than a teal fill, so a row of chips still reads as one family
+// accent text and an accent edge rather than an accent fill, so a row of chips still reads as one family
 // and the coloured one stands out by tone instead of by mass.
 //
 // This does not wrap `Mono`. Both would set a text colour, and two competing `text-*` utilities

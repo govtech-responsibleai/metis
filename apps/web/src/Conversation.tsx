@@ -1473,7 +1473,7 @@ export function ColumnCell({ column }: { column: CardColumn }) {
           <span
             key={optionKey(option.id)}
             title={option.hint ?? option.label}
-            className="rounded border border-accent bg-accent/12 px-1 py-px font-mono text-[10px] leading-tight tracking-tight"
+            className="rounded border border-accent bg-accent/12 px-1 py-px font-mono text-xs leading-tight tracking-tight"
           >
             {option.label}
           </span>
@@ -2100,7 +2100,7 @@ function WarningBlock({
         "rounded-lg border p-2.5 text-sm",
         runtime
           ? "border-destructive/50 bg-destructive/8 text-foreground"
-          : "border-gold/50 bg-gold/10 text-foreground",
+          : "border-warning/50 bg-warning/10 text-foreground",
       )}
     >
       <p>{warning.text}</p>
