@@ -13,14 +13,14 @@ Its version constant is ``_EVALUATION_RESULTS_VERSION``.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal, Self
+import os
+import tempfile
+from pathlib import Path
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 
 from metis.core.grading import RecordedResult
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 _EVALUATION_RESULTS_VERSION = 1
 
@@ -81,6 +81,22 @@ class EvaluationResults(BaseModel, extra="ignore"):
         return cls.model_validate_json(path.read_text(encoding="utf-8"))
 
     def save(self, path: Path) -> None:
-        """Write the results as UTF-8 JSON, creating the parent directory."""
+        """Atomically write the results as UTF-8 JSON, creating the parent directory."""
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(self.model_dump_json(indent=1) + "\n", encoding="utf-8")
+        temporary_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=path.parent,
+                prefix=f".{path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                temporary_file.write(self.model_dump_json(indent=1) + "\n")
+            os.replace(temporary_path, path)
+            temporary_path = None
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)

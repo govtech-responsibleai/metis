@@ -422,7 +422,7 @@ metis engine run --input-dir <source path> [simulation and evaluation options]
 metis engine run --resume --experiment-dir <output path> [simulation and evaluation options]
 ```
 
-`simulate` writes run records only. It prints the exact command needed to evaluate the output directory it created. `evaluate` scores the output directory that you name, uses its frozen input snapshot, and overwrites `logs/evaluate.log` and `outputs/reports/results.json`, then prints the `metis insights report` command that builds the report. `run` performs both phases.
+`simulate` writes run records only. It prints the exact command needed to evaluate the output directory it created. `evaluate` scores the output directory that you name, uses its frozen input snapshot, and overwrites `logs/evaluate.log` and `outputs/reports/results.json`, then prints the `metis insights report` command that builds the report. Add `--failed-only` to retry records that have no completed grader results; completed results and their saved traces are kept. `run` performs both phases.
 
 ### Simulation options
 
@@ -448,6 +448,7 @@ The flags below are optional and apply to both modes:
 |------|---------|-------------|
 | `--experiment-dir` | (required) | One output directory that `simulate` created, for example `experiments/execute/toyapp-http-simple-20260820-143000/`. It must hold an `inputs/` snapshot |
 | `--langfuse-timeout` | `90` | Seconds to wait for Langfuse traces to appear |
+| `--failed-only` | off | Retry only records without completed grader results, preserving completed results |
 | `-v` / `-vv` | WARNING | Increase evaluation logging verbosity |
 | `--quiet` | `false` | Suppress all output below ERROR |
 

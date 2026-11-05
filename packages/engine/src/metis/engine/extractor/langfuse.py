@@ -50,6 +50,8 @@ _PAGE_SIZE = 1000
 _TRUNCATION_LIMIT = 200
 """Langfuse truncates metadata values longer than this unless the key is expanded."""
 _RETRY_SECONDS = 10
+_PAGE_MAX_RETRIES = 4
+_PAGE_RETRY_INITIAL_SECONDS = 1.0
 
 
 class UnsupportedTraceError(RuntimeError):
@@ -82,13 +84,37 @@ def _page_through_observations(
     observations: list[Observation] = []
     cursor: str | None = None
     while True:
-        response = langfuse.api.observations_v_2.get_many(
-            fields=_FIELDS,
-            filter=observation_filter,
-            limit=_PAGE_SIZE,
-            cursor=cursor,
-            expand_metadata=",".join(expand_metadata) if expand_metadata else None,
-        )
+        retry = 0
+        while True:
+            try:
+                response = langfuse.api.observations_v_2.get_many(
+                    fields=_FIELDS,
+                    filter=observation_filter,
+                    limit=_PAGE_SIZE,
+                    cursor=cursor,
+                    expand_metadata=",".join(expand_metadata)
+                    if expand_metadata
+                    else None,
+                )
+            except Exception as exc:
+                status_code = getattr(exc, "status_code", None)
+                if not isinstance(status_code, int) or not 500 <= status_code < 600:
+                    raise
+                if retry == _PAGE_MAX_RETRIES:
+                    raise
+                delay = _PAGE_RETRY_INITIAL_SECONDS * 2**retry
+                logger.warning(
+                    "[langfuse] observation page failed with HTTP %d; "
+                    "retrying in %.1fs (%d/%d)",
+                    status_code,
+                    delay,
+                    retry + 1,
+                    _PAGE_MAX_RETRIES,
+                )
+                time.sleep(delay)
+                retry += 1
+                continue
+            break
         observations.extend(Observation.model_validate(raw) for raw in response.data)
         cursor = response.meta.cursor
         if not cursor:

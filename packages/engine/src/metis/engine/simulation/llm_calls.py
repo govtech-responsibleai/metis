@@ -23,10 +23,13 @@ file yet.
 from __future__ import annotations
 
 import asyncio
+import os
 import random
+import re
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from typing import TYPE_CHECKING, Any, TypeVar
 
 # Patches the OpenAI client so it accepts the `langfuse_public_key=` that every request sends.
@@ -58,10 +61,13 @@ TRIAL_EVIDENCE = "evidence"
 """A trial's evidence folder, inside its folder under ``outputs/trials/``."""
 LLM_CALLS_FILE = "llm_calls.jsonl"
 
-MAX_RETRIES = 2
-"""Retries after the first attempt; the OpenAI SDK's default."""
+MAX_RETRIES = 8
+"""Default retries after the first attempt; configurable with ``METIS_LLM_MAX_RETRIES``."""
 _INITIAL_RETRY_DELAY = 0.5
 _MAX_RETRY_DELAY = 8.0
+_DEFAULT_RETRY_BUDGET_SECONDS = 120.0
+_MAX_CONFIGURED_RETRIES = 20
+_MAX_RETRY_BUDGET_SECONDS = 600.0
 
 _T = TypeVar("_T", bound=BaseModel)
 _R = TypeVar("_R")
@@ -138,8 +144,109 @@ def is_retryable(exc: Exception) -> bool:
     return False
 
 
+def _retry_policy() -> tuple[int, float]:
+    """Read the bounded retry count and cumulative wait budget from the environment."""
+    retries_text = os.environ.get("METIS_LLM_MAX_RETRIES")
+    try:
+        retries = MAX_RETRIES if retries_text is None else int(retries_text)
+    except ValueError as exc:
+        raise ValueError("METIS_LLM_MAX_RETRIES must be an integer") from exc
+    if not 0 <= retries <= _MAX_CONFIGURED_RETRIES:
+        raise ValueError(
+            f"METIS_LLM_MAX_RETRIES must be between 0 and {_MAX_CONFIGURED_RETRIES}"
+        )
+
+    budget_text = os.environ.get("METIS_LLM_RETRY_BUDGET_SECONDS")
+    try:
+        budget = (
+            _DEFAULT_RETRY_BUDGET_SECONDS if budget_text is None else float(budget_text)
+        )
+    except ValueError as exc:
+        raise ValueError("METIS_LLM_RETRY_BUDGET_SECONDS must be a number") from exc
+    if not 0 <= budget <= _MAX_RETRY_BUDGET_SECONDS:
+        raise ValueError(
+            "METIS_LLM_RETRY_BUDGET_SECONDS must be between 0 and "
+            f"{_MAX_RETRY_BUDGET_SECONDS:g}"
+        )
+    return retries, budget
+
+
+def _duration_seconds(value: str) -> float | None:
+    """Parse a provider reset duration such as ``250ms``, ``1m30s`` or ``2h``."""
+    if not re.fullmatch(r"\s*(?:(?:\d+(?:\.\d+)?)(?:ms|s|m|h))+\s*", value):
+        return None
+    units = {"ms": 0.001, "s": 1.0, "m": 60.0, "h": 3600.0}
+    parts = re.findall(r"(\d+(?:\.\d+)?)(ms|s|m|h)", value)
+    return sum(float(amount) * units[unit] for amount, unit in parts)
+
+
+def _date_seconds(value: str, now: datetime) -> float | None:
+    """Parse an HTTP date and return the seconds until it, or ``None`` if invalid."""
+    try:
+        target = parsedate_to_datetime(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if target.tzinfo is None:
+        target = target.replace(tzinfo=UTC)
+    return max(0.0, (target.astimezone(UTC) - now).total_seconds())
+
+
+def _provider_retry_after(
+    exc: Exception, *, now: datetime | None = None
+) -> float | None:
+    """Return the provider's retry delay from headers or a rate-limit reset message."""
+    current = now or datetime.now(UTC)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=UTC)
+    else:
+        current = current.astimezone(UTC)
+
+    response = getattr(exc, "response", None)
+    headers = getattr(response, "headers", None)
+    if headers is not None:
+        retry_after_ms = headers.get("retry-after-ms")
+        if retry_after_ms is not None:
+            try:
+                return max(0.0, float(retry_after_ms) / 1000.0)
+            except (TypeError, ValueError):
+                pass
+
+        retry_after = headers.get("retry-after")
+        if retry_after is not None:
+            try:
+                return max(0.0, float(retry_after))
+            except (TypeError, ValueError):
+                date_delay = _date_seconds(str(retry_after), current)
+                if date_delay is not None:
+                    return date_delay
+
+        for name in (
+            "x-ratelimit-reset-requests",
+            "x-ratelimit-reset-tokens",
+        ):
+            value = headers.get(name)
+            if value is not None:
+                delay = _duration_seconds(str(value))
+                if delay is not None:
+                    return delay
+
+    reset = re.search(
+        r"Limit resets at:\s*(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)? UTC)",
+        str(exc),
+        re.IGNORECASE,
+    )
+    if reset is not None:
+        reset_text = reset.group(1).removesuffix(" UTC") + "+00:00"
+        try:
+            target = datetime.fromisoformat(reset_text)
+        except ValueError:
+            return None
+        return max(0.0, (target - current).total_seconds())
+    return None
+
+
 def _retry_delay(retry: int) -> float:
-    """Exponential backoff with jitter, as the OpenAI SDK computes it."""
+    """Exponential backoff with jitter when the provider supplies no reset time."""
     delay = min(_INITIAL_RETRY_DELAY * 2.0**retry, _MAX_RETRY_DELAY)
     return delay * (1 - 0.25 * random.random())
 
@@ -240,7 +347,9 @@ async def _logged_attempts(
     """Run ``send`` until it succeeds, retrying a retryable failure up to
     :data:`MAX_RETRIES` times. Every attempt appends one row to ``log``, and the last
     attempt's exception is re-raised unchanged."""
-    for retry in range(MAX_RETRIES + 1):
+    max_retries, retry_budget = _retry_policy()
+    waited = 0.0
+    for retry in range(max_retries + 1):
         at = datetime.now(tz=UTC)
         start = time.monotonic()
         try:
@@ -261,15 +370,29 @@ async def _logged_attempts(
                     error=f"{type(exc).__name__}: {exc}",
                 )
             )
-            if retry == MAX_RETRIES or not is_retryable(exc):
+            if retry == max_retries or not is_retryable(exc):
                 raise
-            delay = _retry_delay(retry)
+            provider_delay = _provider_retry_after(exc)
+            delay = (
+                provider_delay if provider_delay is not None else _retry_delay(retry)
+            )
+            if waited + delay > retry_budget:
+                logger.warning(
+                    "[llm_calls] %s call retry budget exhausted before retry: "
+                    "%.1fs requested, %.1fs remaining: %s",
+                    component,
+                    delay,
+                    max(0.0, retry_budget - waited),
+                    exc,
+                )
+                raise
+            waited += delay
             logger.warning(
                 "[llm_calls] %s call failed, retrying in %.1fs (%d/%d): %s",
                 component,
                 delay,
                 retry + 1,
-                MAX_RETRIES,
+                max_retries,
                 exc,
             )
             await asyncio.sleep(delay)

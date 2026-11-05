@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     import types as _types
 
     from metis.core.model_settings import ModelRole
-    from metis.core.reporting import GraderRecord
+    from metis.core.reporting import EvaluationResults, GraderRecord
     from metis.core.traces import Trace
     from metis.core.trials import TrialRecord
     from metis.engine.simulation.experiment import TrialPlanItem
@@ -945,12 +945,91 @@ def _save_session_traces(
         evaluation_log.write(f"TRACES NOT SAVED — session={session_id} — {exc}")
 
 
+def _trial_evaluation_key(
+    record: TrialRecord,
+) -> tuple[str, str, str, int] | None:
+    """The stable identity shared by a trial record and its grader results."""
+    if not record.target_session_id:
+        return None
+    return (
+        record.target_session_id,
+        record.config.scenario,
+        record.config.task_id,
+        record.config.trial_index,
+    )
+
+
+def _partition_failed_evaluation_records(
+    records: list[TrialRecord],
+    previous: EvaluationResults,
+    *,
+    known_criterion_ids: set[str],
+) -> tuple[list[TrialRecord], list[GraderRecord]]:
+    """Select trials without all expected grader results and keep completed results."""
+    expected_by_key: dict[tuple[str, str, str, int], set[str]] = {}
+    for record in records:
+        key = _trial_evaluation_key(record)
+        if key is None:
+            continue
+        expected_by_key.setdefault(key, set()).update(
+            ref.criterion_id
+            for ref in record.config.grader_refs
+            if ref.criterion_id in known_criterion_ids
+        )
+
+    completed_criteria: dict[tuple[str, str, str, int], set[str]] = {}
+    for grader_record in previous.records:
+        key = (
+            grader_record.session_id,
+            grader_record.scenario_id,
+            grader_record.task_id,
+            grader_record.trial_index,
+        )
+        if key in expected_by_key and not any(
+            result.outcome == "errored" for result in grader_record.results
+        ):
+            completed_criteria.setdefault(key, set()).add(grader_record.criterion_id)
+
+    completed_keys = {
+        key
+        for key, expected in expected_by_key.items()
+        if expected and expected <= completed_criteria.get(key, set())
+    }
+    failed_records = [
+        record
+        for record in records
+        if _trial_evaluation_key(record) not in completed_keys
+    ]
+    preserved_records = [
+        grader_record
+        for grader_record in previous.records
+        if (
+            grader_record.session_id,
+            grader_record.scenario_id,
+            grader_record.task_id,
+            grader_record.trial_index,
+        )
+        in completed_keys
+        and grader_record.criterion_id
+        in expected_by_key[
+            (
+                grader_record.session_id,
+                grader_record.scenario_id,
+                grader_record.task_id,
+                grader_record.trial_index,
+            )
+        ]
+    ]
+    return failed_records, preserved_records
+
+
 def _run_evaluation(
     experiment_dir: Path,
     *,
     langfuse_timeout: int,
     verbose: int,
     quiet: bool,
+    failed_only: bool = False,
 ) -> EvaluationOutcome:
     """Evaluate records in an existing experiment directory."""
     env_file = _load_env()
@@ -963,6 +1042,7 @@ def _run_evaluation(
 
     import asyncio
 
+    from metis.core.reporting import EvaluationResults
     from metis.core.trials import TrialRecord
 
     specification = _load_evaluation_specification(experiment_dir)
@@ -979,14 +1059,63 @@ def _run_evaluation(
 
     console.print(f"  Loaded {len(records)} trial record(s)")
     evaluation_log.write(f"LOADED {len(records)} trial record(s)")
+
+    records_to_evaluate = records
+    preserved_records: list[GraderRecord] | None = None
+    previous_results: EvaluationResults | None = None
+    results_path = experiment_dir / execution_layout.RESULTS
+    if failed_only:
+        if results_path.is_file():
+            try:
+                previous_results = EvaluationResults.load_file(results_path)
+            except Exception as exc:
+                console.print(
+                    f"Error: failed to load previous evaluation results: {exc}",
+                    style="bold red",
+                    markup=False,
+                )
+                raise EvaluationInputError(
+                    "failed to load previous evaluation results"
+                ) from exc
+        else:
+            previous_results = EvaluationResults(run_id="report")
+
+        known_criterion_ids = {
+            criterion.id
+            for behaviour in specification.behaviours()
+            for criterion in behaviour.criteria
+        }
+        records_to_evaluate, preserved_records = _partition_failed_evaluation_records(
+            records,
+            previous_results,
+            known_criterion_ids=known_criterion_ids,
+        )
+        evaluation_log.write(
+            "FAILED-ONLY SELECTION — "
+            f"{len(preserved_records)} completed grader record(s) preserved, "
+            f"{len(records_to_evaluate)} trial record(s) to retry"
+        )
+        if not records_to_evaluate:
+            console.print("No failed evaluation records")
+            evaluation_log.write("NO FAILED EVALUATION RECORDS")
+            evaluation_log.write("EVALUATION COMPLETED — 0 records")
+            return EvaluationOutcome(
+                0,
+                0,
+                0,
+                results_path if preserved_records else None,
+            )
+
     return asyncio.run(
         _evaluate_records(
             experiment_dir,
             specification,
-            records,
+            records_to_evaluate,
             evaluation_log=evaluation_log,
             langfuse_timeout=langfuse_timeout,
             env_file=env_file,
+            existing_results=previous_results,
+            preserved_records=preserved_records,
         )
     )
 
@@ -999,6 +1128,8 @@ async def _evaluate_records(
     evaluation_log: EvaluationLogger,
     langfuse_timeout: int,
     env_file: Path | None = None,
+    existing_results: EvaluationResults | None = None,
+    preserved_records: list[GraderRecord] | None = None,
 ) -> EvaluationOutcome:
     """Grade every trial record's session and write one GraderRecord per grader per session.
 
@@ -1068,9 +1199,24 @@ async def _evaluate_records(
         else LLMSettings(client=_NoJudgeClient())  # type: ignore[arg-type]
     )
 
-    # Traces saved by an earlier evaluation must not outlive it, or the report would show a
-    # conversation that differs from the grades beside it.
-    shutil.rmtree(experiment_dir / execution_layout.TRACES, ignore_errors=True)
+    # Keep traces only for completed records during failed-only recovery.
+    traces_dir = experiment_dir / execution_layout.TRACES
+    if preserved_records:
+        preserved_sessions = {record.session_id for record in preserved_records}
+        preserved_trace_names = {
+            execution_layout.trace_file_name(session_id)
+            for session_id in preserved_sessions
+        }
+        if traces_dir.is_dir():
+            for trace_file in traces_dir.iterdir():
+                if (
+                    trace_file.is_file()
+                    and trace_file.name not in preserved_trace_names
+                ):
+                    trace_file.unlink()
+    else:
+        # Traces from a full evaluation must not outlive its grader results.
+        shutil.rmtree(traces_dir, ignore_errors=True)
     langfuse = extractor.get_langfuse_client()
     all_records: list[GraderRecord] = []
     successful = 0
@@ -1231,21 +1377,31 @@ async def _evaluate_records(
         if gateway is not None and needs_llm:
             await llm.client.close()
 
-    # An evaluation that scores nothing must not leave the previous evaluation's
-    # results behind for `metis insights report` to pick up as current.
     results_path = experiment_dir / execution_layout.RESULTS
-    results_path.unlink(missing_ok=True)
     results_file: Path | None = None
-    if all_records:
+    output_records = [*(preserved_records or []), *all_records]
+    if output_records:
         elapsed = round(time.monotonic() - started, 1)
+        keep_existing_timing = existing_results is not None and bool(preserved_records)
         EvaluationResults(
             run_id="report",
-            records=all_records,
-            timings={"evaluation_seconds": elapsed},
-            latency_seconds=elapsed or None,
+            records=output_records,
+            timings=(
+                dict(existing_results.timings)
+                if keep_existing_timing and existing_results is not None
+                else {"evaluation_seconds": elapsed}
+            ),
+            latency_seconds=(
+                existing_results.latency_seconds
+                if keep_existing_timing and existing_results is not None
+                else elapsed or None
+            ),
         ).save(results_path)
         results_file = results_path
         evaluation_log.write(f"RESULTS WRITTEN — {results_file}")
+    else:
+        # An evaluation that scores nothing must not leave stale results behind for reports.
+        results_path.unlink(missing_ok=True)
 
     outcome = EvaluationOutcome(
         total_records=len(records),
@@ -1282,9 +1438,18 @@ def _run_evaluation_command(
     langfuse_timeout: int,
     verbose: int,
     quiet: bool,
+    failed_only: bool = False,
 ) -> EvaluationOutcome:
     """Run evaluation and convert expected input errors to a CLI exit."""
     try:
+        if failed_only:
+            return _run_evaluation(
+                experiment_dir,
+                langfuse_timeout=langfuse_timeout,
+                verbose=verbose,
+                quiet=quiet,
+                failed_only=True,
+            )
         return _run_evaluation(
             experiment_dir,
             langfuse_timeout=langfuse_timeout,
@@ -1380,6 +1545,11 @@ def evaluate(
     quiet: bool = typer.Option(
         False, "--quiet", help="Suppress output below ERROR level"
     ),
+    failed_only: bool = typer.Option(
+        False,
+        "--failed-only",
+        help="Retry trial records without completed grader results",
+    ),
 ) -> None:
     """Evaluate one simulation output directory."""
     try:
@@ -1392,8 +1562,9 @@ def evaluate(
         langfuse_timeout=langfuse_timeout,
         verbose=verbose,
         quiet=quiet,
+        failed_only=failed_only,
     )
-    if outcome.total_records == 0:
+    if outcome.total_records == 0 and not failed_only:
         console.print("nothing to evaluate")
     _print_evaluation_summary(resolved_experiment_dir, outcome, pipeline=False)
 

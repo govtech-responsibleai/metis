@@ -55,6 +55,18 @@ JUDGE_BASE_URL=https://judge-provider/v1
 JUDGE_MODEL=judge-model-from-another-family
 ```
 
+Engine model calls retry temporary connection, rate-limit, and server errors. On a rate limit,
+METIS honors the provider's `Retry-After` or reset time when available. Set these optional
+variables in `.env` to adjust the retry count and the total time spent waiting:
+
+```dotenv
+METIS_LLM_MAX_RETRIES=8
+METIS_LLM_RETRY_BUDGET_SECONDS=120
+```
+
+The retry count is bounded to 20 and the cumulative wait budget to 600 seconds. The defaults
+allow up to two minutes of waiting across retries.
+
 The Interview model also matches each Criterion to a library grader. If that call fails, the
 Interview still runs, and each new Criterion uses the criterion judge.
 
