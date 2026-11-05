@@ -270,6 +270,8 @@ def _state(counts: OutcomeCounts) -> str | None:
         return "pass"
     if counts.errored:
         return "error"
+    if counts.skipped:
+        return "skip"
     return None
 
 

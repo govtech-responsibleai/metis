@@ -56,7 +56,7 @@ class AdaptationToChangedConditionsGrader(Grader[AdaptationToChangedConditionsAr
 
     Evaluates adaptation to changed goals, information, or operating conditions.
     Error recovery for repair after an identified failure is a separate concern. A
-    session with no observable change in conditions is errored, with the judge's reason.
+    session with no observable change in conditions is skipped, with the judge's reason.
     """
 
     args_model = AdaptationToChangedConditionsArgs

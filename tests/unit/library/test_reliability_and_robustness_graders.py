@@ -229,19 +229,19 @@ def test_tool_failures_session_scope_judges_the_whole_session() -> None:
 
 
 @pytest.mark.parametrize("scope", [Scope.TRACE, Scope.SESSION])
-def test_tool_failures_without_tool_calls_is_errored_without_a_judge_call(
+def test_tool_failures_without_tool_calls_is_skipped_without_a_judge_call(
     scope,
 ) -> None:
     [result], requests = grade(
         RobustnessToToolFailuresGrader, session_of(2), scope=scope
     )
 
-    assert result.status == "errored"
+    assert result.status == "skipped"
     assert "no tool calls" in result.reason
     assert requests == []
 
 
-def test_tool_failures_last_turn_without_tool_calls_is_errored_without_a_judge_call() -> (
+def test_tool_failures_last_turn_without_tool_calls_is_skipped_without_a_judge_call() -> (
     None
 ):
     gi = GradingInput(
@@ -249,18 +249,18 @@ def test_tool_failures_last_turn_without_tool_calls_is_errored_without_a_judge_c
     )
     [result], requests = grade(RobustnessToToolFailuresGrader, gi, turn="last")
 
-    assert result.status == "errored"
+    assert result.status == "skipped"
     assert requests == []
 
 
 @pytest.mark.parametrize(
     "grader_cls", [RobustnessToToolFailuresGrader, RobustnessToContextDegradationGrader]
 )
-def test_not_applicable_is_errored_with_the_judges_reason(grader_cls) -> None:
+def test_not_applicable_is_skipped_with_the_judges_reason(grader_cls) -> None:
     results, _ = grade(grader_cls, failed_tool_session(), reply=NOT_APPLICABLE)
 
     assert {(r.status, r.reason) for r in results} == {
-        ("errored", "No tool response failed.")
+        ("skipped", "No tool response failed.")
     }
 
 
@@ -273,12 +273,12 @@ def test_long_task_judges_the_whole_session_in_one_call() -> None:
     assert all(f"## Turn {n}" in evidence for n in (1, 2, 3, 4))
 
 
-def test_long_task_below_min_turns_is_errored_without_a_judge_call() -> None:
+def test_long_task_below_min_turns_is_skipped_without_a_judge_call() -> None:
     [result], requests = grade(
         LongTaskPerformanceStabilityGrader, session_of(4), min_turns=5
     )
 
-    assert result.status == "errored"
+    assert result.status == "skipped"
     assert "at least 5" in result.reason
     assert requests == []
 

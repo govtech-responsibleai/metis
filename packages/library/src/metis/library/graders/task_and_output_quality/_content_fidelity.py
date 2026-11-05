@@ -58,7 +58,7 @@ class ContentFidelityGrader(Grader[ContentFidelityArgs]):
     source, not truth against the world. A transformation can have supported claims yet lose
     essential meaning through omission. Legitimate omission failures are not suppressed. A
     session with no source content (only the reply, and no source file) is left to the judge,
-    which returns not applicable, so the result is errored with its reason.
+    which returns not applicable, so the result is skipped with its reason.
     """
 
     args_model = ContentFidelityArgs
