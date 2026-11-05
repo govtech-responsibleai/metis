@@ -3,32 +3,34 @@
 @import '@fontsource/lato/900.css';
 @import '@fontsource/jetbrains-mono/400.css';
 
+/* The docs follow the web app palette in apps/web/src/globals.css. Change a colour there
+   first, then copy it here. */
 :root {
   --background: 0 0% 100%;
   --foreground: 0 0% 4%;
-  --muted: 0 0% 96%;
-  --muted-foreground: 0 0% 40%;
+  --muted: 200 14% 96%;
+  --muted-foreground: 198 7% 39%;
   --card: 0 0% 100%;
   --card-foreground: 0 0% 4%;
   --popover: 0 0% 100%;
   --popover-foreground: 0 0% 4%;
   --primary: 0 0% 9%;
   --primary-foreground: 0 0% 98%;
-  --secondary: 0 0% 96%;
+  --secondary: 200 14% 96%;
   --secondary-foreground: 0 0% 9%;
-  --accent: 187 71% 19%;
+  --accent: 202 72% 14%;
   --accent-foreground: 0 0% 98%;
-  --gold: 41 39% 54%;
+  --gold: 38 74% 60%;
   --gold-foreground: 0 0% 9%;
-  --destructive: 0 72% 42%;
+  --destructive: 348 33% 51%;
   --destructive-foreground: 0 0% 98%;
-  --border: 0 0% 90%;
-  --input: 0 0% 90%;
-  --ring: 187 71% 19%;
+  --border: 192 10% 90%;
+  --input: 192 10% 90%;
+  --ring: 202 72% 14%;
   --radius-sm: 8px;
   --radius-lg: 16px;
   --radius: var(--radius-sm);
-  --code-surface: 0 0% 98%;
+  --code-surface: 200 14% 98%;
   --page-gutter: clamp(0rem, 10vw - 4rem, 9rem);
 }
 html[data-theme="dark"] {
@@ -44,15 +46,15 @@ html[data-theme="dark"] {
   --primary-foreground: 0 0% 9%;
   --secondary: 0 0% 13%;
   --secondary-foreground: 0 0% 96%;
-  --accent: 187 46% 45%;
+  --accent: 184 45% 55%;
   --accent-foreground: 0 0% 4%;
-  --gold: 42 45% 61%;
+  --gold: 38 74% 60%;
   --gold-foreground: 0 0% 4%;
-  --destructive: 0 62% 50%;
-  --destructive-foreground: 0 0% 98%;
+  --destructive: 348 50% 69%;
+  --destructive-foreground: 0 0% 4%;
   --border: 0 0% 16%;
   --input: 0 0% 16%;
-  --ring: 187 46% 45%;
+  --ring: 184 45% 55%;
   --code-surface: 0 0% 7%;
   --ifm-background-color: hsl(var(--background));
   --ifm-background-surface-color: hsl(var(--background));
