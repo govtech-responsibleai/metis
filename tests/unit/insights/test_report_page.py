@@ -10,6 +10,7 @@ import pytest
 
 from metis.insights._report_page import render_report_page
 from tests.fixtures.insights.report_experiment import (
+    grader_record,
     grader_records,
     save_trial_traces,
     turn_trace,
@@ -93,3 +94,22 @@ def test_trial_shows_its_conversation(experiment: Path) -> None:
     assert "Here is a plan" in html
     assert "Reached its goal · 1 turn<" in html
     assert '<span class="tn">Turn 1</span>' in html
+
+
+def test_skipped_tab_names_each_criterion_and_its_reason(tmp_path: Path) -> None:
+    extra = ["C-4", "C-5", "C-6", "C-7"]
+    records = [
+        grader_record("T-1", 1, cid, "skipped", reason=f"{cid} has no tool calls.")
+        for cid in ["C-3", *extra]
+    ]
+    experiment = write_experiment(
+        tmp_path / "experiment",
+        records,
+        extra_criteria=extra,
+        stop_reasons={"T-1-1": "max_turns"},
+    )
+    html = open_case(build(experiment, records), "T-1")
+    assert "Ended early." in html
+    assert "These criteria did not apply in this trial." in html
+    for cid in ["C-3", *extra]:
+        assert f"{cid} has no tool calls." in html

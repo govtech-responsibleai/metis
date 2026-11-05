@@ -242,8 +242,9 @@ The page is one page, with no tabs. Explanations are in tips. Run facts are in a
   each criterion. The first trial is selected when the panel opens.
 - For the selected trial, show the conversation with user messages on the right and target
   replies on the left. Beside it, show what each grader returned, in one tab for each result:
-  Failed, Passed, Errored, and Skipped. Trial data carries the engine's count of simulated
-  turns as `simulated_turns_completed`.
+  Failed, Passed, Errored, and Skipped. Each tab names every criterion in it with the reason
+  that its grader returned. Trial data carries the engine's count of simulated turns as
+  `simulated_turns_completed`.
 - The page counts only recorded turns, as defined in the [glossary](../../GLOSSARY.md). Each
   conversation row is one recorded turn, numbered as the graders number it (`Turn N` is
   `turn:N`), and the trial's ending gives the number of rows. The page does not show

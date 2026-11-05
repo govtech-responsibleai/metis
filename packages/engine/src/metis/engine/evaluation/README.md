@@ -52,7 +52,7 @@ A grader returns a score; it never decides pass or fail.
 |---|---|
 | `scored`, `score >= threshold` | `passed` |
 | `scored`, `score < threshold` | `failed` |
-| `skipped` | `skipped` (nothing to judge; never a pass) |
+| `skipped` | `skipped` (the criterion does not apply; never a pass) |
 | `errored` | `errored` (could not judge; never a fail) |
 | no results, wrong type, or raises | one `errored` result for the grader run |
 

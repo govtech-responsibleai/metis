@@ -283,18 +283,25 @@ def test_transparency_shows_each_call_with_its_status_and_a_cut_result() -> None
 @pytest.mark.parametrize(
     "grader_cls", [ExplanationUsefulnessGrader, UserCorrectionSupportGrader]
 )
-def test_a_session_without_the_event_is_errored(grader_cls) -> None:
+def test_a_session_without_the_event_is_skipped(grader_cls) -> None:
     reply = {"status": "not_applicable", "score": None, "reason": "None found."}
     [result], _ = grade(grader_cls, two_turn_session(), reply)
 
-    assert (result.status, result.reason) == ("errored", "None found.")
+    assert (result.status, result.reason) == ("skipped", "None found.")
     assert "return status not_applicable" in criteria_sent(grader_cls)
+
+
+def test_missing_evidence_is_errored_without_a_judge_call() -> None:
+    [result], requests = grade(RelevanceGrader, GradingInput(traces=()))
+
+    assert result.status == "errored"
+    assert "no turns" in result.reason
+    assert requests == []
 
 
 @pytest.mark.parametrize(
     ("grader_cls", "gi", "reason"),
     [
-        (RelevanceGrader, GradingInput(traces=()), "no turns"),
         (
             CrossTurnCoherenceGrader,
             GradingInput(traces=(turn(1, "Hi", "Hello"),)),
@@ -312,12 +319,12 @@ def test_a_session_without_the_event_is_errored(grader_cls) -> None:
         ),
     ],
 )
-def test_missing_evidence_is_errored_without_a_judge_call(
+def test_a_session_outside_the_measure_is_skipped_without_a_judge_call(
     grader_cls, gi, reason
 ) -> None:
     [result], requests = grade(grader_cls, gi)
 
-    assert result.status == "errored"
+    assert result.status == "skipped"
     assert reason in result.reason
     assert requests == []
 

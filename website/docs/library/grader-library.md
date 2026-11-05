@@ -9,7 +9,7 @@ import {GraderList} from '@site/src/components/Graders';
 METIS graders assess a recorded session against one criterion. Each grader measures one
 attribute of agent quality and gives a score. The grader's judgment form decides the form
 of that score: every grader in the library today is `binary`, so it scores 0 or 1. When the
-event that the criterion looks for does not happen in the session, the result is errored and
+event that the criterion looks for does not happen in the session, the result is skipped and
 has no score.
 
 To learn how the Wizard uses the library, which settings a grader takes, and how a grader turns
