@@ -137,6 +137,8 @@ class EvidenceItem(BaseModel):
     result_number: int
     outcome: Literal["passed", "failed", "skipped", "errored"]
     score: float | None = None
+    measurements: dict[str, float] | None = None
+    """The numbers the grader recorded for this result, from ``RecordedResult.measurements``."""
     persona: str | None = None
     scenario: str | None = None
 

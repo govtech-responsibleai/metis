@@ -157,11 +157,13 @@ def _record(result: GraderResult, threshold: float) -> RecordedResult:
             score=result.score,
             reason=result.reason,
             scope=result.scope,
+            measurements=result.measurements,
         )
     return RecordedResult(
         outcome=result.status,
         reason=result.reason,
         scope=result.scope,
+        measurements=result.measurements,
     )
 
 

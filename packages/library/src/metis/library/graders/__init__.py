@@ -11,6 +11,7 @@ semantic weight.
 The example graders are in ``metis.library.graders.demo`` and are not re-exported here.
 """
 
+from ._criterion_decision import CriterionDecisionGrader as CriterionDecisionGrader
 from ._criterion_judge import CriterionJudgeGrader as CriterionJudgeGrader
 from .execution_and_decision_quality import (
     ActionChoiceAppropriatenessGrader as ActionChoiceAppropriatenessGrader,

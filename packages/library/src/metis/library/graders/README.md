@@ -2,7 +2,7 @@
 
 This package holds every grader that a criterion can name in `grader_fqn`, such as
 `metis.library.graders.TaskSuccessGrader`. Each grader measures one attribute of the METIS
-taxonomy and gives a binary score. For how a grader works and how to write one, see the
+taxonomy and returns a score from zero to one. For how a grader works and how to write one, see the
 [grader guide](../../../../../../docs/guide/library/graders.md).
 
 Some graders adapt the judge prompt of a metric from another evaluation package. Each link
@@ -76,6 +76,13 @@ guided Interview selects it when no grader above matches a criterion. See
 [the Criterion Judge guide](../../../../../../docs/guide/library/criterionjudge.md).
 
 The example graders in `demo/` are not in this catalogue, and the wizard does not offer them.
+
+## Decision grader
+
+`CriterionDecisionGrader` uses the criterion description as its rubric and has no fixed
+measure. It sends the session to a decision model and returns a probability with no reason.
+For the supported models and setup, see
+[Use a decision grader](../../../../../../docs/guide/library/graders.md#use-a-decision-grader).
 
 ## Keep this list current
 

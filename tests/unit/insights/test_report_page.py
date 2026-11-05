@@ -10,6 +10,7 @@ import pytest
 
 from metis.insights._report_page import render_report_page
 from tests.fixtures.insights.report_experiment import (
+    grader_record,
     grader_records,
     save_trial_traces,
     turn_trace,
@@ -78,6 +79,65 @@ def test_test_cases_link_to_the_results(experiment: Path) -> None:
     html = render_js(build(experiment), "renderPanel(V,{selected:'C-1'})")
     assert 'data-goto-case="T-1" data-goto-criterion="C-1"' in html
     assert 'data-goto-case="T-2" data-goto-criterion="C-1"' in html
+
+
+def test_measured_numbers_show_as_bars_beside_the_score_and_pass_mark(
+    experiment: Path,
+) -> None:
+    """The pass mark applies to the score, so it shows beside the score and on no bar."""
+    records = [
+        grader_record(
+            "T-1",
+            1,
+            "C-1",
+            0.73,
+            threshold=0.8,
+            measurements={"applicable": 0.89, "satisfied": 0.73},
+        )
+    ]
+    html = open_case(build(experiment, records), "T-1")
+    assert "Applicable" in html
+    assert "Satisfied" in html
+    assert "Pass mark" in html
+    assert "≥ 0.80" in html
+    assert 'style="width:89%"' in html
+    assert 'style="width:73%"' in html
+    assert 'Score <b class="mono">0.73</b>' in html
+    measures = html.split('<div class="measures">', 1)[1].split(
+        '<p class="n mnote">', 1
+    )[0]
+    assert "ci-tg" not in measures
+    assert '<p class="n mnote">scored</p>' in html
+
+
+def test_a_result_with_no_verdict_shows_its_numbers_without_a_pass_mark(
+    experiment: Path,
+) -> None:
+    """A pass mark beside no score would read as a verdict the grader did not reach."""
+    records = [
+        grader_record(
+            "T-1",
+            1,
+            "C-1",
+            "errored",
+            threshold=0.8,
+            measurements={"applicable": 0.49, "satisfied": 0.87},
+        )
+    ]
+    html = open_case(build(experiment, records), "T-1")
+    assert 'style="width:49%"' in html
+    assert "No score" in html
+    assert "Pass mark" not in html
+    assert "ci-tg" not in html
+    assert '<p class="n mnote">errored</p>' in html
+
+
+def test_a_grader_that_measures_nothing_still_shows_its_reason(
+    experiment: Path,
+) -> None:
+    html = open_case(build(experiment), "T-1")
+    assert "Applicable" not in html
+    assert '<p class="why">scored</p>' in html
 
 
 def test_trial_shows_its_conversation(experiment: Path) -> None:

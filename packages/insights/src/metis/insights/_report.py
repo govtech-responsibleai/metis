@@ -433,6 +433,7 @@ def _aggregate_runs(
                     "outcome": result.outcome,
                     "score": result.score,
                     "message": result.reason,
+                    "measurements": result.measurements,
                     "persona": persona,
                     "scenario": scenario,
                 }

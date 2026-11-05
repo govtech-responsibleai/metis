@@ -150,7 +150,8 @@ const SOURCE={target:"Target",userAgent:"User agent",evaluationRunner:"Evaluatio
 function trialCriteria(V,row,trial){
  return Object.keys(trial.results||{}).map(cid=>{const r=trial.results[cid],outcome=outcomeOf(r);
   const ev=((V.criteria[cid]||{}).evidence||[]).filter(e=>e.task_id===row.task_id&&e.trial_index===trial.trial_index).sort((a,b)=>a.result_number-b.result_number);
-  return {cid,outcome,results:ev.map(e=>({outcome:e.outcome,score:e.score,reason:e.message}))}}).filter(x=>x.outcome);
+  return {cid,outcome,results:ev.map(e=>({outcome:e.outcome,score:e.score,reason:e.message,measurements:e.measurements,
+   threshold:e.grader_args&&typeof e.grader_args.threshold==="number"?e.grader_args.threshold:null}))}}).filter(x=>x.outcome);
 }
 const STATUS={succeeded:["ok","Reached its goal"],abandoned:["stop","Stopped"],error:["bad","Error"],timedOut:["time","Timed out"]};
 const STATUS_SVG={ok:`<circle cx="9" cy="9" r="7.5" fill="none" stroke="${C.green}" stroke-width="1.6"/><path d="M5.5 9.2l2.3 2.3 4.7-4.9" fill="none" stroke="${C.green}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`,
@@ -162,10 +163,33 @@ const turnCount=t=>{const n=(t.conversation||[]).length;return n?` · ${n} turn$
 const endingLine=t=>t.category==="succeeded"?`Reached its goal${turnCount(t)}`:`${ENDING[t.category]||t.category}: ${t.message||t.stopReason}${t.attempt>1?` · retried, attempt ${t.attempt}`:""}`;
 const TAB_ORDER=[["failed","Failed"],["passed","Passed"],["errored","Errored"],["skipped","Skipped"]];
 const rawResult=r=>{const shown={outcome:r.outcome};if(r.score!==null&&r.score!==undefined)shown.score=r.score;if(r.reason)shown.reason=r.reason;return JSON.stringify(shown,null,1)};
+const MEASURE_WORDS={applicable:"Applicable",satisfied:"Satisfied"};
+const measureName=key=>MEASURE_WORDS[key]||key.replace(/_/g," ").replace(/^./,c=>c.toUpperCase());
+function measureBars(r){
+ const named=Object.entries(r.measurements||{}).filter(([,v])=>typeof v==="number");
+ if(!named.length)return "";
+ const scored=r.score!==null&&r.score!==undefined;
+ // The pass mark applies to the score only. Each measurement has its own meaning and
+ // cut-off, so no bar shows the pass mark. An unscored result reached no verdict, so it
+ // shows no pass mark at all.
+ const t=scored&&typeof r.threshold==="number"?r.threshold:null;
+ const head=`<div class="mnums">${scored?`<span>Score <b class="mono">${meanText(r.score)}</b></span>`
+  :'<span class="n">No score</span>'}${t===null?"":`<span>Pass mark <b class="mono">≥ ${meanText(t)}</b></span>`}</div>`;
+ const rows=named.map(([key,value])=>{const pos=Math.max(0,Math.min(1,value))*100;
+  return `<div class="mrow"><span class="mname">${esc(measureName(key))}</span>`
+   +`<span class="mbar"><span class="ci-track"></span><span class="ci-rng" style="width:${pos}%"></span></span>`
+   +`<span class="mval mono">${meanText(value)}</span></div>`}).join("");
+ return `<div class="measures">${head}${rows}</div>`;
+}
 function graderOutput(x){
  const many=x.results.length>1;
  return x.results.map((r,k)=>{const label=many?`<span class="why-label">Result ${k+1}:</span> `:"";
-  return r.reason?`<p class="why">${label}${esc(r.reason)}</p>`:`<div class="why">${label}<pre class="raw">${esc(rawResult(r))}</pre></div>`}).join("")||'<p class="why n">The grader returned no result for this trial.</p>';
+  const bars=measureBars(r);
+  if(!bars)return r.reason?`<p class="why">${label}${esc(r.reason)}</p>`:`<div class="why">${label}<pre class="raw">${esc(rawResult(r))}</pre></div>`;
+  // The bars carry the numbers, so the reason below them only says what they mean.
+  const note=r.reason?`<p class="n mnote">${esc(r.reason)}</p>`:"";
+  return `<div class="why">${label}${bars}${note}</div>`}).join("")
+  ||'<p class="why n">The grader returned no result for this trial.</p>';
 }
 function renderTrialDetail(V,S,row,trial){
  const ended=trial.category&&trial.category!=="succeeded";
