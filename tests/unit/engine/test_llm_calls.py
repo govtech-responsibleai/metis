@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -102,7 +103,10 @@ async def _tool_call(client: _FakeClient, log: LLMCallLog, **options: Any) -> ob
 
 @pytest.fixture(autouse=True)
 def no_backoff(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(llm_calls, "_retry_delay", lambda _: 0.0)
+    async def sleep(_delay: float) -> None:
+        return None
+
+    monkeypatch.setattr(asyncio, "sleep", sleep)
 
 
 @pytest.mark.asyncio
@@ -279,6 +283,81 @@ async def test_tool_call_retries_stop_after_the_last_attempt(tmp_path: Path) -> 
         await _tool_call(client, log)
 
     assert len(_rows(log)) == attempts
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_waits_for_retry_after(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("METIS_LLM_MAX_RETRIES", raising=False)
+    monkeypatch.delenv("METIS_LLM_RETRY_BUDGET_SECONDS", raising=False)
+    error = openai.RateLimitError(
+        "rate limit",
+        response=httpx.Response(429, headers={"retry-after": "75"}, request=_REQUEST),
+        body=None,
+    )
+    client = _FakeClient(error, _completion())
+    delays: list[float] = []
+
+    async def record_sleep(delay: float) -> None:
+        delays.append(delay)
+
+    monkeypatch.setattr(asyncio, "sleep", record_sleep)
+
+    await _call(client, LLMCallLog.for_trial(tmp_path))
+
+    assert delays == [75.0]
+    assert len(client.calls) == 2
+
+
+def test_rate_limit_reset_message_is_parsed_as_utc() -> None:
+    error = openai.RateLimitError(
+        "Limit resets at: 2026-11-06 00:01:00 UTC",
+        response=httpx.Response(429, request=_REQUEST),
+        body=None,
+    )
+
+    assert (
+        llm_calls._provider_retry_after(
+            error, now=datetime(2026, 11, 6, 0, 0, tzinfo=UTC)
+        )
+        == 60.0
+    )
+
+
+@pytest.mark.asyncio
+async def test_retry_after_beyond_budget_reraises_without_retry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("METIS_LLM_MAX_RETRIES", "6")
+    monkeypatch.setenv("METIS_LLM_RETRY_BUDGET_SECONDS", "30")
+    error = openai.RateLimitError(
+        "rate limit",
+        response=httpx.Response(429, headers={"retry-after": "60"}, request=_REQUEST),
+        body=None,
+    )
+    client = _FakeClient(error)
+
+    with pytest.raises(openai.RateLimitError) as raised:
+        await _call(client, LLMCallLog.for_trial(tmp_path))
+
+    assert raised.value is error
+    assert len(client.calls) == 1
+    assert len(_rows(LLMCallLog.for_trial(tmp_path))) == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_count_is_configurable(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("METIS_LLM_MAX_RETRIES", "1")
+    monkeypatch.setenv("METIS_LLM_RETRY_BUDGET_SECONDS", "120")
+    error = _server_error()
+    client = _FakeClient(error, error)
+
+    with pytest.raises(openai.InternalServerError) as raised:
+        await _call(client, LLMCallLog.for_trial(tmp_path))
+
+    assert raised.value is error
+    assert len(client.calls) == 2
 
 
 def test_the_experiment_log_lives_under_logs(tmp_path: Path) -> None:
