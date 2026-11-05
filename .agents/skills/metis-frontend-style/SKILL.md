@@ -1,6 +1,6 @@
 ---
 name: metis-frontend-style
-description: The locked house style for the METIS web app (apps/web) and the HTML report (packages/insights). Use this skill whenever building or restyling any METIS product UI — React components, pages, dashboards, the 3-pane wizard, forms, tables — even when the user just says "build the frontend" or "make a page" without naming the style. It does not cover the marketing landing page (landing-page/), which follows the Landing page section of docs/design.md. It defines the palette, typography, radius, density, elevation, motion, component conventions, and copy voice so every screen looks like one deliberate product instead of a generic AI default. Built on shadcn/ui + Tailwind. Reach for it before writing any component, CSS, or Tailwind class for METIS.
+description: The locked house style for the METIS web app (apps/web), the HTML report (packages/insights), and the documentation site (website/). Use this skill whenever building or restyling any METIS product UI — React components, pages, dashboards, the 3-pane wizard, forms, tables — even when the user just says "build the frontend" or "make a page" without naming the style. It does not cover the marketing landing page (landing-page/), which follows the Landing page section of docs/design.md. It defines the palette, typography, radius, density, elevation, motion, component conventions, and copy voice so every screen looks like one deliberate product instead of a generic AI default. Built on shadcn/ui + Tailwind. Reach for it before writing any component, CSS, or Tailwind class for METIS.
 ---
 
 # METIS Frontend Style
@@ -17,7 +17,7 @@ Neutrals do the structural work — text, surfaces, borders, most controls. The 
 
 The values live in **`docs/design.md`** in the repository. That guide is the source of truth for the brand colours, the light and dark theme, the status colours, and the data colours. Read it before you choose a colour. When you change a colour, change the token file and `docs/design.md` in the same pull request. The token files are `apps/web/src/globals.css` (web) and `PALETTE` in `packages/insights/src/metis/insights/_report_styles.py` (report).
 
-**One product.** The web app includes the report. The report is a separate HTML file now, but it will become part of the web app, so treat the two as one product with one set of rules. It is plain: a white page (neutral black in dark mode), near-black text, and cool greys, with an occasional accent. The landing page is the dynamic, colourful surface, and its rules do not apply here.
+**One product.** The web app includes the report. The report is a separate HTML file now, but it will become part of the web app, so treat the two as one product with one set of rules. The docs site (`website/src/css/custom.css`) follows the same rules, because it is for reading. It is plain: a white page (neutral black in dark mode), near-black text, and cool greys, with an occasional accent. The landing page is the dynamic, colourful surface, and its rules do not apply here.
 
 | Role | Light | Dark | Where it's allowed |
 |---|---|---|---|
@@ -47,7 +47,7 @@ The token block for both themes is in `apps/web/src/globals.css`.
 
 ## Foundations
 
-**Typography — one sans family for each surface.** The web app uses **Figtree**. The report uses **Lato**, the Singapore Government Design System typeface. Hierarchy comes from weight and size, not from switching typefaces. Body text is 16px and secondary text is 14px. **The minimum text size is 12px**, also for chips, labels, and chart text. Use **JetBrains Mono** for anything that is data: JSON, IDs, code, metric values in tables. Never set headings in all-caps — all-caps labels are one of the clearest AI tells. Use sentence case and let size/weight create emphasis.
+**Typography — one sans family for each surface.** The web app uses **Figtree**. The report and the docs site use **Lato**, the Singapore Government Design System typeface. Hierarchy comes from weight and size, not from switching typefaces. Body text is 16px and secondary text is 14px. **The minimum text size is 12px**, also for chips, labels, and chart text. Use **JetBrains Mono** for anything that is data: JSON, IDs, code, metric values in tables. Never set headings in all-caps — all-caps labels are one of the clearest AI tells. Use sentence case and let size/weight create emphasis.
 
 **Radius — two tiers, `8px` and `16px`.** Softening is intentional here, but it is *structured*: small controls get the small radius, large surfaces get the large one. Small (`--radius-sm`, `8px`) is for buttons, tooltips, badges, and small inline controls. Large (`--radius-lg`, `16px`) is for text areas, dropdowns/selects, cards, the chat composer, and floating surfaces (modals, popovers). Pick the tier by the size of the thing, then don't fine-tune per-component — two values, applied consistently, is the point. The contrast between a crisp button and a softer card is deliberate; a screen where everything shares one radius is the tell we're avoiding.
 
@@ -88,7 +88,7 @@ Run through this on any screen you build. Each item maps to a tell we want gone:
 - [ ] Motion is tied to a user action — panes/screens move to show where things went; nothing loops, pulses, or floats on its own; no glow, no scroll flourishes
 - [ ] No sea of gray helper text; every word earns its place
 - [ ] No text is smaller than 12px
-- [ ] Type is Figtree in the web app and Lato in the report (+ JetBrains Mono for data); hierarchy from weight/size, not extra typefaces
+- [ ] Type is Figtree in the web app and Lato in the report and the docs (+ JetBrains Mono for data); hierarchy from weight/size, not extra typefaces
 - [ ] Pass, fail, warning, and skipped use the status tokens, with an icon or a word; the accent never means pass
 - [ ] The screen works in both light and dark themes
 

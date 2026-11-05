@@ -3,6 +3,7 @@
 METIS has two surfaces. The landing page tells people what METIS is and why they should try it.
 The web app is where they use it. The evaluation report belongs to the web app. Today it is a
 separate HTML file, but we plan to move it into the web app, so we design it with the same rules.
+The documentation site is for reading, so it follows the web app rules too.
 
 Each surface keeps its colours in one token file, and components read their colours from these
 tokens. If you change a token, update this guide in the same pull request.
@@ -12,6 +13,7 @@ tokens. If you change a token, update this guide in the same pull request.
 | Landing page | `landing-page/src/index.css` (`:root`) |
 | Web app | `apps/web/src/globals.css` (`:root` and `:root[data-theme="dark"]`) |
 | Web app, report | `PALETTE` in `packages/insights/src/metis/insights/_report_styles.py` |
+| Web app, docs | `website/src/css/custom.css` (a copy of the web app tokens) |
 
 ## Brand colours
 
@@ -44,11 +46,12 @@ near-black and cool grey. Thin borders separate the panels, and light shadows li
 float, such as menus and dialogs. We use the accent sparingly, to mark the selected item or the
 focused field, so the screen stays minimal.
 
-The web app uses Figtree, and the report uses Lato. Numbers and code use JetBrains Mono. The
-smallest text size is 12px.
+The web app uses Figtree, and the report and the docs use Lato. Numbers and code use JetBrains
+Mono. The smallest text size is 12px.
 
 Dark mode uses neutral black and grey. The user picks System, Light or Dark at the foot of the left
-rail. The report has no dark mode yet.
+rail. The docs site follows the system setting, and its navbar switch changes it. The report has no
+dark mode yet.
 
 The tables below give the colours for the surfaces, the result states and the data.
 
