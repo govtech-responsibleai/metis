@@ -83,7 +83,7 @@ const sidebars = {
       ],
     },
     {type: 'html', value: '<hr class="sidebar-divider" aria-hidden="true" />'},
-    {type: 'doc', id: 'examples', label: 'Examples'},
+    {type: 'doc', id: 'glossary', label: 'Glossary'},
   ],
 };
 

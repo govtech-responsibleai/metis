@@ -1,3 +1,5 @@
+import {readFileSync} from 'node:fs';
+
 import {jettwaveTealDark, jettwaveTealLight} from './src/codeThemes.js';
 
 /** @type {import('@docusaurus/types').Config} */
@@ -24,6 +26,24 @@ const config = {
           return {
             module: {rules: [{resourceQuery: /raw/, type: 'asset/source'}]},
             resolve: {alias: {'@examples': new URL('../packages/engine/examples', import.meta.url).pathname}},
+          };
+        },
+      };
+    },
+    // Hands the text of `GLOSSARY.md` to the bundle as `__GLOSSARY_MARKDOWN__`. A `?raw` import
+    // cannot do this, because Docusaurus compiles every `.md` file as MDX before that rule runs.
+    function glossaryText({siteDir}) {
+      const glossaryPath = new URL('../GLOSSARY.md', `file://${siteDir}/`);
+      return {
+        name: 'glossary-text',
+        getPathsToWatch: () => [glossaryPath.pathname],
+        configureWebpack(_config, _isServer, {currentBundler}) {
+          return {
+            plugins: [
+              new currentBundler.instance.DefinePlugin({
+                __GLOSSARY_MARKDOWN__: JSON.stringify(readFileSync(glossaryPath, 'utf8')),
+              }),
+            ],
           };
         },
       };

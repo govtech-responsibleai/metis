@@ -630,3 +630,33 @@ html.toc-hidden.docs-doc-id-stack-2026-workshop h2[id^='step-'] {
   font-size: 0.875rem;
   color: hsl(var(--muted-foreground));
 }
+
+/* Glossary page: one entry per term, tinted when a link points at it. */
+.glossary-terms {
+  margin: 0 0 var(--ifm-leading);
+}
+
+.glossary-entry {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  scroll-margin-top: calc(var(--ifm-navbar-height) + 1rem);
+}
+
+.glossary-entry:target,
+.glossary-entry--targeted {
+  background: hsl(var(--accent) / 0.1);
+}
+
+.glossary-entry dt {
+  font-weight: 700;
+  color: hsl(var(--foreground));
+}
+
+.glossary-entry dd {
+  margin: 0.25rem 0 0;
+}
+
+h2[id^="section-"] {
+  scroll-margin-top: calc(var(--ifm-navbar-height) + 1rem);
+}
