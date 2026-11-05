@@ -163,6 +163,19 @@ def test_grader_error_is_separate_from_failure(experiment: Path) -> None:
     assert (criterion["fail"], criterion["error"], criterion["rate"]) == (0, 1, None)
 
 
+def test_an_all_skipped_criterion_is_skipped(experiment: Path) -> None:
+    records = [
+        grader_record("T-1", 1, "C-3", "skipped"),
+        grader_record("T-2", 1, "C-3", "skipped"),
+    ]
+    criterion = _build(experiment, records)["criteria"]["C-3"]
+    assert criterion["status"] == "skip"
+    assert criterion["blank"] == {
+        "cause": "all skipped",
+        "note": "2 grader runs skipped.",
+    }
+
+
 def test_evidence_keeps_recorded_facts_and_settings(experiment: Path) -> None:
     records = grader_records()
     records[0].grader_args["threshold"] = 0.4

@@ -177,9 +177,9 @@ function renderTrialDetail(V,S,row,trial){
  const key=`${row.task_id}:${trial.trial_index}`,marked=items.find(x=>x.cid===S.markCol);
  const pick=(S.verdictTab||{})[key]||(marked&&present.some(([o])=>o===marked.outcome)?marked.outcome:(present[0]||[])[0]);
  const tabs=present.map(([o,label])=>`<button type="button" class="vtab ${o}${o===pick?" on":""}" data-verdict-tab="${esc(key)}|${o}">${label}</button>`).join("");
- const lead={failed:"These criteria failed in this trial. Under each one is what its grader returned.",errored:"The grader could not score these criteria. This says nothing about the target.",skipped:"These criteria had nothing to grade in this trial.",passed:"These criteria passed in this trial. Under each one is what its grader returned."}[pick]||"";
+ const lead={failed:"These criteria failed in this trial. Under each one is what its grader returned.",errored:"The grader could not score these criteria. This says nothing about the target.",skipped:"These criteria did not apply in this trial. Under each one is what its grader returned.",passed:"These criteria passed in this trial. Under each one is what its grader returned."}[pick]||"";
  const list=items.filter(x=>x.outcome===pick);
- const rows=pick==="skipped"&&ended&&list.length>4?`<div class="why-row"><div class="why-head"><b>${list.length} criteria</b></div><p class="why">The trial ended before there was anything to grade.</p></div>`:list.map(x=>`<div class="why-row${x.cid===S.markCol?" mark":""}"><div class="why-head"><b>${esc(criterionName(V,x.cid))}</b></div>${graderOutput(x)}</div>`).join("");
+ const rows=list.map(x=>`<div class="why-row${x.cid===S.markCol?" mark":""}"><div class="why-head"><b>${esc(criterionName(V,x.cid))}</b></div>${graderOutput(x)}</div>`).join("");
  const verdicts=present.length?`<div class="verdicts"><h4>What the graders returned</h4><div class="vtabs" role="tablist">${tabs}</div><p class="n vlead">${lead}</p>${rows}</div>`:'<p class="n">No grader result was recorded for this trial.</p>';
  return `<div class="trial-detail"><h4 class="td-title">Trial ${trial.trial_index}</h4>${note}<div class="split">${conv}${verdicts}</div></div>`;
 }

@@ -72,8 +72,8 @@ class RobustnessToToolFailuresGrader(Grader[RobustnessToToolFailuresArgs]):
     outcome holds across the failures.
 
     Trace scope by default: one result for each recorded turn that has a tool call. Session scope gives
-    one result for the session. A session with no tool calls is errored without a judge call.
-    A recorded turn or session where no tool response failed is errored, with the judge's reason.
+    one result for the session. A session with no tool calls is skipped without a judge call.
+    A recorded turn or session where no tool response failed is skipped, with the judge's reason.
     """
 
     args_model = RobustnessToToolFailuresArgs
@@ -154,7 +154,7 @@ class RobustnessToToolFailuresGrader(Grader[RobustnessToToolFailuresArgs]):
         if isinstance(selected, Problem):
             return GradingOutput.errored(selected.detail)
         if not any(turn.tool_calls for turn in turns(input.traces)):
-            return GradingOutput.errored(
+            return GradingOutput.skipped(
                 "The session has no tool calls, so no tool response can fail."
             )
         if self.scope == Scope.TRACE:
@@ -164,7 +164,7 @@ class RobustnessToToolFailuresGrader(Grader[RobustnessToToolFailuresArgs]):
                 if isinstance(piece, Problem) or piece[0].tool_calls
             }
             if not selected:
-                return GradingOutput.errored(
+                return GradingOutput.skipped(
                     "The selected recorded turn has no tool calls, so no tool response can "
                     "fail."
                 )

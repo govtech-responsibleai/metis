@@ -64,7 +64,7 @@ class PlanningQualityGrader(Grader[PlanningQualityArgs]):
 
     Evaluates the observable plan for feasibility, sufficiency, ordering, and
     dependency handling. A plan need not expose an argument for this assessment. A
-    session with no observable plan is errored, with the judge's reason.
+    session with no observable plan is skipped, with the judge's reason.
     """
 
     args_model = PlanningQualityArgs
