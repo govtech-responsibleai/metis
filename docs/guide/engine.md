@@ -111,7 +111,9 @@ metis engine evaluate --experiment-dir experiments/execute/toyapp-http-simple-20
 
 `experiments/execute/toyapp-http-simple-20260820-143000/` is the output directory that `simulate` created. The name is only a sample: `simulate` makes the real name from the experiment `id` and the start time of the run, so use the path that `simulate` printed.
 
-If `evaluate` reports missing traces, upgrade the target's Langfuse SDK first, then raise `--langfuse-timeout` (default 90 seconds). Traces from older SDKs can arrive several minutes late.
+`evaluate` grades a trial only when its Langfuse traces stop changing. It checks the traces again, with a longer pause each time, until two checks in a row see the same traces, no trace is empty, and no observation is still open. If that does not happen within `--langfuse-timeout` (default 90 seconds), the trial fails with `no traces in Langfuse` or `traces still changing in Langfuse` and gets no grades.
+
+If `evaluate` reports missing traces, upgrade the target's Langfuse SDK first, then raise `--langfuse-timeout`. Traces from older SDKs can arrive several minutes late.
 
 The website explains each step in full: [Run your evaluations](https://govtech-responsibleai.github.io/metis/docs/run-evaluation), [Run the test suite](https://govtech-responsibleai.github.io/metis/docs/run-test-suite) and [Run the graders](https://govtech-responsibleai.github.io/metis/docs/run-graders).
 
@@ -447,7 +449,7 @@ The flags below are optional and apply to both modes:
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--experiment-dir` | (required) | One output directory that `simulate` created, for example `experiments/execute/toyapp-http-simple-20260820-143000/`. It must hold an `inputs/` snapshot |
-| `--langfuse-timeout` | `90` | Seconds to wait for Langfuse traces to appear |
+| `--langfuse-timeout` | `90` | Seconds to wait for each trial's Langfuse traces to appear and stop changing |
 | `-v` / `-vv` | WARNING | Increase evaluation logging verbosity |
 | `--quiet` | `false` | Suppress all output below ERROR |
 
@@ -572,7 +574,8 @@ and makes calls through `llm.client`, a shared `AsyncOpenAI`.
 
 | Symptom | Likely Cause | Fix |
 |---------|--------------|-----|
-| "No traces found" or extraction times out | Langfuse timeout too short, bad credentials, or target not instrumented | Increase `--langfuse-timeout`, verify Langfuse keys in `.env`, confirm your target writes traces to Langfuse |
+| "no traces in Langfuse" | Langfuse timeout too short, bad credentials, or target not instrumented | Increase `--langfuse-timeout`, verify Langfuse keys in `.env`, confirm your target writes traces to Langfuse |
+| "traces still changing in Langfuse" | Langfuse is still storing the trial's traces, or an observation was never ended | Increase `--langfuse-timeout`, and check that your target ends every observation it starts |
 | "Fixture not found" error | Path is absolute or has a typo | Use the filename only (relative to `fixtures/`), verify the file exists in the fixtures directory |
 | "could not be imported" | FQN typo or module not installed | Check the import path for typos, ensure the package containing the grader is installed in your venv |
 | Simulation hangs indefinitely | Target unresponsive or page never finishes loading | Use `HEADED=true` to see the browser, increase the Task's `response_wait_ms` |
@@ -1054,7 +1057,7 @@ The [website](https://govtech-responsibleai.github.io/metis/docs/set-up-observab
 The engine then fetches traces using:
 - `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_BASE_URL` from your `.env`
 - The session ID from the run record
-- A configurable timeout (`--langfuse-timeout`, default 90s) for traces to appear
+- A configurable timeout (`--langfuse-timeout`, default 90s) for traces to appear and stop changing
 
 ### Writing Your Own Experiment
 

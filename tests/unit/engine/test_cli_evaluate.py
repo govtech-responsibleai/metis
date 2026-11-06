@@ -13,7 +13,11 @@ from metis.core.traces import GradingInput, Observation, SessionTraces, Trace
 from metis.core.trials import GraderRef, TrialConfig, TrialOutcome, TrialRecord
 from metis.engine import cli
 from metis.engine.cli import EvaluationOutcome, app
-from metis.engine.extractor.langfuse import UnsupportedTraceError
+from metis.engine.extractor.langfuse import (
+    TracesNotReadyError,
+    TraceWait,
+    UnsupportedTraceError,
+)
 
 runner = CliRunner()
 
@@ -207,11 +211,16 @@ def test_evaluate_with_no_run_records_is_a_noop(tmp_path: Path) -> None:
 
 
 def _patch_evaluation(monkeypatch, *, traces: int = 1) -> list[dict[str, Any]]:
-    """Fake Langfuse: every session has ``traces`` traces. Returns the fetch calls made."""
+    """Fake Langfuse: every session has ``traces`` traces. Returns the fetch calls made.
+
+    With ``traces=0`` the fetch fails as ``fetch_session`` does when Langfuse has none.
+    """
     calls: list[dict[str, Any]] = []
 
     def fetch(session_id: str, _langfuse: object, **kwargs: Any) -> GradingInput:
         calls.append({"session_id": session_id, **kwargs})
+        if not traces:
+            raise TracesNotReadyError(TraceWait("no_traces", 2, 90.0))
         return _session(session_id, traces)
 
     monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
@@ -281,7 +290,11 @@ def test_evaluation_with_no_successful_records_writes_no_results(
     result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
 
     assert result.exit_code == 0
-    assert "No traces found in Langfuse" in result.output
+    assert "WARNING: no traces in Langfuse" in result.output
+    assert (
+        "FAILED — no traces in Langfuse"
+        in (output / "logs" / "evaluate.log").read_text()
+    )
     assert not (output / "outputs" / "reports" / "results.json").exists()
     assert "metisinsightsreport" not in _compact(result.output)
 

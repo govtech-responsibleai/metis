@@ -73,3 +73,5 @@ so re-enabling it is a safe follow-up.
   by filter column (see `tests/unit/engine/test_extractor_fetch.py`), so a fetch that reuses the
   session-filtered rows as a trace's observations (issue #435) fails. Do not hit the live
   Langfuse API.
+- `fetch_session` waits for the traces to stop changing. Pass it a fake `clock` and `sleep` (see
+  `FakeClock` in the same file), so a test never waits in real time.

@@ -1155,54 +1155,53 @@ async def _evaluate_records(
                             artifacts=record.artifacts,
                             retry_timeout=langfuse_timeout,
                         )
-                        if not grading_input.traces:
-                            failure_reason = "No traces found in Langfuse"
-                        else:
-                            _save_session_traces(
-                                experiment_dir,
-                                session_id,
-                                grading_input.traces,
-                                evaluation_log,
-                            )
+                        _save_session_traces(
+                            experiment_dir,
+                            session_id,
+                            grading_input.traces,
+                            evaluation_log,
+                        )
+                        evaluation_log.write(
+                            f"RECORD {index + 1}/{len(records)} {label} — EVALUATING"
+                        )
+                        for criterion in criteria:
                             evaluation_log.write(
-                                f"RECORD {index + 1}/{len(records)} {label} — EVALUATING"
-                            )
-                            for criterion in criteria:
-                                evaluation_log.write(
-                                    "GRADER CONFIG — "
-                                    + json.dumps(
-                                        {
-                                            "record": label,
-                                            "criterion_id": criterion.id,
-                                            "fqn": criterion.grader_fqn,
-                                            "args": graders[
-                                                criterion.id
-                                            ].args.model_dump(mode="json"),
-                                        },
-                                        ensure_ascii=False,
-                                        sort_keys=True,
-                                    )
+                                "GRADER CONFIG — "
+                                + json.dumps(
+                                    {
+                                        "record": label,
+                                        "criterion_id": criterion.id,
+                                        "fqn": criterion.grader_fqn,
+                                        "args": graders[criterion.id].args.model_dump(
+                                            mode="json"
+                                        ),
+                                    },
+                                    ensure_ascii=False,
+                                    sort_keys=True,
                                 )
-                            phase("evaluating")
-                            session_records = await grade_session(
-                                criteria,
-                                graders,
-                                grading_input,
-                                llm,
-                                SessionFacts(
-                                    session_id=session_id,
-                                    scenario_id=record.config.scenario,
-                                    task_id=record.config.task_id,
-                                    trial_index=record.config.trial_index,
-                                    trace_session_id=trial_session_id(
-                                        experiment_dir.resolve().name, record.config
-                                    ),
+                            )
+                        phase("evaluating")
+                        session_records = await grade_session(
+                            criteria,
+                            graders,
+                            grading_input,
+                            llm,
+                            SessionFacts(
+                                session_id=session_id,
+                                scenario_id=record.config.scenario,
+                                task_id=record.config.task_id,
+                                trial_index=record.config.trial_index,
+                                trace_session_id=trial_session_id(
+                                    experiment_dir.resolve().name, record.config
                                 ),
-                            )
-                            all_records.extend(session_records)
-                            _log_grader_records(
-                                evaluation_log, session_records, record_label=label
-                            )
+                            ),
+                        )
+                        all_records.extend(session_records)
+                        _log_grader_records(
+                            evaluation_log, session_records, record_label=label
+                        )
+                except extractor.TracesNotReadyError as exc:
+                    failure_reason = str(exc)
                 except Exception as exc:
                     failure_reason = str(exc)
                     warning = f"Evaluation failed: {exc}"
@@ -1372,7 +1371,9 @@ def evaluate(
         ),
     ),
     langfuse_timeout: int = typer.Option(
-        90, "--langfuse-timeout", help="Seconds to wait for Langfuse traces"
+        90,
+        "--langfuse-timeout",
+        help="Seconds to wait for each trial's Langfuse traces to stop changing",
     ),
     verbose: int = typer.Option(
         0, "--verbose", "-v", count=True, help="Increase logging verbosity"
@@ -1411,7 +1412,9 @@ def run(
         help="Simulation output directory to resume; needs --resume",
     ),
     langfuse_timeout: int = typer.Option(
-        90, "--langfuse-timeout", help="Seconds to wait for Langfuse traces"
+        90,
+        "--langfuse-timeout",
+        help="Seconds to wait for each trial's Langfuse traces to stop changing",
     ),
     verbose: int = typer.Option(
         0, "--verbose", "-v", count=True, help="Increase logging verbosity"
