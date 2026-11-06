@@ -21,6 +21,8 @@ RESULTS = REPORTS / "results.json"
 TRACES = PurePosixPath("outputs/traces")
 """Folder of the traces `evaluate` saved, one file per session, named by `trace_file_name`."""
 LOGS = PurePosixPath("logs")
+CANCEL = PurePosixPath("cancel")
+"""File that stops a running `simulate`, `run` or `evaluate` the way a first Ctrl+C does."""
 
 
 def trace_file_name(session_id: str) -> str:

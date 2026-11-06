@@ -40,6 +40,7 @@ from metis.engine.tui import (
 
 if TYPE_CHECKING:
     import types as _types
+    from collections.abc import Callable
 
     from metis.core.model_settings import ModelRole
     from metis.core.reporting import GraderRecord
@@ -73,6 +74,57 @@ def _find_project_root() -> Path:
         if (parent / "pyproject.toml").exists():
             return parent
     return current
+
+
+def _runs_root(runs_dir: Path | None) -> Path:
+    """Return the folder that holds the run folders.
+
+    ``--runs-dir`` names it. Without that option, it is ``experiments/execute/`` in the
+    nearest folder above the working directory that has a ``pyproject.toml``.
+    """
+    if runs_dir is not None:
+        return runs_dir.resolve()
+    return _find_project_root() / execution_layout.EXECUTIONS
+
+
+_CANCEL_POLL_SECONDS = 0.5
+
+
+class _CancelWatcher:
+    """Set ``event`` once the run folder has a ``cancel`` file.
+
+    The engine polls for the file, so another process can stop a run on every
+    platform without a signal. ``on_cancel`` runs once, when the file appears.
+    """
+
+    def __init__(
+        self,
+        experiment_dir: Path,
+        event: threading.Event,
+        on_cancel: Callable[[], None],
+    ) -> None:
+        self._path = experiment_dir / execution_layout.CANCEL
+        self._event = event
+        self._on_cancel = on_cancel
+        self._stop = threading.Event()
+        self._thread = threading.Thread(
+            target=self._watch, name="metis-cancel-watcher", daemon=True
+        )
+
+    def _watch(self) -> None:
+        while not self._stop.wait(_CANCEL_POLL_SECONDS):
+            if self._path.exists():
+                self._event.set()
+                self._on_cancel()
+                return
+
+    def __enter__(self) -> _CancelWatcher:
+        self._thread.start()
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        self._stop.set()
+        self._thread.join()
 
 
 def _load_env() -> Path | None:
@@ -280,6 +332,10 @@ class EvaluationInputError(RuntimeError):
     """Raised when an experiment snapshot or run record is invalid."""
 
 
+class EvaluationCancelledError(RuntimeError):
+    """Raised when the run folder gets a ``cancel`` file during evaluation."""
+
+
 def _resolve_log_level(verbose: int, quiet: bool) -> str:
     """Resolve the CLI log level."""
     if quiet:
@@ -324,11 +380,11 @@ def _experiment_id(input_dir: Path) -> str | None:
         return None
 
 
-def _existing_outputs(input_dir: Path) -> list[Path]:
+def _existing_outputs(input_dir: Path, runs_dir: Path | None) -> list[Path]:
     experiment_id = _experiment_id(input_dir)
     if experiment_id is None:
         return []
-    experiments_root = _find_project_root() / execution_layout.EXECUTIONS
+    experiments_root = _runs_root(runs_dir)
     if not experiments_root.is_dir():
         return []
     pattern = re.compile(rf"^{re.escape(experiment_id)}-\d{{8}}-\d{{6}}$")
@@ -339,10 +395,12 @@ def _existing_outputs(input_dir: Path) -> list[Path]:
     )
 
 
-def _print_resume_flag_error(input_dir: Path, command: str) -> None:
+def _print_resume_flag_error(
+    input_dir: Path, command: str, runs_dir: Path | None
+) -> None:
     """Report that ``--resume`` needs ``--experiment-dir``, and list candidates."""
     experiment_id = _experiment_id(input_dir)
-    outputs = _existing_outputs(input_dir)
+    outputs = _existing_outputs(input_dir, runs_dir)
 
     if not outputs:
         if experiment_id is None:
@@ -379,6 +437,7 @@ def _resolve_simulation_target(
     *,
     resume: bool,
     command: str,
+    runs_dir: Path | None,
 ) -> Path:
     """Decide which directory ``simulate`` or ``run`` works on.
 
@@ -395,7 +454,7 @@ def _resolve_simulation_target(
 
     if resume:
         if input_dir is not None:
-            _print_resume_flag_error(input_dir, command)
+            _print_resume_flag_error(input_dir, command, runs_dir)
             raise typer.Exit(code=1)
         if experiment_dir is None:
             console.print("Error: --resume needs --experiment-dir.", style="bold red")
@@ -621,10 +680,11 @@ def _run_simulation(
     log_dir: Path | None,
     concurrency: int,
     resume: bool = False,
+    runs_dir: Path | None = None,
 ) -> Path:
     """Run simulation and return its experiment directory."""
     target = _resolve_simulation_target(
-        input_dir, experiment_dir, resume=resume, command=command
+        input_dir, experiment_dir, resume=resume, command=command, runs_dir=runs_dir
     )
     env_file = _load_env()
     tracing_key()
@@ -641,8 +701,6 @@ def _run_simulation(
     )
     from metis.engine.simulation.types import Specification
 
-    project_root = _find_project_root()
-
     if resume:
         experiment_dir = target
         specification = Specification.load_file(
@@ -650,14 +708,14 @@ def _run_simulation(
         )
         _check_simulation_settings(command, specification, env_file)
         fixtures_dir = experiment_dir / execution_layout.FIXTURES
+        # The cancel file that stopped the earlier run must not stop this one.
+        (experiment_dir / execution_layout.CANCEL).unlink(missing_ok=True)
     else:
         _validate_inputs(target)
         specification = Specification.load_file(target / "specification.yaml")
         _check_simulation_settings(command, specification, env_file)
         suffix = datetime.now().strftime("%Y%m%d-%H%M%S")
-        experiment_dir = (
-            project_root / execution_layout.EXECUTIONS / f"{specification.id}-{suffix}"
-        )
+        experiment_dir = _runs_root(runs_dir) / f"{specification.id}-{suffix}"
         experiment_dir.mkdir(parents=True)
         shutil.copytree(target, experiment_dir / execution_layout.INPUTS)
         fixtures_dir = experiment_dir / execution_layout.FIXTURES
@@ -794,9 +852,24 @@ def _run_simulation(
                     style="yellow",
                 )
 
+    def _handle_cancel_file() -> None:
+        # The cancel file counts as the first Ctrl+C, so a later Ctrl+C force-aborts.
+        nonlocal interrupt_count
+        with interrupt_lock:
+            interrupt_count = max(interrupt_count, 1)
+            if not use_tui:
+                console.print(
+                    "\nCancel file found. Finishing current trial. "
+                    "No new trials will start.",
+                    style="yellow",
+                )
+
     prev_handler = signal.signal(signal.SIGINT, _handle_sigint)
     try:
-        with tui_ctx if tui_ctx else nullcontext():
+        with (
+            _CancelWatcher(experiment_dir, shutdown_event, _handle_cancel_file),
+            tui_ctx if tui_ctx else nullcontext(),
+        ):
             execute_experiment(
                 runner_factory=runner_factory,
                 specification=specification,
@@ -1078,6 +1151,7 @@ async def _evaluate_records(
     started = time.monotonic()
     interactive_progress = sys.stderr.isatty()
     progress = _create_evaluation_progress() if interactive_progress else None
+    cancelled = False
 
     try:
         with progress if progress else nullcontext():
@@ -1087,6 +1161,9 @@ async def _evaluate_records(
                 else None
             )
             for index, record in enumerate(records):
+                if (experiment_dir / execution_layout.CANCEL).exists():
+                    cancelled = True
+                    break
                 label = f"{record.config.persona} x {record.config.scenario}"
                 failure_reason: str | None = None
                 warning: str | None = None
@@ -1225,7 +1302,7 @@ async def _evaluate_records(
                     )
                     phase("failed", advance=1)
 
-            if progress and task_id is not None:
+            if progress and task_id is not None and not cancelled:
                 progress.update(task_id, description="Evaluation complete")
     finally:
         if gateway is not None and needs_llm:
@@ -1235,6 +1312,12 @@ async def _evaluate_records(
     # results behind for `metis insights report` to pick up as current.
     results_path = experiment_dir / execution_layout.RESULTS
     results_path.unlink(missing_ok=True)
+    if cancelled:
+        # Results for part of the records would look complete to the report, so none
+        # are written. The trial records stay, and a new evaluate grades them all.
+        raise EvaluationCancelledError(
+            f"cancel file found after {successful + failed}/{len(records)} records"
+        )
     results_file: Path | None = None
     if all_records:
         elapsed = round(time.monotonic() - started, 1)
@@ -1291,6 +1374,14 @@ def _run_evaluation_command(
             verbose=verbose,
             quiet=quiet,
         )
+    except EvaluationCancelledError as exc:
+        EvaluationLogger(experiment_dir / execution_layout.LOGS, reset=False).write(
+            f"EVALUATION CANCELLED: {exc}"
+        )
+        console.print(
+            f"Evaluation stopped: {exc}. No results were written.", style="yellow"
+        )
+        raise typer.Exit(code=130) from None
     except EvaluationInputError as exc:
         EvaluationLogger(experiment_dir / execution_layout.LOGS, reset=False).write(
             f"EVALUATION FAILED — {exc}"
@@ -1302,6 +1393,12 @@ def _run_evaluation_command(
         )
         console.print(f"Error: evaluation failed: {exc}", style="bold red")
         raise typer.Exit(code=1) from exc
+
+
+_RUNS_DIR_HELP = (
+    "Folder for the run folders of new runs, and where a resume error looks for them "
+    "(default: experiments/execute/ in the nearest folder with a pyproject.toml)"
+)
 
 
 @app.command()
@@ -1341,6 +1438,9 @@ def simulate(
         "--resume",
         help="Continue the output named by --experiment-dir instead of starting a run",
     ),
+    runs_dir: Path | None = typer.Option(
+        None, "--runs-dir", help=_RUNS_DIR_HELP, show_default=False
+    ),
 ) -> None:
     """Run simulation only and prepare the evaluation handoff."""
     output_dir = _run_simulation(
@@ -1354,6 +1454,7 @@ def simulate(
         log_dir=log_dir,
         concurrency=concurrency,
         resume=resume,
+        runs_dir=runs_dir,
     )
     if not _trial_record_files(output_dir):
         console.print("No trial records found.", style="bold red")
@@ -1387,6 +1488,8 @@ def evaluate(
     except EvaluationInputError:
         raise typer.Exit(code=1) from None
     console.print(f"Selected experiment: {resolved_experiment_dir}")
+    # The cancel file that stopped an earlier command must not stop this one.
+    (resolved_experiment_dir / execution_layout.CANCEL).unlink(missing_ok=True)
     outcome = _run_evaluation_command(
         resolved_experiment_dir,
         langfuse_timeout=langfuse_timeout,
@@ -1438,6 +1541,9 @@ def run(
         "--resume",
         help="Continue the output named by --experiment-dir instead of starting a run",
     ),
+    runs_dir: Path | None = typer.Option(
+        None, "--runs-dir", help=_RUNS_DIR_HELP, show_default=False
+    ),
 ) -> None:
     """Run simulation followed by evaluation."""
     output_dir = _run_simulation(
@@ -1451,6 +1557,7 @@ def run(
         log_dir=log_dir,
         concurrency=concurrency,
         resume=resume,
+        runs_dir=runs_dir,
     )
     if not _trial_record_files(output_dir):
         console.print("No trial records found.", style="bold red")
