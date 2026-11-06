@@ -153,7 +153,7 @@ test("the document keeps node names and descriptions in their presentation roles
         persona_ref: "careful-reviewer",
         fixtures: [],
         num_trials: 3,
-        max_turns: 20,
+        max_turns: 10,
         timeout_minutes: 15,
         response_wait_ms: 300000,
         max_run_retries: null,

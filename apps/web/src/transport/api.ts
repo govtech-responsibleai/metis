@@ -32,6 +32,13 @@ type BinaryResponse<O, Status extends PropertyKey = 200> = O extends {
     : never
   : never;
 
+/**
+ * The most simulated turns in one Trial of a Task that does not set `max_turns`. The generated
+ * contract carries the server default only as a comment, so this matches `DEFAULT_MAX_TURNS` in
+ * `metis.core.experiment`.
+ */
+export const DEFAULT_MAX_TURNS = 10;
+
 type StartOperation = operations["start_api_v1_wizard_interview_start_post"];
 type TurnOperation = operations["turn_api_v1_wizard_interview_turn_post"];
 type EndOperation = operations["end_api_v1_wizard_interview_end_post"];
@@ -296,7 +303,7 @@ function normalizeSpecification(
       fixtures: task.fixtures ?? [],
       behaviour_refs: task.behaviour_refs ?? [],
       num_trials: task.num_trials ?? 3,
-      max_turns: task.max_turns ?? 20,
+      max_turns: task.max_turns ?? DEFAULT_MAX_TURNS,
       timeout_minutes: task.timeout_minutes ?? 15,
       response_wait_ms: task.response_wait_ms ?? 300000,
       max_run_retries: task.max_run_retries ?? null,

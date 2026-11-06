@@ -97,7 +97,7 @@
         "policy.pdf"
       ],
       "num_trials": 2,
-      "max_turns": 20,
+      "max_turns": 10,
       "timeout_minutes": 15,
       "response_wait_ms": 300000,
       "max_run_retries": null,
@@ -113,7 +113,7 @@
         "policy.pdf"
       ],
       "num_trials": 2,
-      "max_turns": 20,
+      "max_turns": 10,
       "timeout_minutes": 15,
       "response_wait_ms": 300000,
       "max_run_retries": null,
@@ -129,7 +129,7 @@
         "notes.txt"
       ],
       "num_trials": 1,
-      "max_turns": 20,
+      "max_turns": 10,
       "timeout_minutes": 15,
       "response_wait_ms": 300000,
       "max_run_retries": null,

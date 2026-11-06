@@ -1,9 +1,10 @@
-import type {
-  Dimension,
-  GraderSetting,
-  GraderSpec,
-  Specification,
-} from "./transport/api";
+import {
+  DEFAULT_MAX_TURNS,
+  type Dimension,
+  type GraderSetting,
+  type GraderSpec,
+  type Specification,
+} from "./transport/api.ts";
 
 export interface ManualMetadataEntry {
   key: string;
@@ -249,7 +250,7 @@ export function synthesizeManualSpecification(
       persona_ref: task.persona_ref,
       fixtures: [...task.fixtures],
       num_trials: task.num_trials,
-      max_turns: task.max_turns ?? 20,
+      max_turns: task.max_turns ?? DEFAULT_MAX_TURNS,
       timeout_minutes: task.timeout_minutes ?? 15,
       response_wait_ms: task.response_wait_ms ?? 300000,
       max_run_retries: task.max_run_retries ?? null,
