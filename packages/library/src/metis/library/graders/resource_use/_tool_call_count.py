@@ -65,6 +65,7 @@ class ToolCallCountGrader(Grader[ToolCallCountArgs]):
                     reason=f"The session made {count} tool call(s) against a budget "
                     f"of {budget}.",
                     scope="session",
+                    measurements={"tool_calls": float(count)},
                 )
             ]
         )

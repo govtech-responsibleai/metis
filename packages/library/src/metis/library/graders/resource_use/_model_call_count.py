@@ -65,6 +65,7 @@ class ModelCallCountGrader(Grader[ModelCallCountArgs]):
                     reason=f"The session made {count} model call(s) against a budget "
                     f"of {budget}.",
                     scope="session",
+                    measurements={"model_calls": float(count)},
                 )
             ]
         )

@@ -66,6 +66,7 @@ class ExecutionStepCountGrader(Grader[ExecutionStepCountArgs]):
                     reason=f"The session took {count} execution step(s) against a "
                     f"budget of {budget}.",
                     scope="session",
+                    measurements={"execution_steps": float(count)},
                 )
             ]
         )

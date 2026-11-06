@@ -67,6 +67,7 @@ class MonetaryCostGrader(Grader[MonetaryCostArgs]):
                     reason=f"The session cost ${cost:.4f} USD against a budget of "
                     f"${budget:.4f} USD.",
                     scope="session",
+                    measurements={"cost_usd": cost},
                 )
             ]
         )

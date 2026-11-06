@@ -67,6 +67,7 @@ class ElapsedTimeGrader(Grader[ElapsedTimeArgs]):
                     reason=f"The session took {elapsed:.1f} second(s) against a budget "
                     f"of {budget:.1f}.",
                     scope="session",
+                    measurements={"elapsed_seconds": elapsed},
                 )
             ]
         )

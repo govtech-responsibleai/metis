@@ -81,6 +81,7 @@ class TokenUsageGrader(Grader[TokenUsageArgs]):
                     reason=f"The session used {count:,} {category} token(s) against a "
                     f"budget of {budget:,}.",
                     scope="session",
+                    measurements={f"{category}_tokens": float(count)},
                 )
             ]
         )
