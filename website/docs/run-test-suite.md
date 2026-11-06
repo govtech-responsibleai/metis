@@ -40,6 +40,16 @@ Give both flags together. Resume reads the specification from the frozen `inputs
 output folder, not from your source folder, and it retries only the trials that are missing or
 failed with a system error. Do not combine `--resume` with `--input-dir`.
 
+## Stop a run
+
+Press Ctrl+C once. Each trial in progress finishes its current turn and saves its record, and no
+new trial starts. Press Ctrl+C again to stop at once.
+
+A program that starts METIS can stop a run without a key press. It creates an empty file named
+`cancel` in the output folder, for example `experiments/execute/<your-run>/cancel`. The run stops
+the same way as after the first Ctrl+C. This also works on Windows. The saved trials stay, so you
+can resume the run later. Resume deletes the old `cancel` file when it starts.
+
 ## Simulate and evaluate together
 
 `metis engine run` does both steps, and also takes `--resume --experiment-dir`:
@@ -58,6 +68,7 @@ metis engine run --resume --experiment-dir experiments/execute/<your-run>
 | `--quiet` | Show errors only |
 | `--log-format` | `text` (default) or `json` for the log files |
 | `--log-dir` | Write the logs to another folder |
+| `--runs-dir` | Put the output folders in this folder, from any working directory. The default is `experiments/execute/` in the nearest folder with a `pyproject.toml` |
 
 ## Outputs
 
