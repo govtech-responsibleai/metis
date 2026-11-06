@@ -124,11 +124,17 @@ experiments/execute/toyapp-http-simple-20260730-143022/
 │       ├── report.json            # Insights
 │       └── report.html            # Insights
 └── logs/
+    ├── events.jsonl               # One RunEvent per line, for simulate and evaluate
     ├── simulate.log
     ├── simulate-TC-001_cooperative-delegator-01.log
     ├── llm_calls.jsonl            # LLM requests made once per experiment
     └── evaluate.log
 ```
+
+`logs/events.jsonl` is the run's progress for other programs. Each line is one `RunEvent`
+from `metis.core.run_events`, validated by `packages/core/schemas/run-event.schema.json`.
+`seq` numbers the lines from 1 and continues when a resume or a later `evaluate` appends.
+The file always stays in the run folder, also when `--log-dir` moves the other logs.
 
 ## Programmatic usage
 

@@ -53,7 +53,7 @@ experiments/execute/<your-run>/
 │   ├── trials/             # One folder per trial, with its record and artifacts
 │   └── reports/
 │       └── results.json    # Written by evaluate
-└── logs/                   # simulate.log, evaluate.log, and more
+└── logs/                   # events.jsonl, simulate.log, evaluate.log, and more
 ```
 
 The folder name comes from the experiment `id` and the start time. A run that only simulated
