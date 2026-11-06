@@ -268,7 +268,7 @@ def test_omitted_execution_settings_use_engine_defaults() -> None:
     parsed = Specification.model_validate(document)
     resolved = parsed.resolved_tasks()[0]
     assert tuple(getattr(resolved, field) for field in resolved_fields) == (
-        20,
+        10,
         15,
         300000,
         None,

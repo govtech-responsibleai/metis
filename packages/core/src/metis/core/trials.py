@@ -21,6 +21,7 @@ from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import core_schema as cs
 
 from metis.core.artifacts import Artifact
+from metis.core.experiment import DEFAULT_MAX_TURNS
 from metis.core.profile import CriterionDescription
 
 _TRIAL_RECORD_VERSION = 1
@@ -119,7 +120,7 @@ class TrialConfig(BaseModel, extra="ignore"):
     persona: str
     scenario: str
     grader_refs: list[GraderRef] = Field(default_factory=list)
-    max_turns: int = 20
+    max_turns: int = DEFAULT_MAX_TURNS
     timeout_minutes: int = 15
     response_wait_ms: int = 300000
     fixtures: list[str] = Field(default_factory=list)

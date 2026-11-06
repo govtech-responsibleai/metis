@@ -13,7 +13,7 @@ class TestScenarioLimits:
             description="test",
             persona_refs=["p1"],
         )
-        assert s.max_turns == 20
+        assert s.max_turns == 10
         assert s.timeout_minutes == 15
         assert s.response_wait_ms == 300000
 
@@ -57,7 +57,7 @@ class TestTrialConfigFromScenario:
             timeout_minutes=s.timeout_minutes,
             response_wait_ms=s.response_wait_ms,
         )
-        assert rc.max_turns == 20
+        assert rc.max_turns == 10
         assert rc.timeout_minutes == 15
         assert rc.response_wait_ms == 300000
 

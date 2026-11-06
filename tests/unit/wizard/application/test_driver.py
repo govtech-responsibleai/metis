@@ -1522,6 +1522,7 @@ def test_a_test_case_is_created_and_edited_in_its_row_and_pairs_stay_unique() ->
         5,
         ["policy.pdf"],
     )
+    assert created.max_turns == 10
     # Every pair is now used, so "+" is shown but unavailable.
     assert not offered(driver.compose(state), "add", "tasks").enabled
 

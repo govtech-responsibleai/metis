@@ -2028,7 +2028,7 @@ export interface components {
             behaviour_refs?: string[];
             /**
              * Max Turns
-             * @default 20
+             * @default 10
              */
             max_turns: number;
             /**

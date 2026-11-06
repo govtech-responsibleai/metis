@@ -12,7 +12,7 @@ from typing import Any, Literal, Self
 from pydantic import BaseModel, Field, model_validator
 
 from metis.core import Artifact
-from metis.core.experiment import Persona, Task
+from metis.core.experiment import DEFAULT_MAX_TURNS, Persona, Task
 from metis.core.specification import Specification as CoreSpecification
 from metis.core.trials import GraderRef
 
@@ -121,7 +121,7 @@ class Scenario(BaseModel):
     fixtures: list[str] = Field(default_factory=list)
     persona_refs: list[str] = Field(min_length=1)
     grader_refs: list[GraderRef] = Field(default_factory=list)
-    max_turns: int = 20
+    max_turns: int = DEFAULT_MAX_TURNS
     timeout_minutes: int = 15
     response_wait_ms: int = 300000
     max_trial_retries: int | None = None

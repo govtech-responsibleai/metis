@@ -15,6 +15,9 @@ from pydantic import (
 
 from metis.core.profile import NamedNode
 
+DEFAULT_MAX_TURNS = 10
+"""The most simulated turns in one Trial of a Task that does not set ``max_turns``."""
+
 
 def _require_relative(path: str) -> str:
     if (
@@ -70,7 +73,7 @@ class Task(BaseModel, extra="forbid"):
     fixtures: list[str] = Field(default_factory=list)
     num_trials: int = Field(default=3, strict=True)
     behaviour_refs: list[str] = Field(default_factory=list)
-    max_turns: int = Field(default=20, gt=0, strict=True)
+    max_turns: int = Field(default=DEFAULT_MAX_TURNS, gt=0, strict=True)
     timeout_minutes: int = Field(default=15, gt=0, strict=True)
     response_wait_ms: int = Field(default=300000, gt=0, strict=True)
     max_run_retries: int | None = Field(default=None, ge=0, strict=True)
