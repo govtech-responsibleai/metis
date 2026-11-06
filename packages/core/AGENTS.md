@@ -56,3 +56,8 @@ Private runtime models and API models stay in their owning packages. See the
   (`TrialConfig`, `TrialOutcome`, `TrialFailure`, `GraderRef`). The engine writes and resumes
   from it; the report reads it. Version-guarded by `_TRIAL_RECORD_VERSION`, no published
   schema file.
+- `run_events.py`: `RunEvent` (one line of `logs/events.jsonl`, a union on `type`) and
+  `RunEventLog`, the one writer. It numbers lines with `seq`, continues from the last line
+  of the file, and writes one flushed line per event under a lock. Source of
+  `schemas/run-event.schema.json`, versioned by `_RUN_EVENT_VERSION`. Keep events small:
+  IDs, counts, statuses and `short_reason` text, never a key, a prompt or a model reply.
