@@ -1,0 +1,688 @@
+{
+  "$defs": {
+    "Grade": {
+      "description": "One criterion's grader ran on the trial. The counts are of its results.",
+      "properties": {
+        "seq": {
+          "description": "Line number of the event in the file, from 1.",
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "at": {
+          "description": "UTC time at which the engine wrote the event.",
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "trial": {
+          "description": "The trial's folder name under outputs/trials/.",
+          "title": "Trial",
+          "type": "string"
+        },
+        "type": {
+          "const": "grade",
+          "default": "grade",
+          "title": "Type",
+          "type": "string"
+        },
+        "criterion_id": {
+          "title": "Criterion Id",
+          "type": "string"
+        },
+        "passed": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Passed",
+          "type": "integer"
+        },
+        "failed": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Failed",
+          "type": "integer"
+        },
+        "skipped": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Skipped",
+          "type": "integer"
+        },
+        "errored": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Errored",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "seq",
+        "at",
+        "trial",
+        "criterion_id"
+      ],
+      "title": "Grade",
+      "type": "object"
+    },
+    "PhaseStarted": {
+      "description": "A phase started. ``run`` writes one for simulating, then one for evaluating.",
+      "properties": {
+        "seq": {
+          "description": "Line number of the event in the file, from 1.",
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "at": {
+          "description": "UTC time at which the engine wrote the event.",
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "type": {
+          "const": "phase_started",
+          "default": "phase_started",
+          "title": "Type",
+          "type": "string"
+        },
+        "phase": {
+          "enum": [
+            "simulating",
+            "evaluating"
+          ],
+          "title": "Phase",
+          "type": "string"
+        },
+        "total": {
+          "description": "Trials in the phase, done ones included.",
+          "minimum": 0,
+          "title": "Total",
+          "type": "integer"
+        },
+        "done": {
+          "default": 0,
+          "description": "Trials that an earlier run already finished.",
+          "minimum": 0,
+          "title": "Done",
+          "type": "integer"
+        },
+        "trials": {
+          "description": "Trials that this phase works on, in order.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Trials",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "seq",
+        "at",
+        "phase",
+        "total"
+      ],
+      "title": "PhaseStarted",
+      "type": "object"
+    },
+    "RunEnded": {
+      "description": "The command that wrote the last ``run_started`` stopped.",
+      "properties": {
+        "seq": {
+          "description": "Line number of the event in the file, from 1.",
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "at": {
+          "description": "UTC time at which the engine wrote the event.",
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "type": {
+          "const": "run_ended",
+          "default": "run_ended",
+          "title": "Type",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "failed",
+            "interrupted"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "type",
+        "seq",
+        "at",
+        "status"
+      ],
+      "title": "RunEnded",
+      "type": "object"
+    },
+    "RunStarted": {
+      "description": "A command started work on the run folder. A resumed run writes a new one.",
+      "properties": {
+        "seq": {
+          "description": "Line number of the event in the file, from 1.",
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "at": {
+          "description": "UTC time at which the engine wrote the event.",
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "type": {
+          "const": "run_started",
+          "default": "run_started",
+          "title": "Type",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "command": {
+          "enum": [
+            "simulate",
+            "evaluate",
+            "run"
+          ],
+          "title": "Command",
+          "type": "string"
+        },
+        "resumed": {
+          "default": false,
+          "title": "Resumed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "seq",
+        "at",
+        "command"
+      ],
+      "title": "RunStarted",
+      "type": "object"
+    },
+    "TraceWaitEnded": {
+      "description": "The wait for the trial's traces ended.",
+      "properties": {
+        "seq": {
+          "description": "Line number of the event in the file, from 1.",
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "at": {
+          "description": "UTC time at which the engine wrote the event.",
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "trial": {
+          "description": "The trial's folder name under outputs/trials/.",
+          "title": "Trial",
+          "type": "string"
+        },
+        "type": {
+          "const": "trace_wait_ended",
+          "default": "trace_wait_ended",
+          "title": "Type",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "found",
+            "not_found",
+            "error"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "traces": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Traces",
+          "type": "integer"
+        },
+        "seconds": {
+          "minimum": 0,
+          "title": "Seconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "seq",
+        "at",
+        "trial",
+        "outcome",
+        "seconds"
+      ],
+      "title": "TraceWaitEnded",
+      "type": "object"
+    },
+    "TraceWaitStarted": {
+      "description": "The engine started to wait for the trial's traces in Langfuse.",
+      "properties": {
+        "seq": {
+          "description": "Line number of the event in the file, from 1.",
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "at": {
+          "description": "UTC time at which the engine wrote the event.",
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "trial": {
+          "description": "The trial's folder name under outputs/trials/.",
+          "title": "Trial",
+          "type": "string"
+        },
+        "type": {
+          "const": "trace_wait_started",
+          "default": "trace_wait_started",
+          "title": "Type",
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "minimum": 0,
+          "title": "Timeout Seconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "seq",
+        "at",
+        "trial",
+        "timeout_seconds"
+      ],
+      "title": "TraceWaitStarted",
+      "type": "object"
+    },
+    "TrialEnded": {
+      "description": "A simulated trial ended and its record.json was written.",
+      "properties": {
+        "seq": {
+          "description": "Line number of the event in the file, from 1.",
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "at": {
+          "description": "UTC time at which the engine wrote the event.",
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "trial": {
+          "description": "The trial's folder name under outputs/trials/.",
+          "title": "Trial",
+          "type": "string"
+        },
+        "type": {
+          "const": "trial_ended",
+          "default": "trial_ended",
+          "title": "Type",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "failed",
+            "interrupted"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "stop_reason": {
+          "title": "Stop Reason",
+          "type": "string"
+        },
+        "turns": {
+          "minimum": 0,
+          "title": "Turns",
+          "type": "integer"
+        },
+        "duration_seconds": {
+          "minimum": 0,
+          "title": "Duration Seconds",
+          "type": "number"
+        },
+        "failure_reason": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failure Reason"
+        }
+      },
+      "required": [
+        "type",
+        "seq",
+        "at",
+        "trial",
+        "status",
+        "stop_reason",
+        "turns",
+        "duration_seconds"
+      ],
+      "title": "TrialEnded",
+      "type": "object"
+    },
+    "TrialGraded": {
+      "description": "The evaluating phase finished one trial.",
+      "properties": {
+        "seq": {
+          "description": "Line number of the event in the file, from 1.",
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "at": {
+          "description": "UTC time at which the engine wrote the event.",
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "trial": {
+          "description": "The trial's folder name under outputs/trials/.",
+          "title": "Trial",
+          "type": "string"
+        },
+        "type": {
+          "const": "trial_graded",
+          "default": "trial_graded",
+          "title": "Type",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "graded",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "failure_reason": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failure Reason"
+        }
+      },
+      "required": [
+        "type",
+        "seq",
+        "at",
+        "trial",
+        "status"
+      ],
+      "title": "TrialGraded",
+      "type": "object"
+    },
+    "TrialRetry": {
+      "description": "An attempt failed and the trial starts another one.",
+      "properties": {
+        "seq": {
+          "description": "Line number of the event in the file, from 1.",
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "at": {
+          "description": "UTC time at which the engine wrote the event.",
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "trial": {
+          "description": "The trial's folder name under outputs/trials/.",
+          "title": "Trial",
+          "type": "string"
+        },
+        "type": {
+          "const": "trial_retry",
+          "default": "trial_retry",
+          "title": "Type",
+          "type": "string"
+        },
+        "attempt": {
+          "description": "The attempt that failed.",
+          "minimum": 1,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "max_attempts": {
+          "minimum": 1,
+          "title": "Max Attempts",
+          "type": "integer"
+        },
+        "failure_type": {
+          "title": "Failure Type",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "type",
+        "seq",
+        "at",
+        "trial",
+        "attempt",
+        "max_attempts",
+        "failure_type"
+      ],
+      "title": "TrialRetry",
+      "type": "object"
+    },
+    "TrialStarted": {
+      "description": "A simulated trial started its first attempt.",
+      "properties": {
+        "seq": {
+          "description": "Line number of the event in the file, from 1.",
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "at": {
+          "description": "UTC time at which the engine wrote the event.",
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "trial": {
+          "description": "The trial's folder name under outputs/trials/.",
+          "title": "Trial",
+          "type": "string"
+        },
+        "type": {
+          "const": "trial_started",
+          "default": "trial_started",
+          "title": "Type",
+          "type": "string"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "persona_id": {
+          "title": "Persona Id",
+          "type": "string"
+        },
+        "trial_index": {
+          "minimum": 1,
+          "title": "Trial Index",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "seq",
+        "at",
+        "trial",
+        "task_id",
+        "persona_id",
+        "trial_index"
+      ],
+      "title": "TrialStarted",
+      "type": "object"
+    },
+    "Turn": {
+      "description": "A simulated turn finished: the user agent acted and the runner reported back.",
+      "properties": {
+        "seq": {
+          "description": "Line number of the event in the file, from 1.",
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "at": {
+          "description": "UTC time at which the engine wrote the event.",
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "trial": {
+          "description": "The trial's folder name under outputs/trials/.",
+          "title": "Trial",
+          "type": "string"
+        },
+        "type": {
+          "const": "turn",
+          "default": "turn",
+          "title": "Type",
+          "type": "string"
+        },
+        "turn": {
+          "minimum": 1,
+          "title": "Turn",
+          "type": "integer"
+        },
+        "max_turns": {
+          "minimum": 1,
+          "title": "Max Turns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "seq",
+        "at",
+        "trial",
+        "turn",
+        "max_turns"
+      ],
+      "title": "Turn",
+      "type": "object"
+    }
+  },
+  "description": "One line of ``logs/events.jsonl``. Validate a line with ``RunEvent.parse_line``.",
+  "discriminator": {
+    "mapping": {
+      "grade": "#/$defs/Grade",
+      "phase_started": "#/$defs/PhaseStarted",
+      "run_ended": "#/$defs/RunEnded",
+      "run_started": "#/$defs/RunStarted",
+      "trace_wait_ended": "#/$defs/TraceWaitEnded",
+      "trace_wait_started": "#/$defs/TraceWaitStarted",
+      "trial_ended": "#/$defs/TrialEnded",
+      "trial_graded": "#/$defs/TrialGraded",
+      "trial_retry": "#/$defs/TrialRetry",
+      "trial_started": "#/$defs/TrialStarted",
+      "turn": "#/$defs/Turn"
+    },
+    "propertyName": "type"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/RunStarted"
+    },
+    {
+      "$ref": "#/$defs/PhaseStarted"
+    },
+    {
+      "$ref": "#/$defs/TrialStarted"
+    },
+    {
+      "$ref": "#/$defs/Turn"
+    },
+    {
+      "$ref": "#/$defs/TrialRetry"
+    },
+    {
+      "$ref": "#/$defs/TrialEnded"
+    },
+    {
+      "$ref": "#/$defs/TraceWaitStarted"
+    },
+    {
+      "$ref": "#/$defs/TraceWaitEnded"
+    },
+    {
+      "$ref": "#/$defs/Grade"
+    },
+    {
+      "$ref": "#/$defs/TrialGraded"
+    },
+    {
+      "$ref": "#/$defs/RunEnded"
+    }
+  ],
+  "title": "RunEvent v1"
+}
