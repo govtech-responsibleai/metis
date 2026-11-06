@@ -50,6 +50,18 @@ class Target:
             return httpx.Response(200, json={"fileId": "f-1"})
         if path == "/api/v1/sessions":
             return httpx.Response(201, json={"session_id": "s-2", "messages": []})
+        if path == "/api/v1/invalid-session":
+            return httpx.Response(200, json={"session_id": "s/id"})
+        if path == "/api/v1/null-session":
+            return httpx.Response(200, json={"session_id": None})
+        if path == "/api/v1/empty-session":
+            return httpx.Response(200, json={"session_id": ""})
+        if path == "/api/v1/boolean-session":
+            return httpx.Response(200, json={"session_id": True})
+        if path == "/api/v1/long-session":
+            return httpx.Response(200, json={"session_id": "s" * 201})
+        if path == "/api/v1/max-length-session":
+            return httpx.Response(200, json={"session_id": "s" * 200})
         if path == "/api/v1/limited" and self.limited:
             self.limited -= 1
             return httpx.Response(429, headers={"retry-after": self.retry_after})
@@ -360,6 +372,72 @@ async def test_the_session_id_comes_from_a_submissions_reply(tmp_path: Path) -> 
 
     runner.record_session_id(Pointer(chat["response_entry"], "$.sessionId"))
     assert runner.session_id == "s-1"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["$", None])
+async def test_the_session_id_can_be_unwrapped_from_the_whole_reply(
+    tmp_path: Path, path: str | None
+) -> None:
+    runner, _ = await _ready(tmp_path)
+    runner.begin_action("Say ⟦hi⟧")
+    opened = await runner.http_request("POST", "/sessions", json={})
+
+    runner.record_session_id(Pointer(opened["response_entry"], path))
+
+    assert runner.session_id == "s-2"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["$", None])
+async def test_a_whole_reply_without_session_id_is_rejected_and_can_be_corrected(
+    tmp_path: Path, path: str | None
+) -> None:
+    runner, _ = await _ready(tmp_path)
+    runner.begin_action("Say ⟦hi⟧")
+    chat = await runner.http_request("POST", "/chat", json={"m": "{{1}}"})
+
+    with pytest.raises(PointerError, match="not a session ID"):
+        runner.record_session_id(Pointer(chat["response_entry"], path))
+
+    assert runner.session_id is None
+    runner.record_session_id(Pointer(chat["response_entry"], "$.sessionId"))
+    assert runner.session_id == "s-1"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "/invalid-session",
+        "/null-session",
+        "/empty-session",
+        "/boolean-session",
+        "/long-session",
+    ],
+)
+async def test_an_invalid_session_id_is_rejected_without_being_recorded(
+    tmp_path: Path, endpoint: str
+) -> None:
+    runner, _ = await _ready(tmp_path)
+    runner.begin_action("Check ⟦state⟧")
+    response = await runner.http_request("GET", endpoint)
+
+    with pytest.raises(PointerError, match="not a session ID"):
+        runner.record_session_id(Pointer(response["response_entry"], "$.session_id"))
+
+    assert runner.session_id is None
+
+
+@pytest.mark.asyncio
+async def test_a_session_id_at_the_maximum_length_is_accepted(tmp_path: Path) -> None:
+    runner, _ = await _ready(tmp_path)
+    runner.begin_action("Check ⟦state⟧")
+    response = await runner.http_request("GET", "/max-length-session")
+
+    runner.record_session_id(Pointer(response["response_entry"], "$.session_id"))
+
+    assert runner.session_id == "s" * 200
 
 
 @pytest.mark.asyncio
