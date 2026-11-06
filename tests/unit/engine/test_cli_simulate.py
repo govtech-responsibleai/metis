@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
@@ -319,6 +320,105 @@ def test_a_factory_with_from_specification_gets_the_specification_and_inputs(
 
     assert result.exit_code == 0, result.output
     assert _SpecFactory.received == ("targets/app.yaml", output_dir / "inputs")
+
+
+def test_runs_dir_holds_the_new_run_from_any_working_directory(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _capture_factory(monkeypatch)
+    input_dir = _write_source(tmp_path)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "pyproject.toml").write_text("")
+    monkeypatch.chdir(elsewhere)
+
+    result = runner.invoke(
+        app,
+        [
+            "simulate",
+            "--input-dir",
+            str(input_dir),
+            "--runs-dir",
+            str(tmp_path / "runs"),
+            "--no-tui",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    [run_dir] = (tmp_path / "runs").iterdir()
+    assert run_dir.name.startswith("test-exp-")
+    assert (run_dir / "inputs" / "specification.yaml").is_file()
+    assert not (elsewhere / "experiments").exists()
+
+
+def test_resume_with_input_dir_lists_outputs_in_the_runs_dir(tmp_path: Path) -> None:
+    input_dir = _write_source(tmp_path)
+    output = _write_output(tmp_path / "runs" / "test-exp-20260101-010101")
+
+    result = runner.invoke(
+        app,
+        [
+            "simulate",
+            "--resume",
+            "--input-dir",
+            str(input_dir),
+            "--runs-dir",
+            str(tmp_path / "runs"),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert _compact(str(output.resolve())) in _compact(result.output)
+
+
+def test_cancel_file_stops_the_run_and_resume_redoes_only_unsaved_trials(
+    monkeypatch, tmp_path: Path
+) -> None:
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    (input_dir / "specification.yaml").write_text(TWO_TRIAL_EXPERIMENT)
+    monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
+    monkeypatch.setattr(cli, "_CANCEL_POLL_SECONDS", 0.01)
+    stopped: list[bool] = []
+    selected: list[int] = []
+
+    def first_run(*_args: object, **kwargs: Any) -> None:
+        output_dir: Path = kwargs["output_dir"]
+        _write_record(output_dir, "TC-001-alice-1")
+        (output_dir / "cancel").touch()
+        stopped.append(kwargs["shutdown_event"].wait(timeout=5))
+
+    monkeypatch.setattr(experiment_module, "execute_experiment", first_run)
+    result = runner.invoke(
+        app,
+        [
+            "simulate",
+            "--input-dir",
+            str(input_dir),
+            "--runs-dir",
+            str(tmp_path / "runs"),
+            "--no-tui",
+        ],
+    )
+
+    assert result.exit_code == 130, result.output
+    assert stopped == [True]
+    [run_dir] = (tmp_path / "runs").iterdir()
+    assert (run_dir / "outputs" / "trials" / "TC-001-alice-1" / "record.json").exists()
+
+    def resumed_run(*_args: object, **kwargs: Any) -> None:
+        selected.extend(trial_index for _s, _p, trial_index in kwargs["trial_plan"])
+        stopped.append(kwargs["shutdown_event"].is_set())
+
+    monkeypatch.setattr(experiment_module, "execute_experiment", resumed_run)
+    result = runner.invoke(
+        app, ["simulate", "--resume", "--experiment-dir", str(run_dir), "--no-tui"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert selected == [2]
+    assert stopped == [True, False]
+    assert not (run_dir / "cancel").exists()
 
 
 def test_a_binding_error_prints_and_exits_one(monkeypatch, tmp_path: Path) -> None:

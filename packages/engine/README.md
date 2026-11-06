@@ -57,6 +57,10 @@ metis engine simulate --input-dir packages/engine/examples/http-agentic_eval_toy
 # Structured log files (JSON lines)
 metis engine simulate --input-dir packages/engine/examples/http-agentic_eval_toyapp-1/ --log-format json
 
+# Put the run folders in another folder (default: experiments/execute/ in the nearest
+# folder with a pyproject.toml)
+metis engine run --input-dir packages/engine/examples/http-agentic_eval_toyapp-1/ --runs-dir /srv/metis/runs
+
 # Override log directory (default: co-located with results)
 metis engine simulate --input-dir packages/engine/examples/http-agentic_eval_toyapp-1/ --log-dir /tmp/my-logs
 
@@ -81,6 +85,8 @@ The two commands take different paths. `simulate` takes the source experiment as
 Evaluation has no TUI option. It uses a normal progress bar in a terminal and linear per-record progress in a non-interactive environment.
 
 Resume continues the output directory named by `--experiment-dir`. It reads the experiment and fixtures from that directory's frozen `inputs/` snapshot, retries only missing, invalid, or `system_error` records, and appends to `logs/simulate.log`. `simulate` and `run` print the exact resume command. Passing `--resume` with `--input-dir` is an error; the message lists the outputs that exist for the experiment `id`.
+
+To stop a run from another program, create an empty `cancel` file in its output directory. The run stops the same way as after the first Ctrl+C, on every platform, and its saved trials stay. During evaluation it stops before the next record and writes no results. Resume and `evaluate` delete an old `cancel` file when they start. See [the engine guide](../../docs/guide/engine.md#stop-a-run-with-a-cancel-file).
 
 ### Concurrency
 

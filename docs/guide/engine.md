@@ -148,7 +148,7 @@ The combined `run` command closes the Simulation TUI before it starts the evalua
 
 ### Where Results Land
 
-Each execution produces output in `experiments/execute/<id>-<timestamp>/`. The `outputs/reports/` directory is created by `evaluate` or `run`, which write `results.json`; `metis insights report` adds `report.json` and `report.html`. Simulation-only runs stop after `outputs/trials/` and `logs/`:
+Each execution produces output in `experiments/execute/<id>-<timestamp>/`. The `experiments/execute/` folder is in the nearest folder above the working directory that has a `pyproject.toml`. To put the run folders in another folder, pass `--runs-dir <folder>` to `simulate` or `run`. The run folder is then `<folder>/<id>-<timestamp>/`, from any working directory. The `outputs/reports/` directory is created by `evaluate` or `run`, which write `results.json`; `metis insights report` adds `report.json` and `report.html`. Simulation-only runs stop after `outputs/trials/` and `logs/`:
 
 ```text
 experiments/execute/toyapp-http-simple-20260730-143022/
@@ -441,6 +441,7 @@ The flags below are optional and apply to both modes:
 | `--no-tui` | `false` | Disable TUI dashboard (force linear log output) |
 | `--log-format` | `text` | Log file format: `text` or `json` |
 | `--log-dir` | co-located with results | Override the log output directory |
+| `--runs-dir` | `experiments/execute/` in the nearest folder with a `pyproject.toml` | Folder that holds the run folders. A new run goes to `<runs-dir>/<id>-<timestamp>/`. When `--resume` is given with `--input-dir`, the error lists the outputs in this folder |
 
 ### Evaluation options
 
@@ -488,6 +489,14 @@ The Simulation TUI and evaluation progress are visible regardless of verbosity l
 
 - **First Ctrl+C:** finishes the current simulated turn gracefully, then stops
 - **Second Ctrl+C:** force-aborts immediately
+
+### Stop a run with a cancel file
+
+Another program can stop a run without a signal. It creates an empty file named `cancel` in the run folder, for example `experiments/execute/toyapp-http-simple-20260820-143000/cancel`. This works on every platform, Windows included.
+
+The engine checks for the file every half second. During simulation, the file has the same effect as the first Ctrl+C: each trial in progress finishes its current simulated turn and saves its record, and no new trial starts. A Ctrl+C after the file force-aborts. The command exits with code 130. During evaluation, the engine checks before each trial record. It stops before the next record, writes no `results.json`, and exits with code 130.
+
+The saved trial records stay. To continue, run `--resume --experiment-dir` on the same folder. Resume and `evaluate` delete an old `cancel` file when they start, so it does not stop them.
 
 ### Non-TTY Environments
 
@@ -577,7 +586,7 @@ and makes calls through `llm.client`, a shared `AsyncOpenAI`.
 | "could not be imported" | FQN typo or module not installed | Check the import path for typos, ensure the package containing the grader is installed in your venv |
 | Simulation hangs indefinitely | Target unresponsive or page never finishes loading | Use `HEADED=true` to see the browser, increase the Task's `response_wait_ms` |
 | Simulation TUI not appearing | Running in a non-TTY environment | Expected — the Simulation TUI requires an interactive terminal. Use linear output or run in a real terminal |
-| Ctrl+C doesn't stop immediately | Graceful shutdown is finishing the current simulated turn | Press Ctrl+C a second time to force-abort |
+| Ctrl+C or a `cancel` file doesn't stop immediately | Graceful shutdown is finishing the current simulated turn | Press Ctrl+C a second time to force-abort |
 | "is not a subclass of metis.library.grader.Grader" | The FQN names something other than a grader | Subclass metis.library.grader.Grader[YourArgs] and set args_model = YourArgs |
 | "has invalid grader_args" | A grader_args key is misspelt, has the wrong type, or is out of range | Fix the field the message names; keys must match the grader's args_model |
 | Duplicate persona/scenario ID error | Two entries share the same `id` | Use unique IDs for every persona and scenario |

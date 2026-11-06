@@ -220,6 +220,9 @@ same execution root and writes `report.json` and `report.html` beside the result
 Insights reads recorded `GraderRecord` results and rejects the earlier `turn_results` and
 `session_results` format. It uses recorded Criterion IDs and arguments without creating graders.
 `--experiment-dir` identifies the execution root for evaluation and resume.
+`--runs-dir` on `simulate` and `run` replaces `experiments/execute/` with a named folder, so a
+caller in any working directory knows where new execution roots go. A `cancel` file in the
+execution root stops the run like a first Ctrl+C. Engine polls for it, so it needs no signal.
 `metis.core.execution_layout` owns the paths shared by Engine and Insights.
 Logs remain under `logs/`, with the existing simulation log override. Artifact paths
 in trial records remain relative to the execution root.

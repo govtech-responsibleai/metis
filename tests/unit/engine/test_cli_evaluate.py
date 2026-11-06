@@ -304,6 +304,33 @@ def test_reevaluation_with_no_successes_removes_stale_results(
     assert not (output / "outputs" / "reports" / "results.json").exists()
 
 
+def test_cancel_file_stops_evaluation_before_the_next_record(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_record(output, run_name="run-1", session_id="session-1")
+    _write_record(output, run_name="run-2", session_id="session-2")
+    # A cancel file left by an earlier command does not stop this one.
+    (output / "cancel").touch()
+    fetched: list[str] = []
+
+    def fetch(session_id: str, _langfuse: object, **_kwargs: Any) -> GradingInput:
+        fetched.append(session_id)
+        (output / "cancel").touch()
+        return _session(session_id)
+
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+
+    result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
+
+    assert result.exit_code == 130
+    assert len(fetched) == 1
+    assert "No results were written" in " ".join(result.output.split())
+    assert not (output / "outputs" / "reports" / "results.json").exists()
+    assert len(list((output / "outputs" / "trials").glob("*/record.json"))) == 2
+
+
 def test_report_command_keeps_square_brackets_in_paths(
     monkeypatch, tmp_path: Path
 ) -> None:
