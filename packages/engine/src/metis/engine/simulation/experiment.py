@@ -10,13 +10,19 @@ import asyncio
 import json
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 import structlog
 
 from metis.core import execution_layout
 from metis.core.console import console
 from metis.core.logging import get_logger
+from metis.core.run_events import (
+    TrialEnded,
+    TrialRetry,
+    TrialStarted,
+    short_reason,
+)
 from metis.core.trials import TrialConfig, TrialFailure, TrialOutcome, TrialRecord
 from metis.engine.tracing import traced, trial_session_id
 
@@ -31,6 +37,7 @@ from .trial import create_trial, resolve_fixture_descriptions
 if TYPE_CHECKING:
     import threading
 
+    from metis.core.run_events import RunEventLog
     from metis.engine.logging import LogRouter, OrchestrationLogger
     from metis.engine.tui import SimulationState, TUIContext
 
@@ -117,10 +124,12 @@ def execute_experiment(
     log_router: LogRouter | None = None,
     tui_ctx: TUIContext | None = None,
     shutdown_event: threading.Event | None = None,
+    events: RunEventLog | None = None,
 ) -> None:
     """Run a full experiment (all scenario x persona pairs).
 
-    Sync entry point — delegates to the async orchestrator via asyncio.run().
+    Sync entry point — delegates to the async orchestrator via asyncio.run(). With
+    ``events``, each trial writes its start, turns, retries and end to the run's event log.
     """
     asyncio.run(
         _execute_experiment_async(
@@ -138,6 +147,7 @@ def execute_experiment(
             log_router=log_router,
             tui_ctx=tui_ctx,
             shutdown_event=shutdown_event,
+            events=events,
         )
     )
 
@@ -157,6 +167,7 @@ async def _execute_experiment_async(
     log_router: LogRouter | None = None,
     tui_ctx: TUIContext | None = None,
     shutdown_event: threading.Event | None = None,
+    events: RunEventLog | None = None,
 ) -> None:
     """Async experiment orchestrator with concurrent runner contexts."""
     total_trials = len(trial_plan)
@@ -225,6 +236,7 @@ async def _execute_experiment_async(
                         log_router=log_router,
                         tui_ctx=tui_ctx,
                         shutdown_event=shutdown_event,
+                        events=events,
                     )
                 )
 
@@ -278,6 +290,7 @@ async def _worker(
     default_user_agent_model: str | None = None,
     runner_agent_model: str | None = None,
     experiment_id: str | None = None,
+    events: RunEventLog | None = None,
 ) -> list[TrialRecord]:
     """One concurrent worker: creates a fresh runner per trial for isolation.
 
@@ -358,6 +371,14 @@ async def _worker(
                     persona.id,
                     trial_index=trial_index,
                     worker_id=worker_id,
+                )
+            if events:
+                events.emit(
+                    TrialStarted,
+                    trial=folder_name,
+                    task_id=task_id,
+                    persona_id=persona.id,
+                    trial_index=trial_index,
                 )
 
             async with console_lock:
@@ -467,6 +488,7 @@ async def _worker(
                         state=state,
                         tui_ctx=tui_ctx,
                         shutdown_event=shutdown_event,
+                        events=events,
                     )
                     record = await traced(
                         trial.execute,
@@ -540,6 +562,7 @@ async def _worker(
                                 prior_failures=prior_failures,
                             )
                     else:
+                        _emit_retry(events, folder_name, failure, max_attempts)
                         await asyncio.sleep(trial_retry_delay_seconds)
                         run_start = time.time()
 
@@ -601,6 +624,7 @@ async def _worker(
                         record.prior_failures = prior_failures
                         break
 
+                    _emit_retry(events, folder_name, prior_failures[-1], max_attempts)
                     await asyncio.sleep(trial_retry_delay_seconds)
                     run_start = time.time()
 
@@ -649,6 +673,8 @@ async def _worker(
             logger.info(
                 "[experiment] Saved record: %s", run_dir / execution_layout.TRIAL_RECORD
             )
+            if events:
+                events.emit(TrialEnded, trial=folder_name, **trial_end_fields(record))
 
             if not tui_ctx:
                 async with console_lock:
@@ -690,6 +716,50 @@ def _distribute_trials(
     for i, trial in enumerate(trials):
         slices[i % concurrency].append(trial)
     return slices
+
+
+def trial_end_fields(record: TrialRecord) -> dict[str, Any]:
+    """The ``TrialEnded`` fields of a trial's record.
+
+    A trial is ``failed`` when it stopped with ``system_error``, and ``interrupted`` when
+    the user stopped the run. Any other stop reason, such as ``max_turns``, is a trial
+    that ran to its end, so it is ``completed``. The reason is the record's failure
+    message, else the last failed attempt's error.
+    """
+    outcome = record.outcome
+    status: Literal["completed", "failed", "interrupted"] = "completed"
+    reason: str | None = None
+    if outcome.stop_reason == "system_error":
+        status = "failed"
+        reason = outcome.failure_message or (
+            record.prior_failures[-1].error_message if record.prior_failures else None
+        )
+    elif outcome.stop_reason == "interrupted":
+        status = "interrupted"
+    return {
+        "status": status,
+        "stop_reason": outcome.stop_reason,
+        "turns": outcome.simulated_turns_completed,
+        "duration_seconds": max(outcome.duration_seconds, 0.0),
+        "failure_reason": short_reason(reason),
+    }
+
+
+def _emit_retry(
+    events: RunEventLog | None,
+    trial: str,
+    failure: TrialFailure,
+    max_attempts: int,
+) -> None:
+    if events:
+        events.emit(
+            TrialRetry,
+            trial=trial,
+            attempt=failure.attempt_number,
+            max_attempts=max_attempts,
+            failure_type=failure.failure_type,
+            reason=short_reason(failure.error_message),
+        )
 
 
 def _save_trial_record(record: TrialRecord, run_dir: Path) -> None:
