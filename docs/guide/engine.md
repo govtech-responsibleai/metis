@@ -171,6 +171,7 @@ experiments/execute/toyapp-http-simple-20260730-143022/
 │       ├── report.json            # Insights
 │       └── report.html            # Insights
 └── logs/
+    ├── events.jsonl               # One progress event per line, for simulate and evaluate
     ├── simulate.log
     ├── simulate-TC-001_cooperative-delegator-01.log
     ├── llm_calls.jsonl            # LLM requests made once per experiment
@@ -180,6 +181,17 @@ experiments/execute/toyapp-http-simple-20260730-143022/
 `results.json` holds one GraderRecord per grader per session, each with one result per grading scope. `metis insights report` reads these records and shows the settings used for each assessment.
 
 The insights [Report model](../../packages/insights/src/metis/insights/_models.py) defines `report.json`. Python readers can validate report data with `Report.model_validate()`.
+
+`logs/events.jsonl` records the progress of the run as it happens, so another program can
+follow it. Each line is one `RunEvent` from `metis.core.run_events`, and
+`packages/core/schemas/run-event.schema.json` describes every line. A command writes
+`run_started`, a `phase_started` for each phase it runs, the events of each trial, and
+`run_ended`. Simulation writes `trial_started`, `turn`, `trial_retry` and `trial_ended`.
+Evaluation writes `trace_wait_started`, `trace_wait_ended`, `grade` and `trial_graded`. The
+`seq` field numbers the lines from 1, and a resumed run or a later `evaluate` appends to the
+same file and continues the count. An event holds IDs, counts, statuses and short reasons. It
+never holds a key, a prompt or a model reply. The file stays in the run folder's `logs/` when
+`--log-dir` moves the other logs.
 
 Use `logs/evaluate.log` to review extraction, each criterion's grader and resolved arguments (including the judge model), every recorded result with its outcome, score and reason, soft failures, hard failures, and final record counts for the latest evaluation attempt.
 

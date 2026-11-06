@@ -223,6 +223,12 @@ Insights reads recorded `GraderRecord` results and rejects the earlier `turn_res
 `metis.core.execution_layout` owns the paths shared by Engine and Insights.
 Logs remain under `logs/`, with the existing simulation log override. Artifact paths
 in trial records remain relative to the execution root.
+Engine appends one `RunEvent` per line to `logs/events.jsonl` in the execution root, also
+when the log override is set. `metis.core.run_events` owns the model and the writer, and
+`packages/core/schemas/run-event.schema.json` is its published schema. Each line carries a
+`seq` that increases by one and continues across resumed runs and later evaluations, so a
+reader can resume from the last `seq` it saw. Events MUST NOT carry secrets, prompts or model
+replies.
 
 `GET /api/v1/wizard/config` returns the wizard-owned ordered ARC capability categories with the
 opening copy and perspective definitions. `POST /api/v1/wizard/interview/start` accepts the
