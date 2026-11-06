@@ -88,6 +88,7 @@ import json
 import re
 from datetime import datetime  # noqa: TC003
 from pathlib import Path
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel
@@ -316,6 +317,160 @@ def tools_offered(traces: Sequence[Trace]) -> tuple[OfferedTool, ...]:
             for rank, tool in _tools_recorded(observation, by_id):
                 found.setdefault((tool.agent, tool.name), []).append((rank, tool))
     return tuple(_merged(entries) for entries in found.values())
+
+
+# ---------------------------------------------------------------------------
+# 1b. Resource-use measurements
+# ---------------------------------------------------------------------------
+
+_STEP_TYPES = frozenset({"GENERATION", "TOOL", "AGENT"})
+_NON_TARGET_TYPES = frozenset({"EVALUATOR"})
+
+
+def session_elapsed_seconds(traces: Sequence[Trace]) -> float | Problem:
+    """Wall-clock seconds from the earliest observation start to the latest observation end.
+
+    Scans every observation in every trace for the earliest ``start_time`` and the latest
+    ``end_time``.  Observations of type ``EVALUATOR`` are excluded because they belong to the
+    evaluation phase, not the target's session.  Returns a ``Problem`` when either timestamp
+    is missing from every remaining observation.
+    """
+    earliest: datetime | None = None
+    latest: datetime | None = None
+    for trace in traces:
+        for obs in trace.observations:
+            if obs.type in _NON_TARGET_TYPES:
+                continue
+            if obs.start_time is not None and (
+                earliest is None or obs.start_time < earliest
+            ):
+                earliest = obs.start_time
+            if obs.end_time is not None and (latest is None or obs.end_time > latest):
+                latest = obs.end_time
+    if earliest is None or latest is None:
+        return Problem(
+            kind="missing",
+            detail="No observation has both a start time and an end time.",
+        )
+    return (latest - earliest).total_seconds()
+
+
+def execution_step_count(traces: Sequence[Trace]) -> int:
+    """Non-root observations of type GENERATION, TOOL or AGENT across all traces.
+
+    SPAN observations are structural grouping and excluded.  The root observation of each trace
+    is excluded because it represents the trace itself, not an execution step.
+    """
+    count = 0
+    for trace in traces:
+        root_id = trace.root.id
+        for obs in trace.observations:
+            if obs.id != root_id and obs.type in _STEP_TYPES:
+                count += 1
+    return count
+
+
+def generation_count(traces: Sequence[Trace]) -> int:
+    """GENERATION observations across all traces, including the root if it is a GENERATION.
+
+    Unlike ``execution_step_count``, which excludes each trace's root, this counts every
+    GENERATION observation because a root-level model call is still a model call.
+    """
+    return sum(
+        1 for trace in traces for obs in trace.observations if obs.type == "GENERATION"
+    )
+
+
+def tool_call_count(traces: Sequence[Trace]) -> int:
+    """TOOL observations across all traces."""
+    return sum(
+        1 for trace in traces for obs in trace.observations if obs.type == "TOOL"
+    )
+
+
+def session_cost(traces: Sequence[Trace]) -> float | Problem:
+    """Total monetary cost from GENERATION observations, assumed to be in USD.
+
+    Reads ``calculatedTotalCost`` or ``costDetails.total`` from each GENERATION observation's
+    ``raw`` dict, falling back to the legacy ``totalPrice``.  Langfuse cost fields carry no
+    currency tag, so values are summed as-is.  Returns a ``Problem`` when no GENERATION
+    observation has cost data.
+    """
+    total = 0.0
+    found_any = False
+    for trace in traces:
+        for obs in trace.observations:
+            if obs.type != "GENERATION":
+                continue
+            raw = obs.raw
+            calc = raw.get("calculatedTotalCost")
+            if calc is not None:
+                total += float(calc)
+                found_any = True
+                continue
+            details = raw.get("costDetails")
+            if isinstance(details, dict):
+                detail_total = details.get("total")
+                if detail_total is not None:
+                    total += float(detail_total)
+                    found_any = True
+                    continue
+            price = raw.get("totalPrice")
+            if price is not None:
+                total += float(price)
+                found_any = True
+    if not found_any:
+        return Problem(
+            kind="missing",
+            detail="No GENERATION observation has cost data "
+            "(calculatedTotalCost, costDetails, or totalPrice).",
+        )
+    return total
+
+
+def token_usage(traces: Sequence[Trace]) -> MappingProxyType[str, int] | Problem:
+    """Aggregate token counts from GENERATION observations.
+
+    Returns a frozen ``{"input": N, "output": N, "total": N}`` summed across every GENERATION
+    observation that has usage data.  Reads from the ``usage`` dict, or falls back to the
+    legacy ``promptTokens``/``completionTokens``/``totalTokens`` fields, in each observation's
+    ``raw``.  Returns a ``Problem`` when no GENERATION observation has token data.
+    """
+    totals: dict[str, int] = {"input": 0, "output": 0, "total": 0}
+    found_any = False
+    for trace in traces:
+        for obs in trace.observations:
+            if obs.type != "GENERATION":
+                continue
+            raw = obs.raw
+            usage_dict = raw.get("usage")
+            if isinstance(usage_dict, dict) and any(
+                usage_dict.get(k) is not None for k in ("input", "output", "total")
+            ):
+                for key in ("input", "output", "total"):
+                    val = usage_dict.get(key)
+                    if val is not None:
+                        totals[key] += int(val)
+                found_any = True
+                continue
+            pt = raw.get("promptTokens")
+            ct = raw.get("completionTokens")
+            tt = raw.get("totalTokens")
+            if any(v is not None for v in (pt, ct, tt)):
+                if pt is not None:
+                    totals["input"] += int(pt)
+                if ct is not None:
+                    totals["output"] += int(ct)
+                if tt is not None:
+                    totals["total"] += int(tt)
+                found_any = True
+    if not found_any:
+        return Problem(
+            kind="missing",
+            detail="No GENERATION observation has token usage data "
+            "(usage, promptTokens, completionTokens, or totalTokens).",
+        )
+    return MappingProxyType(totals)
 
 
 # ---------------------------------------------------------------------------

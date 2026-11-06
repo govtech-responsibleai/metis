@@ -69,6 +69,17 @@ for METIS.
 | `LongTaskPerformanceStabilityGrader` | METIS |
 | `RobustnessToContextDegradationGrader` | METIS |
 
+## Resource Use
+
+| Grader | Adapted from |
+|---|---|
+| `ElapsedTimeGrader` | METIS |
+| `ExecutionStepCountGrader` | METIS |
+| `ModelCallCountGrader` | METIS |
+| `MonetaryCostGrader` | METIS |
+| `TokenUsageGrader` | METIS |
+| `ToolCallCountGrader` | METIS |
+
 ## Fallback judge
 
 `CriterionJudgeGrader` has no measure. It uses the criterion description as its rubric. The
