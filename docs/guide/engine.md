@@ -352,7 +352,7 @@ Tasks also accept optional execution settings:
 
 | Field | Default | Purpose |
 |-------|---------|---------|
-| `max_turns` | `20` | Maximum simulated turns before the run stops |
+| `max_turns` | `10` | Maximum simulated turns before the run stops |
 | `timeout_minutes` | `15` | Time limit for the simulation run |
 | `response_wait_ms` | `300000` | Response wait limit used by the runner, in milliseconds |
 | `max_run_retries` | `null` | Use the runner's retry default; `0` disables run retries |

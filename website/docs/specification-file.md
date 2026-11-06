@@ -166,7 +166,7 @@ The `description` of a Criterion is the instruction for the
 | `behaviour_refs` | `[]` | The `id` of each Behaviour to check. Each Behaviour supplies all its Criteria. |
 | `num_trials` | `3` | How many times to run the Test Case. |
 | `fixtures` | `[]` | The files to send, by name, from `fixtures/`. |
-| `max_turns` | `20` | The most turns in one Trial. The Trial stops at this number. |
+| `max_turns` | `10` | The most turns in one Trial. The Trial stops at this number. |
 | `timeout_minutes` | `15` | The time limit for one Trial. |
 | `response_wait_ms` | `300000` | How long to wait for each reply, in milliseconds. |
 | `max_run_retries` | None | How many times to retry a Trial that fails to run. |
