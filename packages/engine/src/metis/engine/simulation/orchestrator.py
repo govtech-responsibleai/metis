@@ -14,6 +14,7 @@ import time
 from typing import TYPE_CHECKING
 
 from metis.core.logging import get_logger
+from metis.core.run_events import Turn
 from metis.core.trials import TrialConfig, TrialOutcome, TrialRecord
 
 from .artifacts import ArtifactLedger
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from metis.core import Artifact
+    from metis.core.run_events import RunEventLog
     from metis.engine.tui import SimulationState, TUIContext
 
     from .runner import Runner
@@ -88,6 +90,7 @@ class Orchestrator:
         state: SimulationState | None = None,
         tui_ctx: TUIContext | None = None,
         shutdown_event: threading.Event | None = None,
+        events: RunEventLog | None = None,
     ) -> None:
         self._runner = runner
         self._agent = agent
@@ -97,6 +100,8 @@ class Orchestrator:
         self._state = state
         self._tui_ctx = tui_ctx
         self._shutdown_event = shutdown_event
+        self._events = events
+        self._trial = run_dir.name
         self._ledger = ArtifactLedger(experiment_root, run_dir, fixture_artifacts)
         runner.use_ledger(self._ledger)
 
@@ -214,6 +219,13 @@ class Orchestrator:
             else:
                 empty_actions = 0
                 self._turns += 1
+                if self._events:
+                    self._events.emit(
+                        Turn,
+                        trial=self._trial,
+                        turn=self._turns,
+                        max_turns=self._config.max_turns,
+                    )
             self._note_promises(observation, turn)
             self._agent.remember(output, observation)
             logger.info(
