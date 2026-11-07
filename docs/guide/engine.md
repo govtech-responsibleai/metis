@@ -113,7 +113,7 @@ metis engine evaluate --experiment-dir experiments/execute/toyapp-http-simple-20
 
 `evaluate` grades a trial only when its Langfuse traces stop changing. It checks the traces again, with a longer pause each time, until two checks in a row see the same traces, no trace is empty, and no observation is still open. If that does not happen within `--langfuse-timeout` (default 90 seconds), the trial fails with `no traces in Langfuse` or `traces still changing in Langfuse` and gets no grades.
 
-If `evaluate` reports missing traces, upgrade the target's Langfuse SDK first, then raise `--langfuse-timeout`. Traces from older SDKs can arrive several minutes late.
+If `evaluate` reports missing traces, upgrade the target's Langfuse SDK first, then raise `--langfuse-timeout`. Traces from older SDKs can arrive several minutes late, which is longer than the default timeout, so a trial can fail even though its traces would have been complete a little later.
 
 The website explains each step in full: [Run your evaluations](https://govtech-responsibleai.github.io/metis/docs/run-evaluation), [Run the test suite](https://govtech-responsibleai.github.io/metis/docs/run-test-suite) and [Run the graders](https://govtech-responsibleai.github.io/metis/docs/run-graders).
 
