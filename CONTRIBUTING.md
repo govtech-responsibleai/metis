@@ -70,7 +70,8 @@ For the full specification (component contracts, dependency invariants, versioni
 
 ### Branching
 
-Branch off `main` with a descriptive prefix:
+Branch off the branch your pull request targets with a descriptive prefix. That is `next` while v1
+is in beta and `main` after v1.0.0:
 
 | Prefix | Use |
 |--------|-----|
@@ -82,8 +83,8 @@ Branch off `main` with a descriptive prefix:
 
 Example: `feat/langfuse-ingester`, `fix/score-validation`
 
-While v1 is in beta, `next` replaces `main` in the rule above. Branch off `next` and open your
-pull request against `next`, except for the documentation fixes described below.
+During the beta, open your pull request against `next`, except for the documentation fixes
+described below, which branch off `main` and target it.
 
 While v1 is in beta, `main` is the branch we present to users, and the published site is built from
 `main` alone. A change under `website/` or `landing-page/` that corrects or clarifies something
@@ -129,7 +130,7 @@ We follow a convention for commit messages [borrowed from Deis/CoreOS/AngularJS]
 
 **Rules:**
 
-- `{type}` is one of: `feat`, `fix`, `docs`, `style`, `ref`, `test`, `chore`
+- `{type}` is one of: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 - `{scope}` is the affected package or app name (e.g., `core`, `engine`, `wizard`, `api`)
 - `{subject}` uses imperative present tense ("change", not "changed"), no capital first letter, no trailing dot
 - Subject line limited to **50 characters**; body lines limited to **72 characters**
