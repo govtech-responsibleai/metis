@@ -222,8 +222,16 @@ When adding a new workspace package:
 
 ### Merging
 
-PRs require at least one approval. CI must pass. Squash-merge is preferred for single-concern branches; merge commits are acceptable for larger feature branches with meaningful intermediate commits. While v1 is in beta, the release merge of `next` into `main` and the merge of
-`main` into `next` are always merge commits, never squashes (see "Beta releases").
+PRs require at least one approval. CI must pass.
+
+Squash-merge every feature, fix, and documentation PR, so each one lands as a single commit whose
+title is the PR title. Write the PR title as a Conventional Commit with a package scope, because
+that title becomes the commit on the target branch.
+
+The exception is a PR that carries one long-lived branch into another. While v1 is in beta, the
+release merge of `next` into `main` and the merge of `main` into `next` are always merge commits,
+never squashes (see "Beta releases"). A squash would drop the link between the two branches, and
+the next merge between them would replay the same changes and raise conflicts.
 
 ## Dependency Rules
 
