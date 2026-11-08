@@ -1358,6 +1358,13 @@ async def _evaluate_records(
         # so is the previous results file, which no longer matches this run's traces.
         results_path.unlink(missing_ok=True)
         evaluation_log.write("EVALUATION INTERRUPTED")
+        console.print(
+            "\nInterrupted. No results were written. "
+            f"To grade again, run: {_evaluate_command(experiment_dir.resolve())}",
+            style="yellow",
+            markup=False,
+            soft_wrap=True,
+        )
         raise
     finally:
         # Runs only after every session has stopped, so no grader call is still using it.

@@ -1411,3 +1411,46 @@ def test_the_log_records_the_concurrency_the_run_used(
     assert first_line.endswith(
         f"EVALUATION STARTED — {output} (concurrency {concurrency})"
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("concurrency", [1, 2])
+async def test_an_interrupted_evaluation_says_so_and_names_the_retry_command(
+    monkeypatch, tmp_path: Path, capsys, concurrency: int
+) -> None:
+    from metis.core.trials import TrialRecord as Record
+    from metis.engine.logging import EvaluationLogger
+
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 3)
+    waiting = asyncio.Event()
+
+    async def fetch(*_args: object, **_kwargs: object) -> GradingInput:
+        waiting.set()
+        await asyncio.sleep(30)
+        raise AssertionError("unreachable")
+
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+    specification = cli._load_evaluation_specification(output)
+    records = [Record.load_file(p) for p in cli._trial_record_files(output)]
+    task = asyncio.create_task(
+        cli._evaluate_records(
+            output,
+            specification,
+            records,
+            evaluation_log=EvaluationLogger(output / "logs"),
+            langfuse_timeout=0,
+            concurrency=concurrency,
+        )
+    )
+    await asyncio.wait_for(waiting.wait(), timeout=2)
+    capsys.readouterr()  # drop the output printed before the interrupt
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    out = " ".join(capsys.readouterr().out.split())
+    assert "Interrupted. No results were written." in out
+    assert cli._evaluate_command(output.resolve()) in out
