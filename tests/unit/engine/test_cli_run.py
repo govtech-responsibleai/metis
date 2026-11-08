@@ -72,10 +72,12 @@ def test_run_composes_phases_and_prints_recovery_command(
     assert simulation_options["no_tui"] is True
     assert simulation_options["resume"] is False
     assert evaluation_paths == [experiment_dir]
+    # `run -c` counts simulation trials; the evaluation half stays sequential.
     assert evaluation_options == {
         "langfuse_timeout": 120,
         "verbose": 1,
         "quiet": False,
+        "concurrency": 1,
     }
     assert (
         f"Evaluate: metis engine evaluate --experiment-dir {experiment_dir.resolve()}"
