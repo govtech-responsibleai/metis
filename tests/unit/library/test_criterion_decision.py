@@ -109,9 +109,9 @@ def test_applicable_criteria_keep_the_probability_without_a_pass_fail_mapping(
 
 
 @pytest.mark.parametrize("provider", ["openai", "typesafe"])
-def test_inapplicable_criterion_is_an_error(provider):
+def test_inapplicable_criterion_is_skipped(provider):
     result, _ = grade(provider, response_body(provider, applicable=0.1))
-    assert (result.status, result.score) == ("errored", None)
+    assert (result.status, result.score) == ("skipped", None)
     assert "does not apply" in result.reason
     assert result.measurements == {"applicable": 0.1, "satisfied": 0.87}
 

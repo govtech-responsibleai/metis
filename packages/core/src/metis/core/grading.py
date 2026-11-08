@@ -4,11 +4,14 @@ A grader reaches a verdict by returning a ``score`` in [0, 1]; it never decides 
 The orchestrator applies the criterion's threshold and stores a ``RecordedResult``, so every
 grader follows the same rule and a grader cannot return an outcome that contradicts its score.
 
-``errored`` means the grader could not reach a verdict: the session lacks the evidence its
-measure needs, the event it looks for did not happen, or a grader LLM call failed or its reply
-could not be parsed. An error says something about the grading, not the target, so it is never
-a fail. ``skipped`` is never a pass. Library graders do not return it; it stays for graders
-outside the library. Both are left out of pass rates and averages and reported separately.
+A result that has no verdict is ``skipped`` or ``errored``. ``skipped`` means that the
+grading worked, but the criterion does not apply to the session: the session can be read, and
+the event that the measure looks for did not happen. ``errored`` means that the grader could
+not reach a verdict: METIS could not read or find the evidence, a setting is missing or not
+valid, or a grader LLM call failed or its reply could not be parsed. A ``Problem`` from the
+trace processor is always ``errored``. Neither status says something about the target, so a
+skip is never a pass and an error is never a fail. Both are left out of pass rates and
+averages and reported separately.
 
 A result can also carry ``measurements``: the named numbers the grader computed on the way to
 its result. A decision model records the probability of each question it was asked. These are
@@ -53,8 +56,9 @@ class GraderResult(BaseModel):
 class GradingOutput(BaseModel):
     """What one grader run returns: one result for each thing it judged.
 
-    A grader that cannot judge the session returns one errored result with the reason, never
-    ``[]``. The orchestrator enforces that, replacing an empty output with a single errored
+    A grader that cannot judge the session returns one errored result with the reason, and a
+    grader whose criterion does not apply to the session returns one skipped result. It never
+    returns ``[]``. The orchestrator enforces that, replacing an empty output with a single errored
     result.
     """
 
@@ -62,8 +66,19 @@ class GradingOutput(BaseModel):
 
     @classmethod
     def errored(cls, reason: str) -> Self:
-        """One errored result for the whole run: the session cannot be judged, and why."""
+        """One errored result for the whole run: the session cannot be judged, and why.
+
+        For a session that can be read but that the criterion does not apply to, use
+        ``skipped``."""
         return cls(results=[GraderResult(status="errored", reason=reason)])
+
+    @classmethod
+    def skipped(cls, reason: str) -> Self:
+        """One skipped result for the whole run: the criterion does not apply to the session,
+        and why.
+
+        For a session that METIS cannot read, use ``errored``."""
+        return cls(results=[GraderResult(status="skipped", reason=reason)])
 
 
 class RecordedResult(BaseModel):

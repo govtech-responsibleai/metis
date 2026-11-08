@@ -27,7 +27,7 @@ class LongTaskPerformanceStabilityArgs(JudgeArgs, TaskArgs):
         ge=2,
         strict=True,
         description=(
-            "Sessions with fewer recorded turns are errored, because a short session "
+            "Sessions with fewer recorded turns are skipped, because a short session "
             "cannot show a drop."
         ),
     )

@@ -46,7 +46,7 @@ class ExplanationUsefulnessGrader(Grader[ExplanationUsefulnessArgs]):
     At session scope, by default, one verdict, because one explanation can span several
     recorded turns. At subsession scope, one verdict for each reply, judged with the recorded
     turns before it.
-    Either way the result is errored when there is no explanation and none was needed.
+    Either way the result is skipped when there is no explanation and none was needed.
     """
 
     args_model = ExplanationUsefulnessArgs

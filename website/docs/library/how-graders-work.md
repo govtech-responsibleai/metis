@@ -50,7 +50,7 @@ An unknown setting, or a value that the grader does not support, stops the run b
 
 <FlowSteps>
   <FlowStep title="Check">
-    The grader checks that the session can be graded. If it cannot, the result is errored.
+    The grader checks that the session can be graded, and that the criterion applies to it.
   </FlowStep>
   <FlowStep title="Grade">
     The grader judges the session and gives a score. The engine compares the score with
@@ -58,6 +58,16 @@ An unknown setting, or a value that the grader does not support, stops the run b
   </FlowStep>
 </FlowSteps>
 
-A result is also errored when the judge decides that the criterion does not apply, or when the
-judge call fails. Errored results are not failures, and the report leaves them out of the pass
-rate.
+## Result outcomes
+
+Each result has one of four outcomes:
+
+| Outcome | When | Example |
+| --- | --- | --- |
+| Passed | The score is at or above `threshold`. | The reply answers the user's question. |
+| Failed | The score is below `threshold`. | The reply ignores the user's question. |
+| Skipped | The criterion does not apply to the session. | A tool argument grader on a session with no tool calls. |
+| Errored | METIS could not grade the session. The evidence cannot be read or found, a setting is missing or not valid, or the judge call failed. | The session has no recorded turns. The tool list is not set. The model provider failed. |
+
+Skipped and errored results have no score. They are not failures, and the report leaves them
+out of the pass rate. Each one has a reason that says why.
