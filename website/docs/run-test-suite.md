@@ -29,9 +29,11 @@ metis engine simulate --input-dir my-evaluation --concurrency 4
 value is `1`. Raise it only as far as your application can handle, and check any rate limits in
 your target connection.
 
-`metis engine run` takes the same option and uses it for the simulation only. Its grading step
-goes one trial at a time. To grade several trials at once, run `evaluate` yourself with
-[`--concurrency`](run-graders.md#grade-several-trials-at-once).
+`metis engine run` takes the same option and uses the one number twice: it runs that many trials
+at once, and then
+[grades that many trials at once](run-graders.md#grade-several-trials-at-once). If your
+application and your model provider can handle different numbers, run `simulate` and `evaluate`
+yourself and give each its own `--concurrency`.
 
 ## Resume a stopped run
 

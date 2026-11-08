@@ -1576,7 +1576,11 @@ def run(
         help="Override log directory (default: co-located with results)",
     ),
     concurrency: int = typer.Option(
-        1, "--concurrency", "-c", min=1, help="Max concurrent trials"
+        1,
+        "--concurrency",
+        "-c",
+        min=1,
+        help="Max concurrent trials, then max concurrent sessions when grading",
     ),
     resume: bool = typer.Option(
         False,
@@ -1607,6 +1611,7 @@ def run(
             langfuse_timeout=langfuse_timeout,
             verbose=verbose,
             quiet=quiet,
+            concurrency=concurrency,
         )
     except Exception:
         _print_handoff(output_dir, command="run")
