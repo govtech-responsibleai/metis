@@ -1366,3 +1366,32 @@ def test_evaluate_rejects_a_concurrency_below_one(
     assert result.exit_code == 2
     assert isinstance(result.exception, SystemExit)
     assert not (output / "logs" / "evaluate.log").exists()  # no work started
+
+
+def test_an_unexpected_error_in_one_session_is_reported_as_itself(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """An error that escapes ``_evaluate_one`` reaches the TaskGroup. The terminal and the log
+    must name the error, not 'unhandled errors in a TaskGroup (1 sub-exception)'."""
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 3)
+    _patch_evaluation(monkeypatch)
+    real_update = cli._update_evaluation_progress
+
+    def failing_update(*args: Any, **kwargs: Any) -> None:
+        if kwargs.get("record_number") == 2 and kwargs.get("phase") == "done":
+            raise OSError("No space left on device")
+        real_update(*args, **kwargs)
+
+    monkeypatch.setattr(cli, "_update_evaluation_progress", failing_update)
+
+    result = runner.invoke(
+        app, ["evaluate", "--experiment-dir", str(output), "--concurrency", "3"]
+    )
+
+    assert result.exit_code == 1
+    assert "Error: evaluation failed: No space left on device" in result.output
+    assert "TaskGroup" not in result.output
+    log_lines = (output / "logs" / "evaluate.log").read_text().splitlines()
+    assert log_lines[-1].endswith("EVALUATION FAILED — No space left on device")
+    assert not (output / "outputs" / "reports" / "results.json").exists()

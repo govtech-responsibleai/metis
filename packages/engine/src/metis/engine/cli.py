@@ -1342,6 +1342,13 @@ async def _evaluate_records(
 
             if progress and task_id is not None:
                 progress.update(task_id, description="Evaluation complete")
+    except ExceptionGroup as group_error:
+        # An error that escaped _evaluate_one. The TaskGroup wraps it, and the wrapper's
+        # text ("unhandled errors in a TaskGroup (1 sub-exception)") hides the cause, so
+        # a lone error is raised as itself. Several errors keep the group.
+        if len(group_error.exceptions) == 1:
+            raise group_error.exceptions[0] from None
+        raise
     except asyncio.CancelledError:
         # Ctrl-C. The TaskGroup has already cancelled every session and waited for it to
         # stop. A cancellation is a BaseException, so the command's `except Exception`
