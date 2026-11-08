@@ -344,3 +344,20 @@ def test_a_binding_error_is_printed_as_written(monkeypatch, tmp_path: Path) -> N
 
     assert result.exit_code == 1
     assert "spec_url 'specs/[/v1].json' [x]" in " ".join(result.output.split())
+
+
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_simulate_rejects_a_concurrency_below_one(
+    monkeypatch, tmp_path: Path, value: str
+) -> None:
+    """Before this check, 0 raised ZeroDivisionError and -1 raised IndexError in
+    ``_distribute_trials`` once the run had at least one trial."""
+    input_dir = _write_source(tmp_path)
+    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "project")
+
+    result = runner.invoke(
+        app, ["simulate", "--input-dir", str(input_dir), "--no-tui", "-c", value]
+    )
+
+    assert result.exit_code == 2
+    assert isinstance(result.exception, SystemExit)

@@ -1349,3 +1349,20 @@ async def test_cancelling_a_session_returns_the_running_count_to_zero(
         await task
 
     assert context.running.value == 0
+
+
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_evaluate_rejects_a_concurrency_below_one(
+    monkeypatch, tmp_path: Path, value: str
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 1)
+    _patch_evaluation(monkeypatch)
+
+    result = runner.invoke(
+        app, ["evaluate", "--experiment-dir", str(output), "--concurrency", value]
+    )
+
+    assert result.exit_code == 2
+    assert isinstance(result.exception, SystemExit)
+    assert not (output / "logs" / "evaluate.log").exists()  # no work started

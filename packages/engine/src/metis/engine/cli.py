@@ -1459,7 +1459,7 @@ def simulate(
         help="Override log directory (default: co-located with results)",
     ),
     concurrency: int = typer.Option(
-        1, "--concurrency", "-c", help="Max parallel simulation workers"
+        1, "--concurrency", "-c", min=1, help="Max concurrent trials"
     ),
     resume: bool = typer.Option(
         False,
@@ -1506,7 +1506,7 @@ def evaluate(
         False, "--quiet", help="Suppress output below ERROR level"
     ),
     concurrency: int = typer.Option(
-        1, "--concurrency", "-c", help="Max concurrent sessions"
+        1, "--concurrency", "-c", min=1, help="Max concurrent sessions"
     ),
 ) -> None:
     """Evaluate one simulation output directory."""
@@ -1560,7 +1560,7 @@ def run(
         help="Override log directory (default: co-located with results)",
     ),
     concurrency: int = typer.Option(
-        1, "--concurrency", "-c", help="Max parallel simulation workers"
+        1, "--concurrency", "-c", min=1, help="Max concurrent trials"
     ),
     resume: bool = typer.Option(
         False,

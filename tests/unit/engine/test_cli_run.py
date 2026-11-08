@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from metis.engine import cli
@@ -162,3 +163,20 @@ def test_run_infrastructure_failure_prints_recovery_command(
         f"Evaluate: metis engine evaluate --experiment-dir {experiment_dir.resolve()}"
         in result.output
     )
+
+
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_run_rejects_a_concurrency_below_one(
+    monkeypatch, tmp_path: Path, value: str
+) -> None:
+    def fail_if_simulated(*_args: object, **_kwargs: object) -> Path:
+        raise AssertionError("a rejected option must not start the simulation")
+
+    monkeypatch.setattr(cli, "_run_simulation", fail_if_simulated)
+
+    result = runner.invoke(
+        app, ["run", "--input-dir", str(tmp_path), "--no-tui", "-c", value]
+    )
+
+    assert result.exit_code == 2
+    assert isinstance(result.exception, SystemExit)
