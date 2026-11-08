@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -15,6 +17,7 @@ from metis.engine.simulation.binding import TargetBindingError
 from tests.unit.engine.test_runner_ref import StubRunnerFactory
 
 runner = CliRunner()
+_FIXED_START = datetime(2026, 11, 7, 14, 30, 0)
 
 MINIMAL_EXPERIMENT = 'schema_version: 1\nid: test-exp\nrunner_factory_ref: tests.unit.engine.test_runner_ref.StubRunnerFactory\npersonas:\n- id: alice\n  description: test persona\n  name: alice\nscenarios:\n- id: task-1\n  description: test scenario\n  name: task-1\ntarget:\n  name: Test target\n  users: Test users\n  description: Test target\ntasks:\n- id: TC-001\n  scenario_ref: task-1\n  persona_ref: alice\n  fixtures: []\n  num_trials: 1\n  behaviour_refs:\n  - EB-1\nfeatures:\n- id: F-1\n  name: Responses\n  description: Responses\n  behaviours:\n  - id: EB-1\n    name: Respond\n    description: Respond correctly\n    measured: true\n    criteria:\n    - id: AC-1-1\n      name: Check 1\n      description: "Given a request, when the agent responds, then the requirement is met."\n      grader_fqn: tests.unit.engine.graders_for_tests.FixedScoreGrader\n      grader_args: {}\n'
 
@@ -277,6 +280,158 @@ def test_reject_invalid_path_options(
 
     assert result.exit_code == 1
     assert expected in result.output
+
+
+def _start_run(
+    monkeypatch,
+    tmp_path: Path,
+    command: str,
+    *extra: str,
+) -> tuple[object, list[Path]]:
+    """Start a new run from a folder that has no pyproject.toml above it."""
+    input_dir = _write_source(tmp_path)
+    output_dirs: list[Path] = []
+
+    def fake_execute_experiment(*_args: object, **kwargs: object) -> None:
+        output_dirs.append(kwargs["output_dir"])  # type: ignore[arg-type]
+        _write_record_marker(kwargs["output_dir"])  # type: ignore[arg-type]
+
+    monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        experiment_module, "execute_experiment", fake_execute_experiment
+    )
+    monkeypatch.setattr(
+        cli,
+        "_run_evaluation_command",
+        lambda *_a, **_k: cli.EvaluationOutcome(1, 1, 0, None),
+    )
+    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "cwd-root")
+    monkeypatch.delenv(cli.PROJECT_DIR_ENV, raising=False)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    result = runner.invoke(
+        app, [command, "--input-dir", str(input_dir), "--no-tui", *extra]
+    )
+    return result, output_dirs
+
+
+def _only_run_folder(project: Path) -> Path:
+    [run_dir] = (project / "experiments" / "execute").iterdir()
+    return run_dir
+
+
+@pytest.mark.parametrize("command", ["simulate", "run"])
+def test_a_new_run_goes_under_the_project_folder(
+    monkeypatch, tmp_path: Path, command: str
+) -> None:
+    project = tmp_path / "project"
+
+    result, output_dirs = _start_run(
+        monkeypatch, tmp_path, command, "--project-dir", str(project)
+    )
+
+    assert result.exit_code == 0, result.output
+    run_dir = _only_run_folder(project)
+    assert output_dirs == [run_dir]
+    assert re.fullmatch(r"test-exp-\d{8}-\d{6}", run_dir.name)
+    assert (run_dir / "inputs" / "specification.yaml").read_text() == (
+        MINIMAL_EXPERIMENT
+    )
+    assert not (tmp_path / "cwd-root").exists()
+
+
+def test_the_project_folder_can_come_from_the_environment(
+    monkeypatch, tmp_path: Path
+) -> None:
+    project = tmp_path / "project"
+    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "cwd-root")
+    monkeypatch.setenv(cli.PROJECT_DIR_ENV, str(project))
+    input_dir = _write_source(tmp_path)
+    _capture_factory(monkeypatch)
+
+    result = runner.invoke(app, ["simulate", "--input-dir", str(input_dir), "--no-tui"])
+
+    assert result.exit_code == 0, result.output
+    assert _only_run_folder(project).is_dir()
+    assert not (tmp_path / "cwd-root").exists()
+
+
+def test_without_a_project_folder_a_new_run_goes_under_the_working_project(
+    monkeypatch, tmp_path: Path
+) -> None:
+    result, output_dirs = _start_run(monkeypatch, tmp_path, "simulate")
+
+    assert result.exit_code == 0, result.output
+    assert output_dirs == [_only_run_folder(tmp_path / "cwd-root")]
+
+
+def test_each_new_run_is_listed_in_the_project_folder(
+    monkeypatch, tmp_path: Path
+) -> None:
+    project = tmp_path / "project"
+    starts = iter([_FIXED_START, _FIXED_START.replace(second=1)])
+    monkeypatch.setattr(
+        cli,
+        "datetime",
+        type("Clock", (), {"now": staticmethod(lambda: next(starts))}),
+    )
+    input_dir = _write_source(tmp_path)
+    _capture_factory(monkeypatch)
+    command = [
+        "simulate",
+        "--input-dir",
+        str(input_dir),
+        "--project-dir",
+        str(project),
+        "--no-tui",
+    ]
+
+    first = runner.invoke(app, command)
+    second = runner.invoke(app, command)
+
+    assert first.exit_code == 0, first.output
+    assert second.exit_code == 0, second.output
+    runs = sorted(p.name for p in (project / "experiments" / "execute").iterdir())
+    assert runs == ["test-exp-20261107-143000", "test-exp-20261107-143001"]
+
+
+def test_a_new_run_whose_folder_exists_stops_and_leaves_it(
+    monkeypatch, tmp_path: Path
+) -> None:
+    project = tmp_path / "project"
+    taken = project / "experiments" / "execute" / "test-exp-20261107-143000"
+    taken.mkdir(parents=True)
+    (taken / "notes.txt").write_text("old run")
+    monkeypatch.setattr(
+        cli,
+        "datetime",
+        type("FixedClock", (), {"now": staticmethod(lambda: _FIXED_START)}),
+    )
+
+    result, output_dirs = _start_run(
+        monkeypatch, tmp_path, "simulate", "--project-dir", str(project)
+    )
+
+    assert result.exit_code == 1
+    assert "alreadyexists" in _compact(result.output)
+    assert output_dirs == []
+    assert [p.name for p in taken.iterdir()] == ["notes.txt"]
+
+
+def test_a_project_dir_that_is_a_file_stops_the_run(
+    monkeypatch, tmp_path: Path
+) -> None:
+    project = tmp_path / "project"
+    project.write_text("not a folder")
+
+    result, output_dirs = _start_run(
+        monkeypatch, tmp_path, "simulate", "--project-dir", str(project)
+    )
+
+    assert result.exit_code == 1
+    assert "isnotafolder" in _compact(result.output)
+    assert output_dirs == []
 
 
 def test_a_factory_without_from_specification_is_built_with_no_arguments(

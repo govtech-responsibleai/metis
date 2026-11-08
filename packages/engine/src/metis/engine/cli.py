@@ -75,6 +75,33 @@ def _find_project_root() -> Path:
     return current
 
 
+PROJECT_DIR_ENV = "METIS_PROJECT_DIR"
+_PROJECT_DIR_HELP = (
+    "Project folder that holds experiments/execute/. New runs go under it, "
+    "from any working directory. Default: the nearest folder above the "
+    "working directory that has a pyproject.toml"
+)
+
+
+def _project_root(project_dir: Path | None) -> Path:
+    """Return the folder that holds ``experiments/execute/``.
+
+    ``--project-dir`` or ``METIS_PROJECT_DIR`` names it. Without them, the
+    engine finds it from the working directory.
+    """
+    if project_dir is None:
+        return _find_project_root()
+    resolved = project_dir.resolve()
+    if resolved.exists() and not resolved.is_dir():
+        console.print(
+            f"Error: the project folder '{resolved}' is not a folder.",
+            style="bold red",
+            markup=False,
+        )
+        raise typer.Exit(code=1)
+    return resolved
+
+
 def _load_env() -> Path | None:
     """Read the one project `.env` (`metis.core.model_settings.load_env`). Exported values win.
 
@@ -324,11 +351,11 @@ def _experiment_id(input_dir: Path) -> str | None:
         return None
 
 
-def _existing_outputs(input_dir: Path) -> list[Path]:
+def _existing_outputs(input_dir: Path, project_root: Path) -> list[Path]:
     experiment_id = _experiment_id(input_dir)
     if experiment_id is None:
         return []
-    experiments_root = _find_project_root() / execution_layout.EXECUTIONS
+    experiments_root = project_root / execution_layout.EXECUTIONS
     if not experiments_root.is_dir():
         return []
     pattern = re.compile(rf"^{re.escape(experiment_id)}-\d{{8}}-\d{{6}}$")
@@ -339,10 +366,10 @@ def _existing_outputs(input_dir: Path) -> list[Path]:
     )
 
 
-def _print_resume_flag_error(input_dir: Path, command: str) -> None:
+def _print_resume_flag_error(input_dir: Path, command: str, project_root: Path) -> None:
     """Report that ``--resume`` needs ``--experiment-dir``, and list candidates."""
     experiment_id = _experiment_id(input_dir)
-    outputs = _existing_outputs(input_dir)
+    outputs = _existing_outputs(input_dir, project_root)
 
     if not outputs:
         if experiment_id is None:
@@ -379,6 +406,7 @@ def _resolve_simulation_target(
     *,
     resume: bool,
     command: str,
+    project_dir: Path | None = None,
 ) -> Path:
     """Decide which directory ``simulate`` or ``run`` works on.
 
@@ -395,7 +423,7 @@ def _resolve_simulation_target(
 
     if resume:
         if input_dir is not None:
-            _print_resume_flag_error(input_dir, command)
+            _print_resume_flag_error(input_dir, command, _project_root(project_dir))
             raise typer.Exit(code=1)
         if experiment_dir is None:
             console.print("Error: --resume needs --experiment-dir.", style="bold red")
@@ -621,10 +649,15 @@ def _run_simulation(
     log_dir: Path | None,
     concurrency: int,
     resume: bool = False,
+    project_dir: Path | None = None,
 ) -> Path:
     """Run simulation and return its experiment directory."""
     target = _resolve_simulation_target(
-        input_dir, experiment_dir, resume=resume, command=command
+        input_dir,
+        experiment_dir,
+        resume=resume,
+        command=command,
+        project_dir=project_dir,
     )
     env_file = _load_env()
     tracing_key()
@@ -641,7 +674,7 @@ def _run_simulation(
     )
     from metis.engine.simulation.types import Specification
 
-    project_root = _find_project_root()
+    project_root = _project_root(project_dir)
 
     if resume:
         experiment_dir = target
@@ -658,7 +691,19 @@ def _run_simulation(
         experiment_dir = (
             project_root / execution_layout.EXECUTIONS / f"{specification.id}-{suffix}"
         )
-        experiment_dir.mkdir(parents=True)
+        try:
+            experiment_dir.mkdir(parents=True)
+        except FileExistsError:
+            # Two runs of one Specification that start in the same second get
+            # the same name. The second run stops and leaves the folder as is.
+            console.print(
+                f"Error: the run folder '{experiment_dir}' already exists. "
+                "A run of this Specification started in the same second. "
+                "Start the run again.",
+                style="bold red",
+                markup=False,
+            )
+            raise typer.Exit(code=1) from None
         shutil.copytree(target, experiment_dir / execution_layout.INPUTS)
         fixtures_dir = experiment_dir / execution_layout.FIXTURES
 
@@ -1341,6 +1386,13 @@ def simulate(
         "--resume",
         help="Continue the output named by --experiment-dir instead of starting a run",
     ),
+    project_dir: Path | None = typer.Option(
+        None,
+        "--project-dir",
+        envvar=PROJECT_DIR_ENV,
+        help=_PROJECT_DIR_HELP,
+        show_default=False,
+    ),
 ) -> None:
     """Run simulation only and prepare the evaluation handoff."""
     output_dir = _run_simulation(
@@ -1354,6 +1406,7 @@ def simulate(
         log_dir=log_dir,
         concurrency=concurrency,
         resume=resume,
+        project_dir=project_dir,
     )
     if not _trial_record_files(output_dir):
         console.print("No trial records found.", style="bold red")
@@ -1438,6 +1491,13 @@ def run(
         "--resume",
         help="Continue the output named by --experiment-dir instead of starting a run",
     ),
+    project_dir: Path | None = typer.Option(
+        None,
+        "--project-dir",
+        envvar=PROJECT_DIR_ENV,
+        help=_PROJECT_DIR_HELP,
+        show_default=False,
+    ),
 ) -> None:
     """Run simulation followed by evaluation."""
     output_dir = _run_simulation(
@@ -1451,6 +1511,7 @@ def run(
         log_dir=log_dir,
         concurrency=concurrency,
         resume=resume,
+        project_dir=project_dir,
     )
     if not _trial_record_files(output_dir):
         console.print("No trial records found.", style="bold red")
