@@ -69,7 +69,8 @@ so re-enabling it is a safe follow-up.
 
 - Unit tests do not touch the network. Build `Trace` / `GradingInput` objects directly for
   grader and orchestrator tests.
-- To test the Langfuse fetch, call `fetch_session` with a fake client whose `get_many` answers
+- To test the Langfuse fetch, await `fetch_session` with a fake client whose async
+  `async_api.observations_v_2.get_many` answers
   by filter column (see `tests/unit/engine/test_extractor_fetch.py`), so a fetch that reuses the
   session-filtered rows as a trace's observations (issue #435) fails. Do not hit the live
   Langfuse API.

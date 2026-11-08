@@ -1006,7 +1006,6 @@ async def _evaluate_records(
     A criterion graded in many trials shares one grader. One judge client
     is opened for the whole evaluation, and only when some criterion's grader needs one.
     """
-    import asyncio
     import time
 
     from metis.core.reporting import EvaluationResults
@@ -1147,8 +1146,7 @@ async def _evaluate_records(
                     elif not criteria:
                         failure_reason = "No grader_refs in run config"
                     else:
-                        grading_input = await asyncio.to_thread(
-                            extractor.fetch_session,
+                        grading_input = await extractor.fetch_session(
                             session_id,
                             langfuse,
                             experiment_root=experiment_dir,

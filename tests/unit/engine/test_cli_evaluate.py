@@ -210,7 +210,7 @@ def _patch_evaluation(monkeypatch, *, traces: int = 1) -> list[dict[str, Any]]:
     """Fake Langfuse: every session has ``traces`` traces. Returns the fetch calls made."""
     calls: list[dict[str, Any]] = []
 
-    def fetch(session_id: str, _langfuse: object, **kwargs: Any) -> GradingInput:
+    async def fetch(session_id: str, _langfuse: object, **kwargs: Any) -> GradingInput:
         calls.append({"session_id": session_id, **kwargs})
         return _session(session_id, traces)
 
@@ -349,7 +349,7 @@ def test_evaluation_progress_advances_for_success_and_soft_failure(
     monkeypatch.setattr(cli, "_create_evaluation_progress", FakeProgress)
     monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
 
-    def fetch(session_id: str, *_args: object, **_kwargs: object) -> GradingInput:
+    async def fetch(session_id: str, *_args: object, **_kwargs: object) -> GradingInput:
         if session_id == "session-2":
             raise RuntimeError("trace unavailable")
         return _session(session_id)
@@ -418,7 +418,7 @@ def test_an_unsupported_trace_fails_its_session_and_the_rest_are_graded(
     )
     fetched: list[str] = []
 
-    def fetch(session_id: str, *_args: object, **_kwargs: object) -> GradingInput:
+    async def fetch(session_id: str, *_args: object, **_kwargs: object) -> GradingInput:
         fetched.append(session_id)
         if session_id == "sess-old":
             raise UnsupportedTraceError(reason)
@@ -790,9 +790,11 @@ def test_unserialisable_payload_does_not_fail_the_record(
     )
     session = GradingInput(traces=(Trace.from_observations("t1", "session-1", [bad]),))
     monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
-    monkeypatch.setattr(
-        "metis.engine.extractor.fetch_session", lambda *args, **kwargs: session
-    )
+
+    async def fetch(*_args: object, **_kwargs: object) -> GradingInput:
+        return session
+
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
 
     result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
 

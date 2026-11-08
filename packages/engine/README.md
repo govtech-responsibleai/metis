@@ -137,6 +137,9 @@ from metis.engine import build_grader, fetch_session, grade_session
 from metis.engine.extractor import get_langfuse_client
 ```
 
+`fetch_session(session_id, langfuse, experiment_root=...)` is a coroutine: `await` it
+from async code, or run it with `asyncio.run`.
+
 `build_grader(criterion, default_judge_model=..., env=...)` returns a validated
 `Grader` instance. Keep one instance per Criterion ID. Pass the selected Criteria
 and the instance map to `grade_session(criteria, graders, grading_input, llm, facts)`.

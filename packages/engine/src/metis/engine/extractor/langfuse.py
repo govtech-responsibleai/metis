@@ -24,12 +24,16 @@ duplicated and a synthetic root with id ``t-<traceId>``, and the stored set chan
 size (issue #469). METIS does not repair such a trace; ``fetch_session`` raises
 ``UnsupportedTraceError`` for it, so the session fails and the trial must be re-run.
 
+The fetch is asynchronous, on ``langfuse.async_api``, so a session waiting on Langfuse holds
+no thread and many sessions can be fetched at once.
+
 Input/output arrive as raw strings (``parse_io_as_json`` is rejected with HTTP 400), and
 ``metis.core.traces.Observation`` parses JSON-looking values itself.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import TYPE_CHECKING
@@ -65,7 +69,7 @@ def get_langfuse_client() -> Langfuse:
     return Langfuse()
 
 
-def _page_through_observations(
+async def _page_through_observations(
     langfuse: Langfuse,
     column: str,
     value: str,
@@ -82,7 +86,7 @@ def _page_through_observations(
     observations: list[Observation] = []
     cursor: str | None = None
     while True:
-        response = langfuse.api.observations_v_2.get_many(
+        response = await langfuse.async_api.observations_v_2.get_many(
             fields=_FIELDS,
             filter=observation_filter,
             limit=_PAGE_SIZE,
@@ -113,12 +117,12 @@ def _may_be_truncated(observations: list[Observation]) -> list[str]:
     return sorted(keys)
 
 
-def _fetch_trace(langfuse: Langfuse, trace_id: str) -> list[Observation]:
+async def _fetch_trace(langfuse: Langfuse, trace_id: str) -> list[Observation]:
     """Every observation in one trace, with metadata never truncated.
 
     Must back each trace's observation set; never the session-filtered list (issue #435).
     """
-    observations = _page_through_observations(langfuse, "traceId", trace_id)
+    observations = await _page_through_observations(langfuse, "traceId", trace_id)
     truncated = _may_be_truncated(observations)
     if not truncated:
         return observations
@@ -136,14 +140,14 @@ def _fetch_trace(langfuse: Langfuse, trace_id: str) -> list[Observation]:
         _TRUNCATION_LIMIT,
         ", ".join(truncated),
     )
-    return _page_through_observations(
+    return await _page_through_observations(
         langfuse, "traceId", trace_id, expand_metadata=keys
     )
 
 
-def _session_trace_ids(langfuse: Langfuse, session_id: str) -> list[str]:
+async def _session_trace_ids(langfuse: Langfuse, session_id: str) -> list[str]:
     """The ids of every trace in the session, in first-seen order."""
-    observations = _page_through_observations(langfuse, "sessionId", session_id)
+    observations = await _page_through_observations(langfuse, "sessionId", session_id)
     return list(dict.fromkeys(observation.trace_id for observation in observations))
 
 
@@ -181,7 +185,7 @@ def _resolve_artifacts(
     return tuple(resolved)
 
 
-def fetch_session(
+async def fetch_session(
     session_id: str,
     langfuse: Langfuse,
     *,
@@ -203,14 +207,14 @@ def fetch_session(
     """
     deadline = time.time() + retry_timeout
     while True:
-        trace_ids = _session_trace_ids(langfuse, session_id)
+        trace_ids = await _session_trace_ids(langfuse, session_id)
         if trace_ids or time.time() >= deadline:
             break
-        time.sleep(_RETRY_SECONDS)
+        await asyncio.sleep(_RETRY_SECONDS)
 
     traces: list[Trace] = []
     for trace_id in trace_ids:
-        observations = _fetch_trace(langfuse, trace_id)
+        observations = await _fetch_trace(langfuse, trace_id)
         if not observations:
             # Found by the session filter but empty by traceId: an ingestion race. A trace
             # with no observations cannot be built, and there is nothing in it to grade.

@@ -1,6 +1,6 @@
 """fetch_session: one Langfuse session as the GradingInput its grader runs share.
 
-Every test mocks ``observations_v_2.get_many``, so nothing touches the network. The mock answers
+Every test fakes ``async_api.observations_v_2.get_many``, so nothing touches the network. The mock answers
 by filter column, so a fetch that wrongly reused the session-filtered list as a trace's
 observations (issue #435) gets different, smaller data and fails.
 """
@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -75,11 +75,11 @@ class FakeLangfuse:
         self.traces = traces
         self.expanded = expanded or {}
         self.calls: list[dict[str, Any]] = []
-        self.api = SimpleNamespace(
+        self.async_api = SimpleNamespace(
             observations_v_2=SimpleNamespace(get_many=self._get_many)
         )
 
-    def _get_many(self, **kwargs: Any) -> SimpleNamespace:
+    async def _get_many(self, **kwargs: Any) -> SimpleNamespace:
         self.calls.append(kwargs)
         column, value = _filter(kwargs)
         if column == "sessionId":
@@ -94,45 +94,57 @@ class FakeLangfuse:
         return [c for c in self.calls if _filter(c)[0] == "traceId"]
 
 
-def _fetch(lf: FakeLangfuse, tmp_path: Path, **kwargs: Any):
-    return fetch_session("s1", lf, experiment_root=tmp_path, **kwargs)  # type: ignore[arg-type]
+async def _fetch(lf: FakeLangfuse, tmp_path: Path, **kwargs: Any):
+    return await fetch_session("s1", lf, experiment_root=tmp_path, **kwargs)  # type: ignore[arg-type]
+
+
+def _async_mock_client() -> MagicMock:
+    """A client whose ``async_api.observations_v_2.get_many`` is an ``AsyncMock``."""
+    lf = MagicMock()
+    lf.async_api.observations_v_2.get_many = AsyncMock()
+    return lf
 
 
 class TestPaging:
-    def test_follows_every_cursor_page(self) -> None:
-        lf = MagicMock()
-        lf.api.observations_v_2.get_many.side_effect = [
+    @pytest.mark.asyncio
+    async def test_follows_every_cursor_page(self) -> None:
+        lf = _async_mock_client()
+        lf.async_api.observations_v_2.get_many.side_effect = [
             _page([_obs("o1", "t1")], cursor="next"),
             _page([_obs("o2", "t1", parent="o1")]),
         ]
-        observations = _page_through_observations(lf, "traceId", "t1")
+        observations = await _page_through_observations(lf, "traceId", "t1")
         assert [o.id for o in observations] == ["o1", "o2"]
-        assert lf.api.observations_v_2.get_many.call_count == 2
-        second = lf.api.observations_v_2.get_many.call_args_list[1].kwargs
+        assert lf.async_api.observations_v_2.get_many.call_count == 2
+        second = lf.async_api.observations_v_2.get_many.call_args_list[1].kwargs
         assert second["cursor"] == "next"
 
-    def test_request_shape(self) -> None:
-        lf = MagicMock()
-        lf.api.observations_v_2.get_many.return_value = _page([])
-        _page_through_observations(lf, "sessionId", "s1")
-        kwargs = lf.api.observations_v_2.get_many.call_args.kwargs
+    @pytest.mark.asyncio
+    async def test_request_shape(self) -> None:
+        lf = _async_mock_client()
+        lf.async_api.observations_v_2.get_many.return_value = _page([])
+        await _page_through_observations(lf, "sessionId", "s1")
+        kwargs = lf.async_api.observations_v_2.get_many.call_args.kwargs
         assert kwargs["fields"] == "core,basic,io,metadata"
         assert kwargs["limit"] == 1000
         assert _filter(kwargs) == ("sessionId", "s1")
         assert kwargs["expand_metadata"] is None
 
-    def test_never_sends_parse_io_as_json(self) -> None:
+    @pytest.mark.asyncio
+    async def test_never_sends_parse_io_as_json(self) -> None:
         """The v2 endpoint rejects it with HTTP 400; the key must not be sent at all."""
-        lf = MagicMock()
-        lf.api.observations_v_2.get_many.return_value = _page([])
-        _page_through_observations(lf, "traceId", "t1")
+        lf = _async_mock_client()
+        lf.async_api.observations_v_2.get_many.return_value = _page([])
+        await _page_through_observations(lf, "traceId", "t1")
         assert (
-            "parse_io_as_json" not in lf.api.observations_v_2.get_many.call_args.kwargs
+            "parse_io_as_json"
+            not in lf.async_api.observations_v_2.get_many.call_args.kwargs
         )
 
 
 class TestTwoStepFetch:
-    def test_trace_observations_come_from_the_trace_filter(
+    @pytest.mark.asyncio
+    async def test_trace_observations_come_from_the_trace_filter(
         self, tmp_path: Path
     ) -> None:
         """The session filter drops agent-run spans and session-less rows."""
@@ -141,77 +153,90 @@ class TestTwoStepFetch:
         no_session = _obs("gen", "t1", session_id=None, parent="agent")
         lf = FakeLangfuse(session=[root], traces={"t1": [root, agent, no_session]})
 
-        grading_input = _fetch(lf, tmp_path)
+        grading_input = await _fetch(lf, tmp_path)
 
         (trace,) = grading_input.traces
         assert {o.id for o in trace.observations} == {"root", "agent", "gen"}
         assert trace.root.id == "root"
 
-    def test_one_trace_call_per_trace(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_one_trace_call_per_trace(self, tmp_path: Path) -> None:
         lf = FakeLangfuse(
             session=[_obs("r1", "t1"), _obs("c1", "t1", parent="r1"), _obs("r2", "t2")],
             traces={"t1": [_obs("r1", "t1")], "t2": [_obs("r2", "t2")]},
         )
-        _fetch(lf, tmp_path)
+        await _fetch(lf, tmp_path)
         assert sorted(_filter(c)[1] for c in lf.trace_calls()) == ["t1", "t2"]
 
-    def test_traces_are_ordered_by_root_start_time(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_traces_are_ordered_by_root_start_time(self, tmp_path: Path) -> None:
         late = _obs("r2", "t2", start="2026-01-01T00:05:00Z")
         early = _obs("r1", "t1", start="2026-01-01T00:01:00Z")
         lf = FakeLangfuse(session=[late, early], traces={"t1": [early], "t2": [late]})
-        assert [t.id for t in _fetch(lf, tmp_path).traces] == ["t1", "t2"]
+        assert [t.id for t in (await _fetch(lf, tmp_path)).traces] == ["t1", "t2"]
 
-    def test_trace_without_output_is_kept(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_trace_without_output_is_kept(self, tmp_path: Path) -> None:
         """A crashed exchange is part of what the target did; graders decide what to skip."""
         crashed = _obs("r1", "t1", output=None)
         lf = FakeLangfuse(session=[crashed], traces={"t1": [crashed]})
-        (trace,) = _fetch(lf, tmp_path).traces
+        (trace,) = (await _fetch(lf, tmp_path)).traces
         assert trace.root.output is None
 
-    def test_every_trace_is_kept_however_many(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_every_trace_is_kept_however_many(self, tmp_path: Path) -> None:
         """No cap on traces per session: the old fetch's limit=50 is gone."""
         rows = [
             _obs(f"r{i}", f"t{i}", start=f"2026-01-01T00:{i:02d}:00Z")
             for i in range(60)
         ]
         lf = FakeLangfuse(session=rows, traces={r["traceId"]: [r] for r in rows})
-        assert len(_fetch(lf, tmp_path).traces) == 60
+        assert len((await _fetch(lf, tmp_path)).traces) == 60
 
-    def test_trace_empty_by_trace_id_is_skipped_not_fatal(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_trace_empty_by_trace_id_is_skipped_not_fatal(
+        self, tmp_path: Path
+    ) -> None:
         """Found by the session filter, empty by traceId: an ingestion race."""
         good = _obs("r1", "t1")
         lf = FakeLangfuse(session=[good, _obs("r2", "t2")], traces={"t1": [good]})
-        assert [t.id for t in _fetch(lf, tmp_path).traces] == ["t1"]
+        assert [t.id for t in (await _fetch(lf, tmp_path)).traces] == ["t1"]
 
-    def test_empty_session_gives_empty_input(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_empty_session_gives_empty_input(self, tmp_path: Path) -> None:
         lf = FakeLangfuse(session=[], traces={})
-        grading_input = _fetch(lf, tmp_path)
+        grading_input = await _fetch(lf, tmp_path)
         assert grading_input.traces == ()
         assert grading_input.artifacts == ()
 
-    def test_polls_until_traces_appear(self, tmp_path: Path, monkeypatch: Any) -> None:
+    @pytest.mark.asyncio
+    async def test_polls_until_traces_appear(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
         root = _obs("r1", "t1")
         lf = FakeLangfuse(session=[], traces={"t1": [root]})
         sleeps: list[float] = []
 
-        def _sleep(seconds: float) -> None:
+        async def _sleep(seconds: float) -> None:
             sleeps.append(seconds)
             lf.session = [root]  # ingestion catches up while we wait
 
-        monkeypatch.setattr("metis.engine.extractor.langfuse.time.sleep", _sleep)
-        grading_input = _fetch(lf, tmp_path, retry_timeout=60)
+        monkeypatch.setattr("metis.engine.extractor.langfuse.asyncio.sleep", _sleep)
+        grading_input = await _fetch(lf, tmp_path, retry_timeout=60)
         assert [t.id for t in grading_input.traces] == ["t1"]
         assert sleeps == [10]
 
 
 class TestMetadataExpansion:
-    def test_short_metadata_is_fetched_once(self) -> None:
+    @pytest.mark.asyncio
+    async def test_short_metadata_is_fetched_once(self) -> None:
         root = _obs("r1", "t1", metadata={"mode": "direct"})
         lf = FakeLangfuse(session=[root], traces={"t1": [root]})
-        _fetch_trace(lf, "t1")  # type: ignore[arg-type]
+        await _fetch_trace(lf, "t1")  # type: ignore[arg-type]
         assert len(lf.trace_calls()) == 1
 
-    def test_possibly_truncated_metadata_is_refetched_with_every_key_expanded(
+    @pytest.mark.asyncio
+    async def test_possibly_truncated_metadata_is_refetched_with_every_key_expanded(
         self,
     ) -> None:
         cut = _obs("r1", "t1", metadata={"mode": "direct", "summary": "x" * 200})
@@ -223,7 +248,7 @@ class TestMetadataExpansion:
             expanded={"t1": [full, child]},
         )
 
-        observations = _fetch_trace(lf, "t1")  # type: ignore[arg-type]
+        observations = await _fetch_trace(lf, "t1")  # type: ignore[arg-type]
 
         calls = lf.trace_calls()
         assert len(calls) == 2
@@ -231,15 +256,17 @@ class TestMetadataExpansion:
         root = next(o for o in observations if o.id == "r1")
         assert root.metadata == {"mode": "direct", "summary": LONG}
 
-    def test_non_string_metadata_never_triggers_a_refetch(self) -> None:
+    @pytest.mark.asyncio
+    async def test_non_string_metadata_never_triggers_a_refetch(self) -> None:
         root = _obs("r1", "t1", metadata={"routed_to_agents": ["a"] * 100, "n": 5})
         lf = FakeLangfuse(session=[root], traces={"t1": [root]})
-        _fetch_trace(lf, "t1")  # type: ignore[arg-type]
+        await _fetch_trace(lf, "t1")  # type: ignore[arg-type]
         assert len(lf.trace_calls()) == 1
 
 
 class TestArtifacts:
-    def test_paths_are_resolved_against_the_experiment_root(
+    @pytest.mark.asyncio
+    async def test_paths_are_resolved_against_the_experiment_root(
         self, tmp_path: Path
     ) -> None:
         root = _obs("r1", "t1")
@@ -254,14 +281,15 @@ class TestArtifacts:
             Artifact(name="gone.csv", state="unavailable"),
         ]
 
-        grading_input = _fetch(lf, tmp_path, artifacts=artifacts)
+        grading_input = await _fetch(lf, tmp_path, artifacts=artifacts)
 
         deck, gone = grading_input.artifacts
         assert deck.path == str(tmp_path / "runs/a/deck.pptx")
         assert deck.at_simulated_turn == 2
         assert gone.path is None
 
-    def test_every_artifact_is_attached_regardless_of_turn(
+    @pytest.mark.asyncio
+    async def test_every_artifact_is_attached_regardless_of_turn(
         self, tmp_path: Path
     ) -> None:
         """Artifacts cannot be tied to traces reliably (#428 known gap), so none are filtered."""
@@ -271,13 +299,14 @@ class TestArtifacts:
             Artifact(name=f"f{i}", path=f"f{i}", at_simulated_turn=i, state="received")
             for i in range(5)
         ]
-        assert len(_fetch(lf, tmp_path, artifacts=artifacts).artifacts) == 5
+        assert len((await _fetch(lf, tmp_path, artifacts=artifacts)).artifacts) == 5
 
-    def test_input_artifacts_are_not_mutated(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_input_artifacts_are_not_mutated(self, tmp_path: Path) -> None:
         root = _obs("r1", "t1")
         lf = FakeLangfuse(session=[root], traces={"t1": [root]})
         original = Artifact(name="a", path="rel/a", state="received")
-        _fetch(lf, tmp_path, artifacts=[original])
+        await _fetch(lf, tmp_path, artifacts=[original])
         assert original.path == "rel/a"
 
 
@@ -285,13 +314,14 @@ class TestTracesFromBeforeTheV4Upgrade:
     """Such traces come back with every observation doubled and a ``t-<traceId>``
     root, and the stored set changes with page size, so they are rejected, not repaired."""
 
-    def test_synthetic_root_fails_the_session(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_synthetic_root_fails_the_session(self, tmp_path: Path) -> None:
         root = _obs("r1", "t1")
         synthetic = _obs("t-t1", "t1")
         lf = FakeLangfuse(session=[root], traces={"t1": [root, synthetic]})
 
         with pytest.raises(UnsupportedTraceError) as excinfo:
-            _fetch(lf, tmp_path)
+            await _fetch(lf, tmp_path)
 
         assert str(excinfo.value) == (
             "Session `s1` can't be graded: trace `t1` was recorded before this "
@@ -299,7 +329,10 @@ class TestTracesFromBeforeTheV4Upgrade:
             "Re-run the trial to grade it."
         )
 
-    def test_repeated_observation_id_fails_the_session(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_repeated_observation_id_fails_the_session(
+        self, tmp_path: Path
+    ) -> None:
         root = _obs("r1", "t1")
         child = _obs("c1", "t1", parent="r1")
         lf = FakeLangfuse(
@@ -307,7 +340,7 @@ class TestTracesFromBeforeTheV4Upgrade:
         )
 
         with pytest.raises(UnsupportedTraceError) as excinfo:
-            _fetch(lf, tmp_path)
+            await _fetch(lf, tmp_path)
 
         assert str(excinfo.value) == (
             "Session `s1` can't be graded: trace `t1` was recorded before this "
@@ -315,7 +348,8 @@ class TestTracesFromBeforeTheV4Upgrade:
             "Re-run the trial to grade it."
         )
 
-    def test_message_names_both_signs_when_both_are_present(
+    @pytest.mark.asyncio
+    async def test_message_names_both_signs_when_both_are_present(
         self, tmp_path: Path
     ) -> None:
         root = _obs("r1", "t1")
@@ -323,11 +357,14 @@ class TestTracesFromBeforeTheV4Upgrade:
         lf = FakeLangfuse(session=[root], traces={"t1": [root, synthetic, root]})
 
         with pytest.raises(UnsupportedTraceError) as excinfo:
-            _fetch(lf, tmp_path)
+            await _fetch(lf, tmp_path)
 
         assert "(synthetic root `t-t1`, 1 duplicated observation)" in str(excinfo.value)
 
-    def test_one_affected_trace_fails_the_whole_session(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_one_affected_trace_fails_the_whole_session(
+        self, tmp_path: Path
+    ) -> None:
         clean = _obs("r1", "t1", start="2026-01-01T00:01:00Z")
         doubled = _obs("r2", "t2", start="2026-01-01T00:02:00Z")
         lf = FakeLangfuse(
@@ -336,15 +373,16 @@ class TestTracesFromBeforeTheV4Upgrade:
         )
 
         with pytest.raises(UnsupportedTraceError, match="trace `t2`"):
-            _fetch(lf, tmp_path)
+            await _fetch(lf, tmp_path)
 
-    def test_clean_trace_is_unaffected(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_clean_trace_is_unaffected(self, tmp_path: Path) -> None:
         """One copy per id and no ``t-<traceId>`` id. Another trace's ``t-`` id is not one."""
         root = _obs("r1", "t1")
         child = _obs("c1", "t1", parent="r1")
         lookalike = _obs("t-t2", "t1", parent="r1")
         lf = FakeLangfuse(session=[root], traces={"t1": [root, child, lookalike]})
 
-        (trace,) = _fetch(lf, tmp_path).traces
+        (trace,) = (await _fetch(lf, tmp_path)).traces
 
         assert {o.id for o in trace.observations} == {"r1", "c1", "t-t2"}
