@@ -1395,3 +1395,19 @@ def test_an_unexpected_error_in_one_session_is_reported_as_itself(
     log_lines = (output / "logs" / "evaluate.log").read_text().splitlines()
     assert log_lines[-1].endswith("EVALUATION FAILED — No space left on device")
     assert not (output / "outputs" / "reports" / "results.json").exists()
+
+
+@pytest.mark.parametrize("concurrency", [1, 3])
+def test_the_log_records_the_concurrency_the_run_used(
+    monkeypatch, tmp_path: Path, concurrency: int
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 2)
+    _patch_evaluation(monkeypatch)
+
+    _evaluate_directly(output, concurrency=concurrency)
+
+    first_line = (output / "logs" / "evaluate.log").read_text().splitlines()[0]
+    assert first_line.endswith(
+        f"EVALUATION STARTED — {output} (concurrency {concurrency})"
+    )

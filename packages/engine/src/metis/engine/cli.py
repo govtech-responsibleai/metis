@@ -972,7 +972,9 @@ def _run_evaluation(
     log_level = _resolve_log_level(verbose, quiet)
     _configure_process_logging(log_level)
     evaluation_log = EvaluationLogger(experiment_dir / execution_layout.LOGS)
-    evaluation_log.write(f"EVALUATION STARTED — {experiment_dir}")
+    evaluation_log.write(
+        f"EVALUATION STARTED — {experiment_dir} (concurrency {concurrency})"
+    )
 
     import asyncio
 
