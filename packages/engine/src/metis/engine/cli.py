@@ -40,13 +40,18 @@ from metis.engine.tui import (
 
 if TYPE_CHECKING:
     import types as _types
+    from collections.abc import Callable
+
+    from langfuse import Langfuse
 
     from metis.core.model_settings import ModelRole
+    from metis.core.profile import Criterion
     from metis.core.reporting import GraderRecord
     from metis.core.traces import Trace
     from metis.core.trials import TrialRecord
     from metis.engine.simulation.experiment import TrialPlanItem
     from metis.engine.simulation.types import Specification
+    from metis.library.grader import Grader, LLMSettings
 
 app = typer.Typer(help="Run METIS evaluations against traces.")
 
@@ -991,6 +996,149 @@ def _run_evaluation(
     )
 
 
+@dataclass(frozen=True)
+class _EvaluationContext:
+    """What every record of one evaluation shares. Built once, read by ``_evaluate_one``."""
+
+    experiment_dir: Path
+    criteria_by_id: dict[str, Criterion]
+    graders: dict[str, Grader[Any]]
+    llm: LLMSettings
+    langfuse: Langfuse
+    langfuse_timeout: int
+    evaluation_log: EvaluationLogger
+    total_records: int
+
+
+@dataclass(frozen=True)
+class _RecordResult:
+    """One record's outcome: its grader records, or why it failed."""
+
+    records: list[GraderRecord]
+    failure_reason: str | None
+
+
+async def _evaluate_one(
+    record: TrialRecord,
+    *,
+    number: int,
+    context: _EvaluationContext,
+    phase: Callable[..., None],
+) -> _RecordResult:
+    """Fetch and grade one trial record's session.
+
+    An ordinary error is caught here and returned as a failure, so the caller never sees
+    it. The caller combines the returned values; this function changes no shared counter.
+    """
+    from metis.engine import extractor
+    from metis.engine.evaluation import SessionFacts, grade_session
+
+    log = context.evaluation_log
+    experiment_dir = context.experiment_dir
+    graders = context.graders
+    label = f"{record.config.persona} x {record.config.scenario}"
+    record_name = f"RECORD {number}/{context.total_records} {label}"
+    failure_reason: str | None = None
+    warning: str | None = None
+    session_records: list[GraderRecord] = []
+
+    log.write(f"{record_name} — EXTRACTING")
+    phase("extracting")
+    console.print(f"\n\n{'#' * 60}")
+    console.print(f"  SESSION {number}/{context.total_records}: {label}")
+    console.print(f"{'#' * 60}")
+
+    session_id = record.target_session_id
+    criteria = [
+        context.criteria_by_id[ref.criterion_id]
+        for ref in record.config.grader_refs
+        if ref.criterion_id in graders
+    ]
+    unknown = sorted(
+        ref.criterion_id
+        for ref in record.config.grader_refs
+        if ref.criterion_id not in graders
+    )
+    if unknown:
+        # The record was written against a spec whose criteria differ from the
+        # snapshot (e.g. inputs/specification.yaml was edited). Say so rather
+        # than silently grading fewer criteria than the trial ran for.
+        console.print(
+            f"  WARNING: criteria {', '.join(unknown)} are not in the "
+            "specification snapshot and were not graded",
+            style="yellow",
+            markup=False,
+        )
+        log.write(f"{record_name} — UNKNOWN CRITERIA — {', '.join(unknown)}")
+    try:
+        if not session_id:
+            failure_reason = "No target_session_id"
+        elif not criteria:
+            failure_reason = "No grader_refs in run config"
+        else:
+            grading_input = await extractor.fetch_session(
+                session_id,
+                context.langfuse,
+                experiment_root=experiment_dir,
+                artifacts=record.artifacts,
+                retry_timeout=context.langfuse_timeout,
+            )
+            if not grading_input.traces:
+                failure_reason = "No traces found in Langfuse"
+            else:
+                _save_session_traces(
+                    experiment_dir, session_id, grading_input.traces, log
+                )
+                log.write(f"{record_name} — EVALUATING")
+                for criterion in criteria:
+                    log.write(
+                        "GRADER CONFIG — "
+                        + json.dumps(
+                            {
+                                "record": label,
+                                "criterion_id": criterion.id,
+                                "fqn": criterion.grader_fqn,
+                                "args": graders[criterion.id].args.model_dump(
+                                    mode="json"
+                                ),
+                            },
+                            ensure_ascii=False,
+                            sort_keys=True,
+                        )
+                    )
+                phase("evaluating")
+                session_records = await grade_session(
+                    criteria,
+                    graders,
+                    grading_input,
+                    context.llm,
+                    SessionFacts(
+                        session_id=session_id,
+                        scenario_id=record.config.scenario,
+                        task_id=record.config.task_id,
+                        trial_index=record.config.trial_index,
+                        trace_session_id=trial_session_id(
+                            experiment_dir.resolve().name, record.config
+                        ),
+                    ),
+                )
+                _log_grader_records(log, session_records, record_label=label)
+    except Exception as exc:
+        failure_reason = str(exc)
+        warning = f"Evaluation failed: {exc}"
+
+    if failure_reason is None:
+        log.write(f"{record_name} — DONE")
+        phase("done", advance=1)
+        return _RecordResult(records=session_records, failure_reason=None)
+    console.print(
+        f"  WARNING: {warning or failure_reason}", style="yellow", markup=False
+    )
+    log.write(f"{record_name} — FAILED — {failure_reason}")
+    phase("failed", advance=1)
+    return _RecordResult(records=[], failure_reason=failure_reason)
+
+
 async def _evaluate_records(
     experiment_dir: Path,
     specification: Specification,
@@ -1010,14 +1158,8 @@ async def _evaluate_records(
 
     from metis.core.reporting import EvaluationResults
     from metis.engine import extractor
-    from metis.engine.evaluation import (
-        JudgeGateway,
-        SessionFacts,
-        build_grader,
-        build_llm_settings,
-        grade_session,
-    )
-    from metis.library.grader import Grader, JudgeArgs, LLMSettings
+    from metis.engine.evaluation import JudgeGateway, build_grader, build_llm_settings
+    from metis.library.grader import JudgeArgs, LLMSettings
 
     default_judge_model = specification.experiment.defaults.judge_model
     criteria_by_id = {c.id: c for b in specification.behaviours() for c in b.criteria}
@@ -1085,10 +1227,18 @@ async def _evaluate_records(
                 if progress
                 else None
             )
+            context = _EvaluationContext(
+                experiment_dir=experiment_dir,
+                criteria_by_id=criteria_by_id,
+                graders=graders,
+                llm=llm,
+                langfuse=langfuse,
+                langfuse_timeout=langfuse_timeout,
+                evaluation_log=evaluation_log,
+                total_records=len(records),
+            )
             for index, record in enumerate(records):
                 label = f"{record.config.persona} x {record.config.scenario}"
-                failure_reason: str | None = None
-                warning: str | None = None
 
                 def phase(
                     name: str,
@@ -1107,121 +1257,14 @@ async def _evaluate_records(
                         advance=advance,
                     )
 
-                evaluation_log.write(
-                    f"RECORD {index + 1}/{len(records)} {label} — EXTRACTING"
+                result = await _evaluate_one(
+                    record, number=index + 1, context=context, phase=phase
                 )
-                phase("extracting")
-                console.print(f"\n\n{'#' * 60}")
-                console.print(f"  SESSION {index + 1}/{len(records)}: {label}")
-                console.print(f"{'#' * 60}")
-
-                session_id = record.target_session_id
-                criteria = [
-                    criteria_by_id[ref.criterion_id]
-                    for ref in record.config.grader_refs
-                    if ref.criterion_id in graders
-                ]
-                unknown = sorted(
-                    ref.criterion_id
-                    for ref in record.config.grader_refs
-                    if ref.criterion_id not in graders
-                )
-                if unknown:
-                    # The record was written against a spec whose criteria differ from the
-                    # snapshot (e.g. inputs/specification.yaml was edited). Say so rather
-                    # than silently grading fewer criteria than the trial ran for.
-                    console.print(
-                        f"  WARNING: criteria {', '.join(unknown)} are not in the "
-                        "specification snapshot and were not graded",
-                        style="yellow",
-                        markup=False,
-                    )
-                    evaluation_log.write(
-                        f"RECORD {index + 1}/{len(records)} {label} — "
-                        f"UNKNOWN CRITERIA — {', '.join(unknown)}"
-                    )
-                try:
-                    if not session_id:
-                        failure_reason = "No target_session_id"
-                    elif not criteria:
-                        failure_reason = "No grader_refs in run config"
-                    else:
-                        grading_input = await extractor.fetch_session(
-                            session_id,
-                            langfuse,
-                            experiment_root=experiment_dir,
-                            artifacts=record.artifacts,
-                            retry_timeout=langfuse_timeout,
-                        )
-                        if not grading_input.traces:
-                            failure_reason = "No traces found in Langfuse"
-                        else:
-                            _save_session_traces(
-                                experiment_dir,
-                                session_id,
-                                grading_input.traces,
-                                evaluation_log,
-                            )
-                            evaluation_log.write(
-                                f"RECORD {index + 1}/{len(records)} {label} — EVALUATING"
-                            )
-                            for criterion in criteria:
-                                evaluation_log.write(
-                                    "GRADER CONFIG — "
-                                    + json.dumps(
-                                        {
-                                            "record": label,
-                                            "criterion_id": criterion.id,
-                                            "fqn": criterion.grader_fqn,
-                                            "args": graders[
-                                                criterion.id
-                                            ].args.model_dump(mode="json"),
-                                        },
-                                        ensure_ascii=False,
-                                        sort_keys=True,
-                                    )
-                                )
-                            phase("evaluating")
-                            session_records = await grade_session(
-                                criteria,
-                                graders,
-                                grading_input,
-                                llm,
-                                SessionFacts(
-                                    session_id=session_id,
-                                    scenario_id=record.config.scenario,
-                                    task_id=record.config.task_id,
-                                    trial_index=record.config.trial_index,
-                                    trace_session_id=trial_session_id(
-                                        experiment_dir.resolve().name, record.config
-                                    ),
-                                ),
-                            )
-                            all_records.extend(session_records)
-                            _log_grader_records(
-                                evaluation_log, session_records, record_label=label
-                            )
-                except Exception as exc:
-                    failure_reason = str(exc)
-                    warning = f"Evaluation failed: {exc}"
-
-                if failure_reason is None:
+                all_records.extend(result.records)
+                if result.failure_reason is None:
                     successful += 1
-                    evaluation_log.write(
-                        f"RECORD {index + 1}/{len(records)} {label} — DONE"
-                    )
-                    phase("done", advance=1)
                 else:
                     failed += 1
-                    console.print(
-                        f"  WARNING: {warning or failure_reason}",
-                        style="yellow",
-                        markup=False,
-                    )
-                    evaluation_log.write(
-                        f"RECORD {index + 1}/{len(records)} {label} — FAILED — {failure_reason}"
-                    )
-                    phase("failed", advance=1)
 
             if progress and task_id is not None:
                 progress.update(task_id, description="Evaluation complete")

@@ -6,6 +6,7 @@ import shlex
 from pathlib import Path
 from typing import Any
 
+import pytest
 from typer.testing import CliRunner
 
 from metis.core.reporting import EvaluationResults
@@ -804,3 +805,103 @@ def test_unserialisable_payload_does_not_fail_the_record(
     ).records
     assert graded.criterion_id == "AC-1-1"
     assert "TRACES NOT SAVED" in (output / "logs" / "evaluate.log").read_text()
+
+
+# --- _evaluate_one: the per-record unit that the evaluation loop calls ---------------------
+
+
+def _evaluation_context(tmp_path: Path, fetch: Any) -> tuple[Any, Path]:
+    """The shared state ``_evaluate_one`` needs, built from a real specification snapshot."""
+    from metis.engine.evaluation import build_grader
+    from metis.engine.logging import EvaluationLogger
+    from metis.library.grader import LLMSettings
+
+    experiment_dir = _write_experiment_dir(tmp_path)
+    specification = cli._load_evaluation_specification(experiment_dir)
+    criteria_by_id = {c.id: c for b in specification.behaviours() for c in b.criteria}
+    graders = {
+        cid: build_grader(c, default_judge_model="unused", env={})
+        for cid, c in criteria_by_id.items()
+    }
+
+    class FakeLangfuse:
+        pass
+
+    context = cli._EvaluationContext(
+        experiment_dir=experiment_dir,
+        criteria_by_id=criteria_by_id,
+        graders=graders,
+        llm=LLMSettings(client=cli._NoJudgeClient()),  # type: ignore[arg-type]
+        langfuse=FakeLangfuse(),  # type: ignore[arg-type]
+        langfuse_timeout=0,
+        evaluation_log=EvaluationLogger(experiment_dir / "logs"),
+        total_records=1,
+    )
+    return context, experiment_dir
+
+
+def _trial_record(experiment_dir: Path, *, session_id: str | None) -> TrialRecord:
+    path = _write_record(experiment_dir, session_id=session_id or "unused")
+    record = TrialRecord.model_validate_json(path.read_text())
+    return record.model_copy(update={"target_session_id": session_id})
+
+
+@pytest.mark.asyncio
+async def test_evaluate_one_returns_the_graded_records(
+    monkeypatch, tmp_path: Path
+) -> None:
+    async def fetch(session_id: str, *_args: object, **_kwargs: object) -> GradingInput:
+        return _session(session_id)
+
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+    context, experiment_dir = _evaluation_context(tmp_path, fetch)
+    record = _trial_record(experiment_dir, session_id="session-1")
+    phases: list[str] = []
+
+    result = await cli._evaluate_one(
+        record, number=1, context=context, phase=lambda name, **_: phases.append(name)
+    )
+
+    assert result.failure_reason is None
+    assert [r.criterion_id for r in result.records] == ["AC-1-1"]
+    assert phases == ["extracting", "evaluating", "done"]
+
+
+@pytest.mark.asyncio
+async def test_evaluate_one_returns_a_failure_instead_of_raising(
+    monkeypatch, tmp_path: Path
+) -> None:
+    async def fetch(*_args: object, **_kwargs: object) -> GradingInput:
+        raise RuntimeError("trace unavailable")
+
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+    context, experiment_dir = _evaluation_context(tmp_path, fetch)
+    record = _trial_record(experiment_dir, session_id="session-1")
+    phases: list[str] = []
+
+    result = await cli._evaluate_one(
+        record, number=1, context=context, phase=lambda name, **_: phases.append(name)
+    )
+
+    assert result.failure_reason == "trace unavailable"
+    assert result.records == []
+    assert phases[-1] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_evaluate_one_fails_a_record_without_a_session_id(
+    monkeypatch, tmp_path: Path
+) -> None:
+    async def fetch(*_args: object, **_kwargs: object) -> GradingInput:
+        raise AssertionError("a record with no session id must not be fetched")
+
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+    context, experiment_dir = _evaluation_context(tmp_path, fetch)
+    record = _trial_record(experiment_dir, session_id=None)
+
+    result = await cli._evaluate_one(
+        record, number=1, context=context, phase=lambda name, **_: None
+    )
+
+    assert result.failure_reason == "No target_session_id"
+    assert result.records == []
