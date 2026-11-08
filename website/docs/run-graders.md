@@ -28,6 +28,31 @@ metis engine evaluate --experiment-dir experiments/execute/<your-run>
 `simulate` prints this command with your path. The folder must hold the frozen `inputs/` copy
 that `simulate` made. Running `evaluate` again on the same folder overwrites the earlier results.
 
+## Grade several trials at once
+
+By default `evaluate` grades one trial at a time. `--concurrency` (short `-c`) sets how many
+trials are graded together:
+
+```bash
+metis engine evaluate --experiment-dir experiments/execute/<your-run> --concurrency 4
+```
+
+The number must be at least 1. A new trial starts as soon as any running trial finishes. Raise
+it as far as your Langfuse server and your model provider allow. METIS never sends more than 50
+grader model calls at once, however large the number is, so a high value makes calls wait
+instead of flooding the provider.
+
+With more than one trial at a time, the output changes in four ways:
+
+- The `SESSION i/total` banner for each trial is not printed.
+- The progress bar reads `Evaluation — K running`, where K is the number of trials being graded.
+  The steps of each trial are in `logs/evaluate.log`.
+- Each warning starts with `RECORD i/total` and the trial's persona and scenario.
+- Press Ctrl-C to stop every trial. No `results.json` is written, and the log ends with
+  `EVALUATION INTERRUPTED`.
+
+`results.json` lists the results in the same order whatever order the trials finish in.
+
 ## When traces are missing
 
 Langfuse can take time to show a trace after your application sends it. METIS waits for
