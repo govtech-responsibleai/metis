@@ -213,7 +213,11 @@ the existing CLI review belongs at `outputs/review.md`. Engine reads the `output
 The CLI publishes `outputs/specification.yaml` last as its completion marker and retains
 recovery state until export succeeds. Wizard MUST NOT create Testbed caches or scores.
 
-Engine creates `experiments/execute/<specification-id>-YYYYMMDD-HHMMSS/`. It copies
+Engine creates `experiments/execute/<specification-id>-YYYYMMDD-HHMMSS/` under the project
+folder. `--project-dir` or `METIS_PROJECT_DIR` names that folder; without them, Engine uses the
+nearest folder above the working directory that has a `pyproject.toml`. Engine MUST NOT write
+into a run folder that exists: a new run with a taken name stops with an error.
+A caller finds its runs by listing `experiments/execute/` in the project folder. Engine copies
 `--input-dir` into `inputs/`, writes trial records and artifacts under `outputs/trials/`,
 and writes evaluation results to `outputs/reports/results.json`. Insights reads the
 same execution root and writes `report.json` and `report.html` beside the results.
