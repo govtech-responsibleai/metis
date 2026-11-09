@@ -386,3 +386,168 @@ class TestTracesFromBeforeTheV4Upgrade:
         (trace,) = (await _fetch(lf, tmp_path)).traces
 
         assert {o.id for o in trace.observations} == {"r1", "c1", "t-t2"}
+
+
+# --- retries: the real SDK client over a fake transport -------------------------------------
+
+
+def _real_client(handler: Any) -> Any:
+    """A real ``AsyncFernLangfuse`` whose HTTP layer is ``handler``, so the SDK's own retry
+    code runs. Returns an object shaped like the ``Langfuse`` client the extractor takes."""
+    import httpx
+    from langfuse.api.client import AsyncFernLangfuse
+
+    api = AsyncFernLangfuse(
+        base_url="http://langfuse.test",
+        username="pk",
+        password="sk",
+        httpx_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+    return SimpleNamespace(async_api=api)
+
+
+def _ok_body(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    return {"data": rows, "meta": {"cursor": None}}
+
+
+@pytest.fixture
+def instant_retries(monkeypatch: Any) -> list[float]:
+    """Record every retry wait without sleeping."""
+    waits: list[float] = []
+
+    async def _sleep(seconds: float) -> None:
+        waits.append(seconds)
+
+    monkeypatch.setattr("asyncio.sleep", _sleep)
+    return waits
+
+
+class TestRetries:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("status", [429, 408, 500, 503])
+    async def test_a_retriable_status_is_retried_and_the_page_arrives(
+        self, status: int, instant_retries: list[float]
+    ) -> None:
+        import httpx
+
+        calls: list[int] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(1)
+            if len(calls) < 3:
+                return httpx.Response(status, json={"message": "slow down"})
+            return httpx.Response(200, json=_ok_body([_obs("o1", "t1")]))
+
+        observations = await _page_through_observations(
+            _real_client(handler), "traceId", "t1"
+        )
+
+        assert [o.id for o in observations] == ["o1"]
+        assert len(calls) == 3
+        assert len(instant_retries) == 2  # waited before each retry
+
+    @pytest.mark.asyncio
+    async def test_a_status_that_keeps_failing_is_raised_after_the_retries(
+        self, instant_retries: list[float]
+    ) -> None:
+        import httpx
+        from langfuse.api.core.api_error import ApiError
+
+        calls: list[int] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(1)
+            return httpx.Response(429, json={"message": "slow down"})
+
+        with pytest.raises(ApiError) as excinfo:
+            await _page_through_observations(_real_client(handler), "traceId", "t1")
+
+        assert excinfo.value.status_code == 429
+        assert len(calls) == 1 + 3  # the first try and three retries, then it gives up
+
+    @pytest.mark.asyncio
+    async def test_a_status_that_is_not_retriable_fails_at_once(
+        self, instant_retries: list[float]
+    ) -> None:
+        import httpx
+        from langfuse.api.core.api_error import ApiError
+
+        calls: list[int] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(1)
+            return httpx.Response(401, json={"message": "bad key"})
+
+        with pytest.raises(ApiError):
+            await _page_through_observations(_real_client(handler), "traceId", "t1")
+
+        assert len(calls) == 1
+        assert instant_retries == []
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("error", ["timeout", "connect"])
+    async def test_a_timeout_or_connection_error_is_retried(
+        self, error: str, instant_retries: list[float]
+    ) -> None:
+        import httpx
+
+        calls: list[int] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(1)
+            if len(calls) < 3:
+                if error == "timeout":
+                    raise httpx.ReadTimeout("read timed out", request=request)
+                raise httpx.ConnectError("refused", request=request)
+            return httpx.Response(200, json=_ok_body([_obs("o1", "t1")]))
+
+        observations = await _page_through_observations(
+            _real_client(handler), "traceId", "t1"
+        )
+
+        assert [o.id for o in observations] == ["o1"]
+        assert len(calls) == 3
+        assert len(instant_retries) == 2
+
+    @pytest.mark.asyncio
+    async def test_a_timeout_that_keeps_happening_is_raised_after_the_retries(
+        self, instant_retries: list[float]
+    ) -> None:
+        import httpx
+
+        calls: list[int] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(1)
+            raise httpx.ReadTimeout("read timed out", request=request)
+
+        with pytest.raises(httpx.ReadTimeout):
+            await _page_through_observations(_real_client(handler), "traceId", "t1")
+
+        assert len(calls) == 1 + 3
+
+    @pytest.mark.asyncio
+    async def test_each_page_is_retried_on_its_own(
+        self, instant_retries: list[float]
+    ) -> None:
+        """A failure on page two must not refetch page one."""
+        import httpx
+
+        pages: list[str | None] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            cursor = request.url.params.get("cursor")
+            pages.append(cursor)
+            if cursor is None:
+                body = {"data": [_obs("o1", "t1")], "meta": {"cursor": "next"}}
+                return httpx.Response(200, json=body)
+            if pages.count("next") == 1:
+                return httpx.Response(429, json={"message": "slow down"})
+            return httpx.Response(200, json=_ok_body([_obs("o2", "t1", parent="o1")]))
+
+        observations = await _page_through_observations(
+            _real_client(handler), "traceId", "t1"
+        )
+
+        assert [o.id for o in observations] == ["o1", "o2"]
+        assert pages == [None, "next", "next"]  # page one fetched once
