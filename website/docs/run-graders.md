@@ -30,32 +30,32 @@ that `simulate` made. Running `evaluate` again on the same folder overwrites the
 
 ## When traces are missing
 
-Langfuse can take time to show a trace after your application sends it, and a trace can still
-change while Langfuse stores the rest of it. So METIS checks each trial's traces again and again,
-with a longer pause each time. It grades the trial when two checks in a row see the same traces,
-no trace is empty, and no step in a trace is still open. METIS keeps checking for up to
-`--langfuse-timeout` seconds, 90 by default:
+To grade a trial, METIS needs to know when its traces are ready. Langfuse can take time to store
+them, so METIS waits for a quiet window (30 seconds by default, user configurable) before grading 
+the trial.
+
+Set your Langfuse quiet window in `.env`:
+
+```bash
+LANGFUSE_METIS_QUIET_SECONDS=60
+```
+
+METIS waits for up to `--langfuse-timeout` seconds, 90 by default. Keep it longer than the quiet
+window:
 
 ```bash
 metis engine evaluate --experiment-dir experiments/execute/<your-run> --langfuse-timeout 300
 ```
 
-Traces from older Langfuse Client SDKs can arrive several minutes late, which is longer than the
-default timeout. A trial can then fail even though its traces would be complete a little later.
-If you see missing traces, upgrade the [Langfuse Client SDK](set-up-observability.md#langfuse-client-sdk) in your
-application first (Python `langfuse` 4.7.0 or later, JS/TS `@langfuse/*` 5.4.0 or later), and
-only then raise the timeout. A longer timeout hides the delay but does not remove it. Also
-check the keys in `.env` and the [troubleshooting table](set-up-observability.md#troubleshooting).
-
-If the traces are not ready when the time is up, the trial fails and gets no grades. Two
-matching checks make it unlikely that METIS grades part of a conversation, but they cannot rule
-it out: if Langfuse pauses for longer than the gap between two checks, a late trace can still be
-missed. The reason for a failure is one of these:
+If the traces are not ready in time, the trial fails with one of these reasons:
 
 - `no traces in Langfuse`: Langfuse returned no trace for the trial.
-- `traces still changing in Langfuse`: traces arrived, but they did not stop changing, or a step
-  in a trace was never ended. If a longer timeout does not help, check that your application ends
-  every step that it starts.
+- `traces still changing in Langfuse`: Langfuse kept storing new data until the time was up.
+
+Older Langfuse Client SDKs can send traces several minutes late. Upgrade the
+[Langfuse Client SDK](set-up-observability.md#langfuse-client-sdk) first (Python `langfuse` 4.7.0
+or later, JS/TS `@langfuse/*` 5.4.0 or later), and only then raise the timeout. Also check the
+keys in `.env` and the [troubleshooting table](set-up-observability.md#troubleshooting).
 
 `metis engine run` takes the same `--langfuse-timeout` option.
 
