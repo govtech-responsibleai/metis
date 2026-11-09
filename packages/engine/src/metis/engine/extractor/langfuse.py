@@ -25,7 +25,9 @@ size (issue #469). METIS does not repair such a trace; ``fetch_session`` raises
 ``UnsupportedTraceError`` for it, so the session fails and the trial must be re-run.
 
 Langfuse can still be ingesting a session when ``evaluate`` starts. So ``fetch_session``
-grades nothing until the session's traces stop changing (see ``wait_for_settled_traces``).
+grades nothing until Langfuse has stored no new data for the session for
+``DEFAULT_QUIET_SECONDS``, or the number of seconds that the caller sets (see
+``wait_for_settled_traces``).
 
 Input/output arrive as raw strings (``parse_io_as_json`` is rejected with HTTP 400), and
 ``metis.core.traces.Observation`` parses JSON-looking values itself.
@@ -36,6 +38,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal
 
 from langfuse import Langfuse
@@ -46,18 +49,21 @@ from metis.core.traces import GradingInput, Observation, Trace
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from datetime import datetime
     from pathlib import Path
 
 logger = get_logger(__name__)
 
 _FIELDS = "core,basic,time,io,metadata"
-"""``time`` holds ``updatedAt``, which the trace wait compares between checks."""
+"""``time`` holds ``updatedAt``, which the trace wait reads."""
 _PAGE_SIZE = 1000
 _TRUNCATION_LIMIT = 200
 """Langfuse truncates metadata values longer than this unless the key is expanded."""
-_BACKOFF_SECONDS = (1.0, 2.0, 4.0, 8.0, 15.0)
-"""The pause before each next check. The last pause repeats until the timeout."""
+DEFAULT_QUIET_SECONDS = 30.0
+"""The traces are ready when Langfuse has stored nothing new for this long. The Langfuse SDK
+sends finished spans in batches about every 5 seconds, so the default covers several batches."""
+_RETRY_SECONDS = 5.0
+"""The pause before the next check while the session has no trace or an empty trace, so there
+is no stored time to count from."""
 _POINT_IN_TIME_TYPES = frozenset({"EVENT"})
 """Observation types that record one moment. Langfuse can store them with no end time, so
 they never count as open."""
@@ -65,7 +71,8 @@ they never count as open."""
 NO_TRACES = "no traces in Langfuse"
 """Failure reason: Langfuse returned no trace for the session before the timeout."""
 TRACES_CHANGING = "traces still changing in Langfuse"
-"""Failure reason: traces arrived but did not settle before the timeout."""
+"""Failure reason: traces arrived, but Langfuse kept storing new data for the session until
+the timeout."""
 
 
 class UnsupportedTraceError(RuntimeError):
@@ -174,15 +181,20 @@ def _session_trace_ids(langfuse: Langfuse, session_id: str) -> list[str]:
     return list(dict.fromkeys(observation.trace_id for observation in observations))
 
 
-Fingerprint = tuple[tuple[str, tuple[tuple[str, str | None, str | None], ...]], ...]
-"""Each trace id with, for each observation, its id, end time and last update time."""
+@dataclass(frozen=True)
+class OpenObservation:
+    """An observation that Langfuse stores with no end time."""
+
+    trace_id: str
+    id: str
+    name: str | None
 
 
 @dataclass(frozen=True)
 class TraceWait:
     """The result of ``wait_for_settled_traces``.
 
-    ``status`` is ``"settled"`` when two checks in a row matched and the traces were complete.
+    ``status`` is ``"settled"`` when Langfuse had stored nothing new for the quiet window.
     Otherwise the timeout passed, and ``reason`` says why the session cannot be graded.
     """
 
@@ -191,6 +203,9 @@ class TraceWait:
     waited_seconds: float
     traces: dict[str, list[Observation]] = field(default_factory=dict)
     """Each trace id in first-seen order, with its observations from the last check."""
+    open_observations: tuple[OpenObservation, ...] = ()
+    """Observations with no end time in the last check. They do not hold the wait: a target
+    that crashed never ends them, and its traces are graded as Langfuse stores them."""
 
     @property
     def reason(self) -> str | None:
@@ -207,29 +222,35 @@ def _is_open(observation: Observation) -> bool:
     return observation.end_time is None and observation.type not in _POINT_IN_TIME_TYPES
 
 
-def _when(value: datetime | None) -> str | None:
-    return value.isoformat() if value is not None else None
+def _stored_at(observation: Observation) -> datetime | None:
+    """When Langfuse last stored this row: ``updatedAt``, else the end or start time."""
+    stamp = observation.updated_at or observation.end_time or observation.start_time
+    if stamp is not None and stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=UTC)
+    return stamp
 
 
-def _fingerprint(traces: dict[str, list[Observation]]) -> Fingerprint:
+def _stored_age(traces: dict[str, list[Observation]], now: datetime) -> float:
+    """Seconds since Langfuse last stored any row of the session, ``0`` if a row has no time.
+
+    The age compares Langfuse's times with this machine's clock, so a clock that is off
+    moves the result by the same amount.
+    """
+    stamps = [_stored_at(o) for observations in traces.values() for o in observations]
+    if not stamps or any(stamp is None for stamp in stamps):
+        return 0.0
+    newest = max(stamp for stamp in stamps if stamp is not None)
+    return max(0.0, (now - newest).total_seconds())
+
+
+def _open_observations(
+    traces: dict[str, list[Observation]],
+) -> tuple[OpenObservation, ...]:
     return tuple(
-        (
-            trace_id,
-            tuple(
-                sorted(
-                    (o.id, _when(o.end_time), _when(o.updated_at)) for o in observations
-                )
-            ),
-        )
-        for trace_id, observations in sorted(traces.items())
-    )
-
-
-def _is_complete(traces: dict[str, list[Observation]]) -> bool:
-    """True when the session has a trace, no trace is empty and no observation is open."""
-    return bool(traces) and all(
-        observations and not any(_is_open(o) for o in observations)
-        for observations in traces.values()
+        OpenObservation(trace_id, o.id, o.name)
+        for trace_id, observations in traces.items()
+        for o in observations
+        if _is_open(o)
     )
 
 
@@ -241,41 +262,55 @@ def _check_session(langfuse: Langfuse, session_id: str) -> dict[str, list[Observ
     }
 
 
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
 def wait_for_settled_traces(
     langfuse: Langfuse,
     session_id: str,
     *,
     timeout: float,
+    quiet_seconds: float = DEFAULT_QUIET_SECONDS,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
+    utc_now: Callable[[], datetime] = _utc_now,
 ) -> TraceWait:
-    """Check the session until its traces stop changing, or until ``timeout`` seconds pass.
+    """Check the session until Langfuse has stored nothing new for ``quiet_seconds``.
 
-    Each check fetches the whole session again and makes a ``Fingerprint`` of it. The traces
-    are settled when two checks in a row give the same fingerprint and the traces are
-    complete: the session has a trace, no trace is empty and no observation is still open.
-    The pause between checks grows as ``_BACKOFF_SECONDS`` says, so a run with many trials
-    does not overload Langfuse. The last pause is cut short so that the final check is made
-    at the timeout. There are always at least two checks, so a ``timeout`` of ``0`` checks
-    twice with no pause.
+    METIS cannot know when a conversation has ended. It can only see when Langfuse last stored
+    data for it. So each check fetches the whole session and reads the newest stored time of
+    any row (see ``_stored_age``). The traces are ready when the session has a trace, no
+    trace is empty, and that time is at least ``quiet_seconds`` old. Old traces are ready on
+    the first check. An observation with no end time does not hold the wait.
+    ``TraceWait.open_observations`` lists it.
+
+    When the traces are not ready, the next check is made when the newest row will be
+    ``quiet_seconds`` old. New data in the meantime makes that check wait again. While there
+    is no stored time to count from, the pause is ``_RETRY_SECONDS``. Every pause is cut
+    short at the timeout, so the last check is made at the timeout. A ``timeout`` of ``0``
+    checks once.
     """
     started = clock()
     deadline = started + timeout
-    previous: Fingerprint | None = None
     checks = 0
     while True:
         traces = _check_session(langfuse, session_id)
         checks += 1
-        current = _fingerprint(traces)
-        if current == previous and _is_complete(traces):
-            return TraceWait("settled", checks, clock() - started, traces)
         now = clock()
-        if checks >= 2 and now >= deadline:
+        has_every_trace = bool(traces) and all(traces.values())
+        age = _stored_age(traces, utc_now())
+        if has_every_trace and age >= quiet_seconds:
+            return TraceWait(
+                "settled", checks, now - started, traces, _open_observations(traces)
+            )
+        if now >= deadline:
             status = "still_changing" if traces else "no_traces"
-            return TraceWait(status, checks, now - started, traces)
-        previous = current
-        pause = _BACKOFF_SECONDS[min(checks - 1, len(_BACKOFF_SECONDS) - 1)]
-        sleep(max(0.0, min(pause, deadline - now)))
+            return TraceWait(
+                status, checks, now - started, traces, _open_observations(traces)
+            )
+        pause = quiet_seconds - age if has_every_trace else _RETRY_SECONDS
+        sleep(min(pause, deadline - now))
 
 
 def _check_supported(
@@ -319,28 +354,45 @@ def fetch_session(
     experiment_root: Path,
     artifacts: list[Artifact] | None = None,
     retry_timeout: float = 0,
+    quiet_seconds: float = DEFAULT_QUIET_SECONDS,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
+    utc_now: Callable[[], datetime] = _utc_now,
+    on_wait: Callable[[TraceWait], None] | None = None,
 ) -> GradingInput:
     """Fetch one session as the ``GradingInput`` every grader run on it shares.
 
-    Waits until the session's traces stop changing (see ``wait_for_settled_traces``), so a
-    trial is never graded on part of a conversation. Holds every trace in the session, oldest
-    root first, including traces whose root has no output: a crashed or timed-out exchange
-    is part of what the target did. The run's artifacts are attached with their paths
-    resolved against ``experiment_root``.
+    Waits until Langfuse has stored nothing new for the session for ``quiet_seconds`` (see
+    ``wait_for_settled_traces``). Data that Langfuse stores after that is not graded.
+    Holds every trace in the session, oldest root first, including traces whose root has no
+    output: a crashed or timed-out exchange is part of what the target did. The run's
+    artifacts are attached with their paths resolved against ``experiment_root``.
 
-    :param retry_timeout: Seconds to wait for the traces to settle. ``0`` checks twice with
-        no pause.
+    :param retry_timeout: Seconds to wait for the traces to settle. ``0`` checks once.
+    :param quiet_seconds: How long Langfuse must store nothing new before the traces count as
+        ready.
     :param clock: Seconds from a monotonic clock. Tests pass a fake one.
     :param sleep: The pause between checks. Tests pass a fake one.
+    :param utc_now: The current UTC time, compared with Langfuse's ``updatedAt``. Tests pass
+        a fake one.
+    :param on_wait: Called with the ``TraceWait`` before the traces are graded or the error
+        is raised, so the caller can log the checks, the time waited and any open
+        observations.
     :raises TracesNotReadyError: When the traces are missing or still changing at the
         timeout. Its message is ``NO_TRACES`` or ``TRACES_CHANGING``.
     :raises UnsupportedTraceError: When a trace was recorded before the server's v4 upgrade.
     """
     wait = wait_for_settled_traces(
-        langfuse, session_id, timeout=retry_timeout, clock=clock, sleep=sleep
+        langfuse,
+        session_id,
+        timeout=retry_timeout,
+        quiet_seconds=quiet_seconds,
+        clock=clock,
+        sleep=sleep,
+        utc_now=utc_now,
     )
+    if on_wait is not None:
+        on_wait(wait)
     logger.debug(
         "[langfuse] session %s: %s after %d checks in %.1fs",
         session_id,

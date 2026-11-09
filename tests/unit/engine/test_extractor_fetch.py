@@ -8,6 +8,7 @@ observations (issue #435) gets different, smaller data and fails.
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -19,6 +20,7 @@ from metis.core import Artifact
 from metis.engine.extractor.langfuse import (
     NO_TRACES,
     TRACES_CHANGING,
+    OpenObservation,
     TracesNotReadyError,
     UnsupportedTraceError,
     _fetch_trace,
@@ -102,22 +104,41 @@ class FakeLangfuse:
         return [c for c in self.calls if _filter(c)[0] == "traceId"]
 
 
-class FakeClock:
-    """A clock that moves only when the code sleeps. ``on_sleep`` lets Langfuse change."""
+STORED = datetime(2026, 1, 1, 0, 0, 2, tzinfo=UTC)
+"""The default ``updatedAt`` of ``_obs``."""
 
-    def __init__(self, on_sleep: Any = None) -> None:
+
+class FakeClock:
+    """A clock that moves only when the code sleeps. ``on_sleep`` lets Langfuse change.
+
+    ``utc_start`` is the wall-clock time at ``now == 0``. The default is a day after
+    ``STORED``, so default rows are old and settle on the first check.
+    """
+
+    def __init__(
+        self, on_sleep: Any = None, *, utc_start: datetime = STORED + timedelta(days=1)
+    ) -> None:
         self.now = 0.0
         self.sleeps: list[float] = []
         self.on_sleep = on_sleep
+        self.utc_start = utc_start
 
     def clock(self) -> float:
         return self.now
+
+    def utc_now(self) -> datetime:
+        return self.utc_start + timedelta(seconds=self.now)
 
     def sleep(self, seconds: float) -> None:
         self.sleeps.append(seconds)
         self.now += seconds
         if self.on_sleep:
             self.on_sleep(len(self.sleeps))
+
+
+def _stamp(clock: FakeClock) -> str:
+    """The ``updatedAt`` of a row that Langfuse stores at the clock's current time."""
+    return clock.utc_now().isoformat().replace("+00:00", "Z")
 
 
 def _fetch(
@@ -130,6 +151,7 @@ def _fetch(
         experiment_root=tmp_path,
         clock=clock.clock,
         sleep=clock.sleep,
+        utc_now=clock.utc_now,
         **kwargs,
     )
 
@@ -183,19 +205,13 @@ class TestTwoStepFetch:
         assert {o.id for o in trace.observations} == {"root", "agent", "gen"}
         assert trace.root.id == "root"
 
-    def test_each_check_fetches_each_trace_once(self, tmp_path: Path) -> None:
-        """A zero timeout makes two checks, the least that can show the traces settled."""
+    def test_one_trace_call_per_trace(self, tmp_path: Path) -> None:
         lf = FakeLangfuse(
             session=[_obs("r1", "t1"), _obs("c1", "t1", parent="r1"), _obs("r2", "t2")],
             traces={"t1": [_obs("r1", "t1")], "t2": [_obs("r2", "t2")]},
         )
         _fetch(lf, tmp_path)
-        assert sorted(_filter(c)[1] for c in lf.trace_calls()) == [
-            "t1",
-            "t1",
-            "t2",
-            "t2",
-        ]
+        assert sorted(_filter(c)[1] for c in lf.trace_calls()) == ["t1", "t2"]
 
     def test_traces_are_ordered_by_root_start_time(self, tmp_path: Path) -> None:
         late = _obs("r2", "t2", start="2026-01-01T00:05:00Z")
@@ -221,42 +237,55 @@ class TestTwoStepFetch:
 
 
 class TestWaitForSettledTraces:
-    """A trial is graded only on traces that two checks in a row saw unchanged."""
+    """A trial is graded only when Langfuse has stored nothing new for the quiet window."""
 
-    def test_traces_that_arrive_late_are_all_graded(self, tmp_path: Path) -> None:
+    def test_old_traces_are_graded_at_once(self, tmp_path: Path) -> None:
+        root = _obs("r1", "t1")
+        lf = FakeLangfuse(session=[root], traces={"t1": [root]})
+        clock = FakeClock()
+
+        (trace,) = _fetch(lf, tmp_path, clock=clock, retry_timeout=90).traces
+
+        assert trace.id == "t1"
+        assert clock.sleeps == []
+
+    def test_new_data_during_the_wait_restarts_it(self, tmp_path: Path) -> None:
+        """A trace that Langfuse stores during the wait is graded with the rest."""
         first = _obs("r1", "t1", start="2026-01-01T00:01:00Z")
-        late = _obs("r2", "t2", start="2026-01-01T00:02:00Z")
-        lf = FakeLangfuse(session=[first], traces={"t1": [first], "t2": [late]})
+        lf = FakeLangfuse(session=[first], traces={"t1": [first]})
+        clock = FakeClock(utc_start=STORED)
 
         def ingest(sleeps: int) -> None:
             if sleeps == 1:
+                late = _obs(
+                    "r2", "t2", start="2026-01-01T00:02:00Z", updated=_stamp(clock)
+                )
                 lf.session = [first, late]
+                lf.traces["t2"] = [late]
 
-        grading_input = _fetch(lf, tmp_path, clock=FakeClock(ingest), retry_timeout=90)
+        clock.on_sleep = ingest
+        grading_input = _fetch(
+            lf, tmp_path, clock=clock, retry_timeout=90, quiet_seconds=10
+        )
 
         assert [t.id for t in grading_input.traces] == ["t1", "t2"]
+        assert clock.sleeps == [10, 10]
 
-    def test_waits_for_a_change_that_keeps_the_counts(self, tmp_path: Path) -> None:
-        """Same traces, same observations: only the end and update times move."""
-        partial = _obs("r1", "t1", output="half an answer", end=None)
-        lf = FakeLangfuse(session=[partial], traces={"t1": [partial]})
+    def test_traces_that_keep_changing_fail_the_trial(self, tmp_path: Path) -> None:
+        lf = FakeLangfuse(session=[_obs("r1", "t1")], traces={"t1": [_obs("r1", "t1")]})
+        clock = FakeClock(utc_start=STORED)
 
-        def finish(sleeps: int) -> None:
-            if sleeps == 2:
-                lf.traces["t1"] = [
-                    _obs(
-                        "r1",
-                        "t1",
-                        output="the full answer",
-                        updated="2026-01-01T00:00:09Z",
-                    )
-                ]
+        def keep_changing(_sleeps: int) -> None:
+            lf.traces["t1"] = [_obs("r1", "t1", updated=_stamp(clock))]
 
-        clock = FakeClock(finish)
-        (trace,) = _fetch(lf, tmp_path, clock=clock, retry_timeout=90).traces
+        clock.on_sleep = keep_changing
+        with pytest.raises(TracesNotReadyError) as excinfo:
+            _fetch(lf, tmp_path, clock=clock, retry_timeout=90)
 
-        assert trace.root.output == "the full answer"
-        assert len(clock.sleeps) == 3
+        assert (
+            str(excinfo.value) == TRACES_CHANGING == "traces still changing in Langfuse"
+        )
+        assert clock.now == 90
 
     def test_no_traces_fails_the_trial(self, tmp_path: Path) -> None:
         lf = FakeLangfuse(session=[], traces={})
@@ -266,22 +295,6 @@ class TestWaitForSettledTraces:
 
         assert str(excinfo.value) == NO_TRACES == "no traces in Langfuse"
 
-    def test_traces_that_never_settle_fail_the_trial(self, tmp_path: Path) -> None:
-        lf = FakeLangfuse(session=[_obs("r1", "t1")], traces={})
-
-        def keep_changing(sleeps: int) -> None:
-            lf.traces["t1"] = [
-                _obs("r1", "t1", updated=f"2026-01-01T00:{sleeps:02d}:00Z")
-            ]
-
-        clock = FakeClock(keep_changing)
-        with pytest.raises(TracesNotReadyError) as excinfo:
-            _fetch(lf, tmp_path, clock=clock, retry_timeout=90)
-
-        assert str(excinfo.value) == TRACES_CHANGING
-        assert TRACES_CHANGING == "traces still changing in Langfuse"
-        assert clock.now == 90
-
     def test_an_empty_trace_is_never_graded(self, tmp_path: Path) -> None:
         """Found by the session filter but empty by trace id: Langfuse is still ingesting."""
         good = _obs("r1", "t1")
@@ -290,50 +303,24 @@ class TestWaitForSettledTraces:
         with pytest.raises(TracesNotReadyError, match=TRACES_CHANGING):
             _fetch(lf, tmp_path, retry_timeout=30)
 
-    def test_an_event_without_an_end_time_does_not_hold_the_wait(
-        self, tmp_path: Path
-    ) -> None:
-        """An event records one moment, so Langfuse can store it with no end time."""
+    def test_an_observation_that_never_ended_is_graded_and_listed(self) -> None:
+        """A crashed target never ends its span. Waiting cannot change what is stored."""
         root = _obs("r1", "t1")
-        event = _obs("e1", "t1", parent="r1", obs_type="EVENT", end=None)
-        lf = FakeLangfuse(session=[root], traces={"t1": [root, event]})
-        clock = FakeClock()
-
-        (trace,) = _fetch(lf, tmp_path, clock=clock, retry_timeout=90).traces
-
-        assert {o.id for o in trace.observations} == {"r1", "e1"}
-        assert clock.sleeps == [1.0]
-
-    def test_pauses_grow_until_the_timeout(self) -> None:
-        lf = FakeLangfuse(session=[], traces={})
+        hung = _obs("c1", "t1", parent="r1", end=None)
+        lf = FakeLangfuse(session=[root], traces={"t1": [root, hung]})
         clock = FakeClock()
 
         wait = wait_for_settled_traces(
             lf,  # type: ignore[arg-type]
             "s1",
-            timeout=40,
+            timeout=90,
             clock=clock.clock,
             sleep=clock.sleep,
+            utc_now=clock.utc_now,
         )
 
-        assert clock.sleeps == [1.0, 2.0, 4.0, 8.0, 15.0, 10.0]
-        assert (wait.status, wait.checks, wait.waited_seconds) == ("no_traces", 7, 40)
-
-    def test_a_zero_timeout_checks_twice_without_a_pause(self) -> None:
-        root = _obs("r1", "t1")
-        lf = FakeLangfuse(session=[root], traces={"t1": [root]})
-        clock = FakeClock()
-
-        wait = wait_for_settled_traces(
-            lf,  # type: ignore[arg-type]
-            "s1",
-            timeout=0,
-            clock=clock.clock,
-            sleep=clock.sleep,
-        )
-
-        assert (wait.status, wait.checks) == ("settled", 2)
-        assert clock.now == 0
+        assert wait.status == "settled"
+        assert wait.open_observations == (OpenObservation("t1", "c1", "child"),)
 
 
 class TestMetadataExpansion:
