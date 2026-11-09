@@ -1347,9 +1347,10 @@ async def _evaluate_records(
     except ExceptionGroup as group_error:
         # An error that escaped _evaluate_one. The TaskGroup wraps it, and the wrapper's
         # text ("unhandled errors in a TaskGroup (1 sub-exception)") hides the cause, so
-        # a lone error is raised as itself. Several errors keep the group.
+        # a lone error is raised as itself, with the group kept as its cause for anyone
+        # reading the traceback. Several errors keep the group.
         if len(group_error.exceptions) == 1:
-            raise group_error.exceptions[0] from None
+            raise group_error.exceptions[0] from group_error
         raise
     except asyncio.CancelledError:
         # Ctrl-C. The TaskGroup has already cancelled every session and waited for it to

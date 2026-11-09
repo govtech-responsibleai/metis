@@ -1454,3 +1454,26 @@ async def test_an_interrupted_evaluation_says_so_and_names_the_retry_command(
     out = " ".join(capsys.readouterr().out.split())
     assert "Interrupted. No results were written." in out
     assert cli._evaluate_command(output.resolve()) in out
+
+
+def test_the_unwrapped_error_keeps_the_task_group_in_its_chain(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """The message names the real error, but a developer can still see the group it came in."""
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 3)
+    _patch_evaluation(monkeypatch)
+    real_update = cli._update_evaluation_progress
+
+    def failing_update(*args: Any, **kwargs: Any) -> None:
+        if kwargs.get("record_number") == 2 and kwargs.get("phase") == "done":
+            raise OSError("No space left on device")
+        real_update(*args, **kwargs)
+
+    monkeypatch.setattr(cli, "_update_evaluation_progress", failing_update)
+
+    with pytest.raises(OSError, match="No space left on device") as raised:
+        _evaluate_directly(output, concurrency=3)
+
+    assert isinstance(raised.value.__cause__, ExceptionGroup)
+    assert raised.value.__cause__.exceptions == (raised.value,)
