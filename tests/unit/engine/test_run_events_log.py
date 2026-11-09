@@ -20,6 +20,7 @@ from metis.core.traces import GradingInput, Observation, Trace
 from metis.core.trials import TrialConfig, TrialOutcome, TrialRecord
 from metis.engine import cli
 from metis.engine.cli import app
+from metis.engine.simulation.binding import TargetBindingError
 from metis.engine.simulation.exceptions import ConsecutiveFailureEscalation
 from metis.engine.simulation.experiment import (
     TrialPlanItem,
@@ -123,9 +124,17 @@ def fake_services(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
 
 
-def _run(tmp_path: Path, *args: str) -> list[dict]:
+class UnboundRunnerFactory(StubRunnerFactory):
+    """A factory whose target binding cannot be used."""
+
+    @classmethod
+    def from_specification(cls, *_args: object) -> UnboundRunnerFactory:
+        raise TargetBindingError("binding.yaml: base_url is not set")
+
+
+def _run(tmp_path: Path, *args: str, exit_code: int = 0) -> list[dict]:
     result = runner.invoke(app, ["run", *args, "--no-tui"])
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == exit_code, result.output
     run_folder = next((tmp_path / "project" / "experiments" / "execute").iterdir())
     path = run_folder / "logs" / "events.jsonl"
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
@@ -218,6 +227,28 @@ def test_a_resumed_run_appends_and_continues_the_sequence(
         "total": 2,
         "done": 1,
         "trials": ["TC-001-alice-2"],
+    }
+
+
+@pytest.mark.usefixtures("fake_services")
+def test_a_command_that_prints_an_error_ends_the_run_with_that_reason(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, schema: dict
+) -> None:
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    (input_dir / "specification.yaml").write_text(
+        SPECIFICATION.replace(FACTORY, f"{__name__}.UnboundRunnerFactory")
+    )
+    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "project")
+
+    events = _run(tmp_path, "--input-dir", str(input_dir), exit_code=1)
+
+    jsonschema.validate(instance=events[-1], schema=schema)
+    assert events[-1] == {
+        **events[-1],
+        "type": "run_ended",
+        "status": "failed",
+        "reason": "binding.yaml: base_url is not set",
     }
 
 

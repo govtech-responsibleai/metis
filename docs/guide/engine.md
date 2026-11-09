@@ -193,6 +193,13 @@ same file and continues the count. An event holds IDs, counts, statuses and shor
 never holds a key, a prompt or a model reply. The file stays in the run folder's `logs/` when
 `--log-dir` moves the other logs.
 
+`run_ended` has a `status` of `completed`, `failed` or `interrupted`. A failed command also
+gives the `reason` that it printed to the console, when it has one. A command that the
+operating system kills, for example with `SIGKILL` or a power loss, cannot write
+`run_ended`. Thus a file with no `run_ended` after its last `run_started` does not show that
+the command still works. Use another sign to find a live command, such as the process that
+started it, or new lines in the file.
+
 Use `logs/evaluate.log` to review extraction, each criterion's grader and resolved arguments (including the judge model), every recorded result with its outcome, score and reason, soft failures, hard failures, and final record counts for the latest evaluation attempt.
 
 See the [report contract](report.md) for the report's scoring,

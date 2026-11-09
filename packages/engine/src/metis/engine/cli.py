@@ -15,7 +15,7 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal, NoReturn
 
 import typer
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TaskID, TextColumn
@@ -340,6 +340,14 @@ class EvaluationOutcome:
 
 class EvaluationInputError(RuntimeError):
     """Raised when an experiment snapshot or run record is invalid."""
+
+
+class CommandFailed(typer.Exit):
+    """Exit code 1 for a command that printed its error. ``run_ended`` records ``reason``."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(code=1)
+        self.reason = reason
 
 
 def _resolve_log_level(verbose: int, quiet: bool) -> str:
@@ -823,7 +831,7 @@ def _simulate_in(
     except TargetBindingError as exc:
         # the message holds text the user wrote, so it must not be read as markup
         console.print(f"Error: {exc}", style="bold red", markup=False)
-        raise typer.Exit(code=1) from None
+        raise CommandFailed(str(exc)) from None
 
     trial_max_retries, trial_retry_delay_seconds = runner_factory.retry_defaults
 
@@ -959,15 +967,26 @@ def _simulate_in(
     return experiment_dir
 
 
+def _fail_run(events: RunEventLog, reason: str) -> NoReturn:
+    """End the run as failed with ``reason``, which the command already printed, and
+    exit with code 1."""
+    failed = CommandFailed(reason)
+    _end_run_on_error(events, failed)
+    raise failed from None
+
+
 def _end_run_on_error(events: RunEventLog, exc: BaseException) -> None:
     """Write the ``run_ended`` of a command that stopped with ``exc``.
 
-    Exit code 130 is an interrupt. Any other exit or error is a failure, and its reason
-    is the error text, as the console already shows it.
+    This is the one writer of a ``run_ended`` that is not ``completed``. Exit code 130 is
+    an interrupt. Any other exit or error is a failure. The reason of a ``CommandFailed``
+    is the error that the command printed, and the reason of an error is its text.
     """
     code = getattr(exc, "exit_code", getattr(exc, "code", None))
     if isinstance(exc, KeyboardInterrupt) or code == 130:
         events.emit(RunEnded, status="interrupted")
+    elif isinstance(exc, CommandFailed):
+        events.emit(RunEnded, status="failed", reason=short_reason(exc.reason))
     elif isinstance(exc, typer.Exit | SystemExit):
         events.emit(RunEnded, status="failed")
     else:
@@ -1671,8 +1690,7 @@ def _run_evaluation_command(
         EvaluationLogger(experiment_dir / execution_layout.LOGS, reset=False).write(
             f"EVALUATION FAILED — {exc}"
         )
-        events.emit(RunEnded, status="failed", reason=short_reason(str(exc)))
-        raise typer.Exit(code=1) from None
+        _fail_run(events, str(exc))
     except Exception as exc:
         EvaluationLogger(experiment_dir / execution_layout.LOGS, reset=False).write(
             f"EVALUATION FAILED — {exc}"
@@ -1743,8 +1761,7 @@ def simulate(
     events = RunEventLog.for_run_folder(output_dir)
     if not _trial_record_files(output_dir):
         console.print("No trial records found.", style="bold red")
-        events.emit(RunEnded, status="failed", reason="No trial records found.")
-        raise typer.Exit(code=1)
+        _fail_run(events, "No trial records found.")
     events.emit(RunEnded, status="completed")
     _print_handoff(output_dir, command="simulate")
 
@@ -1852,10 +1869,7 @@ def run(
     )
     if not _trial_record_files(output_dir):
         console.print("No trial records found.", style="bold red")
-        RunEventLog.for_run_folder(output_dir).emit(
-            RunEnded, status="failed", reason="No trial records found."
-        )
-        raise typer.Exit(code=1)
+        _fail_run(RunEventLog.for_run_folder(output_dir), "No trial records found.")
 
     try:
         outcome = _run_evaluation_command(
