@@ -43,9 +43,12 @@ from pydantic import (
 )
 
 from metis.core.execution_layout import EVENTS_FILE, LOGS
+from metis.core.logging import get_logger
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+logger = get_logger(__name__)
 
 _RUN_EVENT_VERSION = 1
 REASON_MAX_LENGTH = 300
@@ -223,6 +226,10 @@ class RunEventLog:
     Each event is one write of one whole line, flushed at once, under a lock, so worker
     threads that share a log never split or reorder a line. When the file changed since
     the log last wrote to it, the log reads the last ``seq`` from the file again.
+
+    The file is a progress feed, so a failed read or write never stops the work that it
+    reports. On an ``OSError``, ``emit`` drops the line and returns the event. The log
+    writes one warning for the first failure, and each later ``emit`` tries the file again.
     """
 
     def __init__(self, path: Path) -> None:
@@ -231,6 +238,7 @@ class RunEventLog:
         self._seq = 0
         self._size: int | None = None
         """The file size after the last write, or ``None`` before the first one."""
+        self._warned = False
 
     @classmethod
     def for_run_folder(cls, root: Path) -> RunEventLog:
@@ -241,18 +249,41 @@ class RunEventLog:
         """Write one event of ``event_type`` with the next ``seq``, and return it."""
         with self._lock:
             prefix = ""
-            if self._size != _size(self.path):
-                self._seq, ended = _read_end(self.path)
-                prefix = "" if ended else "\n"
+            try:
+                if self._size != _size(self.path):
+                    self._seq, ended = _read_end(self.path)
+                    prefix = "" if ended else "\n"
+            except OSError as exc:
+                self._file_failed(exc)
             event = event_type(seq=self._seq + 1, at=datetime.now(UTC), **fields)
             line = prefix + event.model_dump_json(exclude_none=True) + "\n"
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            with self.path.open("a", encoding="utf-8") as handle:
-                handle.write(line)
-                handle.flush()
-                self._size = handle.tell()
+            try:
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                with self.path.open("a", encoding="utf-8") as handle:
+                    handle.write(line)
+                    handle.flush()
+                    self._size = handle.tell()
+            except OSError as exc:
+                self._file_failed(exc)
+                return event
             self._seq = event.seq
             return event
+
+    def _file_failed(self, exc: OSError) -> None:
+        """Warn about the first failure, and read the end of the file on the next emit.
+
+        A write that stopped part of the way can leave a cut line. The next read closes
+        that line and skips it.
+        """
+        self._size = -1
+        if not self._warned:
+            self._warned = True
+            logger.warning(
+                "[run_events] cannot write %s; progress events are dropped: %s: %s",
+                self.path,
+                type(exc).__name__,
+                exc,
+            )
 
 
 def _size(path: Path) -> int | None:

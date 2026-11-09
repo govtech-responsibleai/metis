@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 import jsonschema
 import pytest
+import structlog
 from pydantic import ValidationError
 
 from metis.core.run_events import (
@@ -90,6 +91,25 @@ def test_threads_that_share_a_log_write_whole_numbered_lines(tmp_path: Path) -> 
 
     lines = log.path.read_text(encoding="utf-8").splitlines()
     assert [RunEvent.parse_line(line).seq for line in lines] == list(range(1, 401))
+
+
+def test_a_file_that_cannot_be_written_drops_events_and_warns_once(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "logs").write_text("a file where the logs folder should be")
+    log = RunEventLog.for_run_folder(tmp_path)
+
+    with structlog.testing.capture_logs() as logs:
+        first = log.emit(RunStarted, command="run")
+        log.emit(Turn, trial="TC-001-alice-1", turn=1, max_turns=5)
+
+    assert first.seq == 1
+    assert [entry["log_level"] for entry in logs] == ["warning"]
+
+    (tmp_path / "logs").unlink()
+    log.emit(RunEnded, status="completed")
+
+    assert [line["seq"] for line in _lines(log.path)] == [1]
 
 
 def test_short_reason_keeps_one_short_line() -> None:

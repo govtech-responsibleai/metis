@@ -274,6 +274,35 @@ async def test_a_failed_attempt_writes_a_retry_and_the_trial_ends_failed(
     )
 
 
+@pytest.mark.asyncio
+async def test_a_trial_ends_when_its_events_cannot_be_written(tmp_path: Path) -> None:
+    scenario = Scenario(
+        id="task-1", task_id="TC-001", description="s", persona_refs=["alice"]
+    )
+    persona = Persona(id="alice", name="alice", description="p")
+    (tmp_path / "logs").write_text("a file where the logs folder should be")
+
+    with patch("metis.engine.simulation.trial.Orchestrator") as orchestrator:
+        orchestrator.return_value.execute = AsyncMock(
+            return_value=_record("goal_achieved")
+        )
+        records = await _worker(
+            worker_id=0,
+            runner_factory=StubRunnerFactory(),
+            worker_trials=[TrialPlanItem(scenario, persona, 1)],
+            experiment_root=tmp_path,
+            fixtures_dir=tmp_path / "fixtures",
+            fixture_content_descriptions={},
+            console_lock=asyncio.Lock(),
+            started_scenarios=set(),
+            trial_max_retries=1,
+            trial_retry_delay_seconds=0.0,
+            events=RunEventLog.for_run_folder(tmp_path),
+        )
+
+    assert [record.outcome.stop_reason for record in records] == ["goal_achieved"]
+
+
 def _record(stop_reason: str, **outcome: object) -> TrialRecord:
     return TrialRecord(
         config=TrialConfig(persona="alice", scenario="task-1"),
