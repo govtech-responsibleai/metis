@@ -1,6 +1,6 @@
-"""``metis engine run`` writes the progress of a run to logs/events.jsonl.
+"""``simulate``, ``evaluate`` and ``run`` write the progress of a run to logs/events.jsonl.
 
-The test runs the real command with a fake runner, a scripted user agent and a fake
+The tests run the real commands with a fake runner, a scripted user agent and a fake
 Langfuse fetch, so no service is called. Each line must pass the published schema.
 """
 
@@ -8,14 +8,15 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, get_args
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import jsonschema
 import pytest
 from typer.testing import CliRunner
 
-from metis.core.run_events import RunEventLog
+from metis.core.grading import RecordedResult
+from metis.core.run_events import Grade, RunEventLog
 from metis.core.traces import GradingInput, Observation, Trace
 from metis.core.trials import TrialConfig, TrialOutcome, TrialRecord
 from metis.engine import cli
@@ -132,22 +133,42 @@ class UnboundRunnerFactory(StubRunnerFactory):
         raise TargetBindingError("binding.yaml: base_url is not set")
 
 
-def _run(tmp_path: Path, *args: str, exit_code: int = 0) -> list[dict]:
-    result = runner.invoke(app, ["run", *args, "--no-tui"])
+def _run(
+    tmp_path: Path, *args: str, command: str = "run", exit_code: int = 0
+) -> list[dict]:
+    no_tui = [] if command == "evaluate" else ["--no-tui"]
+    result = runner.invoke(app, [command, *args, *no_tui])
     assert result.exit_code == exit_code, result.output
-    run_folder = next((tmp_path / "project" / "experiments" / "execute").iterdir())
-    path = run_folder / "logs" / "events.jsonl"
+    path = _run_folder(tmp_path) / "logs" / "events.jsonl"
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+def _run_folder(tmp_path: Path) -> Path:
+    return next((tmp_path / "project" / "experiments" / "execute").iterdir())
+
+
+def _input_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    (input_dir / "specification.yaml").write_text(SPECIFICATION)
+    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "project")
+    return input_dir
+
+
+def _lifecycle(events: list[dict]) -> list[tuple[str, str | None]]:
+    """The type and phase of each event that names no trial."""
+    return [
+        (event["type"], event.get("phase"))
+        for event in events
+        if event.get("trial") is None
+    ]
 
 
 @pytest.mark.usefixtures("fake_services")
 def test_every_line_of_a_run_passes_the_published_schema(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, schema: dict
 ) -> None:
-    input_dir = tmp_path / "input"
-    input_dir.mkdir()
-    (input_dir / "specification.yaml").write_text(SPECIFICATION)
-    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "project")
+    input_dir = _input_dir(monkeypatch, tmp_path)
 
     events = _run(tmp_path, "--input-dir", str(input_dir))
 
@@ -202,12 +223,9 @@ def test_every_line_of_a_run_passes_the_published_schema(
 def test_a_resumed_run_appends_and_continues_the_sequence(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, schema: dict
 ) -> None:
-    input_dir = tmp_path / "input"
-    input_dir.mkdir()
-    (input_dir / "specification.yaml").write_text(SPECIFICATION)
-    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "project")
+    input_dir = _input_dir(monkeypatch, tmp_path)
     first = _run(tmp_path, "--input-dir", str(input_dir))
-    run_folder = next((tmp_path / "project" / "experiments" / "execute").iterdir())
+    run_folder = _run_folder(tmp_path)
     record_path = run_folder / "outputs" / "trials" / "TC-001-alice-2" / "record.json"
     record = TrialRecord.load_file(record_path)
     record.outcome.stop_reason = "system_error"
@@ -228,6 +246,64 @@ def test_a_resumed_run_appends_and_continues_the_sequence(
         "done": 1,
         "trials": ["TC-001-alice-2"],
     }
+
+
+@pytest.mark.usefixtures("fake_services")
+def test_simulate_ends_its_run_after_the_simulating_phase(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, schema: dict
+) -> None:
+    input_dir = _input_dir(monkeypatch, tmp_path)
+
+    events = _run(tmp_path, "--input-dir", str(input_dir), command="simulate")
+
+    for event in events:
+        jsonschema.validate(instance=event, schema=schema)
+    assert [event["seq"] for event in events] == list(range(1, len(events) + 1))
+    assert events[0]["command"] == "simulate"
+    assert _lifecycle(events) == [
+        ("run_started", None),
+        ("phase_started", "simulating"),
+        ("run_ended", None),
+    ]
+    assert events[-1]["status"] == "completed"
+    assert {event["type"] for event in events} >= {"trial_started", "trial_ended"}
+    assert not {"grade", "trial_graded"} & {event["type"] for event in events}
+
+
+@pytest.mark.usefixtures("fake_services")
+def test_evaluate_appends_a_run_of_its_own(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, schema: dict
+) -> None:
+    input_dir = _input_dir(monkeypatch, tmp_path)
+    simulated = _run(tmp_path, "--input-dir", str(input_dir), command="simulate")
+
+    events = _run(
+        tmp_path,
+        "--experiment-dir",
+        str(_run_folder(tmp_path)),
+        command="evaluate",
+    )
+
+    evaluated = events[len(simulated) :]
+    assert events[: len(simulated)] == simulated
+    assert [event["seq"] for event in events] == list(range(1, len(events) + 1))
+    for event in evaluated:
+        jsonschema.validate(instance=event, schema=schema)
+    assert evaluated[0]["command"] == "evaluate"
+    assert _lifecycle(evaluated) == [
+        ("run_started", None),
+        ("phase_started", "evaluating"),
+        ("run_ended", None),
+    ]
+    assert evaluated[-1]["status"] == "completed"
+    graded = [event["trial"] for event in evaluated if event["type"] == "trial_graded"]
+    assert graded == ["TC-001-alice-1", "TC-001-alice-2"]
+
+
+def test_a_grade_event_counts_every_result_outcome() -> None:
+    outcomes = set(get_args(RecordedResult.model_fields["outcome"].annotation))
+    counts = set(Grade.model_fields) - {"seq", "at", "trial", "type", "criterion_id"}
+    assert counts == outcomes
 
 
 @pytest.mark.usefixtures("fake_services")
