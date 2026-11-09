@@ -14,6 +14,7 @@ from metis.core.trials import GraderRef, TrialConfig, TrialOutcome, TrialRecord
 from metis.engine import cli
 from metis.engine.cli import EvaluationOutcome, app
 from metis.engine.extractor.langfuse import (
+    OpenObservation,
     TracesNotReadyError,
     TraceWait,
     UnsupportedTraceError,
@@ -278,6 +279,38 @@ def test_report_command_is_shell_quoted_for_paths_with_spaces(
     quoted = shlex.join(["--results-file", str(results_file)])
     assert "'" in quoted
     assert _compact(quoted) in _compact(result.output)
+
+
+def test_evaluation_logs_the_trace_wait_and_warns_about_open_observations(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_record(output)
+    wait = TraceWait(
+        "settled", 3, 31.0, open_observations=(OpenObservation("t1", "c1", "tool"),)
+    )
+
+    def fetch(session_id: str, _langfuse: object, **kwargs: Any) -> GradingInput:
+        kwargs["on_wait"](wait)
+        return _session(session_id)
+
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+
+    result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
+
+    assert result.exit_code == 0
+    assert "never ended, graded as stored: tool (c1)" in _compact_spaces(result.output)
+    log = (output / "logs" / "evaluate.log").read_text()
+    assert (
+        "TRACE WAIT: record=alice x task-1 status=settled checks=3 waited=31.0s" in log
+    )
+    assert "OPEN OBSERVATIONS: record=alice x task-1 ids=tool (c1)" in log
+    assert (output / "outputs" / "reports" / "results.json").exists()
+
+
+def _compact_spaces(text: str) -> str:
+    return " ".join(text.split())
 
 
 def test_evaluation_with_no_successful_records_writes_no_results(

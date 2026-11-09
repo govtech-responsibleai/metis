@@ -1,7 +1,6 @@
 """Fetching a session's Langfuse traces for grading."""
 
 from metis.engine.extractor.langfuse import (
-    DEFAULT_QUIET_SECONDS,
     NO_TRACES,
     TRACES_CHANGING,
     OpenObservation,
@@ -13,7 +12,6 @@ from metis.engine.extractor.langfuse import (
 )
 
 __all__ = [
-    "DEFAULT_QUIET_SECONDS",
     "NO_TRACES",
     "TRACES_CHANGING",
     "OpenObservation",

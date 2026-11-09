@@ -45,6 +45,7 @@ if TYPE_CHECKING:
     from metis.core.reporting import GraderRecord
     from metis.core.traces import Trace
     from metis.core.trials import TrialRecord
+    from metis.engine.extractor import TraceWait
     from metis.engine.simulation.experiment import TrialPlanItem
     from metis.engine.simulation.types import Specification
 
@@ -916,6 +917,26 @@ def _log_grader_records(
     evaluation_log.write(f"GRADER RESULTS — record={record_label} count={count}")
 
 
+def _log_trace_wait(
+    evaluation_log: EvaluationLogger, wait: TraceWait, *, record_label: str
+) -> None:
+    """Write how long one trial waited for its traces, and warn about open observations."""
+    evaluation_log.write(
+        f"TRACE WAIT: record={record_label} status={wait.status} "
+        f"checks={wait.checks} waited={wait.waited_seconds:.1f}s"
+    )
+    if not wait.open_observations:
+        return
+    names = ", ".join(f"{o.name or 'unnamed'} ({o.id})" for o in wait.open_observations)
+    console.print(
+        f"  WARNING: {len(wait.open_observations)} observation(s) never ended, "
+        f"graded as stored: {names}",
+        style="yellow",
+        markup=False,
+    )
+    evaluation_log.write(f"OPEN OBSERVATIONS: record={record_label} ids={names}")
+
+
 def _save_session_traces(
     experiment_dir: Path,
     session_id: str,
@@ -1147,14 +1168,22 @@ async def _evaluate_records(
                     elif not criteria:
                         failure_reason = "No grader_refs in run config"
                     else:
-                        grading_input = await asyncio.to_thread(
-                            extractor.fetch_session,
-                            session_id,
-                            langfuse,
-                            experiment_root=experiment_dir,
-                            artifacts=record.artifacts,
-                            retry_timeout=langfuse_timeout,
-                        )
+                        waits: list[TraceWait] = []
+                        try:
+                            grading_input = await asyncio.to_thread(
+                                extractor.fetch_session,
+                                session_id,
+                                langfuse,
+                                experiment_root=experiment_dir,
+                                artifacts=record.artifacts,
+                                retry_timeout=langfuse_timeout,
+                                on_wait=waits.append,
+                            )
+                        finally:
+                            if waits:
+                                _log_trace_wait(
+                                    evaluation_log, waits[-1], record_label=label
+                                )
                         _save_session_traces(
                             experiment_dir,
                             session_id,
@@ -1373,7 +1402,7 @@ def evaluate(
     langfuse_timeout: int = typer.Option(
         90,
         "--langfuse-timeout",
-        help="Seconds to wait for each trial's Langfuse traces to stop changing",
+        help="Seconds to wait for each trial's Langfuse traces to be ready",
     ),
     verbose: int = typer.Option(
         0, "--verbose", "-v", count=True, help="Increase logging verbosity"
@@ -1414,7 +1443,7 @@ def run(
     langfuse_timeout: int = typer.Option(
         90,
         "--langfuse-timeout",
-        help="Seconds to wait for each trial's Langfuse traces to stop changing",
+        help="Seconds to wait for each trial's Langfuse traces to be ready",
     ),
     verbose: int = typer.Option(
         0, "--verbose", "-v", count=True, help="Increase logging verbosity"

@@ -239,6 +239,19 @@ class TestTwoStepFetch:
 class TestWaitForSettledTraces:
     """A trial is graded only when Langfuse has stored nothing new for the quiet window."""
 
+    @pytest.fixture(autouse=True)
+    def _default_quiet_window(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("LANGFUSE_METIS_QUIET_SECONDS", raising=False)
+
+    def test_fresh_traces_wait_30_seconds_by_default(self, tmp_path: Path) -> None:
+        root = _obs("r1", "t1")
+        lf = FakeLangfuse(session=[root], traces={"t1": [root]})
+        clock = FakeClock(utc_start=STORED)
+
+        _fetch(lf, tmp_path, clock=clock, retry_timeout=90)
+
+        assert clock.sleeps == [30]
+
     def test_old_traces_are_graded_at_once(self, tmp_path: Path) -> None:
         root = _obs("r1", "t1")
         lf = FakeLangfuse(session=[root], traces={"t1": [root]})
@@ -249,8 +262,11 @@ class TestWaitForSettledTraces:
         assert trace.id == "t1"
         assert clock.sleeps == []
 
-    def test_new_data_during_the_wait_restarts_it(self, tmp_path: Path) -> None:
+    def test_new_data_during_the_wait_restarts_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """A trace that Langfuse stores during the wait is graded with the rest."""
+        monkeypatch.setenv("LANGFUSE_METIS_QUIET_SECONDS", "10")
         first = _obs("r1", "t1", start="2026-01-01T00:01:00Z")
         lf = FakeLangfuse(session=[first], traces={"t1": [first]})
         clock = FakeClock(utc_start=STORED)
@@ -264,9 +280,7 @@ class TestWaitForSettledTraces:
                 lf.traces["t2"] = [late]
 
         clock.on_sleep = ingest
-        grading_input = _fetch(
-            lf, tmp_path, clock=clock, retry_timeout=90, quiet_seconds=10
-        )
+        grading_input = _fetch(lf, tmp_path, clock=clock, retry_timeout=90)
 
         assert [t.id for t in grading_input.traces] == ["t1", "t2"]
         assert clock.sleeps == [10, 10]

@@ -25,9 +25,8 @@ size (issue #469). METIS does not repair such a trace; ``fetch_session`` raises
 ``UnsupportedTraceError`` for it, so the session fails and the trial must be re-run.
 
 Langfuse can still be ingesting a session when ``evaluate`` starts. So ``fetch_session``
-grades nothing until Langfuse has stored no new data for the session for
-``DEFAULT_QUIET_SECONDS``, or the number of seconds that the caller sets (see
-``wait_for_settled_traces``).
+grades nothing until Langfuse has stored no new data for the session for the quiet window
+(see ``wait_for_settled_traces``).
 
 Input/output arrive as raw strings (``parse_io_as_json`` is rejected with HTTP 400), and
 ``metis.core.traces.Observation`` parses JSON-looking values itself.
@@ -36,6 +35,7 @@ Input/output arrive as raw strings (``parse_io_as_json`` is rejected with HTTP 4
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -58,9 +58,6 @@ _FIELDS = "core,basic,time,io,metadata"
 _PAGE_SIZE = 1000
 _TRUNCATION_LIMIT = 200
 """Langfuse truncates metadata values longer than this unless the key is expanded."""
-DEFAULT_QUIET_SECONDS = 30.0
-"""The traces are ready when Langfuse has stored nothing new for this long. The Langfuse SDK
-sends finished spans in batches about every 5 seconds, so the default covers several batches."""
 _RETRY_SECONDS = 5.0
 """The pause before the next check while the session has no trace or an empty trace, so there
 is no stored time to count from."""
@@ -92,8 +89,6 @@ class TracesNotReadyError(RuntimeError):
 
 def get_langfuse_client() -> Langfuse:
     """Return a configured Langfuse client (never None)."""
-    import os
-
     if os.environ.get("LANGFUSE_BASE_URL") and not os.environ.get("LANGFUSE_HOST"):
         os.environ["LANGFUSE_HOST"] = os.environ["LANGFUSE_BASE_URL"]
     return Langfuse()
@@ -271,12 +266,15 @@ def wait_for_settled_traces(
     session_id: str,
     *,
     timeout: float,
-    quiet_seconds: float = DEFAULT_QUIET_SECONDS,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
     utc_now: Callable[[], datetime] = _utc_now,
 ) -> TraceWait:
-    """Check the session until Langfuse has stored nothing new for ``quiet_seconds``.
+    """Check the session until Langfuse has stored nothing new for the quiet window.
+
+    The quiet window is ``LANGFUSE_METIS_QUIET_SECONDS`` seconds, 30 when it is not set.
+    The Langfuse SDK sends finished spans in batches about every 5 seconds, so 30 seconds
+    covers several batches. METIS reads this variable, and the Langfuse SDK does not.
 
     METIS cannot know when a conversation has ended. It can only see when Langfuse last stored
     data for it. So each check fetches the whole session and reads the newest stored time of
@@ -291,6 +289,7 @@ def wait_for_settled_traces(
     short at the timeout, so the last check is made at the timeout. A ``timeout`` of ``0``
     checks once.
     """
+    quiet_seconds = float(os.environ.get("LANGFUSE_METIS_QUIET_SECONDS", "30"))
     started = clock()
     deadline = started + timeout
     checks = 0
@@ -354,7 +353,6 @@ def fetch_session(
     experiment_root: Path,
     artifacts: list[Artifact] | None = None,
     retry_timeout: float = 0,
-    quiet_seconds: float = DEFAULT_QUIET_SECONDS,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
     utc_now: Callable[[], datetime] = _utc_now,
@@ -362,15 +360,13 @@ def fetch_session(
 ) -> GradingInput:
     """Fetch one session as the ``GradingInput`` every grader run on it shares.
 
-    Waits until Langfuse has stored nothing new for the session for ``quiet_seconds`` (see
+    Waits until Langfuse has stored nothing new for the session for the quiet window (see
     ``wait_for_settled_traces``). Data that Langfuse stores after that is not graded.
     Holds every trace in the session, oldest root first, including traces whose root has no
     output: a crashed or timed-out exchange is part of what the target did. The run's
     artifacts are attached with their paths resolved against ``experiment_root``.
 
     :param retry_timeout: Seconds to wait for the traces to settle. ``0`` checks once.
-    :param quiet_seconds: How long Langfuse must store nothing new before the traces count as
-        ready.
     :param clock: Seconds from a monotonic clock. Tests pass a fake one.
     :param sleep: The pause between checks. Tests pass a fake one.
     :param utc_now: The current UTC time, compared with Langfuse's ``updatedAt``. Tests pass
@@ -386,7 +382,6 @@ def fetch_session(
         langfuse,
         session_id,
         timeout=retry_timeout,
-        quiet_seconds=quiet_seconds,
         clock=clock,
         sleep=sleep,
         utc_now=utc_now,
