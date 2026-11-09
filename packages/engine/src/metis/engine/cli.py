@@ -1054,9 +1054,16 @@ async def _evaluate_one(
     """Fetch and grade one trial record's session, once it holds one of the N slots.
 
     A record that is still waiting for a slot is a bare coroutine: it holds no connection
-    and no traces. An ordinary error is caught inside and returned as a failure, so the
-    caller never sees it. The caller combines the returned values; this function changes
-    no shared counter except the running count, which a ``finally`` restores.
+    and no traces. An error in the fetch, the trace save or the grading is caught inside
+    (in ``_fetch_and_grade``) and returned as a failure, so the caller never sees it.
+    The caller combines the returned values; this function changes no shared counter
+    except the running count, which a ``finally`` restores.
+
+    The reporting calls (``console.print``, ``log.write`` and ``phase``) are not guarded.
+    If one raises, for example because a log write fails, the error leaves this function,
+    the ``TaskGroup`` cancels every other session, and ``_evaluate_records`` reports it.
+    That is deliberate: a log or display that no longer works is a problem to surface,
+    not one to hide.
     """
     label = f"{record.config.persona} x {record.config.scenario}"
     record_name = f"RECORD {number}/{context.total_records} {label}"
