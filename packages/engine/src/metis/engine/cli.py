@@ -892,7 +892,9 @@ def _update_evaluation_progress(
     description = f"{label} — {phase}"
     if progress and task_id is not None:
         progress.update(
-            task_id, description=bar_description or description, advance=advance
+            task_id,
+            description=bar_description if bar_description is not None else description,
+            advance=advance,
         )
     else:
         console.print(f"Evaluation {record_number}/{total_records}: {description}")
@@ -1018,6 +1020,11 @@ class _RunningCount:
         self.value = 0
 
 
+def _record_label(record: TrialRecord) -> str:
+    """How a record is named in the log, the warnings and the progress bar."""
+    return f"{record.config.persona} x {record.config.scenario}"
+
+
 @dataclass(frozen=True)
 class _EvaluationContext:
     """What every record of one evaluation shares. Built once, read by ``_evaluate_one``."""
@@ -1065,7 +1072,7 @@ async def _evaluate_one(
     That is deliberate: a log or display that no longer works is a problem to surface,
     not one to hide.
     """
-    label = f"{record.config.persona} x {record.config.scenario}"
+    label = _record_label(record)
     record_name = f"RECORD {number}/{context.total_records} {label}"
     log = context.evaluation_log
 
@@ -1333,10 +1340,7 @@ async def _evaluate_records(
                             record,
                             number=index + 1,
                             context=context,
-                            phase=phase_for(
-                                index + 1,
-                                f"{record.config.persona} x {record.config.scenario}",
-                            ),
+                            phase=phase_for(index + 1, _record_label(record)),
                         )
                     )
                     for index, record in enumerate(records)

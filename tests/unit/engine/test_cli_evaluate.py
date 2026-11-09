@@ -1477,3 +1477,20 @@ def test_the_unwrapped_error_keeps_the_task_group_in_its_chain(
 
     assert isinstance(raised.value.__cause__, ExceptionGroup)
     assert raised.value.__cause__.exceptions == (raised.value,)
+
+
+def test_an_empty_bar_description_is_used_as_given() -> None:
+    """Only None means 'not set'. An empty string is still a description."""
+    bar = _RecordingProgress()
+
+    cli._update_evaluation_progress(
+        bar,  # type: ignore[arg-type]
+        1,
+        record_number=1,
+        total_records=1,
+        label="alice x task-1",
+        phase="extracting",
+        bar_description="",
+    )
+
+    assert bar.descriptions == [""]
