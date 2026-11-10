@@ -75,12 +75,10 @@ def _find_project_root() -> Path:
     return current
 
 
-PROJECT_DIR_ENV = "METIS_PROJECT_DIR"
 ProjectDirOption = Annotated[
     Path | None,
     typer.Option(
         "--project-dir",
-        envvar=PROJECT_DIR_ENV,
         help=(
             "Existing project folder that holds experiments/execute/. New runs "
             "go under it, from any working directory. Default: the working "
@@ -94,8 +92,8 @@ ProjectDirOption = Annotated[
 def _project_root(project_dir: Path | None) -> Path:
     """Return the folder that holds ``experiments/execute/``.
 
-    ``--project-dir`` or ``METIS_PROJECT_DIR`` names it, and it must exist.
-    Without them, the engine finds it from the working directory.
+    ``--project-dir`` names it, and it must exist. Without it, the engine
+    finds it from the working directory.
     """
     if project_dir is None:
         return _find_project_root()

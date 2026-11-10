@@ -441,7 +441,7 @@ The flags below are optional and apply to both modes:
 | `--no-tui` | `false` | Disable TUI dashboard (force linear log output) |
 | `--log-format` | `text` | Log file format: `text` or `json` |
 | `--log-dir` | co-located with results | Override the log output directory |
-| `--project-dir` | nearest folder with a `pyproject.toml` | Existing project folder that holds `experiments/execute/`. New runs go under it, from any working directory. The `METIS_PROJECT_DIR` environment variable sets the same value, and `~` expands to the home folder. A resume without `--experiment-dir` lists the runs in this folder. A resume with `--experiment-dir` continues in that run folder, and a warning shows when the run folder is not in this folder |
+| `--project-dir` | nearest folder with a `pyproject.toml` | Existing project folder that holds `experiments/execute/`. New runs go under it, from any working directory. `~` expands to the home folder. A resume without `--experiment-dir` lists the runs in this folder. A resume with `--experiment-dir` continues in that run folder, and a warning shows when the run folder is not in this folder |
 
 ### Evaluation options
 

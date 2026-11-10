@@ -327,7 +327,6 @@ def _start_run(
         lambda *_a, **_k: cli.EvaluationOutcome(1, 1, 0, None),
     )
     monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "cwd-root")
-    monkeypatch.delenv(cli.PROJECT_DIR_ENV, raising=False)
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
@@ -360,23 +359,6 @@ def test_a_new_run_goes_under_the_project_folder(
     assert (run_dir / "inputs" / "specification.yaml").read_text() == (
         MINIMAL_EXPERIMENT
     )
-    assert not (tmp_path / "cwd-root").exists()
-
-
-def test_the_project_folder_can_come_from_the_environment(
-    monkeypatch, tmp_path: Path
-) -> None:
-    project = tmp_path / "project"
-    project.mkdir()
-    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "cwd-root")
-    monkeypatch.setenv(cli.PROJECT_DIR_ENV, str(project))
-    input_dir = _write_source(tmp_path)
-    _capture_factory(monkeypatch)
-
-    result = runner.invoke(app, ["simulate", "--input-dir", str(input_dir), "--no-tui"])
-
-    assert result.exit_code == 0, result.output
-    assert _only_run_folder(project).is_dir()
     assert not (tmp_path / "cwd-root").exists()
 
 
@@ -465,16 +447,23 @@ def test_a_project_dir_that_is_not_an_existing_folder_stops_the_run(
     assert not (project / "experiments").exists()
 
 
-def test_a_project_dir_from_the_environment_expands_the_home_folder(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_a_project_dir_expands_the_home_folder(monkeypatch, tmp_path: Path) -> None:
     (tmp_path / "home" / "project").mkdir(parents=True)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     input_dir = _write_source(tmp_path)
     _capture_factory(monkeypatch)
-    monkeypatch.setenv(cli.PROJECT_DIR_ENV, "~/project")
 
-    result = runner.invoke(app, ["simulate", "--input-dir", str(input_dir), "--no-tui"])
+    result = runner.invoke(
+        app,
+        [
+            "simulate",
+            "--input-dir",
+            str(input_dir),
+            "--project-dir",
+            "~/project",
+            "--no-tui",
+        ],
+    )
 
     assert result.exit_code == 0, result.output
     assert _only_run_folder(tmp_path / "home" / "project").is_dir()
