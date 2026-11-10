@@ -148,7 +148,7 @@ The combined `run` command closes the Simulation TUI before it starts the evalua
 
 ### Where Results Land
 
-Each execution produces output in `experiments/execute/<id>-<timestamp>/`. The `outputs/reports/` directory is created by `evaluate` or `run`, which write `results.json`; `metis insights report` adds `report.json` and `report.html`. Simulation-only runs stop after `outputs/trials/` and `logs/`:
+Each execution produces output in `experiments/execute/<id>-<timestamp>/`, under the project folder. The project folder is the working directory or the nearest folder above it that has a `pyproject.toml`. To choose it yourself, see [Simulation options](#simulation-options). The `outputs/reports/` directory is created by `evaluate` or `run`, which write `results.json`; `metis insights report` adds `report.json` and `report.html`. Simulation-only runs stop after `outputs/trials/` and `logs/`:
 
 ```text
 experiments/execute/toyapp-http-simple-20260730-143022/
@@ -441,6 +441,7 @@ The flags below are optional and apply to both modes:
 | `--no-tui` | `false` | Disable TUI dashboard (force linear log output) |
 | `--log-format` | `text` | Log file format: `text` or `json` |
 | `--log-dir` | co-located with results | Override the log output directory |
+| `--project-dir` | nearest folder with a `pyproject.toml` | Existing project folder that holds `experiments/execute/`. New runs go under it, from any working directory. `~` expands to the home folder. A resume without `--experiment-dir` lists the runs in this folder. A resume with `--experiment-dir` continues in that run folder, and a warning shows when the run folder is not in this folder |
 
 ### Evaluation options
 
@@ -450,6 +451,8 @@ The flags below are optional and apply to both modes:
 | `--langfuse-timeout` | `90` | Seconds to wait for Langfuse traces to appear |
 | `-v` / `-vv` | WARNING | Increase evaluation logging verbosity |
 | `--quiet` | `false` | Suppress all output below ERROR |
+
+Two runs of one Specification that start in the same second get the same folder name. The second run stops with an error and does not change the folder of the first run. Start it again.
 
 The `run` command accepts the union of the simulation and evaluation options. Its `--no-tui` option controls only the Simulation TUI. Evaluation always uses normal progress output.
 
