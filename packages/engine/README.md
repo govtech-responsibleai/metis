@@ -101,7 +101,7 @@ my-experiment/
 
 See [`examples/http-agentic_eval_toyapp-1/`](examples/http-agentic_eval_toyapp-1/) for a working reference.
 
-Each execution produces output in `experiments/execute/<id>-<timestamp>/`. Reports appear after `evaluate` or `run`:
+Each execution produces output in `experiments/execute/<id>-<timestamp>/`, under the project folder. Reports appear after `evaluate` or `run`. The project folder is the working directory or the nearest folder above it that has a `pyproject.toml`. `simulate` and `run` take `--project-dir <folder>` for an existing folder to set it from any working directory.
 
 ```text
 experiments/execute/toyapp-http-simple-20260730-143022/

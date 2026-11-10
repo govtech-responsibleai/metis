@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -15,6 +17,28 @@ from metis.engine.simulation.binding import TargetBindingError
 from tests.unit.engine.test_runner_ref import StubRunnerFactory
 
 runner = CliRunner()
+_FIXED_START = datetime(2026, 11, 7, 14, 30, 0)
+
+
+class _FixedClock(datetime):
+    """Every run starts in the same second."""
+
+    @classmethod
+    def now(cls, tz=None):
+        return _FIXED_START
+
+
+class _TickingClock(datetime):
+    """Each run starts one second after the one before."""
+
+    ticks = 0
+
+    @classmethod
+    def now(cls, tz=None):
+        start = _FIXED_START.replace(second=cls.ticks)
+        cls.ticks += 1
+        return start
+
 
 MINIMAL_EXPERIMENT = 'schema_version: 1\nid: test-exp\nrunner_factory_ref: tests.unit.engine.test_runner_ref.StubRunnerFactory\npersonas:\n- id: alice\n  description: test persona\n  name: alice\nscenarios:\n- id: task-1\n  description: test scenario\n  name: task-1\ntarget:\n  name: Test target\n  users: Test users\n  description: Test target\ntasks:\n- id: TC-001\n  scenario_ref: task-1\n  persona_ref: alice\n  fixtures: []\n  num_trials: 1\n  behaviour_refs:\n  - EB-1\nfeatures:\n- id: F-1\n  name: Responses\n  description: Responses\n  behaviours:\n  - id: EB-1\n    name: Respond\n    description: Respond correctly\n    measured: true\n    criteria:\n    - id: AC-1-1\n      name: Check 1\n      description: "Given a request, when the agent responds, then the requirement is met."\n      grader_fqn: tests.unit.engine.graders_for_tests.FixedScoreGrader\n      grader_args: {}\n'
 
@@ -277,6 +301,204 @@ def test_reject_invalid_path_options(
 
     assert result.exit_code == 1
     assert expected in result.output
+
+
+def _start_run(
+    monkeypatch,
+    tmp_path: Path,
+    command: str,
+    *extra: str,
+) -> tuple[object, list[Path]]:
+    """Start a new run from a folder that has no pyproject.toml above it."""
+    input_dir = _write_source(tmp_path)
+    output_dirs: list[Path] = []
+
+    def fake_execute_experiment(*_args: object, **kwargs: object) -> None:
+        output_dirs.append(kwargs["output_dir"])  # type: ignore[arg-type]
+        _write_record_marker(kwargs["output_dir"])  # type: ignore[arg-type]
+
+    monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        experiment_module, "execute_experiment", fake_execute_experiment
+    )
+    monkeypatch.setattr(
+        cli,
+        "_run_evaluation_command",
+        lambda *_a, **_k: cli.EvaluationOutcome(1, 1, 0, None),
+    )
+    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "cwd-root")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    result = runner.invoke(
+        app, [command, "--input-dir", str(input_dir), "--no-tui", *extra]
+    )
+    return result, output_dirs
+
+
+def _only_run_folder(project: Path) -> Path:
+    [run_dir] = (project / "experiments" / "execute").iterdir()
+    return run_dir
+
+
+@pytest.mark.parametrize("command", ["simulate", "run"])
+def test_a_new_run_goes_under_the_project_folder(
+    monkeypatch, tmp_path: Path, command: str
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    result, output_dirs = _start_run(
+        monkeypatch, tmp_path, command, "--project-dir", str(project)
+    )
+
+    assert result.exit_code == 0, result.output
+    run_dir = _only_run_folder(project)
+    assert output_dirs == [run_dir]
+    assert re.fullmatch(r"test-exp-\d{8}-\d{6}", run_dir.name)
+    assert (run_dir / "inputs" / "specification.yaml").read_text() == (
+        MINIMAL_EXPERIMENT
+    )
+    assert not (tmp_path / "cwd-root").exists()
+
+
+def test_without_a_project_folder_a_new_run_goes_under_the_working_project(
+    monkeypatch, tmp_path: Path
+) -> None:
+    result, output_dirs = _start_run(monkeypatch, tmp_path, "simulate")
+
+    assert result.exit_code == 0, result.output
+    assert output_dirs == [_only_run_folder(tmp_path / "cwd-root")]
+
+
+def test_each_new_run_is_listed_in_the_project_folder(
+    monkeypatch, tmp_path: Path
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.setattr(_TickingClock, "ticks", 0)
+    monkeypatch.setattr(cli, "datetime", _TickingClock)
+    input_dir = _write_source(tmp_path)
+    _capture_factory(monkeypatch)
+    command = [
+        "simulate",
+        "--input-dir",
+        str(input_dir),
+        "--project-dir",
+        str(project),
+        "--no-tui",
+    ]
+
+    first = runner.invoke(app, command)
+    second = runner.invoke(app, command)
+
+    assert first.exit_code == 0, first.output
+    assert second.exit_code == 0, second.output
+    runs = sorted(p.name for p in (project / "experiments" / "execute").iterdir())
+    assert runs == ["test-exp-20261107-143000", "test-exp-20261107-143001"]
+
+
+def test_a_second_run_in_the_same_second_stops_and_leaves_the_first(
+    monkeypatch, tmp_path: Path
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.setattr(cli, "datetime", _FixedClock)
+    input_dir = _write_source(tmp_path)
+    _capture_factory(monkeypatch)
+    command = [
+        "simulate",
+        "--input-dir",
+        str(input_dir),
+        "--project-dir",
+        str(project),
+        "--no-tui",
+    ]
+
+    first = runner.invoke(app, command)
+    first_run = _only_run_folder(project)
+    first_files = sorted(p.relative_to(first_run) for p in first_run.rglob("*"))
+    second = runner.invoke(app, command)
+
+    assert first.exit_code == 0, first.output
+    assert second.exit_code == 1
+    assert "alreadyexists" in _compact(second.output)
+    assert _only_run_folder(project) == first_run
+    assert sorted(p.relative_to(first_run) for p in first_run.rglob("*")) == (
+        first_files
+    )
+
+
+@pytest.mark.parametrize("make_project", ["missing", "file"])
+def test_a_project_dir_that_is_not_an_existing_folder_stops_the_run(
+    monkeypatch, tmp_path: Path, make_project: str
+) -> None:
+    project = tmp_path / "project"
+    if make_project == "file":
+        project.write_text("not a folder")
+
+    result, output_dirs = _start_run(
+        monkeypatch, tmp_path, "simulate", "--project-dir", str(project)
+    )
+
+    assert result.exit_code == 1
+    assert "isnotanexistingfolder" in _compact(result.output)
+    assert output_dirs == []
+    assert not (project / "experiments").exists()
+
+
+def test_a_project_dir_expands_the_home_folder(monkeypatch, tmp_path: Path) -> None:
+    (tmp_path / "home" / "project").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    input_dir = _write_source(tmp_path)
+    _capture_factory(monkeypatch)
+
+    result = runner.invoke(
+        app,
+        [
+            "simulate",
+            "--input-dir",
+            str(input_dir),
+            "--project-dir",
+            "~/project",
+            "--no-tui",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert _only_run_folder(tmp_path / "home" / "project").is_dir()
+
+
+def test_a_resume_outside_the_project_dir_warns_and_continues_in_place(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output_dir = _write_output(tmp_path / "elsewhere" / "test-exp-20260101-010101")
+    project = tmp_path / "project"
+    project.mkdir()
+    output_dirs: list[Path] = []
+    monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        experiment_module,
+        "execute_experiment",
+        lambda *_a, **kwargs: output_dirs.append(kwargs["output_dir"]),
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "simulate",
+            "--resume",
+            "--experiment-dir",
+            str(output_dir),
+            "--project-dir",
+            str(project),
+            "--no-tui",
+        ],
+    )
+
+    assert "isnotintheprojectfolder" in _compact(result.output)
+    assert output_dirs == [output_dir.resolve()]
+    assert not (project / "experiments").exists()
 
 
 def test_a_factory_without_from_specification_is_built_with_no_arguments(
