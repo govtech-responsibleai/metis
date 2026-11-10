@@ -48,7 +48,7 @@ from metis.core.logging import get_logger
 from metis.core.traces import GradingInput, Observation, Trace
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
     from pathlib import Path
 
 logger = get_logger(__name__)
@@ -261,37 +261,80 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+@dataclass(frozen=True)
+class TraceWaitSettings:
+    """How long to wait for a trial's traces.
+
+    The quiet window is how long Langfuse must store nothing new for the session before
+    METIS grades it. The timeout is the longest time that METIS waits for the session. The
+    timeout must be at least as long as the quiet window, because a trial that has just
+    finished needs the full quiet window before it can be graded.
+
+    The Langfuse SDK sends finished spans in batches about every 5 seconds, so the default
+    quiet window of 30 seconds covers several batches.
+    """
+
+    timeout_seconds: float
+    quiet_seconds: float = 30.0
+
+    def __post_init__(self) -> None:
+        if self.timeout_seconds < self.quiet_seconds:
+            raise ValueError(
+                f"The Langfuse timeout is {self.timeout_seconds:g} seconds, but the quiet "
+                f"window (LANGFUSE_METIS_QUIET_SECONDS) is {self.quiet_seconds:g} seconds. "
+                "A trial that has just finished needs the full quiet window before it can "
+                f"be graded. Set the timeout to {self.quiet_seconds:g} seconds or more."
+            )
+
+    @classmethod
+    def from_env(
+        cls, timeout_seconds: float, environ: Mapping[str, str] = os.environ
+    ) -> TraceWaitSettings:
+        """Read the quiet window from ``LANGFUSE_METIS_QUIET_SECONDS``, 30 when it is not set.
+
+        METIS reads this variable, and the Langfuse SDK does not.
+
+        :raises ValueError: When the value is not a number, or when the timeout is shorter
+            than the quiet window.
+        """
+        value = environ.get("LANGFUSE_METIS_QUIET_SECONDS", "30")
+        try:
+            quiet = float(value)
+        except ValueError:
+            raise ValueError(
+                f"LANGFUSE_METIS_QUIET_SECONDS must be a number of seconds, got {value!r}"
+            ) from None
+        return cls(timeout_seconds=timeout_seconds, quiet_seconds=quiet)
+
+
 def wait_for_settled_traces(
     langfuse: Langfuse,
     session_id: str,
     *,
-    timeout: float,
+    settings: TraceWaitSettings,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
     utc_now: Callable[[], datetime] = _utc_now,
 ) -> TraceWait:
     """Check the session until Langfuse has stored nothing new for the quiet window.
 
-    The quiet window is ``LANGFUSE_METIS_QUIET_SECONDS`` seconds, 30 when it is not set.
-    The Langfuse SDK sends finished spans in batches about every 5 seconds, so 30 seconds
-    covers several batches. METIS reads this variable, and the Langfuse SDK does not.
+    ``settings`` gives the quiet window and the timeout.
 
     METIS cannot know when a conversation has ended. It can only see when Langfuse last stored
     data for it. So each check fetches the whole session and reads the newest stored time of
     any row (see ``_stored_age``). The traces are ready when the session has a trace, no
-    trace is empty, and that time is at least ``quiet_seconds`` old. Old traces are ready on
-    the first check. An observation with no end time does not hold the wait.
+    trace is empty, and that time is at least as old as the quiet window. Old traces are
+    ready on the first check. An observation with no end time does not hold the wait.
     ``TraceWait.open_observations`` lists it.
 
-    When the traces are not ready, the next check is made when the newest row will be
-    ``quiet_seconds`` old. New data in the meantime makes that check wait again. While there
+    When the traces are not ready, the next check is made when the newest row will be as
+    old as the quiet window. New data in the meantime makes that check wait again. While there
     is no stored time to count from, the pause is ``_RETRY_SECONDS``. Every pause is cut
-    short at the timeout, so the last check is made at the timeout. A ``timeout`` of ``0``
-    checks once.
+    short at the timeout, so the last check is made at the timeout.
     """
-    quiet_seconds = float(os.environ.get("LANGFUSE_METIS_QUIET_SECONDS", "30"))
+    quiet = settings.quiet_seconds
     started = clock()
-    deadline = started + timeout
+    deadline = started + settings.timeout_seconds
     checks = 0
     while True:
         traces = _check_session(langfuse, session_id)
@@ -299,7 +342,7 @@ def wait_for_settled_traces(
         now = clock()
         has_every_trace = bool(traces) and all(traces.values())
         age = _stored_age(traces, utc_now())
-        if has_every_trace and age >= quiet_seconds:
+        if has_every_trace and age >= quiet:
             return TraceWait(
                 "settled", checks, now - started, traces, _open_observations(traces)
             )
@@ -308,7 +351,7 @@ def wait_for_settled_traces(
             return TraceWait(
                 status, checks, now - started, traces, _open_observations(traces)
             )
-        pause = quiet_seconds - age if has_every_trace else _RETRY_SECONDS
+        pause = quiet - age if has_every_trace else _RETRY_SECONDS
         sleep(min(pause, deadline - now))
 
 
@@ -352,7 +395,7 @@ def fetch_session(
     *,
     experiment_root: Path,
     artifacts: list[Artifact] | None = None,
-    retry_timeout: float = 0,
+    settings: TraceWaitSettings,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
     utc_now: Callable[[], datetime] = _utc_now,
@@ -366,7 +409,7 @@ def fetch_session(
     output: a crashed or timed-out exchange is part of what the target did. The run's
     artifacts are attached with their paths resolved against ``experiment_root``.
 
-    :param retry_timeout: Seconds to wait for the traces to settle. ``0`` checks once.
+    :param settings: The quiet window and the timeout of the trace wait.
     :param clock: Seconds from a monotonic clock. Tests pass a fake one.
     :param sleep: The pause between checks. Tests pass a fake one.
     :param utc_now: The current UTC time, compared with Langfuse's ``updatedAt``. Tests pass
@@ -381,7 +424,7 @@ def fetch_session(
     wait = wait_for_settled_traces(
         langfuse,
         session_id,
-        timeout=retry_timeout,
+        settings=settings,
         clock=clock,
         sleep=sleep,
         utc_now=utc_now,

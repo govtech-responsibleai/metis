@@ -22,6 +22,7 @@ from metis.engine.extractor.langfuse import (
     TRACES_CHANGING,
     OpenObservation,
     TracesNotReadyError,
+    TraceWaitSettings,
     UnsupportedTraceError,
     _fetch_trace,
     _page_through_observations,
@@ -142,13 +143,19 @@ def _stamp(clock: FakeClock) -> str:
 
 
 def _fetch(
-    lf: FakeLangfuse, tmp_path: Path, *, clock: FakeClock | None = None, **kwargs: Any
+    lf: FakeLangfuse,
+    tmp_path: Path,
+    *,
+    clock: FakeClock | None = None,
+    settings: TraceWaitSettings = TraceWaitSettings(timeout_seconds=90),
+    **kwargs: Any,
 ):
     clock = clock or FakeClock()
     return fetch_session(
         "s1",
         lf,  # type: ignore[arg-type]
         experiment_root=tmp_path,
+        settings=settings,
         clock=clock.clock,
         sleep=clock.sleep,
         utc_now=clock.utc_now,
@@ -239,16 +246,14 @@ class TestTwoStepFetch:
 class TestWaitForSettledTraces:
     """A trial is graded only when Langfuse has stored nothing new for the quiet window."""
 
-    @pytest.fixture(autouse=True)
-    def _default_quiet_window(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("LANGFUSE_METIS_QUIET_SECONDS", raising=False)
-
     def test_fresh_traces_wait_30_seconds_by_default(self, tmp_path: Path) -> None:
         root = _obs("r1", "t1")
         lf = FakeLangfuse(session=[root], traces={"t1": [root]})
         clock = FakeClock(utc_start=STORED)
 
-        _fetch(lf, tmp_path, clock=clock, retry_timeout=90)
+        _fetch(
+            lf, tmp_path, clock=clock, settings=TraceWaitSettings(timeout_seconds=90)
+        )
 
         assert clock.sleeps == [30]
 
@@ -257,16 +262,13 @@ class TestWaitForSettledTraces:
         lf = FakeLangfuse(session=[root], traces={"t1": [root]})
         clock = FakeClock()
 
-        (trace,) = _fetch(lf, tmp_path, clock=clock, retry_timeout=90).traces
+        (trace,) = _fetch(lf, tmp_path, clock=clock).traces
 
         assert trace.id == "t1"
         assert clock.sleeps == []
 
-    def test_new_data_during_the_wait_restarts_it(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_new_data_during_the_wait_restarts_it(self, tmp_path: Path) -> None:
         """A trace that Langfuse stores during the wait is graded with the rest."""
-        monkeypatch.setenv("LANGFUSE_METIS_QUIET_SECONDS", "10")
         first = _obs("r1", "t1", start="2026-01-01T00:01:00Z")
         lf = FakeLangfuse(session=[first], traces={"t1": [first]})
         clock = FakeClock(utc_start=STORED)
@@ -280,7 +282,12 @@ class TestWaitForSettledTraces:
                 lf.traces["t2"] = [late]
 
         clock.on_sleep = ingest
-        grading_input = _fetch(lf, tmp_path, clock=clock, retry_timeout=90)
+        grading_input = _fetch(
+            lf,
+            tmp_path,
+            clock=clock,
+            settings=TraceWaitSettings(timeout_seconds=90, quiet_seconds=10),
+        )
 
         assert [t.id for t in grading_input.traces] == ["t1", "t2"]
         assert clock.sleeps == [10, 10]
@@ -294,7 +301,7 @@ class TestWaitForSettledTraces:
 
         clock.on_sleep = keep_changing
         with pytest.raises(TracesNotReadyError) as excinfo:
-            _fetch(lf, tmp_path, clock=clock, retry_timeout=90)
+            _fetch(lf, tmp_path, clock=clock)
 
         assert (
             str(excinfo.value) == TRACES_CHANGING == "traces still changing in Langfuse"
@@ -305,7 +312,7 @@ class TestWaitForSettledTraces:
         lf = FakeLangfuse(session=[], traces={})
 
         with pytest.raises(TracesNotReadyError) as excinfo:
-            _fetch(lf, tmp_path, retry_timeout=90)
+            _fetch(lf, tmp_path)
 
         assert str(excinfo.value) == NO_TRACES == "no traces in Langfuse"
 
@@ -315,7 +322,7 @@ class TestWaitForSettledTraces:
         lf = FakeLangfuse(session=[good, _obs("r2", "t2")], traces={"t1": [good]})
 
         with pytest.raises(TracesNotReadyError, match=TRACES_CHANGING):
-            _fetch(lf, tmp_path, retry_timeout=30)
+            _fetch(lf, tmp_path, settings=TraceWaitSettings(timeout_seconds=30))
 
     def test_an_observation_that_never_ended_is_graded_and_listed(self) -> None:
         """A crashed target never ends its span. Waiting cannot change what is stored."""
@@ -327,7 +334,7 @@ class TestWaitForSettledTraces:
         wait = wait_for_settled_traces(
             lf,  # type: ignore[arg-type]
             "s1",
-            timeout=90,
+            settings=TraceWaitSettings(timeout_seconds=90),
             clock=clock.clock,
             sleep=clock.sleep,
             utc_now=clock.utc_now,
@@ -335,6 +342,17 @@ class TestWaitForSettledTraces:
 
         assert wait.status == "settled"
         assert wait.open_observations == (OpenObservation("t1", "c1", "child"),)
+
+
+@pytest.mark.parametrize(
+    ("environ", "quiet"), [({}, 30.0), ({"LANGFUSE_METIS_QUIET_SECONDS": "60"}, 60.0)]
+)
+def test_the_quiet_window_comes_from_the_environment(
+    environ: dict[str, str], quiet: float
+) -> None:
+    settings = TraceWaitSettings.from_env(90, environ)
+
+    assert settings == TraceWaitSettings(timeout_seconds=90, quiet_seconds=quiet)
 
 
 class TestMetadataExpansion:

@@ -6,6 +6,7 @@ import shlex
 from pathlib import Path
 from typing import Any
 
+import pytest
 from typer.testing import CliRunner
 
 from metis.core.reporting import EvaluationResults
@@ -17,6 +18,7 @@ from metis.engine.extractor.langfuse import (
     OpenObservation,
     TracesNotReadyError,
     TraceWait,
+    TraceWaitSettings,
     UnsupportedTraceError,
 )
 
@@ -109,12 +111,12 @@ def test_evaluate_scores_the_named_experiment_directory(
     def fake_evaluation(
         path: Path,
         *,
-        langfuse_timeout: int,
+        trace_wait: TraceWaitSettings,
         verbose: int,
         quiet: bool,
     ) -> EvaluationOutcome:
         calls.append(path)
-        assert langfuse_timeout == 120
+        assert trace_wait == TraceWaitSettings(timeout_seconds=120)
         assert verbose == 1
         assert not quiet
         return EvaluationOutcome(1, 1, 0, None)
@@ -404,7 +406,7 @@ def test_evaluation_progress_advances_for_success_and_soft_failure(
 
     outcome = cli._run_evaluation(
         output,
-        langfuse_timeout=90,
+        trace_wait=TraceWaitSettings(timeout_seconds=90),
         verbose=0,
         quiet=False,
     )
@@ -629,17 +631,62 @@ def test_every_session_is_fetched_with_its_artifacts_and_timeout(
     calls = _patch_evaluation(monkeypatch)
 
     runner.invoke(
-        app, ["evaluate", "--experiment-dir", str(output), "--langfuse-timeout", "7"]
+        app, ["evaluate", "--experiment-dir", str(output), "--langfuse-timeout", "70"]
     )
 
     assert sorted(c["session_id"] for c in calls) == ["session-1", "session-2"]
-    assert all(c["retry_timeout"] == 7 for c in calls)
+    assert all(
+        c["settings"] == TraceWaitSettings(timeout_seconds=70, quiet_seconds=30)
+        for c in calls
+    )
     assert all(c["experiment_root"] == output.resolve() for c in calls)
     assert all(c["artifacts"] == [] for c in calls)
     results = EvaluationResults.load_file(
         output / "outputs" / "reports" / "results.json"
     )
     assert len(results.records) == 2
+
+
+@pytest.mark.parametrize(("timeout", "evaluated"), [("20", False), ("30", True)])
+def test_evaluate_stops_when_the_timeout_is_shorter_than_the_quiet_window(
+    monkeypatch, tmp_path: Path, timeout: str, evaluated: bool
+) -> None:
+    monkeypatch.setenv("LANGFUSE_METIS_QUIET_SECONDS", "30")
+    output = _write_experiment_dir(tmp_path)
+    _write_record(output)
+    calls = _patch_evaluation(monkeypatch)
+
+    result = runner.invoke(
+        app,
+        ["evaluate", "--experiment-dir", str(output), "--langfuse-timeout", timeout],
+    )
+
+    error = _compact(
+        "The Langfuse timeout is 20 seconds, but the quiet window "
+        "(LANGFUSE_METIS_QUIET_SECONDS) is 30 seconds. A trial that has just finished "
+        "needs the full quiet window before it can be graded. Set the timeout to 30 "
+        "seconds or more."
+    )
+    assert result.exit_code == (0 if evaluated else 1), result.output
+    assert len(calls) == (1 if evaluated else 0)
+    assert (error in _compact(result.output)) is not evaluated
+
+
+def test_evaluate_stops_when_the_quiet_window_is_not_a_number(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("LANGFUSE_METIS_QUIET_SECONDS", "abc")
+    output = _write_experiment_dir(tmp_path)
+    _write_record(output)
+    calls = _patch_evaluation(monkeypatch)
+
+    result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
+
+    assert result.exit_code == 1
+    assert _compact(
+        "LANGFUSE_METIS_QUIET_SECONDS must be a number of seconds, got 'abc'"
+    ) in _compact(result.output)
+    assert calls == []
 
 
 def test_code_graders_need_no_judge_credentials(monkeypatch, tmp_path: Path) -> None:

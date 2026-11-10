@@ -31,17 +31,22 @@ that `simulate` made. Running `evaluate` again on the same folder overwrites the
 ## When traces are missing
 
 To grade a trial, METIS needs to know when its traces are ready. Langfuse can take time to store
-them, so METIS waits for a quiet window (30 seconds by default, user configurable) before grading 
-the trial.
+them, so METIS waits before it grades the trial. Two settings control this wait.
 
-Set your Langfuse quiet window in `.env`:
+The **quiet window** is how long Langfuse must store nothing new for the trial. After the quiet
+window, METIS treats the traces as complete and grades them. The default is 30 seconds. Set it in
+`.env`:
 
 ```bash
 LANGFUSE_METIS_QUIET_SECONDS=60
 ```
 
-METIS waits for up to `--langfuse-timeout` seconds, 90 by default. Keep it longer than the quiet
-window:
+The **timeout** is the longest time that METIS waits for each trial. If the traces are not ready
+when the timeout ends, the trial fails. The default is 90 seconds. Set it with
+`--langfuse-timeout`.
+
+The timeout must be at least as long as the quiet window. A trial that has just finished needs the
+full quiet window before METIS can grade it:
 
 ```bash
 metis engine evaluate --experiment-dir experiments/execute/<your-run> --langfuse-timeout 300

@@ -45,7 +45,7 @@ if TYPE_CHECKING:
     from metis.core.reporting import GraderRecord
     from metis.core.traces import Trace
     from metis.core.trials import TrialRecord
-    from metis.engine.extractor import TraceWait
+    from metis.engine.extractor import TraceWait, TraceWaitSettings
     from metis.engine.simulation.experiment import TrialPlanItem
     from metis.engine.simulation.types import Specification
 
@@ -86,6 +86,18 @@ def _load_env() -> Path | None:
     try:
         return load_env()
     except ModelSettingsError as exc:
+        console.print(f"Error: {exc}", style="bold red", markup=False)
+        raise typer.Exit(code=1) from None
+
+
+def _trace_wait_settings(langfuse_timeout: int) -> TraceWaitSettings:
+    """Read the trace wait from ``--langfuse-timeout`` and ``.env``, or stop when it is invalid."""
+    from metis.engine import extractor
+
+    _load_env()
+    try:
+        return extractor.TraceWaitSettings.from_env(langfuse_timeout)
+    except ValueError as exc:
         console.print(f"Error: {exc}", style="bold red", markup=False)
         raise typer.Exit(code=1) from None
 
@@ -969,7 +981,7 @@ def _save_session_traces(
 def _run_evaluation(
     experiment_dir: Path,
     *,
-    langfuse_timeout: int,
+    trace_wait: TraceWaitSettings,
     verbose: int,
     quiet: bool,
 ) -> EvaluationOutcome:
@@ -1006,7 +1018,7 @@ def _run_evaluation(
             specification,
             records,
             evaluation_log=evaluation_log,
-            langfuse_timeout=langfuse_timeout,
+            trace_wait=trace_wait,
             env_file=env_file,
         )
     )
@@ -1018,7 +1030,7 @@ async def _evaluate_records(
     records: list[TrialRecord],
     *,
     evaluation_log: EvaluationLogger,
-    langfuse_timeout: int,
+    trace_wait: TraceWaitSettings,
     env_file: Path | None = None,
 ) -> EvaluationOutcome:
     """Grade every trial record's session and write one GraderRecord per grader per session.
@@ -1176,7 +1188,7 @@ async def _evaluate_records(
                                 langfuse,
                                 experiment_root=experiment_dir,
                                 artifacts=record.artifacts,
-                                retry_timeout=langfuse_timeout,
+                                settings=trace_wait,
                                 on_wait=waits.append,
                             )
                         finally:
@@ -1307,7 +1319,7 @@ class _NoJudgeClient:
 def _run_evaluation_command(
     experiment_dir: Path,
     *,
-    langfuse_timeout: int,
+    trace_wait: TraceWaitSettings,
     verbose: int,
     quiet: bool,
 ) -> EvaluationOutcome:
@@ -1315,7 +1327,7 @@ def _run_evaluation_command(
     try:
         return _run_evaluation(
             experiment_dir,
-            langfuse_timeout=langfuse_timeout,
+            trace_wait=trace_wait,
             verbose=verbose,
             quiet=quiet,
         )
@@ -1417,9 +1429,10 @@ def evaluate(
     except EvaluationInputError:
         raise typer.Exit(code=1) from None
     console.print(f"Selected experiment: {resolved_experiment_dir}")
+    trace_wait = _trace_wait_settings(langfuse_timeout)
     outcome = _run_evaluation_command(
         resolved_experiment_dir,
-        langfuse_timeout=langfuse_timeout,
+        trace_wait=trace_wait,
         verbose=verbose,
         quiet=quiet,
     )
@@ -1472,6 +1485,7 @@ def run(
     ),
 ) -> None:
     """Run simulation followed by evaluation."""
+    trace_wait = _trace_wait_settings(langfuse_timeout)
     output_dir = _run_simulation(
         input_dir,
         experiment_dir,
@@ -1491,7 +1505,7 @@ def run(
     try:
         outcome = _run_evaluation_command(
             output_dir,
-            langfuse_timeout=langfuse_timeout,
+            trace_wait=trace_wait,
             verbose=verbose,
             quiet=quiet,
         )
