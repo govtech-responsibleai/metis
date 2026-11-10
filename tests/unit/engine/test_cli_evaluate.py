@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import os
 import shlex
 from pathlib import Path
 from typing import Any
 
+import pytest
 from typer.testing import CliRunner
 
 from metis.core.reporting import EvaluationResults
@@ -107,11 +111,13 @@ def test_evaluate_scores_the_named_experiment_directory(
         langfuse_timeout: int,
         verbose: int,
         quiet: bool,
+        concurrency: int,
     ) -> EvaluationOutcome:
         calls.append(path)
         assert langfuse_timeout == 120
         assert verbose == 1
         assert not quiet
+        assert concurrency == 3
         return EvaluationOutcome(1, 1, 0, None)
 
     monkeypatch.setattr(cli, "_run_evaluation", fake_evaluation)
@@ -123,6 +129,8 @@ def test_evaluate_scores_the_named_experiment_directory(
             str(target),
             "--langfuse-timeout",
             "120",
+            "-c",
+            "3",
             "-v",
         ],
     )
@@ -210,7 +218,7 @@ def _patch_evaluation(monkeypatch, *, traces: int = 1) -> list[dict[str, Any]]:
     """Fake Langfuse: every session has ``traces`` traces. Returns the fetch calls made."""
     calls: list[dict[str, Any]] = []
 
-    def fetch(session_id: str, _langfuse: object, **kwargs: Any) -> GradingInput:
+    async def fetch(session_id: str, _langfuse: object, **kwargs: Any) -> GradingInput:
         calls.append({"session_id": session_id, **kwargs})
         return _session(session_id, traces)
 
@@ -349,7 +357,7 @@ def test_evaluation_progress_advances_for_success_and_soft_failure(
     monkeypatch.setattr(cli, "_create_evaluation_progress", FakeProgress)
     monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
 
-    def fetch(session_id: str, *_args: object, **_kwargs: object) -> GradingInput:
+    async def fetch(session_id: str, *_args: object, **_kwargs: object) -> GradingInput:
         if session_id == "session-2":
             raise RuntimeError("trace unavailable")
         return _session(session_id)
@@ -377,7 +385,10 @@ def test_evaluation_progress_advances_for_success_and_soft_failure(
     assert sum(advances) == 2
     assert events[0][0] == "enter"
     assert events[-1][0] == "exit"
-    assert "WARNING: Evaluation failed: trace unavailable" in capsys.readouterr().out
+    assert (
+        "WARNING: RECORD 2/2 alice x task-1 — Evaluation failed: trace unavailable"
+        in capsys.readouterr().out
+    )
     evaluation_log = (output / "logs" / "evaluate.log").read_text()
     assert "alice x task-1 — EXTRACTING" in evaluation_log
     assert "alice x task-1 — EVALUATING" in evaluation_log
@@ -418,7 +429,7 @@ def test_an_unsupported_trace_fails_its_session_and_the_rest_are_graded(
     )
     fetched: list[str] = []
 
-    def fetch(session_id: str, *_args: object, **_kwargs: object) -> GradingInput:
+    async def fetch(session_id: str, *_args: object, **_kwargs: object) -> GradingInput:
         fetched.append(session_id)
         if session_id == "sess-old":
             raise UnsupportedTraceError(reason)
@@ -790,9 +801,11 @@ def test_unserialisable_payload_does_not_fail_the_record(
     )
     session = GradingInput(traces=(Trace.from_observations("t1", "session-1", [bad]),))
     monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
-    monkeypatch.setattr(
-        "metis.engine.extractor.fetch_session", lambda *args, **kwargs: session
-    )
+
+    async def fetch(*_args: object, **_kwargs: object) -> GradingInput:
+        return session
+
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
 
     result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
 
@@ -802,3 +815,682 @@ def test_unserialisable_payload_does_not_fail_the_record(
     ).records
     assert graded.criterion_id == "AC-1-1"
     assert "TRACES NOT SAVED" in (output / "logs" / "evaluate.log").read_text()
+
+
+# --- _evaluate_one: the per-record unit that the evaluation loop calls ---------------------
+
+
+def _evaluation_context(tmp_path: Path, fetch: Any) -> tuple[Any, Path]:
+    """The shared state ``_evaluate_one`` needs, built from a real specification snapshot."""
+    from metis.engine.evaluation import build_grader
+    from metis.engine.logging import EvaluationLogger
+    from metis.library.grader import LLMSettings
+
+    experiment_dir = _write_experiment_dir(tmp_path)
+    specification = cli._load_evaluation_specification(experiment_dir)
+    criteria_by_id = {c.id: c for b in specification.behaviours() for c in b.criteria}
+    graders = {
+        cid: build_grader(c, default_judge_model="unused", env={})
+        for cid, c in criteria_by_id.items()
+    }
+
+    class FakeLangfuse:
+        pass
+
+    context = cli._EvaluationContext(
+        experiment_dir=experiment_dir,
+        criteria_by_id=criteria_by_id,
+        graders=graders,
+        llm=LLMSettings(client=cli._NoJudgeClient()),  # type: ignore[arg-type]
+        langfuse=FakeLangfuse(),  # type: ignore[arg-type]
+        langfuse_timeout=0,
+        evaluation_log=EvaluationLogger(experiment_dir / "logs"),
+        total_records=1,
+        concurrency=1,
+        semaphore=asyncio.Semaphore(1),
+        running=cli._RunningCount(),
+    )
+    return context, experiment_dir
+
+
+def _trial_record(experiment_dir: Path, *, session_id: str | None) -> TrialRecord:
+    path = _write_record(experiment_dir, session_id=session_id or "unused")
+    record = TrialRecord.model_validate_json(path.read_text())
+    return record.model_copy(update={"target_session_id": session_id})
+
+
+@pytest.mark.asyncio
+async def test_evaluate_one_returns_the_graded_records(
+    monkeypatch, tmp_path: Path
+) -> None:
+    async def fetch(session_id: str, *_args: object, **_kwargs: object) -> GradingInput:
+        return _session(session_id)
+
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+    context, experiment_dir = _evaluation_context(tmp_path, fetch)
+    record = _trial_record(experiment_dir, session_id="session-1")
+    phases: list[str] = []
+
+    result = await cli._evaluate_one(
+        record, number=1, context=context, phase=lambda name, **_: phases.append(name)
+    )
+
+    assert result.failure_reason is None
+    assert [r.criterion_id for r in result.records] == ["AC-1-1"]
+    assert phases == ["extracting", "evaluating", "done"]
+
+
+@pytest.mark.asyncio
+async def test_evaluate_one_returns_a_failure_instead_of_raising(
+    monkeypatch, tmp_path: Path
+) -> None:
+    async def fetch(*_args: object, **_kwargs: object) -> GradingInput:
+        raise RuntimeError("trace unavailable")
+
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+    context, experiment_dir = _evaluation_context(tmp_path, fetch)
+    record = _trial_record(experiment_dir, session_id="session-1")
+    phases: list[str] = []
+
+    result = await cli._evaluate_one(
+        record, number=1, context=context, phase=lambda name, **_: phases.append(name)
+    )
+
+    assert result.failure_reason == "trace unavailable"
+    assert result.records == []
+    assert phases[-1] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_evaluate_one_fails_a_record_without_a_session_id(
+    monkeypatch, tmp_path: Path
+) -> None:
+    async def fetch(*_args: object, **_kwargs: object) -> GradingInput:
+        raise AssertionError("a record with no session id must not be fetched")
+
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+    context, experiment_dir = _evaluation_context(tmp_path, fetch)
+    record = _trial_record(experiment_dir, session_id=None)
+
+    result = await cli._evaluate_one(
+        record, number=1, context=context, phase=lambda name, **_: None
+    )
+
+    assert result.failure_reason == "No target_session_id"
+    assert result.records == []
+
+
+# --- concurrent evaluation: --concurrency N sessions in flight at once --------------------
+
+
+def _write_records(output: Path, count: int) -> None:
+    """``count`` trial records, one session each, in a fixed order (records sort by mtime)."""
+    for number in range(1, count + 1):
+        path = _write_record(
+            output, run_name=f"run-{number:02d}", session_id=f"session-{number}"
+        )
+        os.utime(path, (1_000_000 + number, 1_000_000 + number))
+
+
+class _Probe:
+    """Counts how many fake sessions are inside a block at the same time."""
+
+    def __init__(self) -> None:
+        self.current = 0
+        self.peak = 0
+
+    @contextlib.asynccontextmanager
+    async def inside(self):
+        self.current += 1
+        self.peak = max(self.peak, self.current)
+        try:
+            yield
+        finally:
+            self.current -= 1
+
+
+def _patch_slow_grading(monkeypatch, probe: _Probe, seconds: float = 0.05) -> None:
+    """Make the real ``grade_session`` take a moment, and count the sessions inside it."""
+    from metis.engine import evaluation
+
+    real_grade_session = evaluation.grade_session
+
+    async def grade_session(*args: Any, **kwargs: Any):
+        async with probe.inside():
+            await asyncio.sleep(seconds)
+            return await real_grade_session(*args, **kwargs)
+
+    monkeypatch.setattr("metis.engine.evaluation.grade_session", grade_session)
+
+
+def _evaluate_directly(output: Path, concurrency: int) -> EvaluationOutcome:
+    return cli._run_evaluation(
+        output,
+        langfuse_timeout=0,
+        verbose=0,
+        quiet=False,
+        concurrency=concurrency,
+    )
+
+
+def _graded_sessions(output: Path) -> list[str]:
+    results = EvaluationResults.load_file(
+        output / "outputs" / "reports" / "results.json"
+    )
+    return [record.session_id for record in results.records]
+
+
+def test_sessions_in_flight_never_exceed_the_concurrency(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 5)
+    _patch_evaluation(monkeypatch)
+    probe = _Probe()
+    _patch_slow_grading(monkeypatch, probe)
+
+    outcome = _evaluate_directly(output, concurrency=2)
+
+    assert outcome.successful_records == 5
+    assert probe.peak == 2
+
+
+def test_concurrency_one_grades_one_session_at_a_time(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 3)
+    _patch_evaluation(monkeypatch)
+    probe = _Probe()
+    _patch_slow_grading(monkeypatch, probe)
+
+    _evaluate_directly(output, concurrency=1)
+
+    assert probe.peak == 1
+    assert _graded_sessions(output) == ["session-1", "session-2", "session-3"]
+
+
+def test_waiting_fetches_hold_no_thread(monkeypatch, tmp_path: Path) -> None:
+    """Every fetch waits for all the others to arrive, so one is stuck unless all eight run."""
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 8)
+    arrived: list[str] = []
+    all_here = asyncio.Event()
+
+    async def fetch(session_id: str, *_args: object, **_kwargs: object):
+        arrived.append(session_id)
+        if len(arrived) == 8:
+            all_here.set()
+        await asyncio.wait_for(all_here.wait(), timeout=0.5)
+        return _session(session_id)
+
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+
+    outcome = _evaluate_directly(output, concurrency=8)
+
+    assert (outcome.successful_records, outcome.failed_records) == (8, 0)
+
+
+def test_results_follow_record_order_whatever_order_sessions_finish(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 3)
+    delays = {"session-1": 0.15, "session-2": 0.08, "session-3": 0.0}
+    finished: list[str] = []
+
+    async def fetch(session_id: str, *_args: object, **_kwargs: object):
+        await asyncio.sleep(delays[session_id])
+        finished.append(session_id)
+        return _session(session_id)
+
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+
+    _evaluate_directly(output, concurrency=3)
+
+    assert finished == ["session-3", "session-2", "session-1"]
+    assert _graded_sessions(output) == ["session-1", "session-2", "session-3"]
+
+
+def test_one_failing_session_does_not_change_the_others(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 3)
+
+    async def fetch(session_id: str, *_args: object, **_kwargs: object):
+        if session_id == "session-2":
+            raise RuntimeError("trace unavailable")
+        return _session(session_id)
+
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+
+    outcome = _evaluate_directly(output, concurrency=3)
+
+    assert (outcome.successful_records, outcome.failed_records) == (2, 1)
+    assert _graded_sessions(output) == ["session-1", "session-3"]
+
+
+@pytest.mark.asyncio
+async def test_records_that_cannot_be_graded_leave_the_running_count_at_zero(
+    monkeypatch, tmp_path: Path
+) -> None:
+    async def fetch(*_args: object, **_kwargs: object) -> GradingInput:
+        raise AssertionError("neither record may be fetched")
+
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+    context, experiment_dir = _evaluation_context(tmp_path, fetch)
+    no_session = _trial_record(experiment_dir, session_id=None)
+    no_criteria = _trial_record(experiment_dir, session_id="session-1")
+    no_criteria = no_criteria.model_copy(
+        update={"config": no_criteria.config.model_copy(update={"grader_refs": []})}
+    )
+
+    for number, record in enumerate([no_session, no_criteria], start=1):
+        result = await cli._evaluate_one(
+            record, number=number, context=context, phase=lambda name, **_: None
+        )
+        assert result.failure_reason is not None
+        assert context.running.value == 0
+
+
+# --- output when sessions overlap: banner, record labels, progress text --------------------
+
+
+class _RecordingProgress:
+    """A stand-in for the Rich bar that keeps every description it is given."""
+
+    descriptions: list[str]
+
+    def __init__(self) -> None:
+        self.descriptions = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def add_task(self, description: str, *, total: int) -> int:
+        return 1
+
+    def update(self, _task_id: int, **kwargs: Any) -> None:
+        if "description" in kwargs:
+            self.descriptions.append(kwargs["description"])
+
+
+def _use_recording_progress(monkeypatch) -> _RecordingProgress:
+    bar = _RecordingProgress()
+    monkeypatch.setattr(cli.sys.stderr, "isatty", lambda: True)
+    monkeypatch.setattr(cli, "_create_evaluation_progress", lambda: bar)
+    return bar
+
+
+def test_session_banner_is_printed_with_concurrency_one(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 2)
+    _patch_evaluation(monkeypatch)
+
+    _evaluate_directly(output, concurrency=1)
+
+    out = capsys.readouterr().out
+    assert "SESSION 1/2: alice x task-1" in out
+    assert "SESSION 2/2: alice x task-1" in out
+
+
+def test_session_banner_is_not_printed_with_overlapping_sessions(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 2)
+    _patch_evaluation(monkeypatch)
+
+    _evaluate_directly(output, concurrency=2)
+
+    assert "SESSION" not in capsys.readouterr().out
+
+
+def test_failed_record_warning_names_its_record(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 2)
+
+    async def fetch(session_id: str, *_args: object, **_kwargs: object):
+        if session_id == "session-2":
+            raise RuntimeError("trace unavailable")
+        return _session(session_id)
+
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+
+    _evaluate_directly(output, concurrency=2)
+
+    assert _compact(
+        "WARNING: RECORD 2/2 alice x task-1 — Evaluation failed: trace unavailable"
+    ) in _compact(capsys.readouterr().out)
+
+
+def test_unknown_criteria_warning_names_its_record(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    path = _write_record(output)
+    record = TrialRecord.model_validate_json(path.read_text())
+    extra = GraderRef(criterion_id="AC-9-9", fqn="x.Y", args={})
+    config = record.config.model_copy(
+        update={"grader_refs": [*record.config.grader_refs, extra]}
+    )
+    path.write_text(record.model_copy(update={"config": config}).model_dump_json())
+    _patch_evaluation(monkeypatch)
+
+    _evaluate_directly(output, concurrency=2)
+
+    assert _compact(
+        "WARNING: RECORD 1/1 alice x task-1 — criteria AC-9-9 are not in the "
+        "specification snapshot and were not graded"
+    ) in _compact(capsys.readouterr().out)
+
+
+def test_progress_bar_counts_running_sessions_when_they_overlap(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 3)
+    bar = _use_recording_progress(monkeypatch)
+    _patch_evaluation(monkeypatch)
+    _patch_slow_grading(monkeypatch, _Probe())
+
+    _evaluate_directly(output, concurrency=2)
+
+    assert "Evaluation — 2 running" in bar.descriptions
+    # Three records and two slots: the third waits and is never counted as running.
+    assert not any("3 running" in d for d in bar.descriptions)
+    assert not any(" x " in d for d in bar.descriptions)
+    assert bar.descriptions[-1] == "Evaluation complete"
+
+
+def test_progress_bar_keeps_the_phase_wording_with_concurrency_one(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 2)
+    bar = _use_recording_progress(monkeypatch)
+    _patch_evaluation(monkeypatch)
+
+    _evaluate_directly(output, concurrency=1)
+
+    assert "alice x task-1 — extracting" in bar.descriptions
+    assert not any("running" in d for d in bar.descriptions)
+
+
+def test_plain_progress_lines_are_unchanged_when_sessions_overlap(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 2)
+    _patch_evaluation(monkeypatch)
+
+    _evaluate_directly(output, concurrency=2)
+
+    out = capsys.readouterr().out
+    assert "Evaluation 1/2: alice x task-1 — extracting" in out
+    assert "running" not in out
+
+
+# --- interrupt: Ctrl-C cancels every session and discards partial grades -------------------
+
+
+@pytest.mark.asyncio
+async def test_cancellation_stops_every_session_then_closes_the_judge_client(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from metis.core.trials import TrialRecord as Record
+    from metis.engine.logging import EvaluationLogger
+    from metis.library.grader import LLMSettings
+
+    output = _write_experiment_dir(
+        tmp_path,
+        content=MINIMAL_EXPERIMENT.replace("FixedScoreGrader", "EchoJudgeGrader"),
+    )
+    _write_records(output, 3)
+    stale = output / "outputs" / "reports" / "results.json"
+    stale.parent.mkdir(parents=True, exist_ok=True)
+    stale.write_text("{}")
+    events: list[str] = []
+    in_flight = asyncio.Event()
+
+    class FakeJudgeClient:
+        async def close(self) -> None:
+            events.append("judge client closed")
+
+    async def fetch(session_id: str, *_args: object, **_kwargs: object):
+        events.append(f"start {session_id}")
+        if sum(e.startswith("start") for e in events) == 2:
+            in_flight.set()
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.02)  # a session takes a moment to stop
+            events.append(f"stopped {session_id}")
+            raise
+        return _session(session_id)
+
+    monkeypatch.setenv("JUDGE_API_KEY", "test-key")
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+    monkeypatch.setattr(
+        "metis.engine.evaluation.build_llm_settings",
+        lambda _gateway: LLMSettings(client=FakeJudgeClient()),  # type: ignore[arg-type]
+    )
+    log = EvaluationLogger(output / "logs")
+    specification = cli._load_evaluation_specification(output)
+    records = [Record.load_file(p) for p in cli._trial_record_files(output)]
+
+    task = asyncio.create_task(
+        cli._evaluate_records(
+            output,
+            specification,
+            records,
+            evaluation_log=log,
+            langfuse_timeout=0,
+            concurrency=2,
+        )
+    )
+    await asyncio.wait_for(in_flight.wait(), timeout=2)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    # Two sessions held slots; the third was still waiting and never started.
+    assert sorted(e for e in events if e.startswith("start")) == [
+        "start session-1",
+        "start session-2",
+    ]
+    assert events[-1] == "judge client closed"
+    assert sorted(e for e in events if e.startswith("stopped")) == [
+        "stopped session-1",
+        "stopped session-2",
+    ]
+    assert not stale.exists()
+    assert "EVALUATION INTERRUPTED" in log.path.read_text()
+    assert "EVALUATION COMPLETED" not in log.path.read_text()
+
+
+@pytest.mark.asyncio
+async def test_cancelling_a_session_returns_the_running_count_to_zero(
+    monkeypatch, tmp_path: Path
+) -> None:
+    started = asyncio.Event()
+
+    async def fetch(*_args: object, **_kwargs: object) -> GradingInput:
+        started.set()
+        await asyncio.sleep(30)
+        raise AssertionError("unreachable")
+
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+    context, experiment_dir = _evaluation_context(tmp_path, fetch)
+    record = _trial_record(experiment_dir, session_id="session-1")
+
+    task = asyncio.create_task(
+        cli._evaluate_one(
+            record, number=1, context=context, phase=lambda name, **_: None
+        )
+    )
+    await asyncio.wait_for(started.wait(), timeout=2)
+    assert context.running.value == 1
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert context.running.value == 0
+
+
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_evaluate_rejects_a_concurrency_below_one(
+    monkeypatch, tmp_path: Path, value: str
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 1)
+    _patch_evaluation(monkeypatch)
+
+    result = runner.invoke(
+        app, ["evaluate", "--experiment-dir", str(output), "--concurrency", value]
+    )
+
+    assert result.exit_code == 2
+    assert isinstance(result.exception, SystemExit)
+    assert not (output / "logs" / "evaluate.log").exists()  # no work started
+
+
+def test_an_unexpected_error_in_one_session_is_reported_as_itself(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """An error that escapes ``_evaluate_one`` reaches the TaskGroup. The terminal and the log
+    must name the error, not 'unhandled errors in a TaskGroup (1 sub-exception)'."""
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 3)
+    _patch_evaluation(monkeypatch)
+    real_update = cli._update_evaluation_progress
+
+    def failing_update(*args: Any, **kwargs: Any) -> None:
+        if kwargs.get("record_number") == 2 and kwargs.get("phase") == "done":
+            raise OSError("No space left on device")
+        real_update(*args, **kwargs)
+
+    monkeypatch.setattr(cli, "_update_evaluation_progress", failing_update)
+
+    result = runner.invoke(
+        app, ["evaluate", "--experiment-dir", str(output), "--concurrency", "3"]
+    )
+
+    assert result.exit_code == 1
+    assert "Error: evaluation failed: No space left on device" in result.output
+    assert "TaskGroup" not in result.output
+    log_lines = (output / "logs" / "evaluate.log").read_text().splitlines()
+    assert log_lines[-1].endswith("EVALUATION FAILED — No space left on device")
+    assert not (output / "outputs" / "reports" / "results.json").exists()
+
+
+@pytest.mark.parametrize("concurrency", [1, 3])
+def test_the_log_records_the_concurrency_the_run_used(
+    monkeypatch, tmp_path: Path, concurrency: int
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 2)
+    _patch_evaluation(monkeypatch)
+
+    _evaluate_directly(output, concurrency=concurrency)
+
+    first_line = (output / "logs" / "evaluate.log").read_text().splitlines()[0]
+    assert first_line.endswith(
+        f"EVALUATION STARTED — {output} (concurrency {concurrency})"
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("concurrency", [1, 2])
+async def test_an_interrupted_evaluation_says_so_and_names_the_retry_command(
+    monkeypatch, tmp_path: Path, capsys, concurrency: int
+) -> None:
+    from metis.core.trials import TrialRecord as Record
+    from metis.engine.logging import EvaluationLogger
+
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 3)
+    waiting = asyncio.Event()
+
+    async def fetch(*_args: object, **_kwargs: object) -> GradingInput:
+        waiting.set()
+        await asyncio.sleep(30)
+        raise AssertionError("unreachable")
+
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+    specification = cli._load_evaluation_specification(output)
+    records = [Record.load_file(p) for p in cli._trial_record_files(output)]
+    task = asyncio.create_task(
+        cli._evaluate_records(
+            output,
+            specification,
+            records,
+            evaluation_log=EvaluationLogger(output / "logs"),
+            langfuse_timeout=0,
+            concurrency=concurrency,
+        )
+    )
+    await asyncio.wait_for(waiting.wait(), timeout=2)
+    capsys.readouterr()  # drop the output printed before the interrupt
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    out = " ".join(capsys.readouterr().out.split())
+    assert "Interrupted. No results were written." in out
+    assert cli._evaluate_command(output.resolve()) in out
+
+
+def test_the_unwrapped_error_keeps_the_task_group_in_its_chain(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """The message names the real error, but a developer can still see the group it came in."""
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 3)
+    _patch_evaluation(monkeypatch)
+    real_update = cli._update_evaluation_progress
+
+    def failing_update(*args: Any, **kwargs: Any) -> None:
+        if kwargs.get("record_number") == 2 and kwargs.get("phase") == "done":
+            raise OSError("No space left on device")
+        real_update(*args, **kwargs)
+
+    monkeypatch.setattr(cli, "_update_evaluation_progress", failing_update)
+
+    with pytest.raises(OSError, match="No space left on device") as raised:
+        _evaluate_directly(output, concurrency=3)
+
+    assert isinstance(raised.value.__cause__, ExceptionGroup)
+    assert raised.value.__cause__.exceptions == (raised.value,)
+
+
+def test_an_empty_bar_description_is_used_as_given() -> None:
+    """Only None means 'not set'. An empty string is still a description."""
+    bar = _RecordingProgress()
+
+    cli._update_evaluation_progress(
+        bar,  # type: ignore[arg-type]
+        1,
+        record_number=1,
+        total_records=1,
+        label="alice x task-1",
+        phase="extracting",
+        bar_description="",
+    )
+
+    assert bar.descriptions == [""]

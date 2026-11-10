@@ -24,16 +24,22 @@ duplicated and a synthetic root with id ``t-<traceId>``, and the stored set chan
 size (issue #469). METIS does not repair such a trace; ``fetch_session`` raises
 ``UnsupportedTraceError`` for it, so the session fails and the trial must be re-run.
 
+The fetch is asynchronous, on ``langfuse.async_api``, so a session waiting on Langfuse holds
+no thread and many sessions can be fetched at once.
+
 Input/output arrive as raw strings (``parse_io_as_json`` is rejected with HTTP 400), and
 ``metis.core.traces.Observation`` parses JSON-looking values itself.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
+import random
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+import httpx
 from langfuse import Langfuse
 
 from metis.core import Artifact, resolve_artifact_path
@@ -50,6 +56,16 @@ _PAGE_SIZE = 1000
 _TRUNCATION_LIMIT = 200
 """Langfuse truncates metadata values longer than this unless the key is expanded."""
 _RETRY_SECONDS = 10
+_MAX_RETRIES = 3
+"""How many times one page request is retried after its first try."""
+_RETRY_BASE_SECONDS = 0.5
+_RETRY_CAP_SECONDS = 10
+_RETRYABLE_ERRORS = (
+    httpx.TimeoutException,
+    httpx.NetworkError,
+    httpx.RemoteProtocolError,
+)
+"""Transport failures worth another try: a timeout, a refused or dropped connection."""
 
 
 class UnsupportedTraceError(RuntimeError):
@@ -65,7 +81,45 @@ def get_langfuse_client() -> Langfuse:
     return Langfuse()
 
 
-def _page_through_observations(
+def _retry_delay(retry: int) -> float:
+    """Exponential backoff with jitter, the same shape the Langfuse SDK uses for statuses."""
+    delay = min(_RETRY_BASE_SECONDS * 2.0**retry, _RETRY_CAP_SECONDS)
+    return delay * (1 - 0.25 * random.random())
+
+
+async def _get_page(langfuse: Langfuse, **request: Any) -> Any:
+    """One ``get_many`` call, retried when Langfuse or the network is briefly unavailable.
+
+    With ``--concurrency N`` several sessions call Langfuse at once, so a rate limit or a slow
+    reply is expected now and then. Two kinds of failure are retried, each by its own
+    mechanism, up to ``_MAX_RETRIES`` times with a growing wait:
+
+    * A response with status 408, 409, 429 or 5xx. The SDK retries these itself (honouring
+      ``Retry-After``) once ``request_options`` allows it; its default is no retries.
+    * A timeout or connection error. These raise before any response exists, so the SDK
+      cannot see them and this loop retries them.
+
+    Any other failure, such as a 401 for a bad key, is raised at once.
+    """
+    for retry in range(_MAX_RETRIES + 1):
+        try:
+            return await langfuse.async_api.observations_v_2.get_many(
+                **request, request_options={"max_retries": _MAX_RETRIES}
+            )
+        except _RETRYABLE_ERRORS as exc:
+            if retry == _MAX_RETRIES:
+                raise
+            logger.warning(
+                "[langfuse] %s on an observations request; retrying (%d/%d)",
+                type(exc).__name__,
+                retry + 1,
+                _MAX_RETRIES,
+            )
+            await asyncio.sleep(_retry_delay(retry))
+    raise AssertionError("unreachable")  # the loop always returns or raises
+
+
+async def _page_through_observations(
     langfuse: Langfuse,
     column: str,
     value: str,
@@ -82,7 +136,8 @@ def _page_through_observations(
     observations: list[Observation] = []
     cursor: str | None = None
     while True:
-        response = langfuse.api.observations_v_2.get_many(
+        response = await _get_page(
+            langfuse,
             fields=_FIELDS,
             filter=observation_filter,
             limit=_PAGE_SIZE,
@@ -113,12 +168,12 @@ def _may_be_truncated(observations: list[Observation]) -> list[str]:
     return sorted(keys)
 
 
-def _fetch_trace(langfuse: Langfuse, trace_id: str) -> list[Observation]:
+async def _fetch_trace(langfuse: Langfuse, trace_id: str) -> list[Observation]:
     """Every observation in one trace, with metadata never truncated.
 
     Must back each trace's observation set; never the session-filtered list (issue #435).
     """
-    observations = _page_through_observations(langfuse, "traceId", trace_id)
+    observations = await _page_through_observations(langfuse, "traceId", trace_id)
     truncated = _may_be_truncated(observations)
     if not truncated:
         return observations
@@ -136,14 +191,14 @@ def _fetch_trace(langfuse: Langfuse, trace_id: str) -> list[Observation]:
         _TRUNCATION_LIMIT,
         ", ".join(truncated),
     )
-    return _page_through_observations(
+    return await _page_through_observations(
         langfuse, "traceId", trace_id, expand_metadata=keys
     )
 
 
-def _session_trace_ids(langfuse: Langfuse, session_id: str) -> list[str]:
+async def _session_trace_ids(langfuse: Langfuse, session_id: str) -> list[str]:
     """The ids of every trace in the session, in first-seen order."""
-    observations = _page_through_observations(langfuse, "sessionId", session_id)
+    observations = await _page_through_observations(langfuse, "sessionId", session_id)
     return list(dict.fromkeys(observation.trace_id for observation in observations))
 
 
@@ -181,7 +236,7 @@ def _resolve_artifacts(
     return tuple(resolved)
 
 
-def fetch_session(
+async def fetch_session(
     session_id: str,
     langfuse: Langfuse,
     *,
@@ -203,14 +258,14 @@ def fetch_session(
     """
     deadline = time.time() + retry_timeout
     while True:
-        trace_ids = _session_trace_ids(langfuse, session_id)
+        trace_ids = await _session_trace_ids(langfuse, session_id)
         if trace_ids or time.time() >= deadline:
             break
-        time.sleep(_RETRY_SECONDS)
+        await asyncio.sleep(_RETRY_SECONDS)
 
     traces: list[Trace] = []
     for trace_id in trace_ids:
-        observations = _fetch_trace(langfuse, trace_id)
+        observations = await _fetch_trace(langfuse, trace_id)
         if not observations:
             # Found by the session filter but empty by traceId: an ingestion race. A trace
             # with no observations cannot be built, and there is nothing in it to grade.
