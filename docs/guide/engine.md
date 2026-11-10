@@ -182,23 +182,49 @@ experiments/execute/toyapp-http-simple-20260730-143022/
 
 The insights [Report model](../../packages/insights/src/metis/insights/_models.py) defines `report.json`. Python readers can validate report data with `Report.model_validate()`.
 
-`logs/events.jsonl` records the progress of the run as it happens, so another program can
-follow it. Each line is one `RunEvent` from `metis.core.run_events`, and
-`packages/core/schemas/run-event.schema.json` describes every line. A command writes
-`run_started`, a `phase_started` for each phase it runs, the events of each trial, and
-`run_ended`. Simulation writes `trial_started`, `turn`, `trial_retry` and `trial_ended`.
-Evaluation writes `trace_wait_started`, `trace_wait_ended`, `grade` and `trial_graded`. The
-`seq` field numbers the lines from 1, and a resumed run or a later `evaluate` appends to the
-same file and continues the count. An event holds IDs, counts, statuses and short reasons. It
-never holds a key, a prompt or a model reply. The file stays in the run folder's `logs/` when
-`--log-dir` moves the other logs.
+`logs/events.jsonl` records the progress of the experiment as it happens, so another program
+can follow it. Each line is one `PhaseEvent` from `metis.core.phase_events`, and
+`packages/core/schemas/phase-event.schema.json` describes every line. Every line has the same
+five fields:
 
-`run_ended` has a `status` of `completed`, `failed` or `interrupted`. A failed command also
-gives the `reason` that it printed to the console, when it has one. A command that the
-operating system kills, for example with `SIGKILL` or a power loss, cannot write
-`run_ended`. Thus a file with no `run_ended` after its last `run_started` does not show that
-the command still works. Use another sign to find a live command, such as the process that
-started it, or new lines in the file.
+| Field | Value |
+|---|---|
+| `seq` | The line number, from 1. A resumed command or a later `evaluate` appends to the same file and continues the count. |
+| `at` | The UTC time of the event. |
+| `phase` | `simulating` or `evaluating`. |
+| `trial` | The trial's folder name under `outputs/trials/`, or `null` for a line about the whole phase. |
+| `status` | `started`, `running`, `retrying`, `completed`, `failed`, `interrupted` or `skipped`. |
+
+Some lines also have extra fields:
+
+| Field | On which lines |
+|---|---|
+| `total` | The phase `started` line. It is the number of trials in the phase. |
+| `done` | The phase `started` line. It is the number of trials that an earlier command already finished. |
+| `attempt` | Each trial line in simulation. A trial that fails tries again, up to its retry limit. The `retrying` line gives the attempt that failed, and the next attempt writes its own `started` line. A resumed command counts the attempts of a trial from 1 again. |
+| `turn` | Each `running` line, after each turn of the conversation. |
+| `reason` | Some `retrying`, `failed` and `interrupted` lines. It is what went wrong. |
+
+```json
+{"seq":1,"at":"2026-11-10T06:40:00Z","phase":"simulating","trial":null,"status":"started","total":6,"done":0}
+{"seq":2,"at":"2026-11-10T06:40:01Z","phase":"simulating","trial":"TC-008-direct-employee-questioner-1","status":"started","attempt":1}
+{"seq":3,"at":"2026-11-10T06:40:09Z","phase":"simulating","trial":"TC-008-direct-employee-questioner-1","status":"running","attempt":1,"turn":1}
+```
+
+Each phase starts with a phase line `started`, and ends with a phase line `completed`,
+`failed` or `interrupted`. A simulation that stops before it counts its trials writes only
+its end line. A failed phase also gives the `reason` that the command printed to
+the console, when it has one. When `metis engine run` stops in simulation, it also writes a
+`skipped` line for evaluation. Thus the last phase line in the file tells how the command
+ended. A command that the operating system kills, for example with `SIGKILL` or a power loss,
+cannot write its last phase line. Thus a file with no end line after its last phase `started`
+line does not show that the command still works. Use another sign to find a live command, such
+as the process that started it, or new lines in the file.
+
+An event holds IDs, counts, statuses and short reasons. It never holds a key, a prompt or a
+model reply. The scores are in `results.json`, and the details of each trial are in its
+`record.json`. The file stays in the experiment folder's `logs/` when `--log-dir` moves the
+other logs.
 
 Use `logs/evaluate.log` to review extraction, each criterion's grader and resolved arguments (including the judge model), every recorded result with its outcome, score and reason, soft failures, hard failures, and final record counts for the latest evaluation attempt.
 

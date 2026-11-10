@@ -22,7 +22,7 @@ TRACES = PurePosixPath("outputs/traces")
 """Folder of the traces `evaluate` saved, one file per session, named by `trace_file_name`."""
 LOGS = PurePosixPath("logs")
 EVENTS_FILE = "events.jsonl"
-"""File name of the run's event log inside ``LOGS``: one ``RunEvent`` per line."""
+"""File name of the event log inside ``LOGS``: one ``PhaseEvent`` per line."""
 
 
 def trace_file_name(session_id: str) -> str:

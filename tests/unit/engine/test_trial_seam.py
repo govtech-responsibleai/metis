@@ -142,6 +142,7 @@ def test_create_trial_builds_the_user_agent_and_the_orchestrator(
         "tui_ctx",
         "shutdown_event",
         "events",
+        "attempt",
     }
     assert built["orch"]["agent"] == "agent"
     assert built["orch"]["runner"] == "runner"

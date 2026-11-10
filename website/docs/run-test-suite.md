@@ -84,9 +84,9 @@ experiments/execute/<your-run>/
     └── simulate.log
 ```
 
-`logs/events.jsonl` records the progress of the run as it happens, one JSON event per line, so
-another program can follow the run. The schema of each line is
-`packages/core/schemas/run-event.schema.json`.
+`logs/events.jsonl` records the progress of the experiment as it happens, one JSON event per
+line, so another program can follow it. The schema of each line is
+`packages/core/schemas/phase-event.schema.json`.
 
 ## Next step
 

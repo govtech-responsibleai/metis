@@ -1,4 +1,5 @@
-"""``simulate``, ``evaluate`` and ``run`` write the progress of a run to logs/events.jsonl.
+"""``simulate``, ``evaluate`` and ``run`` write the progress of an experiment to
+logs/events.jsonl.
 
 The tests run the real commands with a fake runner, a scripted user agent and a fake
 Langfuse fetch, so no service is called. Each line must pass the published schema.
@@ -8,15 +9,14 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import TYPE_CHECKING, get_args
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import jsonschema
 import pytest
 from typer.testing import CliRunner
 
-from metis.core.grading import RecordedResult
-from metis.core.run_events import Grade, RunEventLog
+from metis.core.phase_events import INTERRUPTED_REASON, PhaseEventLog
 from metis.core.traces import GradingInput, Observation, Trace
 from metis.core.trials import TrialConfig, TrialOutcome, TrialRecord
 from metis.engine import cli
@@ -26,7 +26,8 @@ from metis.engine.simulation.exceptions import ConsecutiveFailureEscalation
 from metis.engine.simulation.experiment import (
     TrialPlanItem,
     _worker,
-    trial_end_fields,
+    trial_end_reason,
+    trial_end_status,
 )
 from metis.engine.simulation.types import Persona, Scenario, UserAgentOutput
 from tests.unit.engine.test_runner_ref import StubRunnerFactory
@@ -105,7 +106,7 @@ def _session(session_id: str) -> GradingInput:
 
 @pytest.fixture
 def schema(repo_root: Path) -> dict:
-    path = repo_root / "packages/core/schemas/run-event.schema.json"
+    path = repo_root / "packages/core/schemas/phase-event.schema.json"
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -155,17 +156,22 @@ def _input_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     return input_dir
 
 
-def _lifecycle(events: list[dict]) -> list[tuple[str, str | None]]:
-    """The type and phase of each event that names no trial."""
+def _phases(events: list[dict]) -> list[tuple[str, str]]:
+    """The phase and status of each line about a whole phase."""
     return [
-        (event["type"], event.get("phase"))
-        for event in events
-        if event.get("trial") is None
+        (event["phase"], event["status"]) for event in events if event["trial"] is None
+    ]
+
+
+def _trial_lines(events: list[dict], trial: str) -> list[tuple[str, str]]:
+    """The phase and status of each line about ``trial``."""
+    return [
+        (event["phase"], event["status"]) for event in events if event["trial"] == trial
     ]
 
 
 @pytest.mark.usefixtures("fake_services")
-def test_every_line_of_a_run_passes_the_published_schema(
+def test_every_line_of_an_experiment_passes_the_published_schema(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, schema: dict
 ) -> None:
     input_dir = _input_dir(monkeypatch, tmp_path)
@@ -175,52 +181,31 @@ def test_every_line_of_a_run_passes_the_published_schema(
     for event in events:
         jsonschema.validate(instance=event, schema=schema)
     assert [event["seq"] for event in events] == list(range(1, len(events) + 1))
-    trial_events = [
-        (event["type"], event.get("trial"))
-        for event in events
-        if event["type"] not in ("run_started", "phase_started", "run_ended")
+    assert _phases(events) == [
+        ("simulating", "started"),
+        ("simulating", "completed"),
+        ("evaluating", "started"),
+        ("evaluating", "completed"),
     ]
-    trials = ["TC-001-alice-1", "TC-001-alice-2"]
-    assert trial_events == [
-        *(
-            pair
-            for trial in trials
-            for pair in [
-                ("trial_started", trial),
-                ("turn", trial),
-                ("turn", trial),
-                ("trial_ended", trial),
-            ]
-        ),
-        *(
-            pair
-            for trial in trials
-            for pair in [
-                ("trace_wait_started", trial),
-                ("trace_wait_ended", trial),
-                ("grade", trial),
-                ("trial_graded", trial),
-            ]
-        ),
+    for trial in ["TC-001-alice-1", "TC-001-alice-2"]:
+        assert _trial_lines(events, trial) == [
+            ("simulating", "started"),
+            ("simulating", "running"),
+            ("simulating", "running"),
+            ("simulating", "completed"),
+            ("evaluating", "started"),
+            ("evaluating", "completed"),
+        ]
+    assert events[0] == {**events[0], "total": 2, "done": 0}
+    turns = [event for event in events if event["status"] == "running"]
+    assert [(event["attempt"], event["turn"]) for event in turns[:2]] == [
+        (1, 1),
+        (1, 2),
     ]
-    run_events = [event for event in events if event.get("trial") is None]
-    assert [
-        (event["type"], event.get("phase"), event.get("total")) for event in run_events
-    ] == [
-        ("run_started", None, None),
-        ("phase_started", "simulating", 2),
-        ("phase_started", "evaluating", 2),
-        ("run_ended", None, None),
-    ]
-    assert run_events[-1]["status"] == "completed"
-    grade = next(event for event in events if event["type"] == "grade")
-    assert (grade["criterion_id"], grade["passed"]) == ("AC-1-1", 1)
-    wait_end = next(event for event in events if event["type"] == "trace_wait_ended")
-    assert (wait_end["outcome"], wait_end["traces"]) == ("found", 1)
 
 
 @pytest.mark.usefixtures("fake_services")
-def test_a_resumed_run_appends_and_continues_the_sequence(
+def test_a_resume_appends_and_continues_the_sequence(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, schema: dict
 ) -> None:
     input_dir = _input_dir(monkeypatch, tmp_path)
@@ -238,18 +223,20 @@ def test_a_resumed_run_appends_and_continues_the_sequence(
     assert [event["seq"] for event in events] == list(range(1, len(events) + 1))
     for event in resumed:
         jsonschema.validate(instance=event, schema=schema)
-    assert resumed[0]["type"] == "run_started" and resumed[0]["resumed"] is True
-    assert resumed[1] == {
-        **resumed[1],
+    assert resumed[0] == {
+        **resumed[0],
         "phase": "simulating",
+        "trial": None,
+        "status": "started",
         "total": 2,
         "done": 1,
-        "trials": ["TC-001-alice-2"],
     }
+    simulated = {event["trial"] for event in resumed if event["phase"] == "simulating"}
+    assert simulated == {None, "TC-001-alice-2"}
 
 
 @pytest.mark.usefixtures("fake_services")
-def test_simulate_ends_its_run_after_the_simulating_phase(
+def test_simulate_writes_only_the_simulating_phase(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, schema: dict
 ) -> None:
     input_dir = _input_dir(monkeypatch, tmp_path)
@@ -259,19 +246,12 @@ def test_simulate_ends_its_run_after_the_simulating_phase(
     for event in events:
         jsonschema.validate(instance=event, schema=schema)
     assert [event["seq"] for event in events] == list(range(1, len(events) + 1))
-    assert events[0]["command"] == "simulate"
-    assert _lifecycle(events) == [
-        ("run_started", None),
-        ("phase_started", "simulating"),
-        ("run_ended", None),
-    ]
-    assert events[-1]["status"] == "completed"
-    assert {event["type"] for event in events} >= {"trial_started", "trial_ended"}
-    assert not {"grade", "trial_graded"} & {event["type"] for event in events}
+    assert _phases(events) == [("simulating", "started"), ("simulating", "completed")]
+    assert {event["phase"] for event in events} == {"simulating"}
 
 
 @pytest.mark.usefixtures("fake_services")
-def test_evaluate_appends_a_run_of_its_own(
+def test_evaluate_appends_its_own_phase(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, schema: dict
 ) -> None:
     input_dir = _input_dir(monkeypatch, tmp_path)
@@ -289,25 +269,49 @@ def test_evaluate_appends_a_run_of_its_own(
     assert [event["seq"] for event in events] == list(range(1, len(events) + 1))
     for event in evaluated:
         jsonschema.validate(instance=event, schema=schema)
-    assert evaluated[0]["command"] == "evaluate"
-    assert _lifecycle(evaluated) == [
-        ("run_started", None),
-        ("phase_started", "evaluating"),
-        ("run_ended", None),
+    assert _phases(evaluated) == [
+        ("evaluating", "started"),
+        ("evaluating", "completed"),
     ]
-    assert evaluated[-1]["status"] == "completed"
-    graded = [event["trial"] for event in evaluated if event["type"] == "trial_graded"]
+    assert evaluated[0]["total"] == 2
+    graded = [
+        event["trial"]
+        for event in evaluated
+        if event["trial"] and event["status"] == "completed"
+    ]
     assert graded == ["TC-001-alice-1", "TC-001-alice-2"]
 
 
-def test_a_grade_event_counts_every_result_outcome() -> None:
-    outcomes = set(get_args(RecordedResult.model_fields["outcome"].annotation))
-    counts = set(Grade.model_fields) - {"seq", "at", "trial", "type", "criterion_id"}
-    assert counts == outcomes
+@pytest.mark.usefixtures("fake_services")
+def test_a_trial_that_cannot_be_graded_fails_with_its_reason(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, schema: dict
+) -> None:
+    input_dir = _input_dir(monkeypatch, tmp_path)
+    simulated = _run(tmp_path, "--input-dir", str(input_dir), command="simulate")
+
+    async def no_traces(*_args: object, **_kwargs: object) -> GradingInput:
+        return GradingInput(traces=())
+
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", no_traces)
+
+    events = _run(
+        tmp_path,
+        "--experiment-dir",
+        str(_run_folder(tmp_path)),
+        command="evaluate",
+    )
+
+    evaluated = events[len(simulated) :]
+    for event in evaluated:
+        jsonschema.validate(instance=event, schema=schema)
+    failed = [
+        event for event in evaluated if event["trial"] and event["status"] == "failed"
+    ]
+    assert [event["reason"] for event in failed] == ["No traces found in Langfuse"] * 2
 
 
 @pytest.mark.usefixtures("fake_services")
-def test_a_command_that_prints_an_error_ends_the_run_with_that_reason(
+def test_a_failed_phase_gives_its_reason_and_skips_the_later_phase(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, schema: dict
 ) -> None:
     input_dir = tmp_path / "input"
@@ -319,17 +323,31 @@ def test_a_command_that_prints_an_error_ends_the_run_with_that_reason(
 
     events = _run(tmp_path, "--input-dir", str(input_dir), exit_code=1)
 
-    jsonschema.validate(instance=events[-1], schema=schema)
-    assert events[-1] == {
-        **events[-1],
-        "type": "run_ended",
-        "status": "failed",
-        "reason": "binding.yaml: base_url is not set",
-    }
+    for event in events:
+        jsonschema.validate(instance=event, schema=schema)
+    assert _phases(events) == [
+        ("simulating", "started"),
+        ("simulating", "failed"),
+        ("evaluating", "skipped"),
+    ]
+    assert events[-2]["reason"] == "binding.yaml: base_url is not set"
+
+
+@pytest.mark.usefixtures("fake_services")
+def test_a_simulation_with_no_records_fails_and_skips_evaluation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    input_dir = _input_dir(monkeypatch, tmp_path)
+    monkeypatch.setattr(cli, "_trial_record_files", lambda _root: [])
+
+    events = _run(tmp_path, "--input-dir", str(input_dir), exit_code=1)
+
+    assert _phases(events)[-2:] == [("simulating", "failed"), ("evaluating", "skipped")]
+    assert events[-2]["reason"] == "No trial records found."
 
 
 @pytest.mark.asyncio
-async def test_a_failed_attempt_writes_a_retry_and_the_trial_ends_failed(
+async def test_each_attempt_of_a_trial_is_numbered_and_the_last_one_fails(
     tmp_path: Path, schema: dict
 ) -> None:
     scenario = Scenario(
@@ -340,7 +358,7 @@ async def test_a_failed_attempt_writes_a_retry_and_the_trial_ends_failed(
         max_trial_retries=1,
     )
     persona = Persona(id="alice", name="alice", description="p")
-    events = RunEventLog.for_run_folder(tmp_path)
+    events = PhaseEventLog.for_experiment_dir(tmp_path)
 
     with patch("metis.engine.simulation.trial.Orchestrator") as orchestrator:
         orchestrator.return_value.execute = AsyncMock(
@@ -366,19 +384,17 @@ async def test_a_failed_attempt_writes_a_retry_and_the_trial_ends_failed(
     lines = [json.loads(line) for line in events.path.read_text().splitlines()]
     for line in lines:
         jsonschema.validate(instance=line, schema=schema)
-    assert [line["type"] for line in lines] == [
-        "trial_started",
-        "trial_retry",
-        "trial_ended",
+    assert [(line["status"], line["attempt"]) for line in lines] == [
+        ("started", 1),
+        ("retrying", 1),
+        ("started", 2),
+        ("failed", 2),
     ]
-    retry, ended = lines[1], lines[2]
-    assert (retry["attempt"], retry["max_attempts"]) == (1, 2)
-    assert retry["failure_type"] == "ConsecutiveFailureEscalation"
-    assert retry["reason"] == "2 consecutive turn failures"
-    assert (ended["status"], ended["failure_reason"]) == (
-        "failed",
-        "2 consecutive turn failures",
+    retry, ended = lines[1], lines[3]
+    assert retry["reason"] == (
+        "ConsecutiveFailureEscalation: 2 consecutive turn failures"
     )
+    assert ended["reason"] == "2 consecutive turn failures"
 
 
 @pytest.mark.asyncio
@@ -404,7 +420,7 @@ async def test_a_trial_ends_when_its_events_cannot_be_written(tmp_path: Path) ->
             started_scenarios=set(),
             trial_max_retries=1,
             trial_retry_delay_seconds=0.0,
-            events=RunEventLog.for_run_folder(tmp_path),
+            events=PhaseEventLog.for_experiment_dir(tmp_path),
         )
 
     assert [record.outcome.stop_reason for record in records] == ["goal_achieved"]
@@ -422,14 +438,16 @@ def _record(stop_reason: str, **outcome: object) -> TrialRecord:
     )
 
 
-def test_trial_end_status_follows_the_stop_reason() -> None:
-    failed = trial_end_fields(
-        _record("system_error", failure_message="fixture_never_uploaded: a.csv")
-    )
-    assert (failed["status"], failed["failure_reason"]) == (
+def test_how_a_trial_ends_follows_its_stop_reason() -> None:
+    failed = _record("system_error", failure_message="fixture_never_uploaded: a.csv")
+    assert (trial_end_status(failed), trial_end_reason(failed)) == (
         "failed",
         "fixture_never_uploaded: a.csv",
     )
-    assert trial_end_fields(_record("interrupted"))["status"] == "interrupted"
-    stopped = trial_end_fields(_record("max_turns"))
-    assert (stopped["status"], stopped["failure_reason"]) == ("completed", None)
+    interrupted = _record("interrupted")
+    assert (trial_end_status(interrupted), trial_end_reason(interrupted)) == (
+        "interrupted",
+        INTERRUPTED_REASON,
+    )
+    stopped = _record("max_turns")
+    assert (trial_end_status(stopped), trial_end_reason(stopped)) == ("completed", None)
