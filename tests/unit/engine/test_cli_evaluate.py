@@ -17,7 +17,13 @@ from metis.core.traces import GradingInput, Observation, SessionTraces, Trace
 from metis.core.trials import GraderRef, TrialConfig, TrialOutcome, TrialRecord
 from metis.engine import cli
 from metis.engine.cli import EvaluationOutcome, app
-from metis.engine.extractor.langfuse import UnsupportedTraceError
+from metis.engine.extractor.langfuse import (
+    OpenObservation,
+    TracesNotReadyError,
+    TraceWait,
+    TraceWaitSettings,
+    UnsupportedTraceError,
+)
 
 runner = CliRunner()
 
@@ -108,13 +114,13 @@ def test_evaluate_scores_the_named_experiment_directory(
     def fake_evaluation(
         path: Path,
         *,
-        langfuse_timeout: int,
+        trace_wait: TraceWaitSettings,
         verbose: int,
         quiet: bool,
         concurrency: int,
     ) -> EvaluationOutcome:
         calls.append(path)
-        assert langfuse_timeout == 120
+        assert trace_wait == TraceWaitSettings(timeout_seconds=120)
         assert verbose == 1
         assert not quiet
         assert concurrency == 3
@@ -215,11 +221,16 @@ def test_evaluate_with_no_run_records_is_a_noop(tmp_path: Path) -> None:
 
 
 def _patch_evaluation(monkeypatch, *, traces: int = 1) -> list[dict[str, Any]]:
-    """Fake Langfuse: every session has ``traces`` traces. Returns the fetch calls made."""
+    """Fake Langfuse: every session has ``traces`` traces. Returns the fetch calls made.
+
+    With ``traces=0`` the fetch fails as ``fetch_session`` does when Langfuse has none.
+    """
     calls: list[dict[str, Any]] = []
 
     async def fetch(session_id: str, _langfuse: object, **kwargs: Any) -> GradingInput:
         calls.append({"session_id": session_id, **kwargs})
+        if not traces:
+            raise TracesNotReadyError(TraceWait("no_traces", 2, 90.0))
         return _session(session_id, traces)
 
     monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
@@ -279,6 +290,38 @@ def test_report_command_is_shell_quoted_for_paths_with_spaces(
     assert _compact(quoted) in _compact(result.output)
 
 
+def test_evaluation_logs_the_trace_wait_and_warns_about_open_observations(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_record(output)
+    wait = TraceWait(
+        "settled", 3, 31.0, open_observations=(OpenObservation("t1", "c1", "tool"),)
+    )
+
+    async def fetch(session_id: str, _langfuse: object, **kwargs: Any) -> GradingInput:
+        kwargs["on_wait"](wait)
+        return _session(session_id)
+
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+
+    result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
+
+    assert result.exit_code == 0
+    assert "never ended, graded as stored: tool (c1)" in _compact_spaces(result.output)
+    log = (output / "logs" / "evaluate.log").read_text()
+    assert (
+        "TRACE WAIT: record=alice x task-1 status=settled checks=3 waited=31.0s" in log
+    )
+    assert "OPEN OBSERVATIONS: record=alice x task-1 ids=tool (c1)" in log
+    assert (output / "outputs" / "reports" / "results.json").exists()
+
+
+def _compact_spaces(text: str) -> str:
+    return " ".join(text.split())
+
+
 def test_evaluation_with_no_successful_records_writes_no_results(
     monkeypatch, tmp_path: Path
 ) -> None:
@@ -289,7 +332,13 @@ def test_evaluation_with_no_successful_records_writes_no_results(
     result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
 
     assert result.exit_code == 0
-    assert "No traces found in Langfuse" in result.output
+    assert "WARNING: RECORD 1/1 alice x task-1 — no traces in Langfuse" in (
+        _compact_spaces(result.output)
+    )
+    assert (
+        "FAILED — no traces in Langfuse"
+        in (output / "logs" / "evaluate.log").read_text()
+    )
     assert not (output / "outputs" / "reports" / "results.json").exists()
     assert "metisinsightsreport" not in _compact(result.output)
 
@@ -366,7 +415,7 @@ def test_evaluation_progress_advances_for_success_and_soft_failure(
 
     outcome = cli._run_evaluation(
         output,
-        langfuse_timeout=90,
+        trace_wait=TraceWaitSettings(timeout_seconds=90),
         verbose=0,
         quiet=False,
     )
@@ -594,17 +643,62 @@ def test_every_session_is_fetched_with_its_artifacts_and_timeout(
     calls = _patch_evaluation(monkeypatch)
 
     runner.invoke(
-        app, ["evaluate", "--experiment-dir", str(output), "--langfuse-timeout", "7"]
+        app, ["evaluate", "--experiment-dir", str(output), "--langfuse-timeout", "70"]
     )
 
     assert sorted(c["session_id"] for c in calls) == ["session-1", "session-2"]
-    assert all(c["retry_timeout"] == 7 for c in calls)
+    assert all(
+        c["settings"] == TraceWaitSettings(timeout_seconds=70, quiet_seconds=30)
+        for c in calls
+    )
     assert all(c["experiment_root"] == output.resolve() for c in calls)
     assert all(c["artifacts"] == [] for c in calls)
     results = EvaluationResults.load_file(
         output / "outputs" / "reports" / "results.json"
     )
     assert len(results.records) == 2
+
+
+@pytest.mark.parametrize(("timeout", "evaluated"), [("20", False), ("30", True)])
+def test_evaluate_stops_when_the_timeout_is_shorter_than_the_quiet_window(
+    monkeypatch, tmp_path: Path, timeout: str, evaluated: bool
+) -> None:
+    monkeypatch.setenv("LANGFUSE_METIS_QUIET_SECONDS", "30")
+    output = _write_experiment_dir(tmp_path)
+    _write_record(output)
+    calls = _patch_evaluation(monkeypatch)
+
+    result = runner.invoke(
+        app,
+        ["evaluate", "--experiment-dir", str(output), "--langfuse-timeout", timeout],
+    )
+
+    error = _compact(
+        "The Langfuse timeout is 20 seconds, but the quiet window "
+        "(LANGFUSE_METIS_QUIET_SECONDS) is 30 seconds. A trial that has just finished "
+        "needs the full quiet window before it can be graded. Set the timeout to 30 "
+        "seconds or more."
+    )
+    assert result.exit_code == (0 if evaluated else 1), result.output
+    assert len(calls) == (1 if evaluated else 0)
+    assert (error in _compact(result.output)) is not evaluated
+
+
+def test_evaluate_stops_when_the_quiet_window_is_not_a_number(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("LANGFUSE_METIS_QUIET_SECONDS", "abc")
+    output = _write_experiment_dir(tmp_path)
+    _write_record(output)
+    calls = _patch_evaluation(monkeypatch)
+
+    result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
+
+    assert result.exit_code == 1
+    assert _compact(
+        "LANGFUSE_METIS_QUIET_SECONDS must be a number of seconds, got 'abc'"
+    ) in _compact(result.output)
+    assert calls == []
 
 
 def test_code_graders_need_no_judge_credentials(monkeypatch, tmp_path: Path) -> None:
@@ -843,7 +937,7 @@ def _evaluation_context(tmp_path: Path, fetch: Any) -> tuple[Any, Path]:
         graders=graders,
         llm=LLMSettings(client=cli._NoJudgeClient()),  # type: ignore[arg-type]
         langfuse=FakeLangfuse(),  # type: ignore[arg-type]
-        langfuse_timeout=0,
+        trace_wait=TraceWaitSettings(timeout_seconds=90),
         evaluation_log=EvaluationLogger(experiment_dir / "logs"),
         total_records=1,
         concurrency=1,
@@ -966,7 +1060,7 @@ def _patch_slow_grading(monkeypatch, probe: _Probe, seconds: float = 0.05) -> No
 def _evaluate_directly(output: Path, concurrency: int) -> EvaluationOutcome:
     return cli._run_evaluation(
         output,
-        langfuse_timeout=0,
+        trace_wait=TraceWaitSettings(timeout_seconds=90),
         verbose=0,
         quiet=False,
         concurrency=concurrency,
@@ -1298,7 +1392,7 @@ async def test_cancellation_stops_every_session_then_closes_the_judge_client(
             specification,
             records,
             evaluation_log=log,
-            langfuse_timeout=0,
+            trace_wait=TraceWaitSettings(timeout_seconds=90),
             concurrency=2,
         )
     )
@@ -1440,7 +1534,7 @@ async def test_an_interrupted_evaluation_says_so_and_names_the_retry_command(
             specification,
             records,
             evaluation_log=EvaluationLogger(output / "logs"),
-            langfuse_timeout=0,
+            trace_wait=TraceWaitSettings(timeout_seconds=90),
             concurrency=concurrency,
         )
     )
