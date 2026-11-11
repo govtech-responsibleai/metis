@@ -101,7 +101,7 @@ my-experiment/
 
 See [`examples/http-agentic_eval_toyapp-1/`](examples/http-agentic_eval_toyapp-1/) for a working reference.
 
-Each execution produces output in `experiments/execute/<id>-<timestamp>/`. Reports appear after `evaluate` or `run`:
+Each execution produces output in `experiments/execute/<id>-<timestamp>/`, under the project folder. Reports appear after `evaluate` or `run`. The project folder is the working directory or the nearest folder above it that has a `pyproject.toml`. `simulate` and `run` take `--project-dir <folder>` for an existing folder to set it from any working directory.
 
 ```text
 experiments/execute/toyapp-http-simple-20260730-143022/
@@ -136,6 +136,9 @@ experiments/execute/toyapp-http-simple-20260730-143022/
 from metis.engine import build_grader, fetch_session, grade_session
 from metis.engine.extractor import get_langfuse_client
 ```
+
+`fetch_session(session_id, langfuse, experiment_root=...)` is a coroutine: `await` it
+from async code, or run it with `asyncio.run`.
 
 `build_grader(criterion, default_judge_model=..., env=...)` returns a validated
 `Grader` instance. Keep one instance per Criterion ID. Pass the selected Criteria

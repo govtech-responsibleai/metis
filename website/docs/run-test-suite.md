@@ -25,8 +25,15 @@ When it finishes, the command prints the output folder, the `evaluate` command f
 metis engine simulate --input-dir my-evaluation --concurrency 4
 ```
 
-`--concurrency` (short `-c`) sets how many trials run at once. The default is `1`. Raise it only
-as far as your application can handle, and check any rate limits in your target connection.
+`--concurrency` (short `-c`) sets how many trials run at once. The default is `1`, and the lowest
+value is `1`. Raise it only as far as your application can handle, and check any rate limits in
+your target connection.
+
+`metis engine run` takes the same option and uses the one number twice: it runs that many trials
+at once, and then
+[grades that many trials at once](run-graders.md#grade-several-trials-at-once). If your
+application and your model provider can handle different numbers, run `simulate` and `evaluate`
+yourself and give each its own `--concurrency`.
 
 ## Resume a stopped run
 
