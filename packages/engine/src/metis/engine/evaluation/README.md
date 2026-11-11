@@ -15,11 +15,24 @@ trial record ──▶ fetch_session ──▶ GradingInput (every trace + artif
                     waits until the traces stop changing, or fails the trial
                                    │──▶ outputs/traces/<session_id>.json (traces only, for the report)
                                    │
-                 grade_session ◀───┘  every grader once, concurrently
+                 grade_session ◀───┘  every grader of THIS session once, together
                     grader.grade(input, llm) → GradingOutput (scores per grading scope)
                     record_results: passed iff score ≥ threshold; [] or raise → errored
                  ──▶ one GraderRecord per grader per session ──▶ EvaluationResults
 ```
+
+## Three levels of concurrency
+
+Each level counts a different thing, and only the first two are in this package's control:
+
+```
+sessions        _evaluate_one × records      limit: --concurrency N   (cli.py)
+  └─ graders    grade_session gather × criteria   limit: none of its own
+       └─ calls   judge LLM requests              limit: 50-connection pool (judge.py)
+```
+
+With N sessions in flight and C criteria each, up to N × C grader runs execute together.
+Their model calls queue on the shared pool, so the pool, not N, caps real LLM load.
 
 The CLI keeps Criteria and grader instances in maps keyed by Criterion ID. It builds
 instances only for Criteria selected by resolved Tasks. Two Criteria that use the same
@@ -53,7 +66,7 @@ A grader returns a score; it never decides pass or fail.
 |---|---|
 | `scored`, `score >= threshold` | `passed` |
 | `scored`, `score < threshold` | `failed` |
-| `skipped` | `skipped` (nothing to judge; never a pass) |
+| `skipped` | `skipped` (the criterion does not apply; never a pass) |
 | `errored` | `errored` (could not judge; never a fail) |
 | no results, wrong type, or raises | one `errored` result for the grader run |
 

@@ -52,7 +52,7 @@ class ErrorRecoveryGrader(Grader[ErrorRecoveryArgs]):
 
     Safe termination of an unsuccessful attempt is not recovery unless the task
     explicitly defines that termination as an acceptable substitute outcome. A session with
-    no failure to recover from is errored, with the judge's reason.
+    no failure to recover from is skipped, with the judge's reason.
     """
 
     args_model = ErrorRecoveryArgs

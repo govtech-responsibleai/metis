@@ -62,7 +62,7 @@ class CriterionDecisionGrader(Grader[CriterionDecisionArgs]):
     """Return the probability that the whole session satisfies the criterion.
 
     One request asks whether the criterion applies and whether it is satisfied. An
-    applicability probability below 0.5 gives an errored result. The satisfaction
+    applicability probability below 0.5 gives a skipped result. The satisfaction
     probability is the score; the engine applies the criterion's threshold. Every result
     records both probabilities as its ``measurements``. The model does not generate an
     explanation, so the reason says that and nothing more.
@@ -173,7 +173,7 @@ class CriterionDecisionGrader(Grader[CriterionDecisionArgs]):
         measurements = {"applicable": applicable, "satisfied": satisfied}
         if applicable < 0.5:
             return GraderResult(
-                status="errored",
+                status="skipped",
                 reason="The criterion does not apply to this session.",
                 scope=label,
                 measurements=measurements,

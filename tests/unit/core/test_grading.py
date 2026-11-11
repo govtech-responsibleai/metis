@@ -74,6 +74,13 @@ class TestGradingOutput:
         out = GradingOutput(results=[GraderResult(status="skipped", reason="none")])
         assert len(out.results) == 1
 
+    @pytest.mark.parametrize("status", ["skipped", "errored"])
+    def test_a_whole_run_result_has_the_status_and_reason(self, status: str) -> None:
+        out = getattr(GradingOutput, status)("why")
+        assert [(r.status, r.score, r.reason, r.scope) for r in out.results] == [
+            (status, None, "why", None)
+        ]
+
     def test_empty_results_are_allowed_by_the_model(self) -> None:
         """The orchestrator, not the model, turns [] into an errored result."""
         assert GradingOutput(results=[]).results == []

@@ -1,6 +1,6 @@
 """fetch_session: one Langfuse session as the GradingInput its grader runs share.
 
-Every test mocks ``observations_v_2.get_many``, so nothing touches the network. The mock answers
+Every test fakes ``async_api.observations_v_2.get_many``, so nothing touches the network. The mock answers
 by filter column, so a fetch that wrongly reused the session-filtered list as a trace's
 observations (issue #435) gets different, smaller data and fails.
 """
@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -86,11 +86,11 @@ class FakeLangfuse:
         self.traces = traces
         self.expanded = expanded or {}
         self.calls: list[dict[str, Any]] = []
-        self.api = SimpleNamespace(
+        self.async_api = SimpleNamespace(
             observations_v_2=SimpleNamespace(get_many=self._get_many)
         )
 
-    def _get_many(self, **kwargs: Any) -> SimpleNamespace:
+    async def _get_many(self, **kwargs: Any) -> SimpleNamespace:
         self.calls.append(kwargs)
         column, value = _filter(kwargs)
         if column == "sessionId":
@@ -130,7 +130,7 @@ class FakeClock:
     def utc_now(self) -> datetime:
         return self.utc_start + timedelta(seconds=self.now)
 
-    def sleep(self, seconds: float) -> None:
+    async def sleep(self, seconds: float) -> None:
         self.sleeps.append(seconds)
         self.now += seconds
         if self.on_sleep:
@@ -142,7 +142,7 @@ def _stamp(clock: FakeClock) -> str:
     return clock.utc_now().isoformat().replace("+00:00", "Z")
 
 
-def _fetch(
+async def _fetch(
     lf: FakeLangfuse,
     tmp_path: Path,
     *,
@@ -151,7 +151,7 @@ def _fetch(
     **kwargs: Any,
 ):
     clock = clock or FakeClock()
-    return fetch_session(
+    return await fetch_session(
         "s1",
         lf,  # type: ignore[arg-type]
         experiment_root=tmp_path,
@@ -163,41 +163,53 @@ def _fetch(
     )
 
 
+def _async_mock_client() -> MagicMock:
+    """A client whose ``async_api.observations_v_2.get_many`` is an ``AsyncMock``."""
+    lf = MagicMock()
+    lf.async_api.observations_v_2.get_many = AsyncMock()
+    return lf
+
+
 class TestPaging:
-    def test_follows_every_cursor_page(self) -> None:
-        lf = MagicMock()
-        lf.api.observations_v_2.get_many.side_effect = [
+    @pytest.mark.asyncio
+    async def test_follows_every_cursor_page(self) -> None:
+        lf = _async_mock_client()
+        lf.async_api.observations_v_2.get_many.side_effect = [
             _page([_obs("o1", "t1")], cursor="next"),
             _page([_obs("o2", "t1", parent="o1")]),
         ]
-        observations = _page_through_observations(lf, "traceId", "t1")
+        observations = await _page_through_observations(lf, "traceId", "t1")
         assert [o.id for o in observations] == ["o1", "o2"]
-        assert lf.api.observations_v_2.get_many.call_count == 2
-        second = lf.api.observations_v_2.get_many.call_args_list[1].kwargs
+        assert lf.async_api.observations_v_2.get_many.call_count == 2
+        second = lf.async_api.observations_v_2.get_many.call_args_list[1].kwargs
         assert second["cursor"] == "next"
 
-    def test_request_shape(self) -> None:
-        lf = MagicMock()
-        lf.api.observations_v_2.get_many.return_value = _page([])
-        _page_through_observations(lf, "sessionId", "s1")
-        kwargs = lf.api.observations_v_2.get_many.call_args.kwargs
+    @pytest.mark.asyncio
+    async def test_request_shape(self) -> None:
+        lf = _async_mock_client()
+        lf.async_api.observations_v_2.get_many.return_value = _page([])
+        await _page_through_observations(lf, "sessionId", "s1")
+        kwargs = lf.async_api.observations_v_2.get_many.call_args.kwargs
         assert kwargs["fields"] == "core,basic,time,io,metadata"
         assert kwargs["limit"] == 1000
         assert _filter(kwargs) == ("sessionId", "s1")
         assert kwargs["expand_metadata"] is None
 
-    def test_never_sends_parse_io_as_json(self) -> None:
+    @pytest.mark.asyncio
+    async def test_never_sends_parse_io_as_json(self) -> None:
         """The v2 endpoint rejects it with HTTP 400; the key must not be sent at all."""
-        lf = MagicMock()
-        lf.api.observations_v_2.get_many.return_value = _page([])
-        _page_through_observations(lf, "traceId", "t1")
+        lf = _async_mock_client()
+        lf.async_api.observations_v_2.get_many.return_value = _page([])
+        await _page_through_observations(lf, "traceId", "t1")
         assert (
-            "parse_io_as_json" not in lf.api.observations_v_2.get_many.call_args.kwargs
+            "parse_io_as_json"
+            not in lf.async_api.observations_v_2.get_many.call_args.kwargs
         )
 
 
 class TestTwoStepFetch:
-    def test_trace_observations_come_from_the_trace_filter(
+    @pytest.mark.asyncio
+    async def test_trace_observations_come_from_the_trace_filter(
         self, tmp_path: Path
     ) -> None:
         """The session filter drops agent-run spans and session-less rows."""
@@ -206,68 +218,77 @@ class TestTwoStepFetch:
         no_session = _obs("gen", "t1", session_id=None, parent="agent")
         lf = FakeLangfuse(session=[root], traces={"t1": [root, agent, no_session]})
 
-        grading_input = _fetch(lf, tmp_path)
+        grading_input = await _fetch(lf, tmp_path)
 
         (trace,) = grading_input.traces
         assert {o.id for o in trace.observations} == {"root", "agent", "gen"}
         assert trace.root.id == "root"
 
-    def test_one_trace_call_per_trace(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_one_trace_call_per_trace(self, tmp_path: Path) -> None:
         lf = FakeLangfuse(
             session=[_obs("r1", "t1"), _obs("c1", "t1", parent="r1"), _obs("r2", "t2")],
             traces={"t1": [_obs("r1", "t1")], "t2": [_obs("r2", "t2")]},
         )
-        _fetch(lf, tmp_path)
+        await _fetch(lf, tmp_path)
         assert sorted(_filter(c)[1] for c in lf.trace_calls()) == ["t1", "t2"]
 
-    def test_traces_are_ordered_by_root_start_time(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_traces_are_ordered_by_root_start_time(self, tmp_path: Path) -> None:
         late = _obs("r2", "t2", start="2026-01-01T00:05:00Z")
         early = _obs("r1", "t1", start="2026-01-01T00:01:00Z")
         lf = FakeLangfuse(session=[late, early], traces={"t1": [early], "t2": [late]})
-        assert [t.id for t in _fetch(lf, tmp_path).traces] == ["t1", "t2"]
+        assert [t.id for t in (await _fetch(lf, tmp_path)).traces] == ["t1", "t2"]
 
-    def test_trace_without_output_is_kept(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_trace_without_output_is_kept(self, tmp_path: Path) -> None:
         """A crashed exchange is part of what the target did; graders decide what to skip."""
         crashed = _obs("r1", "t1", output=None)
         lf = FakeLangfuse(session=[crashed], traces={"t1": [crashed]})
-        (trace,) = _fetch(lf, tmp_path).traces
+        (trace,) = (await _fetch(lf, tmp_path)).traces
         assert trace.root.output is None
 
-    def test_every_trace_is_kept_however_many(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_every_trace_is_kept_however_many(self, tmp_path: Path) -> None:
         """No cap on traces per session: the old fetch's limit=50 is gone."""
         rows = [
             _obs(f"r{i}", f"t{i}", start=f"2026-01-01T00:{i:02d}:00Z")
             for i in range(60)
         ]
         lf = FakeLangfuse(session=rows, traces={r["traceId"]: [r] for r in rows})
-        assert len(_fetch(lf, tmp_path).traces) == 60
+        assert len((await _fetch(lf, tmp_path)).traces) == 60
 
 
 class TestWaitForSettledTraces:
     """A trial is graded only when Langfuse has stored nothing new for the quiet window."""
 
-    def test_fresh_traces_wait_30_seconds_by_default(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_fresh_traces_wait_30_seconds_by_default(
+        self, tmp_path: Path
+    ) -> None:
         root = _obs("r1", "t1")
         lf = FakeLangfuse(session=[root], traces={"t1": [root]})
         clock = FakeClock(utc_start=STORED)
 
-        _fetch(
+        await _fetch(
             lf, tmp_path, clock=clock, settings=TraceWaitSettings(timeout_seconds=90)
         )
 
         assert clock.sleeps == [30]
 
-    def test_old_traces_are_graded_at_once(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_old_traces_are_graded_at_once(self, tmp_path: Path) -> None:
         root = _obs("r1", "t1")
         lf = FakeLangfuse(session=[root], traces={"t1": [root]})
         clock = FakeClock()
 
-        (trace,) = _fetch(lf, tmp_path, clock=clock).traces
+        (trace,) = (await _fetch(lf, tmp_path, clock=clock)).traces
 
         assert trace.id == "t1"
         assert clock.sleeps == []
 
-    def test_new_data_during_the_wait_restarts_it(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_new_data_during_the_wait_restarts_it(self, tmp_path: Path) -> None:
         """A trace that Langfuse stores during the wait is graded with the rest."""
         first = _obs("r1", "t1", start="2026-01-01T00:01:00Z")
         lf = FakeLangfuse(session=[first], traces={"t1": [first]})
@@ -282,7 +303,7 @@ class TestWaitForSettledTraces:
                 lf.traces["t2"] = [late]
 
         clock.on_sleep = ingest
-        grading_input = _fetch(
+        grading_input = await _fetch(
             lf,
             tmp_path,
             clock=clock,
@@ -292,7 +313,10 @@ class TestWaitForSettledTraces:
         assert [t.id for t in grading_input.traces] == ["t1", "t2"]
         assert clock.sleeps == [10, 10]
 
-    def test_traces_that_keep_changing_fail_the_trial(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_traces_that_keep_changing_fail_the_trial(
+        self, tmp_path: Path
+    ) -> None:
         lf = FakeLangfuse(session=[_obs("r1", "t1")], traces={"t1": [_obs("r1", "t1")]})
         clock = FakeClock(utc_start=STORED)
 
@@ -301,37 +325,40 @@ class TestWaitForSettledTraces:
 
         clock.on_sleep = keep_changing
         with pytest.raises(TracesNotReadyError) as excinfo:
-            _fetch(lf, tmp_path, clock=clock)
+            await _fetch(lf, tmp_path, clock=clock)
 
         assert (
             str(excinfo.value) == TRACES_CHANGING == "traces still changing in Langfuse"
         )
         assert clock.now == 90
 
-    def test_no_traces_fails_the_trial(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_no_traces_fails_the_trial(self, tmp_path: Path) -> None:
         lf = FakeLangfuse(session=[], traces={})
 
         with pytest.raises(TracesNotReadyError) as excinfo:
-            _fetch(lf, tmp_path)
+            await _fetch(lf, tmp_path)
 
         assert str(excinfo.value) == NO_TRACES == "no traces in Langfuse"
 
-    def test_an_empty_trace_is_never_graded(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_an_empty_trace_is_never_graded(self, tmp_path: Path) -> None:
         """Found by the session filter but empty by trace id: Langfuse is still ingesting."""
         good = _obs("r1", "t1")
         lf = FakeLangfuse(session=[good, _obs("r2", "t2")], traces={"t1": [good]})
 
         with pytest.raises(TracesNotReadyError, match=TRACES_CHANGING):
-            _fetch(lf, tmp_path, settings=TraceWaitSettings(timeout_seconds=30))
+            await _fetch(lf, tmp_path, settings=TraceWaitSettings(timeout_seconds=30))
 
-    def test_an_observation_that_never_ended_is_graded_and_listed(self) -> None:
+    @pytest.mark.asyncio
+    async def test_an_observation_that_never_ended_is_graded_and_listed(self) -> None:
         """A crashed target never ends its span. Waiting cannot change what is stored."""
         root = _obs("r1", "t1")
         hung = _obs("c1", "t1", parent="r1", end=None)
         lf = FakeLangfuse(session=[root], traces={"t1": [root, hung]})
         clock = FakeClock()
 
-        wait = wait_for_settled_traces(
+        wait = await wait_for_settled_traces(
             lf,  # type: ignore[arg-type]
             "s1",
             settings=TraceWaitSettings(timeout_seconds=90),
@@ -356,13 +383,15 @@ def test_the_quiet_window_comes_from_the_environment(
 
 
 class TestMetadataExpansion:
-    def test_short_metadata_is_fetched_once(self) -> None:
+    @pytest.mark.asyncio
+    async def test_short_metadata_is_fetched_once(self) -> None:
         root = _obs("r1", "t1", metadata={"mode": "direct"})
         lf = FakeLangfuse(session=[root], traces={"t1": [root]})
-        _fetch_trace(lf, "t1")  # type: ignore[arg-type]
+        await _fetch_trace(lf, "t1")  # type: ignore[arg-type]
         assert len(lf.trace_calls()) == 1
 
-    def test_possibly_truncated_metadata_is_refetched_with_every_key_expanded(
+    @pytest.mark.asyncio
+    async def test_possibly_truncated_metadata_is_refetched_with_every_key_expanded(
         self,
     ) -> None:
         cut = _obs("r1", "t1", metadata={"mode": "direct", "summary": "x" * 200})
@@ -374,7 +403,7 @@ class TestMetadataExpansion:
             expanded={"t1": [full, child]},
         )
 
-        observations = _fetch_trace(lf, "t1")  # type: ignore[arg-type]
+        observations = await _fetch_trace(lf, "t1")  # type: ignore[arg-type]
 
         calls = lf.trace_calls()
         assert len(calls) == 2
@@ -382,15 +411,17 @@ class TestMetadataExpansion:
         root = next(o for o in observations if o.id == "r1")
         assert root.metadata == {"mode": "direct", "summary": LONG}
 
-    def test_non_string_metadata_never_triggers_a_refetch(self) -> None:
+    @pytest.mark.asyncio
+    async def test_non_string_metadata_never_triggers_a_refetch(self) -> None:
         root = _obs("r1", "t1", metadata={"routed_to_agents": ["a"] * 100, "n": 5})
         lf = FakeLangfuse(session=[root], traces={"t1": [root]})
-        _fetch_trace(lf, "t1")  # type: ignore[arg-type]
+        await _fetch_trace(lf, "t1")  # type: ignore[arg-type]
         assert len(lf.trace_calls()) == 1
 
 
 class TestArtifacts:
-    def test_paths_are_resolved_against_the_experiment_root(
+    @pytest.mark.asyncio
+    async def test_paths_are_resolved_against_the_experiment_root(
         self, tmp_path: Path
     ) -> None:
         root = _obs("r1", "t1")
@@ -405,14 +436,15 @@ class TestArtifacts:
             Artifact(name="gone.csv", state="unavailable"),
         ]
 
-        grading_input = _fetch(lf, tmp_path, artifacts=artifacts)
+        grading_input = await _fetch(lf, tmp_path, artifacts=artifacts)
 
         deck, gone = grading_input.artifacts
         assert deck.path == str(tmp_path / "runs/a/deck.pptx")
         assert deck.at_simulated_turn == 2
         assert gone.path is None
 
-    def test_every_artifact_is_attached_regardless_of_turn(
+    @pytest.mark.asyncio
+    async def test_every_artifact_is_attached_regardless_of_turn(
         self, tmp_path: Path
     ) -> None:
         """Artifacts cannot be tied to traces reliably (#428 known gap), so none are filtered."""
@@ -422,13 +454,14 @@ class TestArtifacts:
             Artifact(name=f"f{i}", path=f"f{i}", at_simulated_turn=i, state="received")
             for i in range(5)
         ]
-        assert len(_fetch(lf, tmp_path, artifacts=artifacts).artifacts) == 5
+        assert len((await _fetch(lf, tmp_path, artifacts=artifacts)).artifacts) == 5
 
-    def test_input_artifacts_are_not_mutated(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_input_artifacts_are_not_mutated(self, tmp_path: Path) -> None:
         root = _obs("r1", "t1")
         lf = FakeLangfuse(session=[root], traces={"t1": [root]})
         original = Artifact(name="a", path="rel/a", state="received")
-        _fetch(lf, tmp_path, artifacts=[original])
+        await _fetch(lf, tmp_path, artifacts=[original])
         assert original.path == "rel/a"
 
 
@@ -436,13 +469,14 @@ class TestTracesFromBeforeTheV4Upgrade:
     """Such traces come back with every observation doubled and a ``t-<traceId>``
     root, and the stored set changes with page size, so they are rejected, not repaired."""
 
-    def test_synthetic_root_fails_the_session(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_synthetic_root_fails_the_session(self, tmp_path: Path) -> None:
         root = _obs("r1", "t1")
         synthetic = _obs("t-t1", "t1")
         lf = FakeLangfuse(session=[root], traces={"t1": [root, synthetic]})
 
         with pytest.raises(UnsupportedTraceError) as excinfo:
-            _fetch(lf, tmp_path)
+            await _fetch(lf, tmp_path)
 
         assert str(excinfo.value) == (
             "Session `s1` can't be graded: trace `t1` was recorded before this "
@@ -450,7 +484,10 @@ class TestTracesFromBeforeTheV4Upgrade:
             "Re-run the trial to grade it."
         )
 
-    def test_repeated_observation_id_fails_the_session(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_repeated_observation_id_fails_the_session(
+        self, tmp_path: Path
+    ) -> None:
         root = _obs("r1", "t1")
         child = _obs("c1", "t1", parent="r1")
         lf = FakeLangfuse(
@@ -458,7 +495,7 @@ class TestTracesFromBeforeTheV4Upgrade:
         )
 
         with pytest.raises(UnsupportedTraceError) as excinfo:
-            _fetch(lf, tmp_path)
+            await _fetch(lf, tmp_path)
 
         assert str(excinfo.value) == (
             "Session `s1` can't be graded: trace `t1` was recorded before this "
@@ -466,7 +503,8 @@ class TestTracesFromBeforeTheV4Upgrade:
             "Re-run the trial to grade it."
         )
 
-    def test_message_names_both_signs_when_both_are_present(
+    @pytest.mark.asyncio
+    async def test_message_names_both_signs_when_both_are_present(
         self, tmp_path: Path
     ) -> None:
         root = _obs("r1", "t1")
@@ -474,11 +512,14 @@ class TestTracesFromBeforeTheV4Upgrade:
         lf = FakeLangfuse(session=[root], traces={"t1": [root, synthetic, root]})
 
         with pytest.raises(UnsupportedTraceError) as excinfo:
-            _fetch(lf, tmp_path)
+            await _fetch(lf, tmp_path)
 
         assert "(synthetic root `t-t1`, 1 duplicated observation)" in str(excinfo.value)
 
-    def test_one_affected_trace_fails_the_whole_session(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_one_affected_trace_fails_the_whole_session(
+        self, tmp_path: Path
+    ) -> None:
         clean = _obs("r1", "t1", start="2026-01-01T00:01:00Z")
         doubled = _obs("r2", "t2", start="2026-01-01T00:02:00Z")
         lf = FakeLangfuse(
@@ -487,15 +528,181 @@ class TestTracesFromBeforeTheV4Upgrade:
         )
 
         with pytest.raises(UnsupportedTraceError, match="trace `t2`"):
-            _fetch(lf, tmp_path)
+            await _fetch(lf, tmp_path)
 
-    def test_clean_trace_is_unaffected(self, tmp_path: Path) -> None:
+    @pytest.mark.asyncio
+    async def test_clean_trace_is_unaffected(self, tmp_path: Path) -> None:
         """One copy per id and no ``t-<traceId>`` id. Another trace's ``t-`` id is not one."""
         root = _obs("r1", "t1")
         child = _obs("c1", "t1", parent="r1")
         lookalike = _obs("t-t2", "t1", parent="r1")
         lf = FakeLangfuse(session=[root], traces={"t1": [root, child, lookalike]})
 
-        (trace,) = _fetch(lf, tmp_path).traces
+        (trace,) = (await _fetch(lf, tmp_path)).traces
 
         assert {o.id for o in trace.observations} == {"r1", "c1", "t-t2"}
+
+
+# --- retries: the real SDK client over a fake transport -------------------------------------
+
+
+def _real_client(handler: Any) -> Any:
+    """A real ``AsyncFernLangfuse`` whose HTTP layer is ``handler``, so the SDK's own retry
+    code runs. Returns an object shaped like the ``Langfuse`` client the extractor takes."""
+    import httpx
+    from langfuse.api.client import AsyncFernLangfuse
+
+    api = AsyncFernLangfuse(
+        base_url="http://langfuse.test",
+        username="pk",
+        password="sk",
+        httpx_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+    return SimpleNamespace(async_api=api)
+
+
+def _ok_body(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    return {"data": rows, "meta": {"cursor": None}}
+
+
+@pytest.fixture
+def instant_retries(monkeypatch: Any) -> list[float]:
+    """Record every retry wait without sleeping."""
+    waits: list[float] = []
+
+    async def _sleep(seconds: float) -> None:
+        waits.append(seconds)
+
+    monkeypatch.setattr("asyncio.sleep", _sleep)
+    return waits
+
+
+class TestRetries:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("status", [429, 408, 500, 503])
+    async def test_a_retriable_status_is_retried_and_the_page_arrives(
+        self, status: int, instant_retries: list[float]
+    ) -> None:
+        import httpx
+
+        calls: list[int] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(1)
+            if len(calls) < 3:
+                return httpx.Response(status, json={"message": "slow down"})
+            return httpx.Response(200, json=_ok_body([_obs("o1", "t1")]))
+
+        observations = await _page_through_observations(
+            _real_client(handler), "traceId", "t1"
+        )
+
+        assert [o.id for o in observations] == ["o1"]
+        assert len(calls) == 3
+        assert len(instant_retries) == 2  # waited before each retry
+
+    @pytest.mark.asyncio
+    async def test_a_status_that_keeps_failing_is_raised_after_the_retries(
+        self, instant_retries: list[float]
+    ) -> None:
+        import httpx
+        from langfuse.api.core.api_error import ApiError
+
+        calls: list[int] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(1)
+            return httpx.Response(429, json={"message": "slow down"})
+
+        with pytest.raises(ApiError) as excinfo:
+            await _page_through_observations(_real_client(handler), "traceId", "t1")
+
+        assert excinfo.value.status_code == 429
+        assert len(calls) == 1 + 3  # the first try and three retries, then it gives up
+
+    @pytest.mark.asyncio
+    async def test_a_status_that_is_not_retriable_fails_at_once(
+        self, instant_retries: list[float]
+    ) -> None:
+        import httpx
+        from langfuse.api.core.api_error import ApiError
+
+        calls: list[int] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(1)
+            return httpx.Response(401, json={"message": "bad key"})
+
+        with pytest.raises(ApiError):
+            await _page_through_observations(_real_client(handler), "traceId", "t1")
+
+        assert len(calls) == 1
+        assert instant_retries == []
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("error", ["timeout", "connect"])
+    async def test_a_timeout_or_connection_error_is_retried(
+        self, error: str, instant_retries: list[float]
+    ) -> None:
+        import httpx
+
+        calls: list[int] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(1)
+            if len(calls) < 3:
+                if error == "timeout":
+                    raise httpx.ReadTimeout("read timed out", request=request)
+                raise httpx.ConnectError("refused", request=request)
+            return httpx.Response(200, json=_ok_body([_obs("o1", "t1")]))
+
+        observations = await _page_through_observations(
+            _real_client(handler), "traceId", "t1"
+        )
+
+        assert [o.id for o in observations] == ["o1"]
+        assert len(calls) == 3
+        assert len(instant_retries) == 2
+
+    @pytest.mark.asyncio
+    async def test_a_timeout_that_keeps_happening_is_raised_after_the_retries(
+        self, instant_retries: list[float]
+    ) -> None:
+        import httpx
+
+        calls: list[int] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(1)
+            raise httpx.ReadTimeout("read timed out", request=request)
+
+        with pytest.raises(httpx.ReadTimeout):
+            await _page_through_observations(_real_client(handler), "traceId", "t1")
+
+        assert len(calls) == 1 + 3
+
+    @pytest.mark.asyncio
+    async def test_each_page_is_retried_on_its_own(
+        self, instant_retries: list[float]
+    ) -> None:
+        """A failure on page two must not refetch page one."""
+        import httpx
+
+        pages: list[str | None] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            cursor = request.url.params.get("cursor")
+            pages.append(cursor)
+            if cursor is None:
+                body = {"data": [_obs("o1", "t1")], "meta": {"cursor": "next"}}
+                return httpx.Response(200, json=body)
+            if pages.count("next") == 1:
+                return httpx.Response(429, json={"message": "slow down"})
+            return httpx.Response(200, json=_ok_body([_obs("o2", "t1", parent="o1")]))
+
+        observations = await _page_through_observations(
+            _real_client(handler), "traceId", "t1"
+        )
+
+        assert [o.id for o in observations] == ["o1", "o2"]
+        assert pages == [None, "next", "next"]  # page one fetched once

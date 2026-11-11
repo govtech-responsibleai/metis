@@ -15,7 +15,7 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 import typer
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TaskID, TextColumn
@@ -39,15 +39,21 @@ from metis.engine.tui import (
 )
 
 if TYPE_CHECKING:
+    import asyncio
     import types as _types
+    from collections.abc import Callable
+
+    from langfuse import Langfuse
 
     from metis.core.model_settings import ModelRole
+    from metis.core.profile import Criterion
     from metis.core.reporting import GraderRecord
     from metis.core.traces import Trace
     from metis.core.trials import TrialRecord
     from metis.engine.extractor import TraceWait, TraceWaitSettings
     from metis.engine.simulation.experiment import TrialPlanItem
     from metis.engine.simulation.types import Specification
+    from metis.library.grader import Grader, LLMSettings
 
 app = typer.Typer(help="Run METIS evaluations against traces.")
 
@@ -74,6 +80,51 @@ def _find_project_root() -> Path:
         if (parent / "pyproject.toml").exists():
             return parent
     return current
+
+
+ProjectDirOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--project-dir",
+        help=(
+            "Existing project folder that holds experiments/execute/. New runs "
+            "go under it, from any working directory. Default: the working "
+            "directory or the nearest folder above it that has a pyproject.toml"
+        ),
+        show_default=False,
+    ),
+]
+
+
+def _project_root(project_dir: Path | None) -> Path:
+    """Return the folder that holds ``experiments/execute/``.
+
+    ``--project-dir`` names it, and it must exist. Without it, the engine
+    finds it from the working directory.
+    """
+    if project_dir is None:
+        return _find_project_root()
+    resolved = project_dir.expanduser().resolve()
+    if not resolved.is_dir():
+        console.print(
+            f"Error: the project folder '{resolved}' is not an existing folder.",
+            style="bold red",
+            markup=False,
+        )
+        raise typer.Exit(code=1)
+    return resolved
+
+
+def _warn_if_outside_project(experiment_dir: Path, project_root: Path) -> None:
+    """Tell the user that a resume stays in its own run folder."""
+    if experiment_dir.is_relative_to(project_root / execution_layout.EXECUTIONS):
+        return
+    console.print(
+        f"Warning: the run folder '{experiment_dir}' is not in the project "
+        f"folder '{project_root}'. The resume continues in the run folder.",
+        style="yellow",
+        markup=False,
+    )
 
 
 def _load_env() -> Path | None:
@@ -337,11 +388,11 @@ def _experiment_id(input_dir: Path) -> str | None:
         return None
 
 
-def _existing_outputs(input_dir: Path) -> list[Path]:
+def _existing_outputs(input_dir: Path, project_root: Path) -> list[Path]:
     experiment_id = _experiment_id(input_dir)
     if experiment_id is None:
         return []
-    experiments_root = _find_project_root() / execution_layout.EXECUTIONS
+    experiments_root = project_root / execution_layout.EXECUTIONS
     if not experiments_root.is_dir():
         return []
     pattern = re.compile(rf"^{re.escape(experiment_id)}-\d{{8}}-\d{{6}}$")
@@ -352,10 +403,10 @@ def _existing_outputs(input_dir: Path) -> list[Path]:
     )
 
 
-def _print_resume_flag_error(input_dir: Path, command: str) -> None:
+def _print_resume_flag_error(input_dir: Path, command: str, project_root: Path) -> None:
     """Report that ``--resume`` needs ``--experiment-dir``, and list candidates."""
     experiment_id = _experiment_id(input_dir)
-    outputs = _existing_outputs(input_dir)
+    outputs = _existing_outputs(input_dir, project_root)
 
     if not outputs:
         if experiment_id is None:
@@ -392,6 +443,7 @@ def _resolve_simulation_target(
     *,
     resume: bool,
     command: str,
+    project_root: Path,
 ) -> Path:
     """Decide which directory ``simulate`` or ``run`` works on.
 
@@ -408,7 +460,7 @@ def _resolve_simulation_target(
 
     if resume:
         if input_dir is not None:
-            _print_resume_flag_error(input_dir, command)
+            _print_resume_flag_error(input_dir, command, project_root)
             raise typer.Exit(code=1)
         if experiment_dir is None:
             console.print("Error: --resume needs --experiment-dir.", style="bold red")
@@ -634,11 +686,19 @@ def _run_simulation(
     log_dir: Path | None,
     concurrency: int,
     resume: bool = False,
+    project_dir: Path | None = None,
 ) -> Path:
     """Run simulation and return its experiment directory."""
+    project_root = _project_root(project_dir)
     target = _resolve_simulation_target(
-        input_dir, experiment_dir, resume=resume, command=command
+        input_dir,
+        experiment_dir,
+        resume=resume,
+        command=command,
+        project_root=project_root,
     )
+    if resume and project_dir is not None:
+        _warn_if_outside_project(target, project_root)
     env_file = _load_env()
     tracing_key()
     use_tui = not no_tui and sys.stderr.isatty()
@@ -653,8 +713,6 @@ def _run_simulation(
         expand_trial_plan,
     )
     from metis.engine.simulation.types import Specification
-
-    project_root = _find_project_root()
 
     if resume:
         experiment_dir = target
@@ -671,7 +729,20 @@ def _run_simulation(
         experiment_dir = (
             project_root / execution_layout.EXECUTIONS / f"{specification.id}-{suffix}"
         )
-        experiment_dir.mkdir(parents=True)
+        experiment_dir.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            experiment_dir.mkdir()
+        except FileExistsError:
+            # Two runs of one Specification that start in the same second get
+            # the same name. The second run stops and leaves the folder as is.
+            console.print(
+                f"Error: the run folder '{experiment_dir}' already exists. "
+                "A run of this Specification started in the same second. "
+                "Start the run again.",
+                style="bold red",
+                markup=False,
+            )
+            raise typer.Exit(code=1) from None
         shutil.copytree(target, experiment_dir / execution_layout.INPUTS)
         fixtures_dir = experiment_dir / execution_layout.FIXTURES
 
@@ -890,11 +961,19 @@ def _update_evaluation_progress(
     label: str,
     phase: str,
     advance: int = 0,
+    bar_description: str | None = None,
 ) -> None:
-    """Update the progress bar or print one linear progress message."""
+    """Update the progress bar or print one linear progress message.
+
+    ``bar_description`` replaces the bar's text only; the linear message keeps the phase.
+    """
     description = f"{label} — {phase}"
     if progress and task_id is not None:
-        progress.update(task_id, description=description, advance=advance)
+        progress.update(
+            task_id,
+            description=bar_description if bar_description is not None else description,
+            advance=advance,
+        )
     else:
         console.print(f"Evaluation {record_number}/{total_records}: {description}")
 
@@ -984,6 +1063,7 @@ def _run_evaluation(
     trace_wait: TraceWaitSettings,
     verbose: int,
     quiet: bool,
+    concurrency: int = 1,
 ) -> EvaluationOutcome:
     """Evaluate records in an existing experiment directory."""
     env_file = _load_env()
@@ -992,7 +1072,9 @@ def _run_evaluation(
     log_level = _resolve_log_level(verbose, quiet)
     _configure_process_logging(log_level)
     evaluation_log = EvaluationLogger(experiment_dir / execution_layout.LOGS)
-    evaluation_log.write(f"EVALUATION STARTED — {experiment_dir}")
+    evaluation_log.write(
+        f"EVALUATION STARTED — {experiment_dir} (concurrency {concurrency})"
+    )
 
     import asyncio
 
@@ -1019,9 +1101,210 @@ def _run_evaluation(
             records,
             evaluation_log=evaluation_log,
             trace_wait=trace_wait,
+            concurrency=concurrency,
             env_file=env_file,
         )
     )
+
+
+class _RunningCount:
+    """How many sessions hold a semaphore slot right now.
+
+    It goes up when a session takes a slot and down in a ``finally``, with no ``await``
+    between a read and its write, so one event loop cannot interleave two changes.
+    """
+
+    def __init__(self) -> None:
+        self.value = 0
+
+
+def _record_label(record: TrialRecord) -> str:
+    """How a record is named in the log, the warnings and the progress bar."""
+    return f"{record.config.persona} x {record.config.scenario}"
+
+
+@dataclass(frozen=True)
+class _EvaluationContext:
+    """What every record of one evaluation shares. Built once, read by ``_evaluate_one``."""
+
+    experiment_dir: Path
+    criteria_by_id: dict[str, Criterion]
+    graders: dict[str, Grader[Any]]
+    llm: LLMSettings
+    langfuse: Langfuse
+    trace_wait: TraceWaitSettings
+    evaluation_log: EvaluationLogger
+    total_records: int
+    concurrency: int
+    semaphore: asyncio.Semaphore
+    running: _RunningCount
+
+
+@dataclass(frozen=True)
+class _RecordResult:
+    """One record's outcome: its grader records, or why it failed."""
+
+    records: list[GraderRecord]
+    failure_reason: str | None
+    warning: str | None = None
+
+
+async def _evaluate_one(
+    record: TrialRecord,
+    *,
+    number: int,
+    context: _EvaluationContext,
+    phase: Callable[..., None],
+) -> _RecordResult:
+    """Fetch and grade one trial record's session, once it holds one of the N slots.
+
+    A record that is still waiting for a slot is a bare coroutine: it holds no connection
+    and no traces. An error in the fetch, the trace save or the grading is caught inside
+    (in ``_fetch_and_grade``) and returned as a failure, so the caller never sees it.
+    The caller combines the returned values; this function changes no shared counter
+    except the running count, which a ``finally`` restores.
+
+    The reporting calls (``console.print``, ``log.write`` and ``phase``) are not guarded.
+    If one raises, for example because a log write fails, the error leaves this function,
+    the ``TaskGroup`` cancels every other session, and ``_evaluate_records`` reports it.
+    That is deliberate: a log or display that no longer works is a problem to surface,
+    not one to hide.
+    """
+    label = _record_label(record)
+    record_name = f"RECORD {number}/{context.total_records} {label}"
+    log = context.evaluation_log
+
+    async with context.semaphore:
+        context.running.value += 1
+        try:
+            result = await _fetch_and_grade(
+                record,
+                number=number,
+                label=label,
+                record_name=record_name,
+                context=context,
+                phase=phase,
+            )
+        finally:
+            context.running.value -= 1
+
+    if result.failure_reason is None:
+        log.write(f"{record_name} — DONE")
+        phase("done", advance=1)
+        return result
+    console.print(
+        f"  WARNING: {record_name} — {result.warning or result.failure_reason}",
+        style="yellow",
+        markup=False,
+    )
+    log.write(f"{record_name} — FAILED — {result.failure_reason}")
+    phase("failed", advance=1)
+    return result
+
+
+async def _fetch_and_grade(
+    record: TrialRecord,
+    *,
+    number: int,
+    label: str,
+    record_name: str,
+    context: _EvaluationContext,
+    phase: Callable[..., None],
+) -> _RecordResult:
+    """The work of one record while it holds a slot: fetch, save traces, grade."""
+    from metis.engine import extractor
+    from metis.engine.evaluation import SessionFacts, grade_session
+
+    log = context.evaluation_log
+    experiment_dir = context.experiment_dir
+    graders = context.graders
+
+    log.write(f"{record_name} — EXTRACTING")
+    phase("extracting")
+    if context.concurrency == 1:
+        # The banner says "a new session starts here", which is false when sessions overlap.
+        console.print(f"\n\n{'#' * 60}")
+        console.print(f"  SESSION {number}/{context.total_records}: {label}")
+        console.print(f"{'#' * 60}")
+
+    session_id = record.target_session_id
+    criteria = [
+        context.criteria_by_id[ref.criterion_id]
+        for ref in record.config.grader_refs
+        if ref.criterion_id in graders
+    ]
+    unknown = sorted(
+        ref.criterion_id
+        for ref in record.config.grader_refs
+        if ref.criterion_id not in graders
+    )
+    if unknown:
+        # The record was written against a spec whose criteria differ from the
+        # snapshot (e.g. inputs/specification.yaml was edited). Say so rather
+        # than silently grading fewer criteria than the trial ran for.
+        console.print(
+            f"  WARNING: {record_name} — criteria {', '.join(unknown)} are not in the "
+            "specification snapshot and were not graded",
+            style="yellow",
+            markup=False,
+        )
+        log.write(f"{record_name} — UNKNOWN CRITERIA — {', '.join(unknown)}")
+    try:
+        if not session_id:
+            return _RecordResult([], "No target_session_id")
+        if not criteria:
+            return _RecordResult([], "No grader_refs in run config")
+        waits: list[TraceWait] = []
+        try:
+            grading_input = await extractor.fetch_session(
+                session_id,
+                context.langfuse,
+                experiment_root=experiment_dir,
+                artifacts=record.artifacts,
+                settings=context.trace_wait,
+                on_wait=waits.append,
+            )
+        finally:
+            if waits:
+                _log_trace_wait(log, waits[-1], record_label=label)
+        _save_session_traces(experiment_dir, session_id, grading_input.traces, log)
+        log.write(f"{record_name} — EVALUATING")
+        for criterion in criteria:
+            log.write(
+                "GRADER CONFIG — "
+                + json.dumps(
+                    {
+                        "record": label,
+                        "criterion_id": criterion.id,
+                        "fqn": criterion.grader_fqn,
+                        "args": graders[criterion.id].args.model_dump(mode="json"),
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
+        phase("evaluating")
+        session_records = await grade_session(
+            criteria,
+            graders,
+            grading_input,
+            context.llm,
+            SessionFacts(
+                session_id=session_id,
+                scenario_id=record.config.scenario,
+                task_id=record.config.task_id,
+                trial_index=record.config.trial_index,
+                trace_session_id=trial_session_id(
+                    experiment_dir.resolve().name, record.config
+                ),
+            ),
+        )
+        _log_grader_records(log, session_records, record_label=label)
+        return _RecordResult(session_records, None)
+    except extractor.TracesNotReadyError as exc:
+        return _RecordResult([], str(exc))
+    except Exception as exc:
+        return _RecordResult([], str(exc), warning=f"Evaluation failed: {exc}")
 
 
 async def _evaluate_records(
@@ -1031,6 +1314,7 @@ async def _evaluate_records(
     *,
     evaluation_log: EvaluationLogger,
     trace_wait: TraceWaitSettings,
+    concurrency: int = 1,
     env_file: Path | None = None,
 ) -> EvaluationOutcome:
     """Grade every trial record's session and write one GraderRecord per grader per session.
@@ -1044,14 +1328,8 @@ async def _evaluate_records(
 
     from metis.core.reporting import EvaluationResults
     from metis.engine import extractor
-    from metis.engine.evaluation import (
-        JudgeGateway,
-        SessionFacts,
-        build_grader,
-        build_llm_settings,
-        grade_session,
-    )
-    from metis.library.grader import Grader, JudgeArgs, LLMSettings
+    from metis.engine.evaluation import JudgeGateway, build_grader, build_llm_settings
+    from metis.library.grader import JudgeArgs, LLMSettings
 
     default_judge_model = specification.experiment.defaults.judge_model
     criteria_by_id = {c.id: c for b in specification.behaviours() for c in b.criteria}
@@ -1109,6 +1387,7 @@ async def _evaluate_records(
     successful = 0
     failed = 0
     started = time.monotonic()
+    results_path = experiment_dir / execution_layout.RESULTS
     interactive_progress = sys.stderr.isatty()
     progress = _create_evaluation_progress() if interactive_progress else None
 
@@ -1119,161 +1398,97 @@ async def _evaluate_records(
                 if progress
                 else None
             )
-            for index, record in enumerate(records):
-                label = f"{record.config.persona} x {record.config.scenario}"
-                failure_reason: str | None = None
-                warning: str | None = None
+            context = _EvaluationContext(
+                experiment_dir=experiment_dir,
+                criteria_by_id=criteria_by_id,
+                graders=graders,
+                llm=llm,
+                langfuse=langfuse,
+                trace_wait=trace_wait,
+                evaluation_log=evaluation_log,
+                total_records=len(records),
+                concurrency=concurrency,
+                semaphore=asyncio.Semaphore(concurrency),
+                running=_RunningCount(),
+            )
 
-                def phase(
-                    name: str,
-                    *,
-                    advance: int = 0,
-                    _number: int = index + 1,
-                    _label: str = label,
-                ) -> None:
+            def phase_for(number: int, label: str) -> Callable[..., None]:
+                def phase(name: str, *, advance: int = 0) -> None:
+                    # One text slot cannot show several sessions' phases, so with
+                    # overlapping sessions the bar says how many are running instead.
+                    # The phases remain in the evaluation log.
                     _update_evaluation_progress(
                         progress,
                         task_id,
-                        record_number=_number,
+                        record_number=number,
                         total_records=len(records),
-                        label=_label,
+                        label=label,
                         phase=name,
                         advance=advance,
+                        bar_description=(
+                            f"Evaluation — {context.running.value} running"
+                            if concurrency > 1
+                            else None
+                        ),
                     )
 
-                evaluation_log.write(
-                    f"RECORD {index + 1}/{len(records)} {label} — EXTRACTING"
-                )
-                phase("extracting")
-                console.print(f"\n\n{'#' * 60}")
-                console.print(f"  SESSION {index + 1}/{len(records)}: {label}")
-                console.print(f"{'#' * 60}")
+                return phase
 
-                session_id = record.target_session_id
-                criteria = [
-                    criteria_by_id[ref.criterion_id]
-                    for ref in record.config.grader_refs
-                    if ref.criterion_id in graders
+            # Every record starts at once; the semaphore inside _evaluate_one lets N of
+            # them work. The tasks stay in record order, so results do not depend on the
+            # order sessions finish in.
+            async with asyncio.TaskGroup() as group:
+                tasks = [
+                    group.create_task(
+                        _evaluate_one(
+                            record,
+                            number=index + 1,
+                            context=context,
+                            phase=phase_for(index + 1, _record_label(record)),
+                        )
+                    )
+                    for index, record in enumerate(records)
                 ]
-                unknown = sorted(
-                    ref.criterion_id
-                    for ref in record.config.grader_refs
-                    if ref.criterion_id not in graders
-                )
-                if unknown:
-                    # The record was written against a spec whose criteria differ from the
-                    # snapshot (e.g. inputs/specification.yaml was edited). Say so rather
-                    # than silently grading fewer criteria than the trial ran for.
-                    console.print(
-                        f"  WARNING: criteria {', '.join(unknown)} are not in the "
-                        "specification snapshot and were not graded",
-                        style="yellow",
-                        markup=False,
-                    )
-                    evaluation_log.write(
-                        f"RECORD {index + 1}/{len(records)} {label} — "
-                        f"UNKNOWN CRITERIA — {', '.join(unknown)}"
-                    )
-                try:
-                    if not session_id:
-                        failure_reason = "No target_session_id"
-                    elif not criteria:
-                        failure_reason = "No grader_refs in run config"
-                    else:
-                        waits: list[TraceWait] = []
-                        try:
-                            grading_input = await asyncio.to_thread(
-                                extractor.fetch_session,
-                                session_id,
-                                langfuse,
-                                experiment_root=experiment_dir,
-                                artifacts=record.artifacts,
-                                settings=trace_wait,
-                                on_wait=waits.append,
-                            )
-                        finally:
-                            if waits:
-                                _log_trace_wait(
-                                    evaluation_log, waits[-1], record_label=label
-                                )
-                        _save_session_traces(
-                            experiment_dir,
-                            session_id,
-                            grading_input.traces,
-                            evaluation_log,
-                        )
-                        evaluation_log.write(
-                            f"RECORD {index + 1}/{len(records)} {label} — EVALUATING"
-                        )
-                        for criterion in criteria:
-                            evaluation_log.write(
-                                "GRADER CONFIG — "
-                                + json.dumps(
-                                    {
-                                        "record": label,
-                                        "criterion_id": criterion.id,
-                                        "fqn": criterion.grader_fqn,
-                                        "args": graders[criterion.id].args.model_dump(
-                                            mode="json"
-                                        ),
-                                    },
-                                    ensure_ascii=False,
-                                    sort_keys=True,
-                                )
-                            )
-                        phase("evaluating")
-                        session_records = await grade_session(
-                            criteria,
-                            graders,
-                            grading_input,
-                            llm,
-                            SessionFacts(
-                                session_id=session_id,
-                                scenario_id=record.config.scenario,
-                                task_id=record.config.task_id,
-                                trial_index=record.config.trial_index,
-                                trace_session_id=trial_session_id(
-                                    experiment_dir.resolve().name, record.config
-                                ),
-                            ),
-                        )
-                        all_records.extend(session_records)
-                        _log_grader_records(
-                            evaluation_log, session_records, record_label=label
-                        )
-                except extractor.TracesNotReadyError as exc:
-                    failure_reason = str(exc)
-                except Exception as exc:
-                    failure_reason = str(exc)
-                    warning = f"Evaluation failed: {exc}"
-
-                if failure_reason is None:
+            for task in tasks:
+                result = task.result()
+                all_records.extend(result.records)
+                if result.failure_reason is None:
                     successful += 1
-                    evaluation_log.write(
-                        f"RECORD {index + 1}/{len(records)} {label} — DONE"
-                    )
-                    phase("done", advance=1)
                 else:
                     failed += 1
-                    console.print(
-                        f"  WARNING: {warning or failure_reason}",
-                        style="yellow",
-                        markup=False,
-                    )
-                    evaluation_log.write(
-                        f"RECORD {index + 1}/{len(records)} {label} — FAILED — {failure_reason}"
-                    )
-                    phase("failed", advance=1)
 
             if progress and task_id is not None:
                 progress.update(task_id, description="Evaluation complete")
+    except ExceptionGroup as group_error:
+        # An error that escaped _evaluate_one. The TaskGroup wraps it, and the wrapper's
+        # text ("unhandled errors in a TaskGroup (1 sub-exception)") hides the cause, so
+        # a lone error is raised as itself, with the group kept as its cause for anyone
+        # reading the traceback. Several errors keep the group.
+        if len(group_error.exceptions) == 1:
+            raise group_error.exceptions[0] from group_error
+        raise
+    except asyncio.CancelledError:
+        # Ctrl-C. The TaskGroup has already cancelled every session and waited for it to
+        # stop. A cancellation is a BaseException, so the command's `except Exception`
+        # never sees it: log it here and let it go on. Partial grades are discarded, and
+        # so is the previous results file, which no longer matches this run's traces.
+        results_path.unlink(missing_ok=True)
+        evaluation_log.write("EVALUATION INTERRUPTED")
+        console.print(
+            "\nInterrupted. No results were written. "
+            f"To grade again, run: {_evaluate_command(experiment_dir.resolve())}",
+            style="yellow",
+            markup=False,
+            soft_wrap=True,
+        )
+        raise
     finally:
+        # Runs only after every session has stopped, so no grader call is still using it.
         if gateway is not None and needs_llm:
             await llm.client.close()
 
     # An evaluation that scores nothing must not leave the previous evaluation's
     # results behind for `metis insights report` to pick up as current.
-    results_path = experiment_dir / execution_layout.RESULTS
     results_path.unlink(missing_ok=True)
     results_file: Path | None = None
     if all_records:
@@ -1322,6 +1537,7 @@ def _run_evaluation_command(
     trace_wait: TraceWaitSettings,
     verbose: int,
     quiet: bool,
+    concurrency: int = 1,
 ) -> EvaluationOutcome:
     """Run evaluation and convert expected input errors to a CLI exit."""
     try:
@@ -1330,6 +1546,7 @@ def _run_evaluation_command(
             trace_wait=trace_wait,
             verbose=verbose,
             quiet=quiet,
+            concurrency=concurrency,
         )
     except EvaluationInputError as exc:
         EvaluationLogger(experiment_dir / execution_layout.LOGS, reset=False).write(
@@ -1374,13 +1591,14 @@ def simulate(
         help="Override log directory (default: co-located with results)",
     ),
     concurrency: int = typer.Option(
-        1, "--concurrency", "-c", help="Max parallel simulation workers"
+        1, "--concurrency", "-c", min=1, help="Max concurrent trials"
     ),
     resume: bool = typer.Option(
         False,
         "--resume",
         help="Continue the output named by --experiment-dir instead of starting a run",
     ),
+    project_dir: ProjectDirOption = None,
 ) -> None:
     """Run simulation only and prepare the evaluation handoff."""
     output_dir = _run_simulation(
@@ -1394,6 +1612,7 @@ def simulate(
         log_dir=log_dir,
         concurrency=concurrency,
         resume=resume,
+        project_dir=project_dir,
     )
     if not _trial_record_files(output_dir):
         console.print("No trial records found.", style="bold red")
@@ -1422,6 +1641,9 @@ def evaluate(
     quiet: bool = typer.Option(
         False, "--quiet", help="Suppress output below ERROR level"
     ),
+    concurrency: int = typer.Option(
+        1, "--concurrency", "-c", min=1, help="Max concurrent sessions"
+    ),
 ) -> None:
     """Evaluate one simulation output directory."""
     try:
@@ -1435,6 +1657,7 @@ def evaluate(
         trace_wait=trace_wait,
         verbose=verbose,
         quiet=quiet,
+        concurrency=concurrency,
     )
     if outcome.total_records == 0:
         console.print("nothing to evaluate")
@@ -1476,13 +1699,18 @@ def run(
         help="Override log directory (default: co-located with results)",
     ),
     concurrency: int = typer.Option(
-        1, "--concurrency", "-c", help="Max parallel simulation workers"
+        1,
+        "--concurrency",
+        "-c",
+        min=1,
+        help="Max concurrent trials, then max concurrent sessions when grading",
     ),
     resume: bool = typer.Option(
         False,
         "--resume",
         help="Continue the output named by --experiment-dir instead of starting a run",
     ),
+    project_dir: ProjectDirOption = None,
 ) -> None:
     """Run simulation followed by evaluation."""
     trace_wait = _trace_wait_settings(langfuse_timeout)
@@ -1497,6 +1725,7 @@ def run(
         log_dir=log_dir,
         concurrency=concurrency,
         resume=resume,
+        project_dir=project_dir,
     )
     if not _trial_record_files(output_dir):
         console.print("No trial records found.", style="bold red")
@@ -1508,6 +1737,7 @@ def run(
             trace_wait=trace_wait,
             verbose=verbose,
             quiet=quiet,
+            concurrency=concurrency,
         )
     except Exception:
         _print_handoff(output_dir, command="run")

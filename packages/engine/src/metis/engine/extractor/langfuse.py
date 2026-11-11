@@ -28,19 +28,25 @@ Langfuse can still be ingesting a session when ``evaluate`` starts. So ``fetch_s
 grades nothing until Langfuse has stored no new data for the session for the quiet window
 (see ``wait_for_settled_traces``).
 
+The fetch is asynchronous, on ``langfuse.async_api``, so a session waiting on Langfuse holds
+no thread and many sessions can be fetched at once.
+
 Input/output arrive as raw strings (``parse_io_as_json`` is rejected with HTTP 400), and
 ``metis.core.traces.Observation`` parses JSON-looking values itself.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
+import random
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
+import httpx
 from langfuse import Langfuse
 
 from metis.core import Artifact, resolve_artifact_path
@@ -48,7 +54,7 @@ from metis.core.logging import get_logger
 from metis.core.traces import GradingInput, Observation, Trace
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Awaitable, Callable, Mapping
     from pathlib import Path
 
 logger = get_logger(__name__)
@@ -70,6 +76,16 @@ NO_TRACES = "no traces in Langfuse"
 TRACES_CHANGING = "traces still changing in Langfuse"
 """Failure reason: traces arrived, but Langfuse kept storing new data for the session until
 the timeout."""
+_MAX_RETRIES = 3
+"""How many times one page request is retried after its first try."""
+_RETRY_BASE_SECONDS = 0.5
+_RETRY_CAP_SECONDS = 10
+_RETRYABLE_ERRORS = (
+    httpx.TimeoutException,
+    httpx.NetworkError,
+    httpx.RemoteProtocolError,
+)
+"""Transport failures worth another try: a timeout, a refused or dropped connection."""
 
 
 class UnsupportedTraceError(RuntimeError):
@@ -94,7 +110,45 @@ def get_langfuse_client() -> Langfuse:
     return Langfuse()
 
 
-def _page_through_observations(
+def _retry_delay(retry: int) -> float:
+    """Exponential backoff with jitter, the same shape the Langfuse SDK uses for statuses."""
+    delay = min(_RETRY_BASE_SECONDS * 2.0**retry, _RETRY_CAP_SECONDS)
+    return delay * (1 - 0.25 * random.random())
+
+
+async def _get_page(langfuse: Langfuse, **request: Any) -> Any:
+    """One ``get_many`` call, retried when Langfuse or the network is briefly unavailable.
+
+    With ``--concurrency N`` several sessions call Langfuse at once, so a rate limit or a slow
+    reply is expected now and then. Two kinds of failure are retried, each by its own
+    mechanism, up to ``_MAX_RETRIES`` times with a growing wait:
+
+    * A response with status 408, 409, 429 or 5xx. The SDK retries these itself (honouring
+      ``Retry-After``) once ``request_options`` allows it; its default is no retries.
+    * A timeout or connection error. These raise before any response exists, so the SDK
+      cannot see them and this loop retries them.
+
+    Any other failure, such as a 401 for a bad key, is raised at once.
+    """
+    for retry in range(_MAX_RETRIES + 1):
+        try:
+            return await langfuse.async_api.observations_v_2.get_many(
+                **request, request_options={"max_retries": _MAX_RETRIES}
+            )
+        except _RETRYABLE_ERRORS as exc:
+            if retry == _MAX_RETRIES:
+                raise
+            logger.warning(
+                "[langfuse] %s on an observations request; retrying (%d/%d)",
+                type(exc).__name__,
+                retry + 1,
+                _MAX_RETRIES,
+            )
+            await asyncio.sleep(_retry_delay(retry))
+    raise AssertionError("unreachable")  # the loop always returns or raises
+
+
+async def _page_through_observations(
     langfuse: Langfuse,
     column: str,
     value: str,
@@ -111,7 +165,8 @@ def _page_through_observations(
     observations: list[Observation] = []
     cursor: str | None = None
     while True:
-        response = langfuse.api.observations_v_2.get_many(
+        response = await _get_page(
+            langfuse,
             fields=_FIELDS,
             filter=observation_filter,
             limit=_PAGE_SIZE,
@@ -142,12 +197,12 @@ def _may_be_truncated(observations: list[Observation]) -> list[str]:
     return sorted(keys)
 
 
-def _fetch_trace(langfuse: Langfuse, trace_id: str) -> list[Observation]:
+async def _fetch_trace(langfuse: Langfuse, trace_id: str) -> list[Observation]:
     """Every observation in one trace, with metadata never truncated.
 
     Must back each trace's observation set; never the session-filtered list (issue #435).
     """
-    observations = _page_through_observations(langfuse, "traceId", trace_id)
+    observations = await _page_through_observations(langfuse, "traceId", trace_id)
     truncated = _may_be_truncated(observations)
     if not truncated:
         return observations
@@ -165,14 +220,14 @@ def _fetch_trace(langfuse: Langfuse, trace_id: str) -> list[Observation]:
         _TRUNCATION_LIMIT,
         ", ".join(truncated),
     )
-    return _page_through_observations(
+    return await _page_through_observations(
         langfuse, "traceId", trace_id, expand_metadata=keys
     )
 
 
-def _session_trace_ids(langfuse: Langfuse, session_id: str) -> list[str]:
+async def _session_trace_ids(langfuse: Langfuse, session_id: str) -> list[str]:
     """The ids of every trace in the session, in first-seen order."""
-    observations = _page_through_observations(langfuse, "sessionId", session_id)
+    observations = await _page_through_observations(langfuse, "sessionId", session_id)
     return list(dict.fromkeys(observation.trace_id for observation in observations))
 
 
@@ -249,11 +304,13 @@ def _open_observations(
     )
 
 
-def _check_session(langfuse: Langfuse, session_id: str) -> dict[str, list[Observation]]:
+async def _check_session(
+    langfuse: Langfuse, session_id: str
+) -> dict[str, list[Observation]]:
     """One check: every trace in the session, each fetched in full."""
     return {
-        trace_id: _fetch_trace(langfuse, trace_id)
-        for trace_id in _session_trace_ids(langfuse, session_id)
+        trace_id: await _fetch_trace(langfuse, trace_id)
+        for trace_id in await _session_trace_ids(langfuse, session_id)
     }
 
 
@@ -307,13 +364,13 @@ class TraceWaitSettings:
         return cls(timeout_seconds=timeout_seconds, quiet_seconds=quiet)
 
 
-def wait_for_settled_traces(
+async def wait_for_settled_traces(
     langfuse: Langfuse,
     session_id: str,
     *,
     settings: TraceWaitSettings,
     clock: Callable[[], float] = time.monotonic,
-    sleep: Callable[[float], None] = time.sleep,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     utc_now: Callable[[], datetime] = _utc_now,
 ) -> TraceWait:
     """Check the session until Langfuse has stored nothing new for the quiet window.
@@ -337,7 +394,7 @@ def wait_for_settled_traces(
     deadline = started + settings.timeout_seconds
     checks = 0
     while True:
-        traces = _check_session(langfuse, session_id)
+        traces = await _check_session(langfuse, session_id)
         checks += 1
         now = clock()
         has_every_trace = bool(traces) and all(traces.values())
@@ -352,7 +409,7 @@ def wait_for_settled_traces(
                 status, checks, now - started, traces, _open_observations(traces)
             )
         pause = quiet - age if has_every_trace else _RETRY_SECONDS
-        sleep(min(pause, deadline - now))
+        await sleep(min(pause, deadline - now))
 
 
 def _check_supported(
@@ -389,7 +446,7 @@ def _resolve_artifacts(
     return tuple(resolved)
 
 
-def fetch_session(
+async def fetch_session(
     session_id: str,
     langfuse: Langfuse,
     *,
@@ -397,7 +454,7 @@ def fetch_session(
     artifacts: list[Artifact] | None = None,
     settings: TraceWaitSettings,
     clock: Callable[[], float] = time.monotonic,
-    sleep: Callable[[float], None] = time.sleep,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     utc_now: Callable[[], datetime] = _utc_now,
     on_wait: Callable[[TraceWait], None] | None = None,
 ) -> GradingInput:
@@ -421,7 +478,7 @@ def fetch_session(
         timeout. Its message is ``NO_TRACES`` or ``TRACES_CHANGING``.
     :raises UnsupportedTraceError: When a trace was recorded before the server's v4 upgrade.
     """
-    wait = wait_for_settled_traces(
+    wait = await wait_for_settled_traces(
         langfuse,
         session_id,
         settings=settings,
