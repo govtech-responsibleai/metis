@@ -131,6 +131,7 @@ make build-landing      # production build into landing-page/dist
 
 make install-docs       # once: install docs dependencies
 make run-docs           # docs dev server on port 3000
+make build-docs         # production build into website/build
 make check-docs         # build the docs and check links
 
 make run-site           # both dev servers together
