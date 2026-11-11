@@ -32,7 +32,7 @@ def _write_record_marker(experiment_dir: Path) -> Path:
     return experiment_dir
 
 
-def test_run_composes_phases_and_prints_recovery_command(
+def test_run_composes_phases_and_names_the_retry_command(
     monkeypatch, tmp_path: Path
 ) -> None:
     input_dir = _write_source(tmp_path)
@@ -86,13 +86,10 @@ def test_run_composes_phases_and_prints_recovery_command(
         "concurrency": 3,
     }
     assert (
-        f"Evaluate: metis engine evaluate --experiment-dir {experiment_dir.resolve()}"
-        in result.output
-    )
-    assert (
-        f"Resume: metis engine run --resume --experiment-dir {experiment_dir.resolve()}"
-        in result.output
-    )
+        "Grade every trial again: metis engine evaluate --experiment-dir "
+        f"{experiment_dir.resolve()}"
+    ) in " ".join(result.output.split())
+    assert "Resume: metis engine run" not in result.output
     assert "PIPELINE COMPLETE" in result.output
     assert "metisinsightsreport" not in "".join(result.output.split())
 

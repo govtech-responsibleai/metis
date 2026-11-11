@@ -13,7 +13,7 @@ import sys
 import threading
 from contextlib import nullcontext
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 
@@ -51,6 +51,7 @@ if TYPE_CHECKING:
     from metis.core.reporting import GraderRecord
     from metis.core.traces import Trace
     from metis.core.trials import TrialRecord
+    from metis.engine.evaluation.trial_files import TrialEvaluation
     from metis.engine.simulation.experiment import TrialPlanItem
     from metis.engine.simulation.types import Specification
     from metis.library.grader import Grader, LLMSettings
@@ -320,7 +321,11 @@ def _format_final_summary(
 
 @dataclass(frozen=True)
 class EvaluationOutcome:
-    """Summary returned by the evaluation phase."""
+    """Summary returned by the evaluation phase.
+
+    ``results_file`` is set for every evaluation that ran, even one in which every trial
+    failed. It is ``None`` only when there was nothing to evaluate.
+    """
 
     total_records: int
     successful_records: int
@@ -572,6 +577,15 @@ def _print_evaluation_summary(
         console.print(f"  Results: {outcome.results_file}", markup=False)
         console.print(
             f"  Report: {_report_command(outcome.results_file)}",
+            markup=False,
+            no_wrap=True,
+            overflow="ignore",
+            crop=False,
+            soft_wrap=True,
+        )
+    if outcome.failed_records:
+        console.print(
+            f"  Grade every trial again: {_evaluate_command(experiment_dir)}",
             markup=False,
             no_wrap=True,
             overflow="ignore",
@@ -1208,8 +1222,8 @@ async def _evaluate_one(
     number: int,
     context: _EvaluationContext,
     phase: Callable[..., None],
-    trial: str | None = None,
-) -> _RecordResult:
+    trial: str,
+) -> TrialEvaluation:
     """Fetch and grade one trial record's session, once it holds one of the N slots.
 
     A record that is still waiting for a slot is a bare coroutine: it holds no connection
@@ -1218,18 +1232,25 @@ async def _evaluate_one(
     The caller combines the returned values; this function changes no shared counter
     except the running count, which a ``finally`` restores.
 
-    The reporting calls (``console.print``, ``log.write`` and ``phase``) are not guarded.
-    If one raises, for example because a log write fails, the error leaves this function,
-    the ``TaskGroup`` cancels every other session, and ``_evaluate_records`` reports it.
-    That is deliberate: a log or display that no longer works is a problem to surface,
-    not one to hide.
+    ``started_at`` and ``finished_at`` bound the time the trial held its slot. Once the
+    slot is released, the trial's evaluation file is written. That is the file's only
+    write, so the file exists only for a trial whose evaluation has ended; a cancelled
+    trial writes none.
+
+    The file save and the reporting calls (``console.print``, ``log.write`` and
+    ``phase``) are not guarded. If one raises, for example because the disk is full, the
+    error leaves this function, the ``TaskGroup`` cancels every other session, and
+    ``_evaluate_records`` reports it. That is deliberate: a file, log or display that no
+    longer works is a problem to surface, not one to hide.
     """
+    from metis.engine.evaluation import trial_files
+
     label = _record_label(record)
-    trial = trial or label
     record_name = f"RECORD {number}/{context.total_records} {label}"
     log = context.evaluation_log
 
     async with context.semaphore:
+        started_at = datetime.now(UTC)
         context.running.value += 1
         try:
             if context.events:
@@ -1242,8 +1263,18 @@ async def _evaluate_one(
                 context=context,
                 phase=phase,
             )
+            finished_at = datetime.now(UTC)
         finally:
             context.running.value -= 1
+
+    evaluation = trial_files.TrialEvaluation(
+        trial=trial,
+        records=result.records,
+        failure_reason=result.failure_reason,
+        started_at=started_at,
+        finished_at=finished_at,
+    )
+    trial_files.save_trial_evaluation(context.experiment_dir, evaluation)
 
     if context.events:
         context.events.emit(
@@ -1255,7 +1286,7 @@ async def _evaluate_one(
     if result.failure_reason is None:
         log.write(f"{record_name} — DONE")
         phase("done", advance=1)
-        return result
+        return evaluation
     console.print(
         f"  WARNING: {record_name} — {result.warning or result.failure_reason}",
         style="yellow",
@@ -1263,7 +1294,7 @@ async def _evaluate_one(
     )
     log.write(f"{record_name} — FAILED — {result.failure_reason}")
     phase("failed", advance=1)
-    return result
+    return evaluation
 
 
 async def _fetch_and_grade(
@@ -1374,8 +1405,8 @@ async def _evaluate_records(
     langfuse_timeout: int,
     concurrency: int = 1,
     env_file: Path | None = None,
+    trials: list[str],
     events: PhaseEventLog | None = None,
-    trials: list[str] | None = None,
 ) -> EvaluationOutcome:
     """Grade every trial record's session and write one GraderRecord per grader per session.
 
@@ -1383,14 +1414,16 @@ async def _evaluate_records(
     A criterion graded in many trials shares one grader. One judge client
     is opened for the whole evaluation, and only when some criterion's grader needs one.
 
+    ``trials`` names the trial folder of each record, in the same order. Once the
+    graders are built and the judge key is checked, the previous evaluation's outputs
+    are removed. Each trial then writes its evaluation file as it ends, and
+    ``results.json`` is assembled from those evaluations as the run's last write.
+
     With ``events``, each trial writes a ``started`` line and a ``completed`` or
-    ``failed`` line to the event log. ``trials`` names the trial folder of each record,
-    in the same order.
+    ``failed`` line to the event log.
     """
     import asyncio
-    import time
 
-    from metis.core.reporting import EvaluationResults
     from metis.engine import extractor
     from metis.engine.evaluation import JudgeGateway, build_grader, build_llm_settings
     from metis.library.grader import JudgeArgs, LLMSettings
@@ -1443,15 +1476,9 @@ async def _evaluate_records(
         else LLMSettings(client=_NoJudgeClient())  # type: ignore[arg-type]
     )
 
-    # Traces saved by an earlier evaluation must not outlive it, or the report would show a
-    # conversation that differs from the grades beside it.
-    shutil.rmtree(experiment_dir / execution_layout.TRACES, ignore_errors=True)
+    _clear_evaluation_outputs(experiment_dir)
     langfuse = extractor.get_langfuse_client()
-    all_records: list[GraderRecord] = []
-    successful = 0
-    failed = 0
-    started = time.monotonic()
-    results_path = experiment_dir / execution_layout.RESULTS
+    evaluations: list[TrialEvaluation] = []
     interactive_progress = sys.stderr.isatty()
     progress = _create_evaluation_progress() if interactive_progress else None
 
@@ -1508,20 +1535,14 @@ async def _evaluate_records(
                         _evaluate_one(
                             record,
                             number=index + 1,
-                            trial=trials[index] if trials else None,
+                            trial=trials[index],
                             context=context,
                             phase=phase_for(index + 1, _record_label(record)),
                         )
                     )
                     for index, record in enumerate(records)
                 ]
-            for task in tasks:
-                result = task.result()
-                all_records.extend(result.records)
-                if result.failure_reason is None:
-                    successful += 1
-                else:
-                    failed += 1
+            evaluations = [task.result() for task in tasks]
 
             if progress and task_id is not None:
                 progress.update(task_id, description="Evaluation complete")
@@ -1536,9 +1557,7 @@ async def _evaluate_records(
     except asyncio.CancelledError:
         # Ctrl-C. The TaskGroup has already cancelled every session and waited for it to
         # stop. A cancellation is a BaseException, so the command's `except Exception`
-        # never sees it: log it here and let it go on. Partial grades are discarded, and
-        # so is the previous results file, which no longer matches this run's traces.
-        results_path.unlink(missing_ok=True)
+        # never sees it: log it here and let it go on. No results file is written.
         evaluation_log.write("EVALUATION INTERRUPTED")
         console.print(
             "\nInterrupted. No results were written. "
@@ -1553,33 +1572,59 @@ async def _evaluate_records(
         if gateway is not None and needs_llm:
             await llm.client.close()
 
-    # An evaluation that scores nothing must not leave the previous evaluation's
-    # results behind for `metis insights report` to pick up as current.
-    results_path.unlink(missing_ok=True)
-    results_file: Path | None = None
-    if all_records:
-        elapsed = round(time.monotonic() - started, 1)
-        EvaluationResults(
-            run_id="report",
-            records=all_records,
-            timings={"evaluation_seconds": elapsed},
-            latency_seconds=elapsed or None,
-        ).save(results_path)
-        results_file = results_path
-        evaluation_log.write(f"RESULTS WRITTEN — {results_file}")
-
-    outcome = EvaluationOutcome(
-        total_records=len(records),
-        successful_records=successful,
-        failed_records=failed,
-        results_file=results_file,
-    )
+    results_file = _write_results(experiment_dir, evaluations)
+    evaluation_log.write(f"RESULTS WRITTEN — {results_file}")
+    outcome = _evaluation_outcome(evaluations, results_file)
     evaluation_log.write(
         "EVALUATION COMPLETED — "
         f"{outcome.successful_records}/{outcome.total_records} records succeeded, "
         f"{outcome.failed_records} failed"
     )
     return outcome
+
+
+def _clear_evaluation_outputs(experiment_dir: Path) -> None:
+    """Remove the previous evaluation's trial files, saved traces and ``results.json``.
+
+    None of them may outlive the evaluation that made them: the report would show grades
+    or a conversation that the new evaluation did not produce. ``logs/`` is kept.
+    """
+    shutil.rmtree(experiment_dir / execution_layout.EVALUATION, ignore_errors=True)
+    shutil.rmtree(experiment_dir / execution_layout.TRACES, ignore_errors=True)
+    (experiment_dir / execution_layout.RESULTS).unlink(missing_ok=True)
+
+
+def _write_results(experiment_dir: Path, evaluations: list[TrialEvaluation]) -> Path:
+    """Write ``results.json`` from the trial evaluations, their records in the order given.
+
+    It is written even when no record was graded. The time is the wall-clock span in
+    which any trial was being evaluated.
+    """
+    from metis.core.reporting import EvaluationResults
+    from metis.engine.evaluation.trial_files import grading_seconds
+
+    seconds = round(grading_seconds(evaluations), 1)
+    path = experiment_dir / execution_layout.RESULTS
+    EvaluationResults(
+        run_id="report",
+        records=[record for evaluation in evaluations for record in evaluation.records],
+        timings={"evaluation_seconds": seconds},
+        latency_seconds=seconds or None,
+    ).save(path)
+    return path
+
+
+def _evaluation_outcome(
+    evaluations: list[TrialEvaluation], results_file: Path | None
+) -> EvaluationOutcome:
+    """Count the trials whose evaluation succeeded and those that failed."""
+    successful = sum(1 for e in evaluations if e.failure_reason is None)
+    return EvaluationOutcome(
+        total_records=len(evaluations),
+        successful_records=successful,
+        failed_records=len(evaluations) - successful,
+        results_file=results_file,
+    )
 
 
 class _NoJudgeClient:
@@ -1809,6 +1854,4 @@ def run(
         _print_handoff(output_dir, command="run")
         raise
 
-    if outcome.failed_records:
-        _print_handoff(output_dir, command="run")
     _print_evaluation_summary(output_dir, outcome, pipeline=True)
