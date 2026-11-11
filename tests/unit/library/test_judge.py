@@ -121,7 +121,7 @@ def test_sends_the_criteria_scope_rule_and_transcript() -> None:
     [
         (_reply(1), "scored", 1.0),
         (_reply(0), "scored", 0.0),
-        (_reply(None, status="not_applicable"), "errored", None),
+        (_reply(None, status="not_applicable"), "skipped", None),
         (_reply(0.5), "errored", None),
     ],
 )
@@ -136,6 +136,7 @@ def _rule(status: str, score: float | None, reason: str) -> GraderResult:
 
 PASS, FAIL = _rule("scored", 1.0, "met."), _rule("scored", 0.0, "unmet.")
 ERROR = _rule("errored", None, "undecided.")
+SKIP = _rule("skipped", None, "does not apply.")
 
 
 @pytest.mark.parametrize(
@@ -151,6 +152,16 @@ ERROR = _rule("errored", None, "undecided.")
         (Aggregation.PASS_IF_ANY, [ERROR, PASS], "scored", 1.0),
         (Aggregation.PASS_IF_ANY, [FAIL, ERROR], "errored", None),
         (Aggregation.PASS_IF_ANY, [FAIL, FAIL], "scored", 0.0),
+        (Aggregation.NONE_SINGLE_SCORE, [SKIP], "skipped", None),
+        (Aggregation.PASS_IF_ALL, [PASS, SKIP], "scored", 1.0),
+        (Aggregation.PASS_IF_ALL, [SKIP, FAIL], "scored", 0.0),
+        (Aggregation.PASS_IF_ALL, [SKIP, ERROR], "errored", None),
+        (Aggregation.PASS_IF_ALL, [PASS, SKIP, ERROR], "errored", None),
+        (Aggregation.PASS_IF_ALL, [SKIP, SKIP], "skipped", None),
+        (Aggregation.PASS_IF_ANY, [SKIP, PASS], "scored", 1.0),
+        (Aggregation.PASS_IF_ANY, [SKIP, FAIL], "scored", 0.0),
+        (Aggregation.PASS_IF_ANY, [SKIP, ERROR], "errored", None),
+        (Aggregation.PASS_IF_ANY, [SKIP, SKIP], "skipped", None),
     ],
 )
 def test_aggregation_rules(rule, results, status, score) -> None:
@@ -167,6 +178,10 @@ def test_a_combined_reason_names_each_deciding_rule() -> None:
     assert combined.reason == "Not every rule is met: unmet. unmet."
     combined = AGGREGATION_DEFINITIONS[Aggregation.PASS_IF_ALL]([PASS, ERROR], "s")
     assert combined.reason == "No rule failed, but some could not be judged: undecided."
+    combined = AGGREGATION_DEFINITIONS[Aggregation.PASS_IF_ALL]([PASS, SKIP], "s")
+    assert combined.reason == "Every rule that applies is met: does not apply."
+    combined = AGGREGATION_DEFINITIONS[Aggregation.PASS_IF_ANY]([SKIP, SKIP], "s")
+    assert combined.reason == "No rule applies: does not apply. does not apply."
 
 
 def test_sends_a_rendered_file_as_an_input_file(tmp_path: Path) -> None:

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from metis.engine import cli
 from metis.engine.cli import EvaluationOutcome, app
+from metis.engine.extractor import TraceWaitSettings
 
 runner = CliRunner()
 
@@ -63,6 +65,8 @@ def test_run_composes_phases_and_prints_recovery_command(
             "--no-tui",
             "--langfuse-timeout",
             "120",
+            "-c",
+            "3",
             "-v",
         ],
     )
@@ -71,11 +75,15 @@ def test_run_composes_phases_and_prints_recovery_command(
     assert phases == ["simulation", "evaluation"]
     assert simulation_options["no_tui"] is True
     assert simulation_options["resume"] is False
+    assert simulation_options["concurrency"] == 3
     assert evaluation_paths == [experiment_dir]
+    # One -c sets how many trials are simulated at once and how many sessions are graded
+    # at once.
     assert evaluation_options == {
-        "langfuse_timeout": 120,
+        "trace_wait": TraceWaitSettings(timeout_seconds=120),
         "verbose": 1,
         "quiet": False,
+        "concurrency": 3,
     }
     assert (
         f"Evaluate: metis engine evaluate --experiment-dir {experiment_dir.resolve()}"
@@ -121,6 +129,28 @@ def test_run_resume_evaluates_the_resumed_directory(
     assert "metisinsightsreport--results-file" in "".join(result.output.split())
 
 
+def test_run_stops_before_the_simulation_when_the_timeout_is_shorter_than_the_quiet_window(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("LANGFUSE_METIS_QUIET_SECONDS", "30")
+    input_dir = _write_source(tmp_path)
+    simulations: list[object] = []
+
+    def fake_simulation(*args: object, **_kwargs: object) -> Path:
+        simulations.append(args)
+        return tmp_path / "experiment"
+
+    monkeypatch.setattr(cli, "_run_simulation", fake_simulation)
+
+    result = runner.invoke(
+        app, ["run", "--input-dir", str(input_dir), "--langfuse-timeout", "20"]
+    )
+
+    assert result.exit_code == 1
+    assert "Set the timeout to 30 seconds or more." in " ".join(result.output.split())
+    assert simulations == []
+
+
 def test_run_zero_simulation_records_exits_one(monkeypatch, tmp_path: Path) -> None:
     input_dir = _write_source(tmp_path)
     experiment_dir = tmp_path / "experiment"
@@ -160,3 +190,20 @@ def test_run_infrastructure_failure_prints_recovery_command(
         f"Evaluate: metis engine evaluate --experiment-dir {experiment_dir.resolve()}"
         in result.output
     )
+
+
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_run_rejects_a_concurrency_below_one(
+    monkeypatch, tmp_path: Path, value: str
+) -> None:
+    def fail_if_simulated(*_args: object, **_kwargs: object) -> Path:
+        raise AssertionError("a rejected option must not start the simulation")
+
+    monkeypatch.setattr(cli, "_run_simulation", fail_if_simulated)
+
+    result = runner.invoke(
+        app, ["run", "--input-dir", str(tmp_path), "--no-tui", "-c", value]
+    )
+
+    assert result.exit_code == 2
+    assert isinstance(result.exception, SystemExit)

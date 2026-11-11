@@ -69,11 +69,17 @@ Then decide what to change:
 - **The pass mark or the grader**, if the grader misreads the conversation, or is too strict or
   too lenient. See [Grader library](library/grader-library.md).
 
-### When a result errored
+### When a result is skipped or errored
 
-An errored result means that the grader could not give a score. It is not a failure, and it is
-not in any pass rate. The reason is in the **Errored** tab. It is often that the Criterion did not
-apply to the conversation.
+A skipped result means that the Criterion did not apply to the conversation. For example, the
+Criterion is about tool calls, and the assistant made none. The reason is in the **Skipped** tab.
+Many skips can mean that your Test Case does not cause the event that the Criterion looks for.
+
+An errored result means that the grader could not give a score. For example, the model provider
+failed. The reason is in the **Errored** tab.
+
+Neither outcome is a failure, and neither is in any pass rate. For the full list of causes, see
+[Result outcomes](library/how-graders-work.md#result-outcomes).
 
 ## How the scores work
 

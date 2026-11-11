@@ -92,15 +92,16 @@ The judge returns one result for the whole session, with the scope `"session"`:
 
 - A score of `1` means that the recorded evidence satisfies the criterion.
 - A score of `0` means that the recorded evidence does not satisfy the criterion.
+- A skipped result means that the criterion does not apply to the session. For example, the
+  event that the criterion looks for did not happen. The reason says why.
 - An errored result means that the session cannot be judged. The reason says why. The cases
   are these:
   - The session has no turns. The judge is not called.
-  - The event that the criterion looks for did not happen.
   - The request was above the input limit.
   - The provider failed.
   - The reply was not valid.
 
-Errored results do not count as failures.
+Skipped and errored results do not count as failures.
 
 ## Evidence that the judge reads
 

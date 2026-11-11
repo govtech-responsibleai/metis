@@ -111,7 +111,11 @@ metis engine evaluate --experiment-dir experiments/execute/toyapp-http-simple-20
 
 `experiments/execute/toyapp-http-simple-20260820-143000/` is the output directory that `simulate` created. The name is only a sample: `simulate` makes the real name from the experiment `id` and the start time of the run, so use the path that `simulate` printed.
 
-If `evaluate` reports missing traces, upgrade the target's Langfuse SDK first, then raise `--langfuse-timeout` (default 90 seconds). Traces from older SDKs can arrive several minutes late.
+`evaluate` grades a trial only when Langfuse has stored nothing new for it for 30 seconds (the quiet window) and no trace is empty. METIS cannot know when a conversation has ended, so it reads the newest `updatedAt` that Langfuse stores for the trial and waits until that time is 30 seconds old. Old traces are graded on the first check. Set `LANGFUSE_METIS_QUIET_SECONDS` in `.env` to change the 30 seconds, for example when your target sends its traces late. The timeout, `--langfuse-timeout` (default 90 seconds), is the longest time that `evaluate` waits for each trial. If the traces are not ready when the timeout ends, the trial fails with `no traces in Langfuse` or `traces still changing in Langfuse` and gets no grades. The timeout must be at least as long as the quiet window, because a trial that has just finished needs the full quiet window before it can be graded. `logs/evaluate.log` has a `TRACE WAIT` line for each trial with the number of checks and the seconds waited. Data that Langfuse stores later than the quiet window is not graded.
+
+The Langfuse SDK sends an observation when it ends, so an observation that never ends, for example after a crash, usually does not reach Langfuse. If Langfuse does store an observation with no end time, `evaluate` grades the trial and prints a warning that names it, and the log gets an `OPEN OBSERVATIONS` line.
+
+If `evaluate` reports missing traces, upgrade the target's Langfuse SDK first, then raise `--langfuse-timeout`. Traces from older SDKs can arrive several minutes late, which is longer than the default timeout, so a trial can fail even though its traces would have been complete a little later.
 
 The website explains each step in full: [Run your evaluations](https://govtech-responsibleai.github.io/metis/docs/run-evaluation), [Run the test suite](https://govtech-responsibleai.github.io/metis/docs/run-test-suite) and [Run the graders](https://govtech-responsibleai.github.io/metis/docs/run-graders).
 
@@ -148,7 +152,7 @@ The combined `run` command closes the Simulation TUI before it starts the evalua
 
 ### Where Results Land
 
-Each execution produces output in `experiments/execute/<id>-<timestamp>/`. The `outputs/reports/` directory is created by `evaluate` or `run`, which write `results.json`; `metis insights report` adds `report.json` and `report.html`. Simulation-only runs stop after `outputs/trials/` and `logs/`:
+Each execution produces output in `experiments/execute/<id>-<timestamp>/`, under the project folder. The project folder is the working directory or the nearest folder above it that has a `pyproject.toml`. To choose it yourself, see [Simulation options](#simulation-options). The `outputs/reports/` directory is created by `evaluate` or `run`, which write `results.json`; `metis insights report` adds `report.json` and `report.html`. Simulation-only runs stop after `outputs/trials/` and `logs/`:
 
 ```text
 experiments/execute/toyapp-http-simple-20260730-143022/
@@ -435,30 +439,42 @@ The flags below are optional and apply to both modes:
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--concurrency N` / `-c N` | `1` | Max parallel simulation workers |
+| `--concurrency N` / `-c N` | `1` | Max concurrent trials. Must be at least 1 |
 | `-v` / `-vv` | WARNING | Increase verbosity: `-v` for INFO, `-vv` for DEBUG |
 | `--quiet` | `false` | Suppress all output below ERROR |
 | `--no-tui` | `false` | Disable TUI dashboard (force linear log output) |
 | `--log-format` | `text` | Log file format: `text` or `json` |
 | `--log-dir` | co-located with results | Override the log output directory |
+| `--project-dir` | nearest folder with a `pyproject.toml` | Existing project folder that holds `experiments/execute/`. New runs go under it, from any working directory. `~` expands to the home folder. A resume without `--experiment-dir` lists the runs in this folder. A resume with `--experiment-dir` continues in that run folder, and a warning shows when the run folder is not in this folder |
 
 ### Evaluation options
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--experiment-dir` | (required) | One output directory that `simulate` created, for example `experiments/execute/toyapp-http-simple-20260820-143000/`. It must hold an `inputs/` snapshot |
-| `--langfuse-timeout` | `90` | Seconds to wait for Langfuse traces to appear |
+| `--langfuse-timeout` | `90` | Seconds to wait for each trial's Langfuse traces to be ready |
 | `--failed-only` | off | Retry only records without completed grader results, preserving completed results |
+| `--concurrency N` / `-c N` | `1` | Max concurrent sessions. Must be at least 1 |
 | `-v` / `-vv` | WARNING | Increase evaluation logging verbosity |
 | `--quiet` | `false` | Suppress all output below ERROR |
 
-The `run` command accepts the union of the simulation and evaluation options. Its `--no-tui` option controls only the Simulation TUI. Evaluation always uses normal progress output.
+Two runs of one Specification that start in the same second get the same folder name. The second run stops with an error and does not change the folder of the first run. Start it again.
+
+The `run` command accepts the union of the simulation and evaluation options. Its `--no-tui` option controls only the Simulation TUI. Evaluation always uses normal progress output. Its `--concurrency` applies to both halves: N trials are simulated at once, and then N sessions are graded at once.
 
 ### Concurrency
 
-The `--concurrency N` flag runs N simulation workers in parallel. The default is `1`, which runs trials sequentially. Increase based on your target's capacity.
+The `--concurrency N` flag sets how many things are in flight at once. It means coroutines on one event loop, not threads or processes. The default is `1`, which runs one at a time. A value below 1 is rejected before any work starts.
 
-Runs are distributed round-robin across workers. Each worker processes its slice sequentially — one run at a time — while all workers run concurrently via `asyncio.gather`. How isolation and resource sharing work depends on the runner.
+- **`evaluate`** fetches and grades up to N sessions at once. A new session starts as soon as any session finishes. `results.json` lists grades in record order, whatever order the sessions finish in. Inside each session the criteria still run together, and the judge client's 50-connection pool caps the model calls from all sessions, so a large N queues on the pool instead of flooding the provider.
+- **`simulate`** runs up to N trials at once, as described below.
+- **`run`** does both: it simulates up to N trials at once, then grades up to N sessions at once. The two phases do not overlap. Simulation is limited by what your application can handle, and grading by Langfuse and the judge provider, so if one number suits only one phase, run `simulate` and `evaluate` yourself with a different value each.
+
+With N above 1, `evaluate` drops the `#` session banner and shows `Evaluation — K running` in its progress bar, where K counts the sessions holding a slot. Each warning names its record (`RECORD i/total persona x scenario`), and the per-session phases appear in `logs/evaluate.log`. Ctrl-C cancels every session, waits for them to stop, and writes no `results.json`.
+
+#### Simulation
+
+Increase N based on your target's capacity. Runs are distributed round-robin across workers. Each worker processes its slice sequentially — one run at a time — while all workers run concurrently via `asyncio.gather`. How isolation and resource sharing work depends on the runner.
 
 #### Browser runner
 
@@ -573,7 +589,9 @@ and makes calls through `llm.client`, a shared `AsyncOpenAI`.
 
 | Symptom | Likely Cause | Fix |
 |---------|--------------|-----|
-| "No traces found" or extraction times out | Langfuse timeout too short, bad credentials, or target not instrumented | Increase `--langfuse-timeout`, verify Langfuse keys in `.env`, confirm your target writes traces to Langfuse |
+| "no traces in Langfuse" | Langfuse timeout too short, bad credentials, or target not instrumented | Increase `--langfuse-timeout`, verify Langfuse keys in `.env`, confirm your target writes traces to Langfuse |
+| "traces still changing in Langfuse" | Langfuse kept storing new data for the trial until the timeout, or the clock of the computer that runs METIS is behind the Langfuse server | Increase `--langfuse-timeout`, upgrade the target's Langfuse SDK, and check the computer's clock |
+| "observation(s) never ended" warning | The target started an observation and never ended it, for example after a crash | Check that your target ends every observation it starts. The trial is still graded |
 | "Fixture not found" error | Path is absolute or has a typo | Use the filename only (relative to `fixtures/`), verify the file exists in the fixtures directory |
 | "could not be imported" | FQN typo or module not installed | Check the import path for typos, ensure the package containing the grader is installed in your venv |
 | Simulation hangs indefinitely | Target unresponsive or page never finishes loading | Use `HEADED=true` to see the browser, increase the Task's `response_wait_ms` |
@@ -1055,7 +1073,8 @@ The [website](https://govtech-responsibleai.github.io/metis/docs/set-up-observab
 The engine then fetches traces using:
 - `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_BASE_URL` from your `.env`
 - The session ID from the run record
-- A configurable timeout (`--langfuse-timeout`, default 90s) for traces to appear
+- A configurable timeout (`--langfuse-timeout`, default 90s) for traces to be ready
+- A quiet window (`LANGFUSE_METIS_QUIET_SECONDS`, default 30s): the time that Langfuse must store nothing new for a trial
 
 ### Writing Your Own Experiment
 
