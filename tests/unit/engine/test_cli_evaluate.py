@@ -203,10 +203,9 @@ def test_evaluate_fails_for_a_malformed_trial_record(tmp_path: Path) -> None:
 
     assert result.exit_code != 0
     assert "trial record" in result.output
-    assert (
-        "EVALUATION FAILED — failed to load trial record"
-        in (experiment_dir / "logs" / "evaluate.log").read_text()
-    )
+    assert "EVALUATION FAILED — failed to load trial record" in (
+        experiment_dir / "logs" / "evaluate.log"
+    ).read_text(encoding="utf-8")
 
 
 def test_evaluate_with_no_run_records_is_a_noop(tmp_path: Path) -> None:
@@ -216,10 +215,9 @@ def test_evaluate_with_no_run_records_is_a_noop(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "nothing to evaluate" in result.output
-    assert (
-        "EVALUATION COMPLETED — 0 records"
-        in (experiment_dir / "logs" / "evaluate.log").read_text()
-    )
+    assert "EVALUATION COMPLETED — 0 records" in (
+        experiment_dir / "logs" / "evaluate.log"
+    ).read_text(encoding="utf-8")
 
 
 def _patch_evaluation(monkeypatch, *, traces: int = 1) -> list[dict[str, Any]]:
@@ -272,7 +270,7 @@ def test_evaluation_writes_results_file_and_prints_report_command(
         ["metis", "insights", "report", "--results-file", str(results_file)]
     )
     assert _compact(f"Report: {command}") in _compact(second.output)
-    evaluation_log = (output / "logs" / "evaluate.log").read_text()
+    evaluation_log = (output / "logs" / "evaluate.log").read_text(encoding="utf-8")
     assert evaluation_log.count("EVALUATION STARTED") == 1
     assert "RESULTS WRITTEN" in evaluation_log
 
@@ -285,7 +283,7 @@ def test_failed_only_retries_missing_results_and_preserves_completed_records(
     _write_record(output, run_name="run-2", session_id="session-2")
     first_calls: list[str] = []
 
-    def fail_second_record(session_id: str, *_args: object, **_kwargs: object):
+    async def fail_second_record(session_id: str, *_args: object, **_kwargs: object):
         first_calls.append(session_id)
         if session_id == "session-2":
             raise RuntimeError("Langfuse unavailable")
@@ -301,7 +299,7 @@ def test_failed_only_retries_missing_results_and_preserves_completed_records(
 
     retry_calls: list[str] = []
 
-    def recover_record(session_id: str, *_args: object, **_kwargs: object):
+    async def recover_record(session_id: str, *_args: object, **_kwargs: object):
         retry_calls.append(session_id)
         return _session(session_id)
 
@@ -423,7 +421,7 @@ def test_evaluation_logs_the_trace_wait_and_warns_about_open_observations(
 
     assert result.exit_code == 0
     assert "never ended, graded as stored: tool (c1)" in _compact_spaces(result.output)
-    log = (output / "logs" / "evaluate.log").read_text()
+    log = (output / "logs" / "evaluate.log").read_text(encoding="utf-8")
     assert (
         "TRACE WAIT: record=alice x task-1 status=settled checks=3 waited=31.0s" in log
     )
@@ -448,10 +446,9 @@ def test_evaluation_with_no_successful_records_writes_no_results(
     assert "WARNING: RECORD 1/1 alice x task-1 — no traces in Langfuse" in (
         _compact_spaces(result.output)
     )
-    assert (
-        "FAILED — no traces in Langfuse"
-        in (output / "logs" / "evaluate.log").read_text()
-    )
+    assert "FAILED — no traces in Langfuse" in (
+        output / "logs" / "evaluate.log"
+    ).read_text(encoding="utf-8")
     assert not (output / "outputs" / "reports" / "results.json").exists()
     assert "metisinsightsreport" not in _compact(result.output)
 
@@ -551,7 +548,7 @@ def test_evaluation_progress_advances_for_success_and_soft_failure(
         "WARNING: RECORD 2/2 alice x task-1 — Evaluation failed: trace unavailable"
         in capsys.readouterr().out
     )
-    evaluation_log = (output / "logs" / "evaluate.log").read_text()
+    evaluation_log = (output / "logs" / "evaluate.log").read_text(encoding="utf-8")
     assert "alice x task-1 — EXTRACTING" in evaluation_log
     assert "alice x task-1 — EVALUATING" in evaluation_log
     assert "alice x task-1 — DONE" in evaluation_log
@@ -611,7 +608,7 @@ def test_an_unsupported_trace_fails_its_session_and_the_rest_are_graded(
     assert reason in _compact(result.output) or _compact(reason) in _compact(
         result.output
     )
-    evaluation_log = (output / "logs" / "evaluate.log").read_text()
+    evaluation_log = (output / "logs" / "evaluate.log").read_text(encoding="utf-8")
     assert f"FAILED — {reason}" in evaluation_log
 
 
@@ -893,7 +890,7 @@ def test_a_grader_that_raises_does_not_fail_the_record(
     ).records
     assert [r.outcome for r in record.results] == ["errored"]
     assert "boom" in record.results[0].reason
-    log = (output / "logs" / "evaluate.log").read_text()
+    log = (output / "logs" / "evaluate.log").read_text(encoding="utf-8")
     assert '"outcome": "errored"' in log
 
 
@@ -928,8 +925,8 @@ def test_record_criteria_missing_from_the_snapshot_are_reported(
 
     assert result.exit_code == 0, result.output
     assert "AC-GONE" in result.output
-    assert (
-        "UNKNOWN CRITERIA — AC-GONE" in (output / "logs" / "evaluate.log").read_text()
+    assert "UNKNOWN CRITERIA — AC-GONE" in (output / "logs" / "evaluate.log").read_text(
+        encoding="utf-8"
     )
     (graded,) = EvaluationResults.load_file(
         output / "outputs" / "reports" / "results.json"
@@ -995,7 +992,9 @@ def test_failed_trace_write_warns_and_still_grades(monkeypatch, tmp_path: Path) 
 
     assert result.exit_code == 0, result.output
     assert (output / "outputs" / "reports" / "results.json").exists()
-    assert "TRACES NOT SAVED" in (output / "logs" / "evaluate.log").read_text()
+    assert "TRACES NOT SAVED" in (output / "logs" / "evaluate.log").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_unserialisable_payload_does_not_fail_the_record(
@@ -1021,7 +1020,9 @@ def test_unserialisable_payload_does_not_fail_the_record(
         output / "outputs" / "reports" / "results.json"
     ).records
     assert graded.criterion_id == "AC-1-1"
-    assert "TRACES NOT SAVED" in (output / "logs" / "evaluate.log").read_text()
+    assert "TRACES NOT SAVED" in (output / "logs" / "evaluate.log").read_text(
+        encoding="utf-8"
+    )
 
 
 # --- _evaluate_one: the per-record unit that the evaluation loop calls ---------------------
@@ -1525,8 +1526,8 @@ async def test_cancellation_stops_every_session_then_closes_the_judge_client(
         "stopped session-2",
     ]
     assert not stale.exists()
-    assert "EVALUATION INTERRUPTED" in log.path.read_text()
-    assert "EVALUATION COMPLETED" not in log.path.read_text()
+    assert "EVALUATION INTERRUPTED" in log.path.read_text(encoding="utf-8")
+    assert "EVALUATION COMPLETED" not in log.path.read_text(encoding="utf-8")
 
 
 @pytest.mark.asyncio
@@ -1599,7 +1600,9 @@ def test_an_unexpected_error_in_one_session_is_reported_as_itself(
     assert result.exit_code == 1
     assert "Error: evaluation failed: No space left on device" in result.output
     assert "TaskGroup" not in result.output
-    log_lines = (output / "logs" / "evaluate.log").read_text().splitlines()
+    log_lines = (
+        (output / "logs" / "evaluate.log").read_text(encoding="utf-8").splitlines()
+    )
     assert log_lines[-1].endswith("EVALUATION FAILED — No space left on device")
     assert not (output / "outputs" / "reports" / "results.json").exists()
 
@@ -1614,7 +1617,9 @@ def test_the_log_records_the_concurrency_the_run_used(
 
     _evaluate_directly(output, concurrency=concurrency)
 
-    first_line = (output / "logs" / "evaluate.log").read_text().splitlines()[0]
+    first_line = (
+        (output / "logs" / "evaluate.log").read_text(encoding="utf-8").splitlines()[0]
+    )
     assert first_line.endswith(
         f"EVALUATION STARTED — {output} (concurrency {concurrency})"
     )
