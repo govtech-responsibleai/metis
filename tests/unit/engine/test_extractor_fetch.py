@@ -207,6 +207,90 @@ class TestPaging:
         )
 
 
+class TestNoRequestOptions:
+    """Passing ``request_options`` makes the SDK send a JSON body ``{}`` with every GET, and
+    a proxy in front of Langfuse rejects a GET with a body with HTTP 400 (issue #122)."""
+
+    @pytest.mark.asyncio
+    async def test_get_many_is_never_called_with_request_options(
+        self, tmp_path: Path
+    ) -> None:
+        cut = _obs("r1", "t1", metadata={"summary": "x" * 200})
+        full = _obs("r1", "t1", metadata={"summary": LONG})
+        lf = FakeLangfuse(session=[cut], traces={"t1": [cut]}, expanded={"t1": [full]})
+
+        await _fetch(lf, tmp_path)
+
+        assert len(lf.calls) == 3  # session, trace, expanded refetch
+        assert all("request_options" not in call for call in lf.calls)
+
+    @pytest.mark.asyncio
+    async def test_the_request_is_a_get_with_no_body(self) -> None:
+        import httpx
+
+        requests: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(200, json=_ok_body([]))
+
+        await _page_through_observations(_real_client(handler), "traceId", "t1")
+
+        (request,) = requests
+        assert request.method == "GET"
+        assert request.content == b""
+
+
+class TestStatusRetriesWithAFakeClient:
+    """``_get_page`` retries a retriable status itself; the SDK is never asked to."""
+
+    @staticmethod
+    def _failing_then_ok(lf: FakeLangfuse, status: int, failures: int) -> None:
+        from langfuse.api.core.api_error import ApiError
+
+        answer = lf._get_many
+        remaining = [failures]
+
+        async def _get_many(**kwargs: Any) -> SimpleNamespace:
+            if remaining[0]:
+                remaining[0] -= 1
+                lf.calls.append(kwargs)
+                raise ApiError(status_code=status, body={"message": "unavailable"})
+            return await answer(**kwargs)
+
+        lf.async_api.observations_v_2.get_many = _get_many
+
+    @pytest.mark.asyncio
+    async def test_a_503_is_retried_and_the_fetch_succeeds(
+        self, tmp_path: Path, instant_retries: list[float]
+    ) -> None:
+        root = _obs("r1", "t1")
+        lf = FakeLangfuse(session=[root], traces={"t1": [root]})
+        self._failing_then_ok(lf, 503, failures=2)
+
+        (trace,) = (await _fetch(lf, tmp_path)).traces
+
+        assert trace.id == "t1"
+        assert len(instant_retries) == 2
+
+    @pytest.mark.asyncio
+    async def test_a_401_is_raised_at_once(
+        self, tmp_path: Path, instant_retries: list[float]
+    ) -> None:
+        from langfuse.api.core.api_error import ApiError
+
+        root = _obs("r1", "t1")
+        lf = FakeLangfuse(session=[root], traces={"t1": [root]})
+        self._failing_then_ok(lf, 401, failures=1)
+
+        with pytest.raises(ApiError) as excinfo:
+            await _fetch(lf, tmp_path)
+
+        assert excinfo.value.status_code == 401
+        assert len(lf.calls) == 1
+        assert instant_retries == []
+
+
 class TestTwoStepFetch:
     @pytest.mark.asyncio
     async def test_trace_observations_come_from_the_trace_filter(
