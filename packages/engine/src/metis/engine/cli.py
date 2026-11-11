@@ -1135,26 +1135,26 @@ def _run_evaluation(
         return EvaluationOutcome(0, 0, 0, None)
 
     try:
-        records: list[TrialRecord] = [TrialRecord.load_file(path) for path in files]
+        trial_records = [
+            (path.parent.name, TrialRecord.load_file(path)) for path in files
+        ]
     except Exception as exc:
         console.print(f"Error: failed to load trial record: {exc}", style="bold red")
         raise EvaluationInputError("failed to load trial record") from exc
 
-    console.print(f"  Loaded {len(records)} trial record(s)")
-    evaluation_log.write(f"LOADED {len(records)} trial record(s)")
-    trials = [path.parent.name for path in files]
+    console.print(f"  Loaded {len(trial_records)} trial record(s)")
+    evaluation_log.write(f"LOADED {len(trial_records)} trial record(s)")
     events = PhaseEventLog.for_experiment_dir(experiment_dir)
     return asyncio.run(
         _evaluate_records(
             experiment_dir,
             specification,
-            records,
+            trial_records,
             evaluation_log=evaluation_log,
             langfuse_timeout=langfuse_timeout,
             concurrency=concurrency,
             env_file=env_file,
             events=events,
-            trials=trials,
         )
     )
 
@@ -1208,7 +1208,7 @@ async def _evaluate_one(
     number: int,
     context: _EvaluationContext,
     phase: Callable[..., None],
-    trial: str | None = None,
+    trial: str,
 ) -> _RecordResult:
     """Fetch and grade one trial record's session, once it holds one of the N slots.
 
@@ -1225,7 +1225,6 @@ async def _evaluate_one(
     not one to hide.
     """
     label = _record_label(record)
-    trial = trial or label
     record_name = f"RECORD {number}/{context.total_records} {label}"
     log = context.evaluation_log
 
@@ -1368,14 +1367,13 @@ async def _fetch_and_grade(
 async def _evaluate_records(
     experiment_dir: Path,
     specification: Specification,
-    records: list[TrialRecord],
+    trial_records: list[tuple[str, TrialRecord]],
     *,
     evaluation_log: EvaluationLogger,
     langfuse_timeout: int,
     concurrency: int = 1,
     env_file: Path | None = None,
     events: PhaseEventLog | None = None,
-    trials: list[str] | None = None,
 ) -> EvaluationOutcome:
     """Grade every trial record's session and write one GraderRecord per grader per session.
 
@@ -1384,8 +1382,8 @@ async def _evaluate_records(
     is opened for the whole evaluation, and only when some criterion's grader needs one.
 
     With ``events``, each trial writes a ``started`` line and a ``completed`` or
-    ``failed`` line to the event log. ``trials`` names the trial folder of each record,
-    in the same order.
+    ``failed`` line to the event log. Each record comes with the name of its trial
+    folder, and the events name the trial by that folder.
     """
     import asyncio
     import time
@@ -1458,7 +1456,7 @@ async def _evaluate_records(
     try:
         with progress if progress else nullcontext():
             task_id = (
-                progress.add_task("Evaluation", total=len(records))
+                progress.add_task("Evaluation", total=len(trial_records))
                 if progress
                 else None
             )
@@ -1470,7 +1468,7 @@ async def _evaluate_records(
                 langfuse=langfuse,
                 langfuse_timeout=langfuse_timeout,
                 evaluation_log=evaluation_log,
-                total_records=len(records),
+                total_records=len(trial_records),
                 concurrency=concurrency,
                 semaphore=asyncio.Semaphore(concurrency),
                 running=_RunningCount(),
@@ -1486,7 +1484,7 @@ async def _evaluate_records(
                         progress,
                         task_id,
                         record_number=number,
-                        total_records=len(records),
+                        total_records=len(trial_records),
                         label=label,
                         phase=name,
                         advance=advance,
@@ -1508,12 +1506,12 @@ async def _evaluate_records(
                         _evaluate_one(
                             record,
                             number=index + 1,
-                            trial=trials[index] if trials else None,
+                            trial=trial,
                             context=context,
                             phase=phase_for(index + 1, _record_label(record)),
                         )
                     )
-                    for index, record in enumerate(records)
+                    for index, (trial, record) in enumerate(trial_records)
                 ]
             for task in tasks:
                 result = task.result()
@@ -1569,7 +1567,7 @@ async def _evaluate_records(
         evaluation_log.write(f"RESULTS WRITTEN — {results_file}")
 
     outcome = EvaluationOutcome(
-        total_records=len(records),
+        total_records=len(trial_records),
         successful_records=successful,
         failed_records=failed,
         results_file=results_file,
