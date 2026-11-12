@@ -1,7 +1,8 @@
 """Pydantic models for the target evaluation report (report.json).
 
-`metis insights report` validates report data through these models before writing
-report.json. Only metis-insights reads them, so they stay private to this package.
+This is the `report.json` contract. metis-insights validates report data through these
+models before it writes report.json. apps/api reads report.json through them. It has no
+published schema file.
 """
 
 from __future__ import annotations
@@ -143,7 +144,7 @@ class EvidenceItem(BaseModel):
     scenario: str | None = None
 
 
-class Criterion(BaseModel):
+class ReportCriterion(BaseModel):
     name: str
     grader_args: dict[str, Any] = Field(default_factory=dict)
     description: str
@@ -165,7 +166,7 @@ class Criterion(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class Behaviour(BaseModel):
+class ReportBehaviour(BaseModel):
     pass_: int = Field(0, alias="pass")
     fail: int = 0
     skip: int = 0
@@ -183,7 +184,7 @@ class Behaviour(BaseModel):
     status: str | None = None
 
 
-class Feature(BaseModel):
+class ReportFeature(BaseModel):
     pass_: int = Field(0, alias="pass")
     fail: int = 0
     skip: int = 0
@@ -294,9 +295,9 @@ class Report(BaseModel):
     behaviourTotal: int
     personasRun: list[str]
     scenariosRun: list[str]
-    features: list[Feature]
-    behaviours: dict[str, Behaviour]
-    criteria: dict[str, Criterion]
+    features: list[ReportFeature]
+    behaviours: dict[str, ReportBehaviour]
+    criteria: dict[str, ReportCriterion]
     resultTable: ResultTable
     unmapped: list[UnmappedGrader]
     unresolved: list[str]

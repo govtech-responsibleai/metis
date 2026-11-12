@@ -5,9 +5,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from metis.core.report import Report
 from metis.core.reporting import EvaluationResults
 from metis.insights._aggregation import wilson_interval
-from metis.insights._models import Report
 from metis.insights._report import build_report
 from metis.insights.report import save_report
 from tests.fixtures.insights.report_experiment import (

@@ -184,7 +184,7 @@ experiments/execute/toyapp-http-simple-20260730-143022/
 
 `results.json` holds one GraderRecord per grader per session, each with one result per grading scope. `metis insights report` reads these records and shows the settings used for each assessment.
 
-The insights [Report model](../../packages/insights/src/metis/insights/_models.py) defines `report.json`. Python readers can validate report data with `Report.model_validate()`.
+The core [Report model](../../packages/core/src/metis/core/report.py) defines `report.json`. Python readers can validate report data with `metis.core.report.Report.model_validate()`.
 
 `logs/events.jsonl` records the progress of the experiment as it happens, so another program
 can follow it. Each line is one `PhaseEvent` from `metis.core.phase_events`, and

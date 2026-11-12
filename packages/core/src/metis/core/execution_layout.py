@@ -14,6 +14,8 @@ TRIAL_RECORD = "record.json"
 """File name of a trial's ``TrialRecord``, inside its folder under ``TRIALS``."""
 REPORTS = PurePosixPath("outputs/reports")
 RESULTS = REPORTS / "results.json"
+REPORT_JSON = REPORTS / "report.json"
+REPORT_HTML = REPORTS / "report.html"
 TRACES = PurePosixPath("outputs/traces")
 """Folder of the traces `evaluate` saved, one file per session, named by `trace_file_name`."""
 EVALUATION = PurePosixPath("outputs/evaluation")

@@ -54,4 +54,4 @@ It also prints a terminal passed/failed/skipped/errored table per Criterion and 
 
 The report's content — scoring, statuses, and failure evidence — is defined in the
 [report contract](report.md), and its JSON shape in the
-insights [Report model](../../packages/insights/src/metis/insights/_models.py).
+core [Report model](../../packages/core/src/metis/core/report.py).

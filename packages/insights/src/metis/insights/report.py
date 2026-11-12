@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING
 
 from metis.core import execution_layout
 from metis.core.logging import get_logger
+from metis.core.report import Report
 from metis.insights._aggregation import OutcomeCounts, aggregate_graders, mean_of
-from metis.insights._models import Report
 from metis.insights._report import build_report, load_report_sources
 from metis.insights._report_page import render_report_page
 
@@ -92,10 +92,9 @@ def save_report(
 
     report_model = Report.model_validate(report)
 
-    reports_dir = experiment_dir / execution_layout.REPORTS
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    json_path = reports_dir / "report.json"
-    html_path = reports_dir / "report.html"
+    (experiment_dir / execution_layout.REPORTS).mkdir(parents=True, exist_ok=True)
+    json_path = experiment_dir / execution_layout.REPORT_JSON
+    html_path = experiment_dir / execution_layout.REPORT_HTML
     # encoding is explicit because write_text() otherwise uses the locale encoding,
     # which is cp1252 on Windows. The rendered page contains characters outside it
     # (U+2192 among them), so the write would open the file, truncate it, then raise

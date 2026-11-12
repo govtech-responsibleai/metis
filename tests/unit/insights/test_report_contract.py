@@ -9,9 +9,9 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
+from metis.core.report import Report
 from metis.core.reporting import EvaluationResults, GraderRecord
 from metis.insights._aggregation import summarize_run
-from metis.insights._models import Report
 from metis.insights._report import build_report, load_report_sources
 from metis.insights.cli import app
 from metis.insights.report import format_terminal_summary
