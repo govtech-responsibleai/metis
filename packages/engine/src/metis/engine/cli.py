@@ -585,7 +585,7 @@ def _print_evaluation_summary(
         )
     if outcome.failed_records:
         console.print(
-            f"  Grade every trial again: {_evaluate_command(experiment_dir)}",
+            f"  Grade every trial again: {_evaluate_command(experiment_dir.resolve())}",
             markup=False,
             no_wrap=True,
             overflow="ignore",
@@ -816,6 +816,8 @@ def _simulate_in(
         if not redo_plan:
             console.print("nothing to resume")
             return experiment_dir
+        # a re-simulated trial must never be graded from the evaluation of its old run
+        _clear_evaluation_outputs(experiment_dir)
 
     from metis.engine.simulation.binding import TargetBindingError
     from metis.engine.simulation.runner_resolver import resolve_runner_factory
@@ -1126,14 +1128,21 @@ def _run_evaluation(
     verbose: int,
     quiet: bool,
     concurrency: int = 1,
+    command: Literal["evaluate", "run"] = "evaluate",
+    resume: bool = False,
 ) -> EvaluationOutcome:
-    """Evaluate records in an existing experiment directory."""
+    """Evaluate records in an existing experiment directory.
+
+    A resume appends to ``evaluate.log``; a fresh evaluation starts it again.
+    """
     env_file = _load_env()
     # Registered before the target's Langfuse client, so judge calls always have their own.
     tracing_key()
     log_level = _resolve_log_level(verbose, quiet)
     _configure_process_logging(log_level)
-    evaluation_log = EvaluationLogger(experiment_dir / execution_layout.LOGS)
+    evaluation_log = EvaluationLogger(
+        experiment_dir / execution_layout.LOGS, reset=not resume
+    )
     evaluation_log.write(
         f"EVALUATION STARTED — {experiment_dir} (concurrency {concurrency})"
     )
@@ -1169,6 +1178,8 @@ def _run_evaluation(
             env_file=env_file,
             events=events,
             trials=trials,
+            command=command,
+            resume=resume,
         )
     )
 
@@ -1407,6 +1418,8 @@ async def _evaluate_records(
     env_file: Path | None = None,
     trials: list[str],
     events: PhaseEventLog | None = None,
+    command: Literal["evaluate", "run"] = "evaluate",
+    resume: bool = False,
 ) -> EvaluationOutcome:
     """Grade every trial record's session and write one GraderRecord per grader per session.
 
@@ -1415,11 +1428,17 @@ async def _evaluate_records(
     is opened for the whole evaluation, and only when some criterion's grader needs one.
 
     ``trials`` names the trial folder of each record, in the same order. Once the
-    graders are built and the judge key is checked, the previous evaluation's outputs
-    are removed. Each trial then writes its evaluation file as it ends, and
-    ``results.json`` is assembled from those evaluations as the run's last write.
+    graders are built and the judge key is checked, a fresh evaluation removes the
+    previous evaluation's outputs. A resume removes only ``results.json`` and keeps
+    every trial that already has an evaluation file, whether it succeeded or failed;
+    only the other trials are graded. Each graded trial writes its evaluation file as
+    it ends, and ``results.json`` is assembled from the files of every trial, in record
+    order, as the run's last write.
 
-    With ``events``, each trial writes a ``started`` line and a ``completed`` or
+    On Ctrl-C, the message says how many trials are saved and names the ``--resume``
+    form of ``command``.
+
+    With ``events``, each graded trial writes a ``started`` line and a ``completed`` or
     ``failed`` line to the event log.
     """
     import asyncio
@@ -1476,7 +1495,20 @@ async def _evaluate_records(
         else LLMSettings(client=_NoJudgeClient())  # type: ignore[arg-type]
     )
 
-    _clear_evaluation_outputs(experiment_dir)
+    from metis.engine.evaluation.trial_files import load_trial_evaluations
+
+    results_path = experiment_dir / execution_layout.RESULTS
+    if resume:
+        results_path.unlink(missing_ok=True)
+        attempted = load_trial_evaluations(experiment_dir, trials)
+        message = (
+            f"resuming: {len(attempted)} of {len(trials)} trials already evaluated"
+        )
+        console.print(message)
+        evaluation_log.write(message)
+    else:
+        _clear_evaluation_outputs(experiment_dir)
+        attempted = {}
     langfuse = extractor.get_langfuse_client()
     evaluations: list[TrialEvaluation] = []
     interactive_progress = sys.stderr.isatty()
@@ -1485,7 +1517,9 @@ async def _evaluate_records(
     try:
         with progress if progress else nullcontext():
             task_id = (
-                progress.add_task("Evaluation", total=len(records))
+                progress.add_task(
+                    "Evaluation", total=len(records), completed=len(attempted)
+                )
                 if progress
                 else None
             )
@@ -1541,6 +1575,7 @@ async def _evaluate_records(
                         )
                     )
                     for index, record in enumerate(records)
+                    if trials[index] not in attempted
                 ]
             evaluations = [task.result() for task in tasks]
 
@@ -1557,11 +1592,15 @@ async def _evaluate_records(
     except asyncio.CancelledError:
         # Ctrl-C. The TaskGroup has already cancelled every session and waited for it to
         # stop. A cancellation is a BaseException, so the command's `except Exception`
-        # never sees it: log it here and let it go on. No results file is written.
+        # never sees it: log it here and let it go on. No results file is written; the
+        # trials that ended keep their files, so a resume grades only the rest.
+        results_path.unlink(missing_ok=True)
         evaluation_log.write("EVALUATION INTERRUPTED")
+        saved = len(load_trial_evaluations(experiment_dir, trials))
         console.print(
-            "\nInterrupted. No results were written. "
-            f"To grade again, run: {_evaluate_command(experiment_dir.resolve())}",
+            f"\nInterrupted. {saved} of {len(trials)} trials are saved. "
+            "To continue, run: "
+            f"{_resume_command(experiment_dir.resolve(), command)}",
             style="yellow",
             markup=False,
             soft_wrap=True,
@@ -1572,9 +1611,11 @@ async def _evaluate_records(
         if gateway is not None and needs_llm:
             await llm.client.close()
 
-    results_file = _write_results(experiment_dir, evaluations)
+    saved = attempted | {evaluation.trial: evaluation for evaluation in evaluations}
+    every_trial = [saved[trial] for trial in trials]
+    results_file = _write_results(experiment_dir, every_trial)
     evaluation_log.write(f"RESULTS WRITTEN — {results_file}")
-    outcome = _evaluation_outcome(evaluations, results_file)
+    outcome = _evaluation_outcome(every_trial, results_file)
     evaluation_log.write(
         "EVALUATION COMPLETED — "
         f"{outcome.successful_records}/{outcome.total_records} records succeeded, "
@@ -1642,6 +1683,21 @@ class _NoJudgeClient:
         )
 
 
+def _evaluation_is_complete(experiment_dir: Path) -> bool:
+    """Whether the evaluation in ``experiment_dir`` wrote a ``results.json`` that loads.
+
+    ``results.json`` is an evaluation's last write, so a readable one means every trial
+    was attempted. A missing or unparsable file means the evaluation did not finish.
+    """
+    from metis.core.reporting import EvaluationResults
+
+    try:
+        EvaluationResults.load_file(experiment_dir / execution_layout.RESULTS)
+    except (OSError, ValueError):
+        return False
+    return True
+
+
 def _run_evaluation_command(
     experiment_dir: Path,
     *,
@@ -1649,12 +1705,29 @@ def _run_evaluation_command(
     verbose: int,
     quiet: bool,
     concurrency: int = 1,
+    command: Literal["evaluate", "run"] = "evaluate",
+    resume: bool = False,
 ) -> EvaluationOutcome:
     """Run evaluation between its phase lines ``started`` and ``completed``, and convert
-    expected input errors to a CLI exit."""
-    events = PhaseEventLog.for_experiment_dir(experiment_dir)
+    expected input errors to a CLI exit.
+
+    A resume of an evaluation whose ``results.json`` is readable has nothing to do: it
+    prints ``nothing to resume`` and returns the outcome of the saved trial files
+    without writing any file, the logs included. Otherwise the ``started`` line counts
+    the trials already evaluated as done.
+    """
+    from metis.engine.evaluation.trial_files import load_trial_evaluations
+
     trials = [path.parent.name for path in _trial_record_files(experiment_dir)]
-    events.emit("evaluating", "started", total=len(trials), done=0)
+    results_path = experiment_dir / execution_layout.RESULTS
+    if resume and _evaluation_is_complete(experiment_dir):
+        console.print("nothing to resume")
+        return _evaluation_outcome(
+            list(load_trial_evaluations(experiment_dir, trials).values()), results_path
+        )
+    events = PhaseEventLog.for_experiment_dir(experiment_dir)
+    done = len(load_trial_evaluations(experiment_dir, trials)) if resume else 0
+    events.emit("evaluating", "started", total=len(trials), done=done)
     try:
         outcome = _run_evaluation(
             experiment_dir,
@@ -1662,6 +1735,8 @@ def _run_evaluation_command(
             verbose=verbose,
             quiet=quiet,
             concurrency=concurrency,
+            command=command,
+            resume=resume,
         )
     except EvaluationInputError as exc:
         EvaluationLogger(experiment_dir / execution_layout.LOGS, reset=False).write(
@@ -1762,6 +1837,11 @@ def evaluate(
     concurrency: int = typer.Option(
         1, "--concurrency", "-c", min=1, help="Max concurrent sessions"
     ),
+    resume: bool = typer.Option(
+        False,
+        "--resume",
+        help="Continue the evaluation in --experiment-dir; skip trials already evaluated",
+    ),
 ) -> None:
     """Evaluate one simulation output directory."""
     try:
@@ -1769,14 +1849,18 @@ def evaluate(
     except EvaluationInputError:
         raise typer.Exit(code=1) from None
     console.print(f"Selected experiment: {resolved_experiment_dir}")
+    # A resume of a finished evaluation says "nothing to resume", which already covers it.
+    nothing_to_resume = resume and _evaluation_is_complete(resolved_experiment_dir)
     outcome = _run_evaluation_command(
         resolved_experiment_dir,
         langfuse_timeout=langfuse_timeout,
         verbose=verbose,
         quiet=quiet,
         concurrency=concurrency,
+        command="evaluate",
+        resume=resume,
     )
-    if outcome.total_records == 0:
+    if outcome.total_records == 0 and not nothing_to_resume:
         console.print("nothing to evaluate")
     _print_evaluation_summary(resolved_experiment_dir, outcome, pipeline=False)
 
@@ -1849,6 +1933,8 @@ def run(
             verbose=verbose,
             quiet=quiet,
             concurrency=concurrency,
+            command="run",
+            resume=resume,
         )
     except Exception:
         _print_handoff(output_dir, command="run")

@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from metis.core import execution_layout
 from metis.core.trials import TrialConfig, TrialOutcome, TrialRecord
 from metis.engine import cli
 from metis.engine.cli import app
@@ -249,6 +250,65 @@ def test_resume_all_complete_is_noop(monkeypatch, tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "nothing to resume" in result.output
+
+
+def _write_evaluation_outputs(output_dir: Path) -> list[Path]:
+    paths = [
+        output_dir / execution_layout.RESULTS,
+        output_dir / execution_layout.EVALUATION / "x.json",
+        output_dir / execution_layout.TRACES / "x.json",
+    ]
+    for path in paths:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{}")
+    return paths
+
+
+def test_a_resume_that_reruns_a_trial_clears_the_evaluation(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output_dir = _write_output(
+        tmp_path / "experiments" / "execute" / "test-exp-20260101-010101",
+        TWO_TRIAL_EXPERIMENT,
+    )
+    (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
+    _write_record(output_dir, "TC-001-alice-1", "goal_achieved")
+    _write_record(output_dir, "TC-001-alice-2", "system_error")
+    evaluation_paths = _write_evaluation_outputs(output_dir)
+    log_path = output_dir / execution_layout.LOGS / "engine.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text("log")
+    monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
+    monkeypatch.setattr(experiment_module, "execute_experiment", lambda *_a, **_k: None)
+
+    result = runner.invoke(
+        app,
+        ["simulate", "--resume", "--experiment-dir", str(output_dir), "--no-tui"],
+    )
+
+    assert result.exit_code == 0
+    assert [path.exists() for path in evaluation_paths] == [False, False, False]
+    assert log_path.read_text() == "log"
+
+
+def test_a_resume_with_nothing_to_redo_keeps_the_evaluation(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output_dir = _write_output(
+        tmp_path / "experiments" / "execute" / "test-exp-20260101-010101"
+    )
+    (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
+    _write_record(output_dir, "TC-001-alice-1")
+    evaluation_paths = _write_evaluation_outputs(output_dir)
+    monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
+
+    result = runner.invoke(
+        app,
+        ["simulate", "--resume", "--experiment-dir", str(output_dir), "--no-tui"],
+    )
+
+    assert result.exit_code == 0
+    assert [path.exists() for path in evaluation_paths] == [True, True, True]
 
 
 def test_resume_directory_without_inputs_snapshot_exits_one(tmp_path: Path) -> None:

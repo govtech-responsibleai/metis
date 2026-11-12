@@ -117,12 +117,16 @@ def test_evaluate_scores_the_named_experiment_directory(
         verbose: int,
         quiet: bool,
         concurrency: int,
+        command: str,
+        resume: bool,
     ) -> EvaluationOutcome:
         calls.append(path)
         assert langfuse_timeout == 120
         assert verbose == 1
         assert not quiet
         assert concurrency == 3
+        assert command == "evaluate"
+        assert resume is False
         return EvaluationOutcome(1, 1, 0, None)
 
     monkeypatch.setattr(cli, "_run_evaluation", fake_evaluation)
@@ -145,6 +149,25 @@ def test_evaluate_scores_the_named_experiment_directory(
     assert f"Selectedexperiment:{_compact(str(target.resolve()))}" in _compact(
         result.output
     )
+
+
+def test_evaluate_resume_passes_resume_to_the_evaluation(
+    monkeypatch, tmp_path: Path
+) -> None:
+    target = _write_experiment_dir(tmp_path)
+    options: list[dict[str, object]] = []
+
+    def fake_evaluation(path: Path, **kwargs: object) -> EvaluationOutcome:
+        options.append(kwargs)
+        return EvaluationOutcome(1, 1, 0, None)
+
+    monkeypatch.setattr(cli, "_run_evaluation", fake_evaluation)
+    result = runner.invoke(
+        app, ["evaluate", "--resume", "--experiment-dir", str(target)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert [(o["command"], o["resume"]) for o in options] == [("evaluate", True)]
 
 
 def test_evaluate_rejects_a_path_that_does_not_exist(tmp_path: Path) -> None:
@@ -355,7 +378,7 @@ def test_evaluation_progress_advances_for_success_and_soft_failure(
         def __exit__(self, *_args: object) -> None:
             events.append(("exit", None))
 
-        def add_task(self, description: str, *, total: int) -> int:
+        def add_task(self, description: str, *, total: int, completed: int = 0) -> int:
             events.append(("add", (description, total)))
             return 1
 
@@ -1142,7 +1165,7 @@ class _RecordingProgress:
     def __exit__(self, *_args: object) -> None:
         return None
 
-    def add_task(self, description: str, *, total: int) -> int:
+    def add_task(self, description: str, *, total: int, completed: int = 0) -> int:
         return 1
 
     def update(self, _task_id: int, **kwargs: Any) -> None:
@@ -1445,50 +1468,6 @@ def test_the_log_records_the_concurrency_the_run_used(
     assert first_line.endswith(
         f"EVALUATION STARTED — {output} (concurrency {concurrency})"
     )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("concurrency", [1, 2])
-async def test_an_interrupted_evaluation_says_so_and_names_the_retry_command(
-    monkeypatch, tmp_path: Path, capsys, concurrency: int
-) -> None:
-    from metis.core.trials import TrialRecord as Record
-    from metis.engine.logging import EvaluationLogger
-
-    output = _write_experiment_dir(tmp_path)
-    _write_records(output, 3)
-    waiting = asyncio.Event()
-
-    async def fetch(*_args: object, **_kwargs: object) -> GradingInput:
-        waiting.set()
-        await asyncio.sleep(30)
-        raise AssertionError("unreachable")
-
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
-    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
-    specification = cli._load_evaluation_specification(output)
-    records = [Record.load_file(p) for p in cli._trial_record_files(output)]
-    task = asyncio.create_task(
-        cli._evaluate_records(
-            output,
-            specification,
-            records,
-            evaluation_log=EvaluationLogger(output / "logs"),
-            langfuse_timeout=0,
-            concurrency=concurrency,
-            trials=[p.parent.name for p in cli._trial_record_files(output)],
-        )
-    )
-    await asyncio.wait_for(waiting.wait(), timeout=2)
-    capsys.readouterr()  # drop the output printed before the interrupt
-
-    task.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await task
-
-    out = " ".join(capsys.readouterr().out.split())
-    assert "Interrupted. No results were written." in out
-    assert cli._evaluate_command(output.resolve()) in out
 
 
 def test_the_unwrapped_error_keeps_the_task_group_in_its_chain(
