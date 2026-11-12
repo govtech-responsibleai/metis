@@ -2,12 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import PurePosixPath
-from typing import TYPE_CHECKING
+from pathlib import Path, PurePosixPath
 from urllib.parse import quote
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 EXECUTIONS = PurePosixPath("experiments/execute")
 INPUTS = PurePosixPath("inputs")
@@ -23,6 +19,19 @@ TRACES = PurePosixPath("outputs/traces")
 LOGS = PurePosixPath("logs")
 EVENTS_FILE = "events.jsonl"
 """File name of the event log inside ``LOGS``: one ``PhaseEvent`` per line."""
+
+
+def find_project_root(cwd: Path | None = None) -> Path:
+    """Find the default project folder, which holds ``experiments/``.
+
+    It is the nearest folder at or above ``cwd`` that has a `pyproject.toml`, else ``cwd``.
+    ``cwd`` defaults to the working directory.
+    """
+    current = cwd or Path.cwd()
+    for parent in [current, *current.parents]:
+        if (parent / "pyproject.toml").exists():
+            return parent
+    return current
 
 
 def trace_file_name(session_id: str) -> str:

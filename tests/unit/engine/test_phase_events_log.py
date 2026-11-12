@@ -153,7 +153,7 @@ def _input_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     input_dir = tmp_path / "input"
     input_dir.mkdir()
     (input_dir / "specification.yaml").write_text(SPECIFICATION)
-    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "project")
+    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "project")
     return input_dir
 
 
@@ -320,7 +320,7 @@ def test_a_failed_phase_gives_its_reason_and_skips_the_later_phase(
     (input_dir / "specification.yaml").write_text(
         SPECIFICATION.replace(FACTORY, f"{__name__}.UnboundRunnerFactory")
     )
-    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "project")
+    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "project")
 
     events = _run(tmp_path, "--input-dir", str(input_dir), exit_code=1)
 

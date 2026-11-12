@@ -22,6 +22,7 @@ from rich.progress import BarColumn, MofNCompleteColumn, Progress, TaskID, TextC
 
 from metis.core import execution_layout
 from metis.core.console import console
+from metis.core.execution_layout import find_project_root
 from metis.core.phase_events import INTERRUPTED_REASON, Phase, PhaseEventLog
 from metis.engine import __version__
 from metis.engine.logging import (
@@ -74,15 +75,6 @@ def main(
     pass
 
 
-def _find_project_root() -> Path:
-    """Walk up from CWD to find pyproject.toml."""
-    current = Path.cwd()
-    for parent in [current, *current.parents]:
-        if (parent / "pyproject.toml").exists():
-            return parent
-    return current
-
-
 ProjectDirOption = Annotated[
     Path | None,
     typer.Option(
@@ -104,7 +96,7 @@ def _project_root(project_dir: Path | None) -> Path:
     finds it from the working directory.
     """
     if project_dir is None:
-        return _find_project_root()
+        return find_project_root()
     resolved = project_dir.expanduser().resolve()
     if not resolved.is_dir():
         console.print(

@@ -161,7 +161,7 @@ def test_run_zero_simulation_records_exits_one(monkeypatch, tmp_path: Path) -> N
         evaluation_called = True
         raise AssertionError("evaluation should not run")
 
-    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "project")
+    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "project")
     monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
     monkeypatch.setattr(experiment_module, "execute_experiment", lambda *_a, **_k: None)
     monkeypatch.setattr(cli, "_run_evaluation", fail_if_evaluated)

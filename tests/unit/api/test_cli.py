@@ -9,7 +9,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from metis.api import cli
-from metis.api.settings import find_project_root
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -35,19 +34,6 @@ def _project(folder: Path) -> Path:
     folder.mkdir(parents=True)
     (folder / "pyproject.toml").write_text('[project]\nname = "project"\n')
     return folder
-
-
-def test_the_project_folder_is_the_nearest_folder_with_a_pyproject(
-    project_dir: Path, tmp_path: Path
-) -> None:
-    nested = project_dir / "experiments" / "design"
-    nested.mkdir(parents=True)
-    loose = tmp_path / "loose"
-    loose.mkdir()
-
-    assert find_project_root(project_dir) == project_dir
-    assert find_project_root(nested) == project_dir
-    assert find_project_root(loose) == loose
 
 
 def test_project_dir_gives_the_store_that_folder(

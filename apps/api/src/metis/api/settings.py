@@ -17,10 +17,10 @@ from __future__ import annotations
 import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
 
 from metis.api.store import DATABASE
+from metis.core.execution_layout import find_project_root
 from metis.core.model_settings import (
     ModelRole,
     RoleSettings,
@@ -30,6 +30,9 @@ from metis.core.model_settings import (
     resolve_role,
 )
 from metis.wizard import InterviewRequest, InterviewResult
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 API_ROLES = (ModelRole.INTERVIEW,)
 """The roles that the API cannot run an Interview without."""
@@ -51,18 +54,6 @@ _LOCAL_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 DATABASE_URL_ENV = "METIS_DATABASE_URL"
 """The SQLAlchemy URL of the store database. The default is
 `sqlite:///<project>/experiments/metis.db`."""
-
-
-def find_project_root(cwd: Path | None = None) -> Path:
-    """The default project folder: the nearest folder at or above ``cwd`` that has a
-    `pyproject.toml`, else ``cwd``. ``cwd`` defaults to the working directory."""
-    # The same rule as `metis.engine.cli._find_project_root`, so the API and
-    # `metis engine simulate` find the same project. The API does not import the engine.
-    current = cwd or Path.cwd()
-    for parent in [current, *current.parents]:
-        if (parent / "pyproject.toml").exists():
-            return parent
-    return current
 
 
 def connection_check_from_env() -> bool:
@@ -179,5 +170,4 @@ __all__ = [
     "WizardDependencies",
     "build_dependencies",
     "connection_check_from_env",
-    "find_project_root",
 ]
