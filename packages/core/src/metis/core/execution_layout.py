@@ -16,6 +16,8 @@ REPORTS = PurePosixPath("outputs/reports")
 RESULTS = REPORTS / "results.json"
 TRACES = PurePosixPath("outputs/traces")
 """Folder of the traces `evaluate` saved, one file per session, named by `trace_file_name`."""
+EVALUATION = PurePosixPath("outputs/evaluation")
+"""Folder of each trial's evaluation outcome, private to the engine; one file per trial, named by `evaluation_file_name`."""
 LOGS = PurePosixPath("logs")
 EVENTS_FILE = "events.jsonl"
 """File name of the event log inside ``LOGS``: one ``PhaseEvent`` per line."""
@@ -37,6 +39,11 @@ def find_project_root(cwd: Path | None = None) -> Path:
 def trace_file_name(session_id: str) -> str:
     """The file name of a session's saved traces. Percent-encoded, so no id can name a path."""
     return quote(session_id, safe="") + ".json"
+
+
+def evaluation_file_name(trial: str) -> str:
+    """The file name of a trial's evaluation outcome. Percent-encoded, so no id can name a path."""
+    return quote(trial, safe="") + ".json"
 
 
 def experiment_root_from_results(results_file: Path) -> Path:

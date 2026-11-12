@@ -333,3 +333,11 @@ def test_cli_rejects_results_without_grader_records(experiment: Path) -> None:
     assert result.exit_code == 1
     assert "turn_results" in result.output
     assert not (experiment.parent / "report.json").exists()
+
+
+def test_report_reads_results_with_no_records(tmp_path: Path) -> None:
+    path = write_experiment(tmp_path / "experiment", [])
+    EvaluationResults(run_id="report", records=[]).save(path)
+    result = CliRunner().invoke(app, ["report", "--results-file", str(path)])
+    assert result.exit_code == 0, result.output
+    assert Report.model_validate_json((path.parent / "report.json").read_text())
