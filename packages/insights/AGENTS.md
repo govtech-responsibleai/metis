@@ -7,7 +7,8 @@ See root [AGENTS.md](../../AGENTS.md) for monorepo-wide instructions.
 Report generation for evaluation outputs. `metis insights report --results-file <path>`
 reads core `EvaluationResults` from `outputs/reports/results.json` and produces the
 terminal passed/failed/skipped/errored summary plus `outputs/reports/report.json` and
-`outputs/reports/report.html`.
+`outputs/reports/report.html`. The API calls `ensure_report` for
+the same files. The API holds no report rules.
 
 ## Dependency rule
 
@@ -23,6 +24,8 @@ errors separate from target failures and skips.
 
 - `cli.py` — the Typer app (`metis insights …`)
 - `report.py` — `format_terminal_summary`, `save_report`
+- `report.py` also holds `ensure_report`, which builds the report of an experiment folder on
+  request.
 - `_report.py` — `build_report`, `load_report_sources` (the behaviour/criterion rollup)
 - `_aggregation.py` — summary counts and the mean of children
 - `_report_page.py`, `_report_styles.py` — the HTML page. `RENDER_SCRIPT` holds pure
