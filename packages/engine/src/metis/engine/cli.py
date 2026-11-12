@@ -829,8 +829,6 @@ def _simulate_in(
         if not redo_plan:
             console.print("nothing to resume")
             return experiment_dir
-        # a re-simulated trial must never be graded from the evaluation of its old run
-        _clear_evaluation_outputs(experiment_dir)
 
     from metis.engine.simulation.binding import TargetBindingError
     from metis.engine.simulation.runner_resolver import resolve_runner_factory
@@ -851,6 +849,11 @@ def _simulate_in(
         raise CommandFailed(str(exc)) from None
 
     trial_max_retries, trial_retry_delay_seconds = runner_factory.retry_defaults
+
+    if resume:
+        # a re-simulated trial must never be graded from the evaluation of its old run;
+        # this waits for the runner factory so a setup error leaves the evaluation intact
+        _clear_evaluation_outputs(experiment_dir)
 
     console.print(f"\n{'=' * 60}")
     console.print("  SIMULATION")
@@ -1752,7 +1755,9 @@ def _run_evaluation_command(
 
     A resume of an evaluation whose ``results.json`` is readable has nothing to do: it
     prints ``nothing to resume`` and returns the outcome of the saved trial files
-    without writing any file, the logs included. Otherwise the ``started`` line counts
+    without writing any file, the logs included. Under ``run``, whose simulating lines
+    are already in ``logs/events.jsonl``, it still writes the ``evaluating`` ``started``
+    and ``completed`` lines there and nothing else. Otherwise the ``started`` line counts
     the trials already evaluated as done.
     """
     from metis.engine.evaluation.trial_files import load_trial_evaluations
@@ -1761,9 +1766,13 @@ def _run_evaluation_command(
     results_path = experiment_dir / execution_layout.RESULTS
     if resume and _evaluation_is_complete(experiment_dir):
         console.print("nothing to resume")
-        return _evaluation_outcome(
-            list(load_trial_evaluations(experiment_dir, trials).values()), results_path
-        )
+        saved = load_trial_evaluations(experiment_dir, trials)
+        if command == "run":
+            # the run's simulating lines are already logged, so close its evaluating phase
+            events = PhaseEventLog.for_experiment_dir(experiment_dir)
+            events.emit("evaluating", "started", total=len(trials), done=len(saved))
+            events.emit("evaluating", "completed")
+        return _evaluation_outcome(list(saved.values()), results_path)
     events = PhaseEventLog.for_experiment_dir(experiment_dir)
     done = len(load_trial_evaluations(experiment_dir, trials)) if resume else 0
     events.emit("evaluating", "started", total=len(trials), done=done)

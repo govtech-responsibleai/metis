@@ -291,6 +291,31 @@ def test_a_resume_that_reruns_a_trial_clears_the_evaluation(
     assert log_path.read_text() == "log"
 
 
+def test_a_resume_whose_runner_cannot_be_built_keeps_the_evaluation(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output_dir = _write_output(
+        tmp_path / "experiments" / "execute" / "test-exp-20260101-010101",
+        _with_factory(
+            "tests.unit.engine.test_cli_simulate._FailingSpecFactory",
+            TWO_TRIAL_EXPERIMENT,
+        ),
+    )
+    (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
+    _write_record(output_dir, "TC-001-alice-1", "goal_achieved")
+    _write_record(output_dir, "TC-001-alice-2", "system_error")
+    evaluation_paths = _write_evaluation_outputs(output_dir)
+    monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
+
+    result = runner.invoke(
+        app,
+        ["simulate", "--resume", "--experiment-dir", str(output_dir), "--no-tui"],
+    )
+
+    assert result.exit_code == 1
+    assert [path.exists() for path in evaluation_paths] == [True, True, True]
+
+
 def test_a_resume_with_nothing_to_redo_keeps_the_evaluation(
     monkeypatch, tmp_path: Path
 ) -> None:

@@ -46,7 +46,8 @@ fresh `evaluate`, which deletes the earlier evaluation outputs. The summary prin
 when any trial failed.
 
 If `results.json` already exists, the evaluation is finished: resume prints `nothing to resume`
-and changes nothing.
+and changes nothing. `run --resume` still adds the `evaluating` `started` and `completed` lines to
+`logs/events.jsonl` and writes nothing else.
 
 ## Grade several trials at once
 

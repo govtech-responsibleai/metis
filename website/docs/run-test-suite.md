@@ -49,7 +49,8 @@ failed with a system error. Do not combine `--resume` with `--input-dir`.
 
 If the resume re-runs at least one trial, it deletes the earlier evaluation
 (`outputs/evaluation/`, `outputs/traces/` and `results.json`), because the old grades no longer
-match. If there is nothing to re-run, it keeps them.
+match. It does this once the runner is built, so a setup error leaves them in place. If there is
+nothing to re-run, it keeps them.
 
 ## Simulate and evaluate together
 

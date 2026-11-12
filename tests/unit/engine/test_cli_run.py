@@ -310,3 +310,34 @@ def test_run_resume_that_resimulates_a_trial_grades_every_trial(
     assert result.exit_code == 0, result.output
     assert simulated == ["TC-001-alice-2"]
     assert sorted(call["session_id"] for call in calls) == ["session-1", "session-2"]
+
+
+def test_run_resume_with_nothing_left_to_evaluate_logs_the_evaluating_phase(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from tests.unit.engine.test_cli_evaluate import _patch_evaluation
+
+    output = _resumable_run(tmp_path, ["goal_achieved", "goal_achieved"])
+    simulated = _simulate_with_fake_experiment(monkeypatch, tmp_path)
+    _patch_evaluation(monkeypatch)
+    done = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
+    assert done.exit_code == 0, done.output
+    kept = [*(output / "outputs").rglob("*"), output / "logs" / "evaluate.log"]
+    kept = {path: path.read_bytes() for path in kept if path.is_file()}
+
+    result = runner.invoke(
+        app, ["run", "--resume", "--experiment-dir", str(output), "--no-tui"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert simulated == []
+    lines = [
+        json.loads(line)
+        for line in (output / "logs" / "events.jsonl").read_text().splitlines()
+    ]
+    assert [(line["phase"], line["status"]) for line in lines[-2:]] == [
+        ("evaluating", "started"),
+        ("evaluating", "completed"),
+    ]
+    assert (lines[-2]["total"], lines[-2]["done"]) == (2, 2)
+    assert {path: path.read_bytes() for path in kept} == kept
