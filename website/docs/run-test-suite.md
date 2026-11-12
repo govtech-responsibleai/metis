@@ -47,6 +47,10 @@ Give both flags together. Resume reads the specification from the frozen `inputs
 output folder, not from your source folder, and it retries only the trials that are missing or
 failed with a system error. Do not combine `--resume` with `--input-dir`.
 
+If the resume re-runs at least one trial, it deletes the earlier evaluation
+(`outputs/evaluation/`, `outputs/traces/` and `results.json`), because the old grades no longer
+match. If there is nothing to re-run, it keeps them.
+
 ## Simulate and evaluate together
 
 `metis engine run` does both steps, and also takes `--resume --experiment-dir`:
@@ -55,6 +59,10 @@ failed with a system error. Do not combine `--resume` with `--input-dir`.
 metis engine run --input-dir my-evaluation
 metis engine run --resume --experiment-dir experiments/execute/<your-run>
 ```
+
+`run --resume` resumes the simulation as above, then the grading as in
+[Resume a stopped evaluation](run-graders.md#resume-a-stopped-evaluation). A run that stopped
+during grading keeps the trials it already graded.
 
 ## Other options
 

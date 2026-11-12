@@ -26,7 +26,27 @@ metis engine evaluate --experiment-dir experiments/execute/<your-run>
 ```
 
 `simulate` prints this command with your path. The folder must hold the frozen `inputs/` copy
-that `simulate` made. Running `evaluate` again on the same folder overwrites the earlier results.
+that `simulate` made. Running `evaluate` again on the same folder starts over: once the setup
+checks pass, it deletes the earlier evaluation and grades every trial. `logs/events.jsonl` is kept.
+
+## Resume a stopped evaluation
+
+If an evaluation stops before all trials are graded, continue the same folder:
+
+```bash
+metis engine evaluate --resume --experiment-dir experiments/execute/<your-run>
+```
+
+Resume skips every trial that is already evaluated, grades the rest, and prints
+`resuming: K of N trials already evaluated`. A trial is evaluated once it was graded or failed,
+for example when it had no session id or Langfuse had no traces for it.
+
+Resume does not retry failed trials or criteria that errored. To grade every trial again, run a
+fresh `evaluate`, which deletes the earlier evaluation outputs. The summary prints that command
+when any trial failed.
+
+If `results.json` already exists, the evaluation is finished: resume prints `nothing to resume`
+and changes nothing.
 
 ## Grade several trials at once
 
@@ -48,8 +68,10 @@ With more than one trial at a time, the output changes in four ways:
 - The progress bar reads `Evaluation — K running`, where K is the number of trials being graded.
   The steps of each trial are in `logs/evaluate.log`.
 - Each warning starts with `RECORD i/total` and the trial's persona and scenario.
-- Press Ctrl-C to stop every trial. No `results.json` is written, and the log ends with
-  `EVALUATION INTERRUPTED`.
+- Press Ctrl-C to stop every trial. The trials that finished are saved, no `results.json` is
+  written, and the log ends with `EVALUATION INTERRUPTED`. The message gives the
+  `evaluate --resume` command to continue. Trials still running are lost: at most the number
+  you passed to `--concurrency`.
 
 `results.json` lists the results in the same order whatever order the trials finish in.
 
@@ -72,9 +94,18 @@ check the keys in `.env` and the [troubleshooting table](set-up-observability.md
 
 ## Outputs
 
-`evaluate` writes `outputs/reports/results.json` in the experiment folder, and the log of the
-latest evaluation to `logs/evaluate.log`. A trial that cannot be graded is marked failed with the
-reason, and the other trials are still graded.
+`evaluate` writes `outputs/reports/results.json` in the experiment folder, and the log to
+`logs/evaluate.log`. A trial that cannot be graded is marked failed with the reason, and the other
+trials are still graded.
+
+`outputs/evaluation/` holds one file per trial, written when that trial's evaluation ends. These
+files are private to METIS; `results.json` is the file to read. METIS writes `results.json` last,
+from every trial's file, and only once every trial was attempted, even if every trial failed.
+Its presence means the evaluation is finished.
+
+The grading time in the report, and `latency_seconds` and `timings.evaluation_seconds` in
+`results.json`, count the time during which at least one trial was being graded. Trials that
+overlap count once, and the pause between an interrupted evaluation and its resume counts zero.
 
 ## Next step
 
