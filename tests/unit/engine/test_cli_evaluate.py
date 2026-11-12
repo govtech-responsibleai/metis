@@ -17,6 +17,11 @@ from metis.core.traces import GradingInput, Observation, SessionTraces, Trace
 from metis.core.trials import GraderRef, TrialConfig, TrialOutcome, TrialRecord
 from metis.engine import cli
 from metis.engine.cli import EvaluationOutcome, app
+from metis.engine.evaluation.trial_files import (
+    grading_seconds,
+    load_trial_evaluations,
+    trial_evaluation_path,
+)
 from metis.engine.extractor.langfuse import (
     OpenObservation,
     TracesNotReadyError,
@@ -118,12 +123,16 @@ def test_evaluate_scores_the_named_experiment_directory(
         verbose: int,
         quiet: bool,
         concurrency: int,
+        command: str,
+        resume: bool,
     ) -> EvaluationOutcome:
         calls.append(path)
         assert trace_wait == TraceWaitSettings(timeout_seconds=120)
         assert verbose == 1
         assert not quiet
         assert concurrency == 3
+        assert command == "evaluate"
+        assert resume is False
         return EvaluationOutcome(1, 1, 0, None)
 
     monkeypatch.setattr(cli, "_run_evaluation", fake_evaluation)
@@ -146,6 +155,25 @@ def test_evaluate_scores_the_named_experiment_directory(
     assert f"Selectedexperiment:{_compact(str(target.resolve()))}" in _compact(
         result.output
     )
+
+
+def test_evaluate_resume_passes_resume_to_the_evaluation(
+    monkeypatch, tmp_path: Path
+) -> None:
+    target = _write_experiment_dir(tmp_path)
+    options: list[dict[str, object]] = []
+
+    def fake_evaluation(path: Path, **kwargs: object) -> EvaluationOutcome:
+        options.append(kwargs)
+        return EvaluationOutcome(1, 1, 0, None)
+
+    monkeypatch.setattr(cli, "_run_evaluation", fake_evaluation)
+    result = runner.invoke(
+        app, ["evaluate", "--resume", "--experiment-dir", str(target)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert [(o["command"], o["resume"]) for o in options] == [("evaluate", True)]
 
 
 def test_evaluate_rejects_a_path_that_does_not_exist(tmp_path: Path) -> None:
@@ -322,16 +350,18 @@ def _compact_spaces(text: str) -> str:
     return " ".join(text.split())
 
 
-def test_evaluation_with_no_successful_records_writes_no_results(
+def test_an_evaluation_where_every_trial_fails_writes_empty_results(
     monkeypatch, tmp_path: Path
 ) -> None:
     output = _write_experiment_dir(tmp_path)
     _write_record(output)
+    _patch_evaluation(monkeypatch)
+    runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
     _patch_evaluation(monkeypatch, traces=0)
 
     result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 0, result.output
     assert "WARNING: RECORD 1/1 alice x task-1 — no traces in Langfuse" in (
         _compact_spaces(result.output)
     )
@@ -339,26 +369,28 @@ def test_evaluation_with_no_successful_records_writes_no_results(
         "FAILED — no traces in Langfuse"
         in (output / "logs" / "evaluate.log").read_text()
     )
-    assert not (output / "outputs" / "reports" / "results.json").exists()
-    assert "metisinsightsreport" not in _compact(result.output)
+    results_file = output.resolve() / "outputs" / "reports" / "results.json"
+    assert EvaluationResults.load_file(results_file).records == []
+    command = shlex.join(
+        ["metis", "insights", "report", "--results-file", str(results_file)]
+    )
+    assert _compact(f"Report: {command}") in _compact(result.output)
+    assert _compact(
+        f"Grade every trial again: {cli._evaluate_command(output.resolve())}"
+    ) in _compact(result.output)
 
 
-def test_reevaluation_with_no_successes_removes_stale_results(
+def test_the_summary_names_no_retry_command_when_nothing_failed(
     monkeypatch, tmp_path: Path
 ) -> None:
     output = _write_experiment_dir(tmp_path)
     _write_record(output)
     _patch_evaluation(monkeypatch)
-    runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
-    assert (output / "outputs" / "reports" / "results.json").exists()
-    _patch_evaluation(monkeypatch, traces=0)
 
     result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
 
-    assert result.exit_code == 0
-    # A results file from an earlier evaluation must not outlive one that scored
-    # nothing, or `metis insights report` would re-stamp stale scores as current.
-    assert not (output / "outputs" / "reports" / "results.json").exists()
+    assert result.exit_code == 0, result.output
+    assert "Grade every trial again" not in result.output
 
 
 def test_report_command_keeps_square_brackets_in_paths(
@@ -395,7 +427,7 @@ def test_evaluation_progress_advances_for_success_and_soft_failure(
         def __exit__(self, *_args: object) -> None:
             events.append(("exit", None))
 
-        def add_task(self, description: str, *, total: int) -> int:
+        def add_task(self, description: str, *, total: int, completed: int = 0) -> int:
             events.append(("add", (description, total)))
             return 1
 
@@ -968,14 +1000,15 @@ async def test_evaluate_one_returns_the_graded_records(
     result = await cli._evaluate_one(
         record,
         number=1,
-        trial="trial-1",
         context=context,
         phase=lambda name, **_: phases.append(name),
+        trial="task-1-alice-1",
     )
 
     assert result.failure_reason is None
     assert [r.criterion_id for r in result.records] == ["AC-1-1"]
     assert phases == ["extracting", "evaluating", "done"]
+    assert trial_evaluation_path(experiment_dir, "task-1-alice-1").exists()
 
 
 @pytest.mark.asyncio
@@ -993,14 +1026,15 @@ async def test_evaluate_one_returns_a_failure_instead_of_raising(
     result = await cli._evaluate_one(
         record,
         number=1,
-        trial="trial-1",
         context=context,
         phase=lambda name, **_: phases.append(name),
+        trial="task-1-alice-1",
     )
 
     assert result.failure_reason == "trace unavailable"
     assert result.records == []
     assert phases[-1] == "failed"
+    assert trial_evaluation_path(experiment_dir, "task-1-alice-1").exists()
 
 
 @pytest.mark.asyncio
@@ -1015,11 +1049,16 @@ async def test_evaluate_one_fails_a_record_without_a_session_id(
     record = _trial_record(experiment_dir, session_id=None)
 
     result = await cli._evaluate_one(
-        record, number=1, trial="trial-1", context=context, phase=lambda name, **_: None
+        record,
+        number=1,
+        context=context,
+        phase=lambda name, **_: None,
+        trial="task-1-alice-1",
     )
 
     assert result.failure_reason == "No target_session_id"
     assert result.records == []
+    assert trial_evaluation_path(experiment_dir, "task-1-alice-1").exists()
 
 
 # --- concurrent evaluation: --concurrency N sessions in flight at once --------------------
@@ -1195,9 +1234,9 @@ async def test_records_that_cannot_be_graded_leave_the_running_count_at_zero(
         result = await cli._evaluate_one(
             record,
             number=number,
-            trial=f"trial-{number}",
             context=context,
             phase=lambda name, **_: None,
+            trial=f"run-{number}",
         )
         assert result.failure_reason is not None
         assert context.running.value == 0
@@ -1220,7 +1259,7 @@ class _RecordingProgress:
     def __exit__(self, *_args: object) -> None:
         return None
 
-    def add_task(self, description: str, *, total: int) -> int:
+    def add_task(self, description: str, *, total: int, completed: int = 0) -> int:
         return 1
 
     def update(self, _task_id: int, **kwargs: Any) -> None:
@@ -1449,9 +1488,9 @@ async def test_cancelling_a_session_returns_the_running_count_to_zero(
         cli._evaluate_one(
             record,
             number=1,
-            trial="trial-1",
             context=context,
             phase=lambda name, **_: None,
+            trial="task-1-alice-1",
         )
     )
     await asyncio.wait_for(started.wait(), timeout=2)
@@ -1461,6 +1500,7 @@ async def test_cancelling_a_session_returns_the_running_count_to_zero(
         await task
 
     assert context.running.value == 0
+    assert not trial_evaluation_path(experiment_dir, "task-1-alice-1").exists()
 
 
 @pytest.mark.parametrize("value", ["0", "-1"])
@@ -1525,51 +1565,6 @@ def test_the_log_records_the_concurrency_the_run_used(
     )
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("concurrency", [1, 2])
-async def test_an_interrupted_evaluation_says_so_and_names_the_retry_command(
-    monkeypatch, tmp_path: Path, capsys, concurrency: int
-) -> None:
-    from metis.core.trials import TrialRecord as Record
-    from metis.engine.logging import EvaluationLogger
-
-    output = _write_experiment_dir(tmp_path)
-    _write_records(output, 3)
-    waiting = asyncio.Event()
-
-    async def fetch(*_args: object, **_kwargs: object) -> GradingInput:
-        waiting.set()
-        await asyncio.sleep(30)
-        raise AssertionError("unreachable")
-
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
-    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
-    specification = cli._load_evaluation_specification(output)
-    trial_records = [
-        (p.parent.name, Record.load_file(p)) for p in cli._trial_record_files(output)
-    ]
-    task = asyncio.create_task(
-        cli._evaluate_records(
-            output,
-            specification,
-            trial_records,
-            evaluation_log=EvaluationLogger(output / "logs"),
-            trace_wait=TraceWaitSettings(timeout_seconds=90),
-            concurrency=concurrency,
-        )
-    )
-    await asyncio.wait_for(waiting.wait(), timeout=2)
-    capsys.readouterr()  # drop the output printed before the interrupt
-
-    task.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await task
-
-    out = " ".join(capsys.readouterr().out.split())
-    assert "Interrupted. No results were written." in out
-    assert cli._evaluate_command(output.resolve()) in out
-
-
 def test_the_unwrapped_error_keeps_the_task_group_in_its_chain(
     monkeypatch, tmp_path: Path
 ) -> None:
@@ -1608,3 +1603,169 @@ def test_an_empty_bar_description_is_used_as_given() -> None:
     )
 
     assert bar.descriptions == [""]
+
+
+# --- per-trial evaluation files and the results assembled from them ----------------------
+
+
+def test_each_trial_writes_its_evaluation_file(monkeypatch, tmp_path: Path) -> None:
+    from datetime import timedelta
+
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 2)
+
+    async def fetch(session_id: str, *_args: object, **_kwargs: object) -> GradingInput:
+        if session_id == "session-2":
+            raise RuntimeError("trace unavailable")
+        return _session(session_id)
+
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+
+    result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
+
+    assert result.exit_code == 0, result.output
+    loaded = load_trial_evaluations(output, ["run-01", "run-02"])
+    assert list(loaded) == ["run-01", "run-02"]
+    assert loaded["run-01"].failure_reason is None
+    assert [r.criterion_id for r in loaded["run-01"].records] == ["AC-1-1"]
+    assert loaded["run-02"].records == []
+    assert loaded["run-02"].failure_reason == "trace unavailable"
+    for evaluation in loaded.values():
+        assert evaluation.started_at <= evaluation.finished_at
+        assert evaluation.started_at.utcoffset() == timedelta(0)
+        assert evaluation.finished_at.utcoffset() == timedelta(0)
+
+
+def test_a_trial_file_is_written_only_when_its_evaluation_ends(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from metis.engine import evaluation
+
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 1)
+    _patch_evaluation(monkeypatch)
+    real_grade_session = evaluation.grade_session
+    seen_while_grading: list[bool] = []
+
+    async def grade_session(*args: Any, **kwargs: Any):
+        seen_while_grading.append(trial_evaluation_path(output, "run-01").exists())
+        return await real_grade_session(*args, **kwargs)
+
+    monkeypatch.setattr("metis.engine.evaluation.grade_session", grade_session)
+
+    _evaluate_directly(output, concurrency=1)
+
+    assert seen_while_grading == [False]
+    assert trial_evaluation_path(output, "run-01").exists()
+
+
+def test_results_are_assembled_from_the_trial_files_in_record_order(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 3)
+    delays = {"session-1": 0.15, "session-2": 0.08, "session-3": 0.0}
+
+    async def fetch(session_id: str, *_args: object, **_kwargs: object):
+        await asyncio.sleep(delays[session_id])
+        return _session(session_id)
+
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+
+    outcome = _evaluate_directly(output, concurrency=3)
+
+    evaluations = list(
+        load_trial_evaluations(output, ["run-01", "run-02", "run-03"]).values()
+    )
+    assert len(evaluations) == 3
+    assert outcome.results_file == output / "outputs" / "reports" / "results.json"
+    results = EvaluationResults.load_file(outcome.results_file)
+    assert results.records == [r for e in evaluations for r in e.records]
+    seconds = round(grading_seconds(evaluations), 1)
+    assert results.timings["evaluation_seconds"] == seconds
+    assert results.latency_seconds == (seconds or None)
+
+
+def test_a_fresh_evaluation_clears_old_outputs_before_its_first_trial(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_record(output)
+    stale = [
+        output / "outputs" / "reports" / "results.json",
+        output / "outputs" / "evaluation" / "old.json",
+        output / "outputs" / "traces" / "old.json",
+    ]
+    for path in stale:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{}")
+    events = output / "logs" / "events.jsonl"
+    events.parent.mkdir(parents=True, exist_ok=True)
+    earlier = '{"earlier": "line"}\n'
+    events.write_text(earlier)
+    present_at_first_fetch: list[list[bool]] = []
+
+    async def fetch(session_id: str, *_args: object, **_kwargs: object) -> GradingInput:
+        if not present_at_first_fetch:
+            present_at_first_fetch.append([path.exists() for path in stale])
+        return _session(session_id)
+
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
+
+    result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
+
+    assert result.exit_code == 0, result.output
+    assert present_at_first_fetch == [[False, False, False]]
+    assert events.read_text().startswith(earlier)
+
+
+@pytest.mark.parametrize("setup_error", ["no judge key", "unknown grader"])
+def test_a_setup_error_leaves_the_previous_evaluation_in_place(
+    monkeypatch, tmp_path: Path, setup_error: str
+) -> None:
+    for name in ("JUDGE_API_KEY", "OPENAI_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    fqn = (
+        f"{GRADERS}.EchoJudgeGrader"
+        if setup_error == "no judge key"
+        else "unavailable.module.Grader"
+    )
+    output = _write_experiment_dir(tmp_path, content=_spec_with(fqn))
+    _write_judge_record(output, fqn)
+    _patch_evaluation(monkeypatch)
+    previous = {
+        output / "outputs" / "reports" / "results.json": '{"previous": "results"}',
+        output / "outputs" / "evaluation" / "x.json": '{"previous": "trial"}',
+    }
+    for path, text in previous.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+
+    result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
+
+    assert result.exit_code == 1
+    assert {path: path.read_text() for path in previous} == previous
+
+
+def test_a_failed_trial_file_write_fails_the_evaluation(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_record(output)
+    _patch_evaluation(monkeypatch)
+
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        raise OSError("No space left on device")
+
+    monkeypatch.setattr(
+        "metis.engine.evaluation.trial_files.save_trial_evaluation", refuse
+    )
+
+    result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
+
+    assert result.exit_code == 1
+    assert "Error: evaluation failed: No space left on device" in result.output
+    assert not (output / "outputs" / "reports" / "results.json").exists()

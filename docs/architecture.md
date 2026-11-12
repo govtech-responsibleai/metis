@@ -219,7 +219,9 @@ working directory or the nearest folder above it that has a `pyproject.toml`. A 
 name stops with an error. `--resume` continues in the run folder that `--experiment-dir` names.
 A caller finds its runs by listing `experiments/execute/` in the project folder. Engine copies
 `--input-dir` into `inputs/`, writes trial records and artifacts under `outputs/trials/`,
-and writes evaluation results to `outputs/reports/results.json`. Insights reads the
+and writes evaluation results to `outputs/reports/results.json`. `outputs/evaluation/` is the
+engine-private record of attempted trials, one file per trial, and Engine writes `results.json`
+last, from those files, once every trial was attempted. Insights reads the
 same execution root and writes `report.json` and `report.html` beside the results.
 Insights reads recorded `GraderRecord` results and rejects the earlier `turn_results` and
 `session_results` format. It uses recorded Criterion IDs and arguments without creating graders.
