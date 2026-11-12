@@ -38,7 +38,7 @@ def _page_data(html: str) -> Report:
     return Report.model_validate(json.loads(match.group(1)))
 
 
-@pytest.mark.parametrize("route", ["report", "report/download"])
+@pytest.mark.parametrize("route", ["report", "report.html"])
 def test_an_experiment_without_results_has_no_report(
     client: TestClient, make_experiment: MakeExperiment, route: str
 ) -> None:
@@ -159,16 +159,32 @@ def test_report_generation_methods_match(
     assert cli.exit_code == 0, cli.output
 
     report = client.get(f"/api/v1/experiments/{experiment_dir.name}/report")
-    download = client.get(f"/api/v1/experiments/{experiment_dir.name}/report/download")
+    page = client.get(f"/api/v1/experiments/{experiment_dir.name}/report.html")
 
     assert report.status_code == 200
     assert report.content == (copy / execution_layout.REPORT_JSON).read_bytes()
-    assert download.status_code == 200
-    assert download.headers["content-type"].startswith("text/html")
-    assert download.headers["content-disposition"] == (
-        f'attachment; filename="{experiment_dir.name}-report.html"'
+    assert page.status_code == 200
+    assert page.headers["content-type"].startswith("text/html")
+    assert page.content == (copy / execution_layout.REPORT_HTML).read_bytes()
+
+
+@pytest.mark.parametrize(
+    ("route", "content_type"),
+    [("report", "application/json"), ("report.html", "text/html")],
+)
+def test_both_report_formats_are_inline_with_their_file_name(
+    client: TestClient, make_experiment: MakeExperiment, route: str, content_type: str
+) -> None:
+    experiment_dir = make_experiment()
+
+    response = client.get(f"/api/v1/experiments/{experiment_dir.name}/{route}")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith(content_type)
+    extension = route.removeprefix("report") or ".json"
+    assert response.headers["content-disposition"] == (
+        f'inline; filename="{experiment_dir.name}-report{extension}"'
     )
-    assert download.content == (copy / execution_layout.REPORT_HTML).read_bytes()
 
 
 # The client resolves a literal ".." before it sends the request; "%2E%2E" reaches the

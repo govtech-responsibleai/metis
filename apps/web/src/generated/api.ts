@@ -388,7 +388,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/experiments/{experiment_id}/report/download": {
+    "/api/v1/experiments/{experiment_id}/report.html": {
         parameters: {
             query?: never;
             header?: never;
@@ -396,11 +396,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Download the HTML report of an experiment
-         * @description Return report.html of the experiment as an attachment, the same file as
-         *     `metis insights report` writes.
+         * Get the HTML report page of an experiment
+         * @description Return report.html of the experiment, the same page as `metis insights report` writes.
+         *     The report is built when it is missing or older than results.json.
          */
-        get: operations["download_experiment_report_api_v1_experiments__experiment_id__report_download_get"];
+        get: operations["experiment_report_page_api_v1_experiments__experiment_id__report_html_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3955,7 +3955,7 @@ export interface operations {
             };
         };
     };
-    download_experiment_report_api_v1_experiments__experiment_id__report_download_get: {
+    experiment_report_page_api_v1_experiments__experiment_id__report_html_get: {
         parameters: {
             query?: never;
             header?: never;

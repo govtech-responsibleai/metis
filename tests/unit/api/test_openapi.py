@@ -36,7 +36,7 @@ def test_the_route_table_is_exactly_health_catalogues_wizard_store_and_report_ro
         "/api/v1/wizard/interview/end",
         "/api/v1/wizard/compile",
         "/api/v1/experiments/{experiment_id}/report",
-        "/api/v1/experiments/{experiment_id}/report/download",
+        "/api/v1/experiments/{experiment_id}/report.html",
     }
 
 

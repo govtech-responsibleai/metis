@@ -64,8 +64,8 @@ _OPENAPI_TAGS = [
     {
         "name": "reports",
         "description": (
-            "Read the report of an experiment folder in the project folder, or download "
-            "its HTML report. An experiment with no results.json returns 409 "
+            "Read the report of an experiment folder in the project folder, as JSON or "
+            "as the HTML report page. An experiment with no results.json returns 409 "
             "results_missing."
         ),
     },

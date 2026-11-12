@@ -205,8 +205,8 @@ browser uses it for the download.
 
 The report routes read the experiment folders under `<project folder>/experiments/execute/`.
 The project folder is the one that `metis-api --project-dir` names, or the default project
-folder that the store also uses. An experiment id is an experiment
-folder name. The routes return the report of an experiment and its `report.html` as a download.
+folder that the store also uses. An experiment id is an experiment folder name. The routes
+return the report of an experiment as `report.json` and as `report.html`, both inline.
 They call `metis.insights.ensure_report`, so the API holds no report rules. An experiment
 with no `results.json` gives 409 `results_missing`.
 

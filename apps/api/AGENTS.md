@@ -101,7 +101,7 @@ src/metis/api/
 ├── main.py            the app composition root: /health, routers, the store, and error handlers
 ├── routes/graders.py  read-only installed grader catalogue route
 ├── routes/models.py   read-only model role status route
-├── routes/reports.py  experiment report and report download routes
+├── routes/reports.py  experiment report routes, as JSON and as the HTML page
 ├── routes/wizard.py   client config, Interview lifecycle, compile, and package routes
 ├── routes/targets.py  store routes for Interview records and files
 ├── records.py         the wire models of the store routes
@@ -130,11 +130,12 @@ variables, the `.env` path, and the model guide path in the message.
 The report routes find an experiment id among the folder names in
 `<project folder>/experiments/execute/`, so an id cannot name another path.
 `GET /api/v1/experiments/{experiment_id}/report` returns `report.json`, and
-`GET /api/v1/experiments/{experiment_id}/report/download` returns `report.html` as an attachment.
-Both call `metis.insights.ensure_report`, which builds the files when they are missing or older
-than `results.json`. An unknown id gives 404 `experiment_not_found`. An experiment with no
-`results.json` gives 409 `results_missing`, and an experiment whose report cannot be built gives
-409 `report_build_failed`.
+`GET /api/v1/experiments/{experiment_id}/report.html` returns `report.html`. Both are the same
+report in two formats. Both responses are inline, with the file name in `Content-Disposition`, so a
+client that wants a file saves the response. Both call `metis.insights.ensure_report`, which builds
+the files when they are missing or older than `results.json`. An unknown id gives 404
+`experiment_not_found`. An experiment with no `results.json` gives 409 `results_missing`, and an
+experiment whose report cannot be built gives 409 `report_build_failed`.
 
 `GET /api/v1/wizard/config` returns package-owned opening copy, working status, and perspective
 definitions from the public wizard facade. The API transports this text but does not own or copy it.

@@ -4,6 +4,9 @@ An experiment id is the name of an experiment folder under
 ``<project folder>/experiments/execute/``. The routes find the folder among the names in that
 directory, so an id can never name another path. metis-insights builds the reports. These
 routes hold no report rules.
+
+``/report`` returns report.json and ``/report.html`` returns report.html. Both are the same
+report, and both responses are inline. A client that wants a file saves the response.
 """
 
 from __future__ import annotations
@@ -63,6 +66,11 @@ def _report_files(request: Request, experiment_id: str) -> ReportFiles | JSONRes
         return _failure(409, "report_build_failed", str(exc))
 
 
+def _inline(filename: str) -> str:
+    """Name the file for a client that saves the response."""
+    return f'inline; filename="{filename}"'
+
+
 @router.get(
     "/{experiment_id}/report",
     summary="Get the report of an experiment",
@@ -75,12 +83,16 @@ def experiment_report(experiment_id: str, request: Request) -> Response:
     files = _report_files(request, experiment_id)
     if isinstance(files, JSONResponse):
         return files
-    return Response(files.json.read_bytes(), media_type="application/json")
+    return Response(
+        files.json.read_bytes(),
+        media_type="application/json",
+        headers={"Content-Disposition": _inline(f"{experiment_id}-report.json")},
+    )
 
 
 @router.get(
-    "/{experiment_id}/report/download",
-    summary="Download the HTML report of an experiment",
+    "/{experiment_id}/report.html",
+    summary="Get the HTML report page of an experiment",
     response_class=Response,
     responses={
         200: {
@@ -90,18 +102,16 @@ def experiment_report(experiment_id: str, request: Request) -> Response:
         **_RESPONSES,
     },
 )
-def download_experiment_report(experiment_id: str, request: Request) -> Response:
-    """Return report.html of the experiment as an attachment, the same file as
-    `metis insights report` writes."""
+def experiment_report_page(experiment_id: str, request: Request) -> Response:
+    """Return report.html of the experiment, the same page as `metis insights report` writes.
+    The report is built when it is missing or older than results.json."""
     files = _report_files(request, experiment_id)
     if isinstance(files, JSONResponse):
         return files
     return Response(
         files.html.read_bytes(),
         media_type="text/html",
-        headers={
-            "Content-Disposition": f'attachment; filename="{experiment_id}-report.html"'
-        },
+        headers={"Content-Disposition": _inline(f"{experiment_id}-report.html")},
     )
 
 
