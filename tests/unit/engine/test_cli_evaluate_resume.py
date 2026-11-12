@@ -22,6 +22,8 @@ from metis.engine.evaluation.trial_files import (
     save_trial_evaluation,
     trial_evaluation_path,
 )
+from metis.engine.extractor import TraceWaitSettings
+from metis.engine.extractor.langfuse import NO_TRACES
 from tests.unit.engine.test_cli_evaluate import (
     _patch_evaluation,
     _session,
@@ -85,7 +87,7 @@ def _fetched(calls: list[dict[str, Any]]) -> list[str]:
 def _evaluate(output: Path, *, resume: bool, concurrency: int = 1):
     return cli._run_evaluation(
         output,
-        langfuse_timeout=0,
+        trace_wait=TraceWaitSettings(timeout_seconds=90),
         verbose=0,
         quiet=False,
         concurrency=concurrency,
@@ -137,11 +139,13 @@ async def test_an_interrupted_run_saves_finished_trials_and_resume_grades_only_t
         cli._evaluate_records(
             output,
             cli._load_evaluation_specification(output),
-            [TrialRecord.load_file(p) for p in cli._trial_record_files(output)],
+            [
+                (p.parent.name, TrialRecord.load_file(p))
+                for p in cli._trial_record_files(output)
+            ],
             evaluation_log=EvaluationLogger(output / "logs"),
-            langfuse_timeout=0,
+            trace_wait=TraceWaitSettings(timeout_seconds=90),
             concurrency=concurrency,
-            trials=trials,
         )
     )
     await asyncio.wait_for(waiting.wait(), timeout=2)
@@ -217,7 +221,7 @@ def test_resume_counts_failures_from_before_the_interrupt(
         output,
         "run-01",
         session_id="session-1",
-        failure_reason="No traces found in Langfuse",
+        failure_reason=NO_TRACES,
     )
     calls = _patch_evaluation(monkeypatch)
 
@@ -501,10 +505,12 @@ async def test_the_interrupt_message_names_the_resume_command(
         cli._evaluate_records(
             output,
             cli._load_evaluation_specification(output),
-            [TrialRecord.load_file(p) for p in cli._trial_record_files(output)],
+            [
+                (p.parent.name, TrialRecord.load_file(p))
+                for p in cli._trial_record_files(output)
+            ],
             evaluation_log=log,
-            langfuse_timeout=0,
-            trials=["run-01", "run-02", "run-03"],
+            trace_wait=TraceWaitSettings(timeout_seconds=90),
             command=command,  # type: ignore[arg-type]
         )
     )

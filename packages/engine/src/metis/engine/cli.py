@@ -52,6 +52,7 @@ if TYPE_CHECKING:
     from metis.core.traces import Trace
     from metis.core.trials import TrialRecord
     from metis.engine.evaluation.trial_files import TrialEvaluation
+    from metis.engine.extractor import TraceWait, TraceWaitSettings
     from metis.engine.simulation.experiment import TrialPlanItem
     from metis.engine.simulation.types import Specification
     from metis.library.grader import Grader, LLMSettings
@@ -138,6 +139,18 @@ def _load_env() -> Path | None:
     try:
         return load_env()
     except ModelSettingsError as exc:
+        console.print(f"Error: {exc}", style="bold red", markup=False)
+        raise typer.Exit(code=1) from None
+
+
+def _trace_wait_settings(langfuse_timeout: int) -> TraceWaitSettings:
+    """Read the trace wait from ``--langfuse-timeout`` and ``.env``, or stop when it is invalid."""
+    from metis.engine import extractor
+
+    _load_env()
+    try:
+        return extractor.TraceWaitSettings.from_env(langfuse_timeout)
+    except ValueError as exc:
         console.print(f"Error: {exc}", style="bold red", markup=False)
         raise typer.Exit(code=1) from None
 
@@ -1092,6 +1105,26 @@ def _log_grader_records(
     evaluation_log.write(f"GRADER RESULTS — record={record_label} count={count}")
 
 
+def _log_trace_wait(
+    evaluation_log: EvaluationLogger, wait: TraceWait, *, record_label: str
+) -> None:
+    """Write how long one trial waited for its traces, and warn about open observations."""
+    evaluation_log.write(
+        f"TRACE WAIT: record={record_label} status={wait.status} "
+        f"checks={wait.checks} waited={wait.waited_seconds:.1f}s"
+    )
+    if not wait.open_observations:
+        return
+    names = ", ".join(f"{o.name or 'unnamed'} ({o.id})" for o in wait.open_observations)
+    console.print(
+        f"  WARNING: {len(wait.open_observations)} observation(s) never ended, "
+        f"graded as stored: {names}",
+        style="yellow",
+        markup=False,
+    )
+    evaluation_log.write(f"OPEN OBSERVATIONS: record={record_label} ids={names}")
+
+
 def _save_session_traces(
     experiment_dir: Path,
     session_id: str,
@@ -1124,7 +1157,7 @@ def _save_session_traces(
 def _run_evaluation(
     experiment_dir: Path,
     *,
-    langfuse_timeout: int,
+    trace_wait: TraceWaitSettings,
     verbose: int,
     quiet: bool,
     concurrency: int = 1,
@@ -1158,26 +1191,26 @@ def _run_evaluation(
         return EvaluationOutcome(0, 0, 0, None)
 
     try:
-        records: list[TrialRecord] = [TrialRecord.load_file(path) for path in files]
+        trial_records = [
+            (path.parent.name, TrialRecord.load_file(path)) for path in files
+        ]
     except Exception as exc:
         console.print(f"Error: failed to load trial record: {exc}", style="bold red")
         raise EvaluationInputError("failed to load trial record") from exc
 
-    console.print(f"  Loaded {len(records)} trial record(s)")
-    evaluation_log.write(f"LOADED {len(records)} trial record(s)")
-    trials = [path.parent.name for path in files]
+    console.print(f"  Loaded {len(trial_records)} trial record(s)")
+    evaluation_log.write(f"LOADED {len(trial_records)} trial record(s)")
     events = PhaseEventLog.for_experiment_dir(experiment_dir)
     return asyncio.run(
         _evaluate_records(
             experiment_dir,
             specification,
-            records,
+            trial_records,
             evaluation_log=evaluation_log,
-            langfuse_timeout=langfuse_timeout,
+            trace_wait=trace_wait,
             concurrency=concurrency,
             env_file=env_file,
             events=events,
-            trials=trials,
             command=command,
             resume=resume,
         )
@@ -1209,7 +1242,7 @@ class _EvaluationContext:
     graders: dict[str, Grader[Any]]
     llm: LLMSettings
     langfuse: Langfuse
-    langfuse_timeout: int
+    trace_wait: TraceWaitSettings
     evaluation_log: EvaluationLogger
     total_records: int
     concurrency: int
@@ -1360,15 +1393,19 @@ async def _fetch_and_grade(
             return _RecordResult([], "No target_session_id")
         if not criteria:
             return _RecordResult([], "No grader_refs in run config")
-        grading_input = await extractor.fetch_session(
-            session_id,
-            context.langfuse,
-            experiment_root=experiment_dir,
-            artifacts=record.artifacts,
-            retry_timeout=context.langfuse_timeout,
-        )
-        if not grading_input.traces:
-            return _RecordResult([], "No traces found in Langfuse")
+        waits: list[TraceWait] = []
+        try:
+            grading_input = await extractor.fetch_session(
+                session_id,
+                context.langfuse,
+                experiment_root=experiment_dir,
+                artifacts=record.artifacts,
+                settings=context.trace_wait,
+                on_wait=waits.append,
+            )
+        finally:
+            if waits:
+                _log_trace_wait(log, waits[-1], record_label=label)
         _save_session_traces(experiment_dir, session_id, grading_input.traces, log)
         log.write(f"{record_name} — EVALUATING")
         for criterion in criteria:
@@ -1403,6 +1440,8 @@ async def _fetch_and_grade(
         )
         _log_grader_records(log, session_records, record_label=label)
         return _RecordResult(session_records, None)
+    except extractor.TracesNotReadyError as exc:
+        return _RecordResult([], str(exc))
     except Exception as exc:
         return _RecordResult([], str(exc), warning=f"Evaluation failed: {exc}")
 
@@ -1410,13 +1449,12 @@ async def _fetch_and_grade(
 async def _evaluate_records(
     experiment_dir: Path,
     specification: Specification,
-    records: list[TrialRecord],
+    trial_records: list[tuple[str, TrialRecord]],
     *,
     evaluation_log: EvaluationLogger,
-    langfuse_timeout: int,
+    trace_wait: TraceWaitSettings,
     concurrency: int = 1,
     env_file: Path | None = None,
-    trials: list[str],
     events: PhaseEventLog | None = None,
     command: Literal["evaluate", "run"] = "evaluate",
     resume: bool = False,
@@ -1427,8 +1465,8 @@ async def _evaluate_records(
     A criterion graded in many trials shares one grader. One judge client
     is opened for the whole evaluation, and only when some criterion's grader needs one.
 
-    ``trials`` names the trial folder of each record, in the same order. Once the
-    graders are built and the judge key is checked, a fresh evaluation removes the
+    Each record comes with the name of its trial folder, and the trial files and the
+    events name the trial by that folder. Once the graders are built and the judge key is checked, a fresh evaluation removes the
     previous evaluation's outputs. A resume removes only ``results.json`` and keeps
     every trial that already has an evaluation file, whether it succeeded or failed;
     only the other trials are graded. Each graded trial writes its evaluation file as
@@ -1497,6 +1535,7 @@ async def _evaluate_records(
 
     from metis.engine.evaluation.trial_files import load_trial_evaluations
 
+    trials = [trial for trial, _ in trial_records]
     results_path = experiment_dir / execution_layout.RESULTS
     if resume:
         results_path.unlink(missing_ok=True)
@@ -1518,7 +1557,7 @@ async def _evaluate_records(
         with progress if progress else nullcontext():
             task_id = (
                 progress.add_task(
-                    "Evaluation", total=len(records), completed=len(attempted)
+                    "Evaluation", total=len(trial_records), completed=len(attempted)
                 )
                 if progress
                 else None
@@ -1529,9 +1568,9 @@ async def _evaluate_records(
                 graders=graders,
                 llm=llm,
                 langfuse=langfuse,
-                langfuse_timeout=langfuse_timeout,
+                trace_wait=trace_wait,
                 evaluation_log=evaluation_log,
-                total_records=len(records),
+                total_records=len(trial_records),
                 concurrency=concurrency,
                 semaphore=asyncio.Semaphore(concurrency),
                 running=_RunningCount(),
@@ -1547,7 +1586,7 @@ async def _evaluate_records(
                         progress,
                         task_id,
                         record_number=number,
-                        total_records=len(records),
+                        total_records=len(trial_records),
                         label=label,
                         phase=name,
                         advance=advance,
@@ -1569,13 +1608,13 @@ async def _evaluate_records(
                         _evaluate_one(
                             record,
                             number=index + 1,
-                            trial=trials[index],
+                            trial=trial,
                             context=context,
                             phase=phase_for(index + 1, _record_label(record)),
                         )
                     )
-                    for index, record in enumerate(records)
-                    if trials[index] not in attempted
+                    for index, (trial, record) in enumerate(trial_records)
+                    if trial not in attempted
                 ]
             evaluations = [task.result() for task in tasks]
 
@@ -1701,7 +1740,7 @@ def _evaluation_is_complete(experiment_dir: Path) -> bool:
 def _run_evaluation_command(
     experiment_dir: Path,
     *,
-    langfuse_timeout: int,
+    trace_wait: TraceWaitSettings,
     verbose: int,
     quiet: bool,
     concurrency: int = 1,
@@ -1731,7 +1770,7 @@ def _run_evaluation_command(
     try:
         outcome = _run_evaluation(
             experiment_dir,
-            langfuse_timeout=langfuse_timeout,
+            trace_wait=trace_wait,
             verbose=verbose,
             quiet=quiet,
             concurrency=concurrency,
@@ -1826,7 +1865,9 @@ def evaluate(
         ),
     ),
     langfuse_timeout: int = typer.Option(
-        90, "--langfuse-timeout", help="Seconds to wait for Langfuse traces"
+        90,
+        "--langfuse-timeout",
+        help="Seconds to wait for each trial's Langfuse traces to be ready",
     ),
     verbose: int = typer.Option(
         0, "--verbose", "-v", count=True, help="Increase logging verbosity"
@@ -1851,9 +1892,10 @@ def evaluate(
     console.print(f"Selected experiment: {resolved_experiment_dir}")
     # A resume of a finished evaluation says "nothing to resume", which already covers it.
     nothing_to_resume = resume and _evaluation_is_complete(resolved_experiment_dir)
+    trace_wait = _trace_wait_settings(langfuse_timeout)
     outcome = _run_evaluation_command(
         resolved_experiment_dir,
-        langfuse_timeout=langfuse_timeout,
+        trace_wait=trace_wait,
         verbose=verbose,
         quiet=quiet,
         concurrency=concurrency,
@@ -1878,7 +1920,9 @@ def run(
         help="Simulation output directory to resume; needs --resume",
     ),
     langfuse_timeout: int = typer.Option(
-        90, "--langfuse-timeout", help="Seconds to wait for Langfuse traces"
+        90,
+        "--langfuse-timeout",
+        help="Seconds to wait for each trial's Langfuse traces to be ready",
     ),
     verbose: int = typer.Option(
         0, "--verbose", "-v", count=True, help="Increase logging verbosity"
@@ -1912,6 +1956,7 @@ def run(
     project_dir: ProjectDirOption = None,
 ) -> None:
     """Run simulation followed by evaluation."""
+    trace_wait = _trace_wait_settings(langfuse_timeout)
     output_dir = _run_simulation(
         input_dir,
         experiment_dir,
@@ -1929,7 +1974,7 @@ def run(
     try:
         outcome = _run_evaluation_command(
             output_dir,
-            langfuse_timeout=langfuse_timeout,
+            trace_wait=trace_wait,
             verbose=verbose,
             quiet=quiet,
             concurrency=concurrency,

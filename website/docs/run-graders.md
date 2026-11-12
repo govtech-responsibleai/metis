@@ -77,18 +77,37 @@ With more than one trial at a time, the output changes in four ways:
 
 ## When traces are missing
 
-Langfuse can take time to show a trace after your application sends it. METIS waits for
-`--langfuse-timeout` seconds, 90 by default:
+To grade a trial, METIS needs to know when its traces are ready. Langfuse can take time to store
+them, so METIS waits before it grades the trial. Two settings control this wait.
+
+The **quiet window** is how long Langfuse must store nothing new for the trial. After the quiet
+window, METIS treats the traces as complete and grades them. The default is 30 seconds. Set it in
+`.env`:
+
+```bash
+LANGFUSE_METIS_QUIET_SECONDS=60
+```
+
+The **timeout** is the longest time that METIS waits for each trial. If the traces are not ready
+when the timeout ends, the trial fails. The default is 90 seconds. Set it with
+`--langfuse-timeout`.
+
+The timeout must be at least as long as the quiet window. A trial that has just finished needs the
+full quiet window before METIS can grade it:
 
 ```bash
 metis engine evaluate --experiment-dir experiments/execute/<your-run> --langfuse-timeout 300
 ```
 
-Traces from older Langfuse Client SDKs can arrive several minutes late. If you see missing
-traces, upgrade the [Langfuse Client SDK](set-up-observability.md#langfuse-client-sdk) in your
-application first (Python `langfuse` 4.7.0 or later, JS/TS `@langfuse/*` 5.4.0 or later), and
-only then raise the timeout. A longer timeout hides the delay but does not remove it. Also
-check the keys in `.env` and the [troubleshooting table](set-up-observability.md#troubleshooting).
+If the traces are not ready in time, the trial fails with one of these reasons:
+
+- `no traces in Langfuse`: Langfuse returned no trace for the trial.
+- `traces still changing in Langfuse`: Langfuse kept storing new data until the time was up.
+
+Older Langfuse Client SDKs can send traces several minutes late. Upgrade the
+[Langfuse Client SDK](set-up-observability.md#langfuse-client-sdk) first (Python `langfuse` 4.7.0
+or later, JS/TS `@langfuse/*` 5.4.0 or later), and only then raise the timeout. Also check the
+keys in `.env` and the [troubleshooting table](set-up-observability.md#troubleshooting).
 
 `metis engine run` takes the same `--langfuse-timeout` option.
 
