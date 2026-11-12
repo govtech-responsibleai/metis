@@ -269,6 +269,104 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the Targets
+         * @description Return the Targets, newest first. A row that this version cannot read is a problem.
+         */
+        get: operations["list_targets_api_v1_targets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/targets/{target_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a Target
+         * @description Delete the saved Interview and its uploaded files.
+         */
+        delete: operations["delete_target_api_v1_targets__target_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/targets/{target_id}/interview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the Interview of a Target
+         * @description Return the record with its file references. Read each file from the files route.
+         */
+        get: operations["read_interview_api_v1_targets__target_id__interview_get"];
+        /**
+         * Save the Interview of a Target
+         * @description Save the record and the files that the store does not have yet.
+         *
+         *     The first save creates the Target. The `created_at` of the record tells one Interview from
+         *     another. Send the record as a file part that contains its JSON. When another Interview
+         *     already uses the id, the save gives 409 `target_exists` and changes nothing. Send each new
+         *     file as a part in the `files` field, with its record name as the filename. A fixture and a
+         *     file of a waiting answer are both files of the record. A reference to a file that is neither
+         *     in this request nor in the store gives 400. The store deletes the files of the Target that
+         *     the record no longer refers to.
+         *
+         *     The save keeps the complete Interview state. Compile and package are separate requests.
+         */
+        put: operations["put_interview_api_v1_targets__target_id__interview_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/targets/{target_id}/interview/files/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read one file of an Interview
+         * @description Return a file that the record refers to, as a download.
+         *
+         *     A client wrote the bytes and the type. The response is an attachment with `nosniff`, so a
+         *     browser that opens the address does not show the file as a page of this origin. A later save
+         *     can put other bytes under the same name, so a browser must not keep a copy.
+         */
+        get: operations["read_interview_file_api_v1_targets__target_id__interview_files__name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -430,6 +528,13 @@ export interface components {
             state?: string | null;
             /** Connection */
             connection?: string | null;
+        };
+        /** Body_put_interview_api_v1_targets__target_id__interview_put */
+        Body_put_interview_api_v1_targets__target_id__interview_put: {
+            /** Record */
+            record: string;
+            /** Files */
+            files?: string[] | null;
         };
         /**
          * CapabilityCategory
@@ -998,6 +1103,18 @@ export interface components {
             behaviours?: components["schemas"]["Behaviour"][];
         };
         /**
+         * FileRef
+         * @description One file of an Interview record. The store keeps the bytes on disk.
+         */
+        FileRef: {
+            /** Name */
+            name: string;
+            /** Type */
+            type: string;
+            /** Size */
+            size: number;
+        };
+        /**
          * FormChoice
          * @description One entry of a dropdown: the door shows `label` and sends `value`.
          *
@@ -1365,6 +1482,36 @@ export interface components {
             text: string;
         };
         /**
+         * InterviewRecord
+         * @description The web record of one Interview. Its id is the Target id.
+         *
+         *     The store validates `state` as an `InterviewState`. It keeps the transcript as opaque JSON
+         *     and reads from it only the file references in `outbound.files`. These are the files of an
+         *     answer that the wizard has not accepted yet. The store keeps all the files of the record in
+         *     one folder, by name. Each file of the record has its own name. Two names that differ only
+         *     by case are the same name.
+         */
+        InterviewRecord: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            stage: components["schemas"]["InterviewStep"];
+            /** Created At */
+            created_at: number;
+            /** Updated At */
+            updated_at: number;
+            /** Submission Revision */
+            submission_revision?: number | null;
+            state: components["schemas"]["InterviewState-Output"];
+            /** Transcript */
+            transcript: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
+            /** Fixtures */
+            fixtures: components["schemas"]["FileRef"][];
+        };
+        /**
          * InterviewStartRequest
          * @description The first operation, containing all opening evidence.
          */
@@ -1486,6 +1633,7 @@ export interface components {
             /** Response */
             response: components["schemas"]["ChatResponse"] | components["schemas"]["ChoiceResponse"] | components["schemas"]["FormResponse"];
         };
+        JsonValue: unknown;
         /**
          * JudgmentForm
          * @description Result forms that a grader can produce for one scope item.
@@ -1998,6 +2146,26 @@ export interface components {
             version?: string | null;
         };
         /**
+         * TargetList
+         * @description The Targets that the store can read, newest first, and the rows that it cannot read.
+         */
+        TargetList: {
+            /** Targets */
+            targets: components["schemas"]["TargetSummary"][];
+            /** Problems */
+            problems: components["schemas"]["TargetProblem"][];
+        };
+        /**
+         * TargetProblem
+         * @description A stored Interview that the store cannot read with the current version.
+         */
+        TargetProblem: {
+            /** Id */
+            id: string;
+            /** Message */
+            message: string;
+        };
+        /**
          * TargetProfile
          * @description The target context and requirements that an evaluation measures.
          */
@@ -2005,6 +2173,21 @@ export interface components {
             target: components["schemas"]["Target"];
             /** Features */
             features?: components["schemas"]["Feature"][];
+        };
+        /**
+         * TargetSummary
+         * @description One row of the Target list.
+         */
+        TargetSummary: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /**
          * Task
@@ -2611,6 +2794,286 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModelStatus"][];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    list_targets_api_v1_targets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TargetList"];
+                };
+            };
+        };
+    };
+    delete_target_api_v1_targets__target_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    read_interview_api_v1_targets__target_id__interview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewRecord"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    put_interview_api_v1_targets__target_id__interview_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_put_interview_api_v1_targets__target_id__interview_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    read_interview_file_api_v1_targets__target_id__interview_files__name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
                 };
             };
             /** @description Internal Server Error */

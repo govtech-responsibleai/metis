@@ -1,10 +1,12 @@
 """Process-wide settings and the production composition of the wizard dependencies.
 
-The app keeps immutable settings and model clients for the lifetime of the process. It keeps no
-user Specification, pending request, or Interview state — every lifecycle request carries the required
-state in its body. `build_dependencies` is the one place that constructs the real gateway-backed
-interviewer and matcher; tests inject a scripted pair instead through the router's dependency
-override.
+The app keeps immutable settings, model clients, and the store for the lifetime of the process.
+The wizard routes keep no Interview state. Each lifecycle request carries the required state in
+its body. The store routes keep the records of each Target in the database that
+``METIS_DATABASE_URL`` names, and their files in `experiments/design/` of the project folder.
+`metis-api --project-dir` names the project folder. `build_dependencies` is the one place that
+constructs the real gateway-backed interviewer and matcher; tests inject a scripted pair instead
+through the router's dependency override.
 
 The API starts when model settings are missing. Then `GET /api/v1/models` reports the missing
 roles, and each Interview route returns 503 `model_unavailable`.
@@ -15,8 +17,10 @@ from __future__ import annotations
 import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, TypeAlias
+from pathlib import Path
+from typing import TypeAlias
 
+from metis.api.store import DATABASE
 from metis.core.model_settings import (
     ModelRole,
     RoleSettings,
@@ -26,9 +30,6 @@ from metis.core.model_settings import (
     resolve_role,
 )
 from metis.wizard import InterviewRequest, InterviewResult
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 API_ROLES = (ModelRole.INTERVIEW,)
 """The roles that the API cannot run an Interview without."""
@@ -43,6 +44,22 @@ CONNECTION_CHECK_ENV = "METIS_API_CONNECTION_CHECK"
 the check is on only for an API that listens on this computer."""
 
 _LOCAL_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+DATABASE_URL_ENV = "METIS_DATABASE_URL"
+"""The SQLAlchemy URL of the store database. The default is
+`sqlite:///<project>/experiments/metis.db`."""
+
+
+def find_project_root(cwd: Path | None = None) -> Path:
+    """The default project folder: the nearest folder at or above ``cwd`` that has a
+    `pyproject.toml`, else ``cwd``. ``cwd`` defaults to the working directory."""
+    # The same rule as `metis.engine.cli._find_project_root`, so the API and
+    # `metis engine simulate` find the same project. The API does not import the engine.
+    current = cwd or Path.cwd()
+    for parent in [current, *current.parents]:
+        if (parent / "pyproject.toml").exists():
+            return parent
+    return current
 
 
 def connection_check_from_env() -> bool:
@@ -71,19 +88,35 @@ class Settings:
     listens on this computer. See ``connection_check_from_env``.
 
     ``env`` is a copy of the process environment, so it holds keys. ``repr`` leaves it out.
+    ``database_url`` can hold a password, so ``repr`` leaves it out too.
     """
 
     env: Mapping[str, str] = field(repr=False)
     env_file: Path | None = None
     connection_check: bool = False
+    project_dir: Path = field(default_factory=find_project_root)
+    database_url: str = field(default="", repr=False)
 
     @classmethod
-    def from_env(cls, env_file: Path | None = None) -> Settings:
-        """Take a copy of the process environment."""
+    def from_env(
+        cls, env_file: Path | None = None, project_dir: Path | None = None
+    ) -> Settings:
+        """Take a copy of the process environment.
+
+        ``project_dir`` comes from `metis-api --project-dir`. Without it, the project folder is
+        the one that ``find_project_root`` finds.
+        """
+        project_dir = (project_dir or find_project_root()).resolve()
+        database_url = (
+            os.environ.get(DATABASE_URL_ENV, "").strip()
+            or f"sqlite:///{project_dir / DATABASE}"
+        )
         return cls(
             env=dict(os.environ),
             env_file=env_file or find_env_file(),
             connection_check=connection_check_from_env(),
+            project_dir=project_dir,
+            database_url=database_url,
         )
 
     def role(self, role: ModelRole) -> RoleSettings:
@@ -135,10 +168,12 @@ def build_dependencies(settings: Settings) -> WizardDependencies:
 __all__ = [
     "API_ROLES",
     "CONNECTION_CHECK_ENV",
+    "DATABASE_URL_ENV",
     "InterviewHandler",
     "Settings",
     "SettingsError",
     "WizardDependencies",
     "build_dependencies",
     "connection_check_from_env",
+    "find_project_root",
 ]
