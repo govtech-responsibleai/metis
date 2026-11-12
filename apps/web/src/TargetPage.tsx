@@ -1,5 +1,6 @@
-// The tab row of a Target page, with the Run button on its right. Experiments and Run stay off
-// until the Interview is done, because only then does the Target have its Specification.
+// The tab row of a Target page, with the "Start a run" button on its right. Experiments and the
+// button stay off until the Interview is done, because only then does the Target have its
+// Specification.
 
 import { GitCompareArrows, Play } from "lucide-react";
 import { Link } from "wouter";
@@ -82,7 +83,7 @@ export function TargetTabs({
           onClick={onRun}
         >
           <Play size={14} strokeWidth={2} aria-hidden />
-          Run
+          Start a run
         </Button>
       </div>
     </div>
@@ -107,7 +108,7 @@ export function ExperimentsTab({
         </div>
         <Panel className="flex items-center justify-between gap-3 px-5 py-4 text-sm">
           <span>No experiments yet.</span>
-          <Button onClick={onRun}>Run</Button>
+          <Button onClick={onRun}>Start a run</Button>
         </Panel>
       </div>
     </div>

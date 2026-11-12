@@ -5,8 +5,8 @@ REST routes only. It does not import Python packages, read Python files, or read
 
 The app shell has the Target rail (`TargetRail.tsx`) and Target pages with two tabs
 (`TargetPage.tsx`). The Specification tab holds the Interview, its Profile pane, and for a new
-Target the opening screen with the manual form. The Experiments tab and the Run button stay off
-until the Interview is done. `src/routes.ts` owns every URL: build a path with `paths` and read
+Target the opening screen with the manual form. The Experiments tab and the "Start a run" button stay
+off until the Interview is done. The button opens the run dialog (`RunDialog.tsx`). `src/routes.ts` owns every URL: build a path with `paths` and read
 the current place with `placeOf`. Do not write a path string in a component. The router is
 `wouter` with the browser location. Render a routed component in a test inside
 `<Router ssrPath="...">`. The shell reads Targets through `src/targets.ts` only.

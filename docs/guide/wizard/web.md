@@ -80,8 +80,9 @@ A Target page has two tabs:
   opening screen.
 - **Experiments** lists the experiments of the Target. It is off until the Interview is done.
 
-**Run**, on the right of the tab row, starts an experiment. It is also off until the Interview
-is done. When you open a Target, the app shows Experiments for a done Interview and Specification
+**Start a run**, on the right of the tab row, opens a dialog with the run options: the number
+of trials at a time and the trace wait. **Start** in the dialog opens the experiment view. The
+button is also off until the Interview is done. When you open a Target, the app shows Experiments for a done Interview and Specification
 for one that is not done.
 
 Each page has its own address, so you can bookmark a Target or open it in another browser

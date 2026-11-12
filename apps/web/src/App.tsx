@@ -57,6 +57,8 @@ import {
 import { ProfileToolbar, YamlView, type ProfileMode } from "./ProfileToolbar";
 import { TargetRail, type RailSelection } from "./TargetRail";
 import { ExperimentsTab, TargetTabs } from "./TargetPage";
+import { RunDialog } from "./RunDialog";
+import { exportedSpecification } from "./export";
 import {
   AllExperimentsPage,
   ComparePage,
@@ -349,6 +351,7 @@ export function App() {
     ? specificationHasCriteria(view.specification)
     : false;
 
+  const [runOpen, setRunOpen] = useState(false);
   const [profileMode, setProfileMode] = useState<ProfileMode>("document");
   useEffect(() => {
     setShowGraders(false);
@@ -401,6 +404,7 @@ export function App() {
 
   // The record follows the Target of the URL. A change of tab inside one Target keeps it.
   useEffect(() => {
+    setRunOpen(false);
     setManualOpen(false);
     setConnectionStep(null);
     setRecord(null);
@@ -877,6 +881,17 @@ export function App() {
     />
   );
 
+      {runOpen && record && view?.done && (
+        <RunDialog
+          title={record.title}
+          specification={exportedSpecification(record.state)}
+          onCancel={() => setRunOpen(false)}
+          onStart={() => {
+            setRunOpen(false);
+            navigate(paths.experiment(record.id, NEW_EXPERIMENT));
+          }}
+        />
+      )}
   return (
     <div className="flex h-full w-full overflow-hidden">
       {railOpen ? (
@@ -918,10 +933,7 @@ export function App() {
                 : "specification"
             }
             done={view?.done ?? false}
-            onRun={() => {
-              if (targetId)
-                navigate(paths.experiment(targetId, NEW_EXPERIMENT));
-            }}
+            onRun={() => setRunOpen(true)}
           />
         )}
         {manualOpen && place.page === "new-target" ? (
@@ -977,9 +989,7 @@ export function App() {
           place.tab === "experiments" ? (
           <ExperimentsTab
             targetId={place.targetId}
-            onRun={() =>
-              navigate(paths.experiment(place.targetId, NEW_EXPERIMENT))
-            }
+            onRun={() => setRunOpen(true)}
           />
         ) : place.page === "experiment" && record ? (
           <ExperimentPage
