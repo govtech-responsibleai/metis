@@ -11,6 +11,7 @@ import {
 import {
   conversationScrollRevision,
   InitialDocumentPicker,
+  openedPath,
   OpeningConfigurationState,
   OpeningRoute,
   OpeningScreen,
@@ -111,6 +112,16 @@ const state = {
   issued_ids: [],
   pending: null,
 } as InterviewState;
+
+test("the first save opens the new Target only for the user still on its opening", () => {
+  assert.equal(
+    openedPath("/targets/new", 2, 2, "t1"),
+    "/targets/t1/specification",
+  );
+  assert.equal(openedPath("/", 2, 2, "t1"), "/targets/t1/specification");
+  assert.equal(openedPath("/targets/new", 3, 2, "t1"), null);
+  assert.equal(openedPath("/targets/other/specification", 2, 2, "t1"), null);
+});
 
 test("changes the conversation scroll revision only for new content", () => {
   const current = conversationScrollRevision("interview-1", 3, false);

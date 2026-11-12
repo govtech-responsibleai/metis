@@ -49,6 +49,18 @@ const VARIANTS: Record<Variant, string> = {
     "bg-transparent text-foreground border border-border hover:bg-muted active:bg-border",
 };
 
+// The look of a Button, for a link that must look like one.
+export function buttonClass(variant: Variant = "secondary", active = false) {
+  return cn(
+    "inline-flex items-center justify-center gap-2 rounded-md px-3 py-1.5",
+    "text-sm font-medium transition-colors duration-150",
+    "disabled:cursor-not-allowed disabled:opacity-45",
+    active
+      ? "border border-accent bg-accent/12 text-foreground"
+      : VARIANTS[variant],
+  );
+}
+
 export function Button({
   variant = "secondary",
   active = false,
@@ -57,18 +69,7 @@ export function Button({
   ...rest
 }: ButtonProps) {
   return (
-    <button
-      className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-md px-3 py-1.5",
-        "text-sm font-medium transition-colors duration-150",
-        "disabled:cursor-not-allowed disabled:opacity-45",
-        active
-          ? "border border-accent bg-accent/12 text-foreground"
-          : VARIANTS[variant],
-        className,
-      )}
-      {...rest}
-    >
+    <button className={cn(buttonClass(variant, active), className)} {...rest}>
       {children}
     </button>
   );

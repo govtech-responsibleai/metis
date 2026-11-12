@@ -10,7 +10,6 @@ import {
 } from "react";
 import { PanelLeft, PanelRight, Puzzle, X } from "lucide-react";
 import type {
-  InterviewSummary,
   LoadedInterviewRecord,
   CapabilityConfidence,
   CapabilityEvidence,
@@ -53,7 +52,7 @@ import {
 import { SpecificationView, stepPosition } from "./SpecificationView";
 import { InterviewRail } from "./InterviewRail";
 import { PaneDivider, useChatWidth } from "./pane-divider";
-import { Button, cn } from "./ui";
+import { Button, buttonClass, cn } from "./ui";
 import {
   CapabilityConfidencePicker,
   CapabilityPicker,
@@ -64,7 +63,6 @@ import {
   UnderBoxSurface,
 } from "./OpeningControls";
 import {
-  InterviewRepository,
   emptyRecord,
   addFixtures,
   fixturesForSpecification,
@@ -73,6 +71,15 @@ import {
   recordFiles,
   type StorageProblem,
 } from "./storage/repository";
+import {
+  deleteTarget,
+  interviewRepository,
+  listTargets,
+  readTarget,
+  type TargetSummary,
+} from "./targets";
+import { Link, useLocation } from "wouter";
+import { paths, placeOf, targetOf } from "./routes";
 import { admitFiles, type AdmittedFile } from "./fixture-policy";
 import { specificationHasCriteria } from "./graders";
 import { downloadArchive } from "./download";
@@ -83,11 +90,8 @@ import {
   startTranscript,
   toPresentation,
 } from "./wizard/transcript";
-
-import { TabNavigation, type TabEntry } from "./wizard/navigation";
 import { InterviewOperations, pendingEntry } from "./wizard/operations";
 
-const repository = new InterviewRepository();
 type WizardConfig = Awaited<ReturnType<typeof api.config>>;
 export type OpeningControl = "perspective" | "capabilities";
 type OpeningDocumentRead =
@@ -150,30 +154,44 @@ export function conversationScrollRevision(
   return `${interviewId ?? "opening"}:${requestCount}:${done ? "complete" : "active"}:${submission}`;
 }
 
+// The path to open when the first save of a new Interview finishes. A user who left that opening
+// stays where they went.
+export function openedPath(
+  currentPath: string,
+  currentOpening: number,
+  origin: number,
+  id: string,
+): string | null {
+  return placeOf(currentPath).page === "new-target" && currentOpening === origin
+    ? paths.target(id, "specification")
+    : null;
+}
+
 export function App() {
-  const [interviews, setInterviews] = useState<InterviewSummary[]>([]);
+  const [location, navigate] = useLocation();
+  const place = placeOf(location);
+  const targetId = targetOf(place);
+  const locationRef = useRef(location);
+  locationRef.current = location;
+  const targetRef = useRef(targetId);
+  targetRef.current = targetId;
+  const [targets, setTargets] = useState<TargetSummary[]>([]);
   const [storageProblems, setStorageProblems] = useState<
     readonly StorageProblem[]
   >([]);
   const [record, setRecord] = useState<LoadedInterviewRecord | null>(null);
-  const [destination, setDestination] = useState<TabEntry | null>(null);
-  const destinationRef = useRef<TabEntry | null>(null);
-  const navigation = useRef<TabNavigation | null>(null);
   const refreshListRef = useRef<() => Promise<void>>(async () => {});
   const [operations] = useState(
     () =>
-      new InterviewOperations(repository, (next) => {
-        const current = destinationRef.current?.destination;
-        if (current?.kind === "interview" && current.id === next.id)
-          setRecord(next);
+      new InterviewOperations(interviewRepository, (next) => {
+        if (targetRef.current === next.id) setRecord(next);
         void refreshListRef.current().catch(() => {});
       }),
   );
   useSyncExternalStore(operations.subscribe, operations.snapshot);
-  const operationKey =
-    destination?.destination.kind === "interview"
-      ? destination.destination.id
-      : `opening:${destination?.entry ?? "loading"}`;
+  // An opening is one visit to the opening screen. "New target" starts the next one.
+  const [opening, setOpening] = useState(0);
+  const operationKey = targetId ?? `opening:${opening}`;
   const busy = operations.active.has(operationKey);
   const feedback = operations.feedback.get(operationKey);
   const error = feedback?.message ?? null;
@@ -217,7 +235,6 @@ export function App() {
     useState<ConnectionCheckResult | null>(null);
 
   const [loadingRecord, setLoadingRecord] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const [railOpen, setRailOpen] = useState(true);
   const [chatWidth, setChatWidth] = useChatWidth();
   const panesRef = useRef<HTMLDivElement>(null);
@@ -340,52 +357,43 @@ export function App() {
   }, [loadWizardConfig]);
 
   const refreshList = useCallback(async () => {
-    setInterviews(await repository.list());
-    setStorageProblems([...repository.problems]);
+    const listed = await listTargets();
+    setTargets(listed.targets);
+    setStorageProblems(listed.problems);
   }, []);
 
   refreshListRef.current = refreshList;
   useEffect(() => {
-    let disposed = false;
-    const nav = new TabNavigation(window, (entry) => {
-      if (disposed) return;
-      destinationRef.current = entry;
-      setDestination(entry);
-      setManualOpen(false);
-      setConnectionStep(null);
-      setRecord(null);
-      setLoadingRecord(entry.destination.kind === "interview");
-      void (async () => {
-        try {
-          if (entry.destination.kind === "interview") {
-            const stored = await repository.read(entry.destination.id);
-            const next = stored
-              ? await operations.recover(
-                  operations.latest.get(stored.id) ?? stored,
-                )
-              : null;
-            if (!disposed && destinationRef.current?.entry === entry.entry)
-              setRecord(next);
-          }
-        } catch (cause) {
-          if (entry.destination.kind === "interview")
-            operations.report(entry.destination.id, errorMessage(cause));
-        } finally {
-          if (!disposed && destinationRef.current?.entry === entry.entry) {
-            setLoaded(true);
-            setLoadingRecord(false);
-          }
-        }
-      })();
-    });
-    navigation.current = nav;
     void refreshList().catch(() => {});
-    void nav.initialize();
+  }, [refreshList]);
+
+  // The record follows the Target of the URL. A change of tab inside one Target keeps it.
+  useEffect(() => {
+    setManualOpen(false);
+    setConnectionStep(null);
+    setRecord(null);
+    setLoadingRecord(targetId !== null);
+    if (targetId === null) return;
+    let current = true;
+    void (async () => {
+      try {
+        const target = await readTarget(targetId);
+        const next = target
+          ? await operations.recover(
+              operations.latest.get(target.id) ?? target.interview,
+            )
+          : null;
+        if (current) setRecord(next);
+      } catch (cause) {
+        operations.report(targetId, errorMessage(cause));
+      } finally {
+        if (current) setLoadingRecord(false);
+      }
+    })();
     return () => {
-      disposed = true;
-      nav.dispose();
+      current = false;
     };
-  }, [operations, refreshList]);
+  }, [targetId, operations]);
   useEffect(() => {
     if (!hasCriteria || graderRequest.current) return;
     setGraderState("loading");
@@ -400,12 +408,10 @@ export function App() {
     );
   }, [hasCriteria]);
 
-  const open = useCallback((id: string) => {
-    navigation.current?.go({ kind: "interview", id });
-  }, []);
   const startNew = useCallback(() => {
     openingGeneration.current += 1;
-    navigation.current?.go({ kind: "new" });
+    setOpening(openingGeneration.current);
+    setManualOpen(false);
     setOpeningControl(null);
     setPerspectiveSeen(false);
     setOpeningDescription("");
@@ -512,7 +518,7 @@ export function App() {
       connection: TargetConnection | null = null,
     ) => {
       if (busy) return;
-      const origin = destinationRef.current?.entry;
+      const origin = openingGeneration.current;
       const sent = new Date();
       await operations.run(operationKey, async () => {
         const limits =
@@ -571,19 +577,25 @@ export function App() {
         );
         const record = addFixtures(started, openingDocuments);
         const opened = async (saved: LoadedInterviewRecord) => {
-          if (origin) navigation.current?.started(origin, saved.id);
+          const path = openedPath(
+            locationRef.current,
+            openingGeneration.current,
+            origin,
+            saved.id,
+          );
+          if (path) navigate(path, { replace: true });
           await refreshList();
         };
         let saved: LoadedInterviewRecord;
         try {
-          saved = await putNew(repository, record, sent);
+          saved = await putNew(interviewRepository, record, sent);
         } catch (cause) {
           operations.report(
             operationKey,
             `The new Interview was not saved. ${errorMessage(cause)}`,
             () =>
               operations.run(operationKey, async () => {
-                await opened(await putNew(repository, record, sent));
+                await opened(await putNew(interviewRepository, record, sent));
               }),
           );
           return;
@@ -593,6 +605,7 @@ export function App() {
     },
     [
       busy,
+      navigate,
       operations,
       operationKey,
       openingDocuments,
@@ -785,19 +798,16 @@ export function App() {
     async (id: string) => {
       if (operations.active.has(id) || operations.pendingSaves.has(id)) return;
       try {
-        await repository.delete(id);
+        await deleteTarget(id);
         operations.latest.delete(id);
-        if (
-          destinationRef.current?.destination.kind === "interview" &&
-          destinationRef.current.destination.id === id
-        )
-          setRecord(null);
+        if (targetRef.current === id)
+          navigate(paths.newTarget(), { replace: true });
         await refreshList();
       } catch (cause) {
         operations.report(id, errorMessage(cause));
       }
     },
-    [operations, refreshList],
+    [navigate, operations, refreshList],
   );
 
   // Save the model names, if the user changed any, then start the download. With no change,
@@ -823,20 +833,21 @@ export function App() {
     });
   }, [record, runModelDrafts, operations, packageAndDownload, downloadCurrent]);
 
-  if (!loaded) return null;
-
   return (
     <div className="flex h-full w-full overflow-hidden">
       {railOpen ? (
         <InterviewRail
-          interviews={interviews}
+          interviews={targets}
           problems={storageProblems}
-          currentId={record?.id ?? null}
+          currentId={targetId}
           activeIds={
             new Set([...operations.active, ...operations.pendingSaves.keys()])
           }
-          onOpen={open}
-          onNew={startNew}
+          onOpen={(id) => navigate(paths.target(id, "specification"))}
+          onNew={() => {
+            startNew();
+            navigate(paths.newTarget());
+          }}
           onDelete={remove}
           onCollapse={() => setRailOpen(false)}
         />
@@ -890,14 +901,16 @@ export function App() {
             onSave={() => void saveConnection()}
             onCancel={() => setConnectionStep(null)}
           />
-        ) : view === null && destination?.destination.kind === "interview" ? (
+        ) : place.page === "not-found" || place.page === "experiments" ? (
+          <NotFound onNew={startNew} />
+        ) : view === null && targetId !== null ? (
           <div className="m-auto flex flex-col gap-4 p-8" role="status">
             <p>
               {loadingRecord
-                ? "Loading Interview…"
-                : "This Interview is unavailable. Choose an Interview from History or start a new evaluation."}
+                ? "Loading target…"
+                : "This Target is unavailable. Choose a Target from the list or make a new one."}
             </p>
-            <Button onClick={startNew}>New evaluation</Button>
+            <NewTargetLink onClick={startNew} />
           </div>
         ) : view === null ? (
           <OpeningRoute
@@ -1567,6 +1580,27 @@ export function InitialDocumentPicker({
         <p>Accepted file types: {fixtureExtensions.join(", ")}.</p>
         <p>File size: {limits.max_initial_bytes / 1_000_000} MB total.</p>
       </div>
+    </div>
+  );
+}
+
+function NewTargetLink({ onClick }: { onClick: () => void }) {
+  return (
+    <Link
+      href={paths.newTarget()}
+      onClick={onClick}
+      className={cn(buttonClass("primary"), "w-fit")}
+    >
+      New target
+    </Link>
+  );
+}
+
+function NotFound({ onNew }: { onNew: () => void }) {
+  return (
+    <div className="m-auto flex flex-col gap-4 p-8" role="status">
+      <p>This page does not exist.</p>
+      <NewTargetLink onClick={onNew} />
     </div>
   );
 }
