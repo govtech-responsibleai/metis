@@ -1,10 +1,10 @@
 // The tab row of a Target page, with the Run button on its right. Experiments and Run stay off
 // until the Interview is done, because only then does the Target have its Specification.
 
-import { Play } from "lucide-react";
+import { GitCompareArrows, Play } from "lucide-react";
 import { Link } from "wouter";
 import { paths, type TargetTab } from "./routes";
-import { Button, cn, Panel } from "./ui";
+import { Button, buttonClass, cn, Panel } from "./ui";
 
 export const LOCKED = "Finish the Interview first";
 
@@ -89,13 +89,27 @@ export function TargetTabs({
   );
 }
 
-export function ExperimentsTab({ onRun }: { onRun: () => void }) {
+export function ExperimentsTab({
+  targetId,
+  onRun,
+}: {
+  targetId: string;
+  onRun: () => void;
+}) {
   return (
     <div className="quiet-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-6">
-      <Panel className="flex items-center justify-between gap-3 px-5 py-4 text-sm">
-        <span>No experiments yet.</span>
-        <Button onClick={onRun}>Run</Button>
-      </Panel>
+      <div className="flex flex-col gap-4">
+        <div className="flex justify-end">
+          <Link href={paths.compare(targetId)} className={buttonClass()}>
+            <GitCompareArrows size={14} strokeWidth={2} aria-hidden />
+            Compare
+          </Link>
+        </div>
+        <Panel className="flex items-center justify-between gap-3 px-5 py-4 text-sm">
+          <span>No experiments yet.</span>
+          <Button onClick={onRun}>Run</Button>
+        </Panel>
+      </div>
     </div>
   );
 }

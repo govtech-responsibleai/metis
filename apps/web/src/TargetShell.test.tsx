@@ -3,6 +3,7 @@ import { test } from "node:test";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Router } from "wouter";
+import { ComparePage, ExperimentPage } from "./ExperimentPages";
 import { ProfileToolbar } from "./ProfileToolbar";
 import { ExperimentsTab, TargetTabs } from "./TargetPage";
 import { TargetRail } from "./TargetRail";
@@ -170,9 +171,60 @@ test("the YAML view and Download wait for the end of the Interview", () => {
   assert.doesNotMatch(control(markup, "Document"), /disabled=""/);
 });
 
-test("an empty Experiments tab offers Run", () => {
-  const markup = at("/", <ExperimentsTab onRun={() => {}} />);
+test("an empty Experiments tab offers Run and links to the comparison", () => {
+  const markup = at(
+    "/targets/a/experiments",
+    <ExperimentsTab targetId="a" onRun={() => {}} />,
+  );
 
   assert.match(markup, /No experiments yet\./);
   assert.match(runButton(markup), /^<button/);
+  assert.match(control(markup, "Compare"), /href="\/targets\/a\/compare"/);
+});
+
+test("an experiment links back to its Target and to its Trials and Report", () => {
+  const markup = at(
+    "/targets/a/experiments/new",
+    <ExperimentPage
+      targetId="a"
+      targetTitle="Bank bot"
+      experimentId="new"
+      tab="trials"
+    />,
+  );
+
+  assert.match(control(markup, "Bank bot"), /href="\/targets\/a\/experiments"/);
+  assert.match(tab(markup, "Trials"), /href="\/targets\/a\/experiments\/new"/);
+  assert.match(tab(markup, "Trials"), /aria-selected="true"/);
+  assert.match(
+    tab(markup, "Report"),
+    /href="\/targets\/a\/experiments\/new\/report"/,
+  );
+  assert.match(tab(markup, "Report"), /aria-selected="false"/);
+  assert.match(markup, /The trials of this experiment show here\./);
+});
+
+test("the Report tab of an experiment says what it will show", () => {
+  const markup = at(
+    "/targets/a/experiments/new/report",
+    <ExperimentPage
+      targetId="a"
+      targetTitle="Bank bot"
+      experimentId="new"
+      tab="report"
+    />,
+  );
+
+  assert.match(tab(markup, "Report"), /aria-selected="true"/);
+  assert.match(markup, /The report of this experiment shows here\./);
+});
+
+test("the comparison links back to its Target", () => {
+  const markup = at(
+    "/targets/a/compare",
+    <ComparePage targetId="a" targetTitle="Bank bot" />,
+  );
+
+  assert.match(control(markup, "Bank bot"), /href="\/targets\/a\/experiments"/);
+  assert.match(markup, /Compare experiments/);
 });

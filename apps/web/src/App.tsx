@@ -57,6 +57,11 @@ import {
 import { ProfileToolbar, YamlView, type ProfileMode } from "./ProfileToolbar";
 import { TargetRail, type RailSelection } from "./TargetRail";
 import { ExperimentsTab, TargetTabs } from "./TargetPage";
+import {
+  AllExperimentsPage,
+  ComparePage,
+  ExperimentPage,
+} from "./ExperimentPages";
 import { PaneDivider, useChatWidth } from "./pane-divider";
 import { Button, buttonClass, cn } from "./ui";
 import {
@@ -919,7 +924,7 @@ export function App() {
             }}
           />
         )}
-        {manualOpen ? (
+        {manualOpen && place.page === "new-target" ? (
           <ManualForm
             onBack={() => setManualOpen(false)}
             connectionDraft={connectionDraft}
@@ -935,7 +940,10 @@ export function App() {
             }
             checkConnection={checkDraft}
           />
-        ) : connectionStep === "add" && view !== null ? (
+        ) : connectionStep === "add" &&
+          view !== null &&
+          place.page === "target" &&
+          place.tab === "specification" ? (
           <AddConnection
             draft={connectionDraft}
             onDraft={(next) => {
@@ -952,11 +960,10 @@ export function App() {
             onSave={() => void saveConnection()}
             onCancel={() => setConnectionStep(null)}
           />
-        ) : place.page === "not-found" ||
-          place.page === "experiments" ||
-          place.page === "experiment" ||
-          place.page === "compare" ? (
+        ) : place.page === "not-found" ? (
           <NotFound onNew={startNew} />
+        ) : place.page === "experiments" ? (
+          <AllExperimentsPage />
         ) : view === null && targetId !== null ? (
           <div className="m-auto flex flex-col gap-4 p-8" role="status">
             <p>
@@ -969,10 +976,20 @@ export function App() {
         ) : redirect ? null : place.page === "target" &&
           place.tab === "experiments" ? (
           <ExperimentsTab
+            targetId={place.targetId}
             onRun={() =>
               navigate(paths.experiment(place.targetId, NEW_EXPERIMENT))
             }
           />
+        ) : place.page === "experiment" && record ? (
+          <ExperimentPage
+            targetId={place.targetId}
+            targetTitle={record.title}
+            experimentId={place.experimentId}
+            tab={place.tab}
+          />
+        ) : place.page === "compare" && record ? (
+          <ComparePage targetId={place.targetId} targetTitle={record.title} />
         ) : view === null ? (
           <OpeningRoute
             configState={wizardConfig}
