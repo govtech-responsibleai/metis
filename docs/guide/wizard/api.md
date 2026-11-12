@@ -497,11 +497,12 @@ its id, title, stage, times, `state`, display `transcript`, and `fixtures` file 
 
 | Route | Purpose |
 |---|---|
-| `GET /api/v1/targets` | List saved Interview summaries, newest first, and unreadable rows. |
+| `GET /api/v1/targets` | List the saved Targets, newest first, and the rows that cannot be read. |
 | `PUT /api/v1/targets/{target_id}/interview` | Save the record and its new files. |
 | `GET /api/v1/targets/{target_id}/interview` | Read the record. |
 | `GET /api/v1/targets/{target_id}/interview/files/{name}` | Read one saved file. |
-| `DELETE /api/v1/targets/{target_id}` | Delete the Interview record and its files. |
+| `GET /api/v1/targets/{target_id}/specification` | Read the last Specification and its input folder. |
+| `DELETE /api/v1/targets/{target_id}` | Delete the Target, its record, and its files. |
 
 The save is a multipart form. The `record` part is a file that contains the record JSON. Send each new file as a part
 named `files`, with the file name from the record. A file that the store already
@@ -531,10 +532,14 @@ web client uses `YYYYMMDD-HHMMSS-interview`, in the local time of the first mess
 from another. A save with the id of another Interview gets 409 `target_exists` and the store does
 not change. The web client then saves again with `-2`, `-3`, and so on at the end of the id.
 
-The store saves the whole Interview record. Its state contains the Target details and
-Specification. Saving a done Interview does not compile it or write an engine input folder.
-Use the compile and package routes to prepare a download. A missing record or file gets 404
-`not_found`.
+For an existing saved Interview, the store keeps the record and its files. It prepares a missing
+completed Specification when you first read its Specification route. A compilation error affects
+that request; you can still read and edit the Interview.
+
+When the saved state is done, the API compiles the Specification. It writes the Specification
+and an input folder for `metis engine simulate --input-dir`. If the Specification does not
+compile, the save gets 400 `compilation_failed` and the store does not change. A missing Target
+or file gets 404 `not_found`.
 
 The API keeps its store in the project folder. Start the API with
 `metis-api --project-dir PATH` to choose that folder. Without the option, the project folder is
@@ -545,3 +550,5 @@ folder is found, it is the working directory. `metis engine simulate` uses the s
   another database.
 - The files of each Target are in `experiments/design/<target_id>/`, the same layout as the CLI
   wizard. `inputs/` holds the files that you upload.
+- `outputs/` holds the Specification. Give this folder to `metis engine simulate --input-dir`.
+  The `input_dir` field of the Specification response is its path.

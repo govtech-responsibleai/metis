@@ -189,7 +189,7 @@ adapters belong in the testbed so the same case data can support other systems.
 | | |
 |---|---|
 | **Import Path** | `from metis.api import ...` |
-| **Purpose** | A thin HTTP door exposing METIS capabilities as a REST service, with a store of Interview records and their files. |
+| **Purpose** | A thin HTTP door exposing METIS capabilities as a REST service, with a store of Targets and Experiments. |
 
 MAY depend on all `packages/*` members. For the wizard it depends on the `metis.wizard` public
 Interview interface only (`apps/api -> metis.wizard`): the router calls `handle_interview`,
@@ -258,39 +258,58 @@ completion. The next state goes back whole in the response, so any instance serv
 and the wizard routes write no Interview file. Web clients drive the wizard through these HTTP
 lifecycle routes; they MUST NOT embed the wizard.
 
-**The store.** The store routes under `/api/v1/targets` keep Interview records and their files.
-They do not change the wizard routes. The `interviews` table holds one JSON record per Interview,
-with its id and save time. That record contains the Target details, Specification, transcript,
-and file references. There are no separate Target, Specification, or Experiment records.
-Saving an Interview does not compile the Specification or prepare an engine input folder.
-The existing compile and package routes keep those roles.
-
-SQLAlchemy opens the database from `METIS_DATABASE_URL`. The default is a SQLite file at
+**The store.** The store routes under `/api/v1/targets` and `/api/v1/experiments` keep
+Targets, Interview records, Specifications, and Experiments. They do not change the wizard routes. The rows are in
+a database that SQLAlchemy opens from `METIS_DATABASE_URL`. The default is a SQLite file at
 `<project>/experiments/metis.db`. `metis-api --project-dir` names the project folder. Without it,
-the API finds the nearest folder at or above the working directory that has a `pyproject.toml`.
-If no such folder exists, it uses the working directory. The table uses portable SQL types.
-PostgreSQL support is later work.
+the API finds the project folder with the rule of `metis engine simulate`: the nearest folder at
+or above the working directory that has a `pyproject.toml`, else the working directory. The
+tables use portable SQL types. PostgreSQL support is later work.
 
-The files of an Interview are under
-`<project>/experiments/design/<target_id>/inputs/fixtures/`. The web app gives a new Interview
-the id `YYYYMMDD-HHMMSS-interview` in local time. When the id is taken, it adds `-2`, `-3`,
-and so on. The `created_at` of the record tells one Interview from another. A save with the id
-of another Interview gets 409 `target_exists` and changes nothing.
+| Table | One row holds |
+|---|---|
+| `targets` | The Target id, its name, and its times. |
+| `interviews` | The Interview record of the Target, as JSON. |
+| `specifications` | The last Specification of the Target and its SHA-256 hash. |
+| `experiments` | An Experiment folder name, its Target, its start time, and its last engine step. |
+
+When the store opens, it adds missing Target metadata for existing Interview rows. It preserves
+their save times and file paths. It prepares a missing completed Specification and input folder
+on the first Specification read. An unrunnable Interview gives a per-record compilation error;
+it does not prevent startup or ordinary Interview reads. Unreadable records remain in the
+Target list as problems.
+
+The files of a Target are in the layout that `metis wizard init` writes, under
+`<project>/experiments/design/<target_id>/`. The web app gives a new Target the id
+`YYYYMMDD-HHMMSS-interview` in local time, the same name as a `metis wizard init` folder. When
+the id is taken, it adds `-2`, `-3`, and so on. The `created_at` of the record tells one
+Interview from another, so a save with the id of another Interview gets 409 `target_exists` and
+changes nothing. `inputs/fixtures/` holds the files that the Interview record refers to.
 
 Each file has its own name. Names that differ only by case are the same name. A record with two
 files of the same name gets 400 `validation_error`. The web client gives a new file with a taken
 name the next free ` (n)` before its extension.
 
-A save writes the new files into the fixture folder, saves the row, and then deletes the files
-that the record no longer refers to. Thus a saved record always has all its files. The store has
-no recovery step. A save that stops before its last step can leave a file that no record refers
-to, and the next save of that Interview deletes it. Each store holds a thread lock for the full
-time of a save or a delete. The store has no lock between processes.
+A save writes the new files into the fixture folder, saves the rows, and then deletes the files
+that the record no longer refers to. Thus a saved record always has all its files. A save that
+stops before its last step can leave a file that no record refers to, and the next save of that
+Interview deletes it. Each store holds a thread lock for the full time of a save or a delete. The
+store has no lock between processes.
+
+`outputs/` is the folder for `metis engine simulate --input-dir`, the same as for the CLI wizard.
+It holds `specification.yaml`, `fixtures/`, and `target-binding.yaml` when the Interview has a
+target connection. Each save of a done Interview compiles the Specification and writes the row
+and `outputs/` again. When the Specification does not compile, the save gets 400
+`compilation_failed` and changes nothing. A save of an Interview that is not done keeps the last
+Specification. An Experiment row refers to an Experiment folder under `experiments/execute/`. The
+engine copies the input folder into each Experiment folder, so a new Specification does not
+change an earlier Experiment.
 
 A first save refuses an existing Target folder that has no Interview row. It returns 409
 `target_exists` and leaves the folder unchanged. DELETE requires an Interview row. A missing row
-gets 404 `not_found`, and its folder stays in place. A delete removes the row and then the Target
-folder.
+gets 404 `not_found`, and its folder stays in place. A delete removes the rows of the Target and
+then its folder in `experiments/design/`. Experiment folders in `experiments/execute/` stay on
+disk.
 
 ---
 

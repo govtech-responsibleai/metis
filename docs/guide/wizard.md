@@ -150,6 +150,8 @@ file. It does not guess submissions during a run.
 
 The CLI writes files to `experiments/design/YYYYMMDD-HHMMSS-interview/` by default. The timestamp uses the machine's local date and 24-hour time, including seconds.
 Extract browser or API downloads into `experiments/design/`.
+The API store uses the same layout. It writes each done web Interview to
+`experiments/design/<target-id>/outputs/`, and you can give that folder to `--input-dir`.
 Each ZIP contains its dated experiment folder. For an Interview created on 2026-10-16 at 22:30:45, run the specification with the
 Engine:
 

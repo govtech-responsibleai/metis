@@ -63,8 +63,8 @@ the repository folder. To use another folder, start the API with
 - The `<id>` is `YYYYMMDD-HHMMSS-interview`, in the local time when you send the first message.
   For example, `20261112-101500-interview`. A `metis wizard init` folder has the same name. When
   another Interview already has the id, the web app adds `-2`, `-3`, and so on.
-- To run the finished Specification, download its package and extract it. See
-  [Finish and download](#finish-and-download).
+- When an Interview is done, the API also writes its Specification to
+  `experiments/design/<id>/outputs/`. Give that folder to `metis engine simulate --input-dir`.
 
 The repository ignores `experiments/`, so Git does not save it.
 
