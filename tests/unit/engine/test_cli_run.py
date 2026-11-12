@@ -262,7 +262,7 @@ def _simulate_with_fake_experiment(monkeypatch, tmp_path: Path) -> list[str]:
             record.outcome.stop_reason = "goal_achieved"
             path.write_text(record.model_dump_json())
 
-    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "project")
+    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "project")
     monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
     monkeypatch.setattr(
         experiment_module, "execute_experiment", fake_execute_experiment
