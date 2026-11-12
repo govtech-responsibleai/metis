@@ -83,6 +83,8 @@ export function SpecificationView({
   onCollapse,
   onFinish,
   onDownload,
+  footDownload = true,
+  toolbar,
   done,
   activeSections = [],
   renderReview,
@@ -110,6 +112,9 @@ export function SpecificationView({
   done?: boolean;
   onFinish?: () => void;
   onDownload?: () => void;
+  // False when the pane toolbar holds the download of a done Interview.
+  footDownload?: boolean;
+  toolbar?: ReactNode;
 }) {
   const excluded = new Set(excludedTasks);
   const selectedTasks = specification.tasks.filter(
@@ -173,7 +178,7 @@ export function SpecificationView({
 
   return (
     <div className="flex h-full min-h-0 flex-col p-4">
-      <h1 className="mb-3 text-xl font-semibold">Profile</h1>
+      <ProfileHeading toolbar={toolbar} />
       {/* The strip above the sheet carries the pane's chrome — things that belong to the pane, not
           to the document. Progress sits on the left as six segments, one per interview step,
           filling left to right; the collapse control sits at the right. Both are outside the sheet
@@ -367,12 +372,23 @@ export function SpecificationView({
         </KeepInPlaceContext.Provider>
       </div>
 
-      <SpecificationFooter
-        done={done}
-        busy={busy}
-        onFinish={onFinish}
-        onDownload={onDownload}
-      />
+      {(!done || footDownload) && (
+        <SpecificationFooter
+          done={done}
+          busy={busy}
+          onFinish={onFinish}
+          onDownload={onDownload}
+        />
+      )}
+    </div>
+  );
+}
+
+export function ProfileHeading({ toolbar }: { toolbar?: ReactNode }) {
+  return (
+    <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
+      <h1 className="text-xl font-semibold">Profile</h1>
+      {toolbar}
     </div>
   );
 }

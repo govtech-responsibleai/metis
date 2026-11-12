@@ -384,6 +384,25 @@ test("the Specification output action follows Interview completion", () => {
   assert.doesNotMatch(complete, /Skip interview/);
 });
 
+test("a done Interview leaves its download to the pane toolbar", () => {
+  const shared = {
+    specification: specification(),
+    showGraders: false,
+    onShowGradersChange: () => undefined,
+    graderByFqn: new Map(),
+    gradersLoading: false,
+    gradersError: false,
+    footDownload: false,
+    toolbar: <button type="button">Toolbar</button>,
+  };
+  const pending = renderToStaticMarkup(<SpecificationView {...shared} />);
+  const complete = renderToStaticMarkup(<SpecificationView {...shared} done />);
+
+  assert.match(pending, /Skip interview and download specification/);
+  assert.doesNotMatch(complete, /Download specification/);
+  assert.match(complete, /<h1[^>]*>Profile<\/h1><button type="button">Toolbar/);
+});
+
 test("a completed Interview reports that its specification is ready", () => {
   const markup = renderToStaticMarkup(<Done />);
 

@@ -49,7 +49,12 @@ import {
   stateForDownload,
   type RunModels,
 } from "./RunSettings";
-import { SpecificationView, stepPosition } from "./SpecificationView";
+import {
+  ProfileHeading,
+  SpecificationView,
+  stepPosition,
+} from "./SpecificationView";
+import { ProfileToolbar, YamlView, type ProfileMode } from "./ProfileToolbar";
 import { TargetRail, type RailSelection } from "./TargetRail";
 import { ExperimentsTab, TargetTabs } from "./TargetPage";
 import { PaneDivider, useChatWidth } from "./pane-divider";
@@ -339,9 +344,11 @@ export function App() {
     ? specificationHasCriteria(view.specification)
     : false;
 
+  const [profileMode, setProfileMode] = useState<ProfileMode>("document");
   useEffect(() => {
     setShowGraders(false);
     setRunModelDrafts(null);
+    setProfileMode("document");
   }, [record?.id]);
 
   useEffect(() => {
@@ -853,6 +860,18 @@ export function App() {
     });
   }, [record, runModelDrafts, operations, packageAndDownload, downloadCurrent]);
 
+  const profileToolbar = view && (
+    <ProfileToolbar
+      mode={view.done ? profileMode : "document"}
+      onMode={setProfileMode}
+      done={view.done}
+      busy={busy || operations.pendingSaves.has(view.id)}
+      onDownload={() => {
+        if (record) void downloadCurrent(record);
+      }}
+    />
+  );
+
   return (
     <div className="flex h-full w-full overflow-hidden">
       {railOpen ? (
@@ -1096,52 +1115,63 @@ export function App() {
                 className="min-h-0 min-w-0 flex-1 bg-muted"
                 aria-label="Profile"
               >
-                <SpecificationView
-                  key={view.id}
-                  specification={view.specification}
-                  excludedTasks={record?.state.excluded_tasks}
-                  position={stepPosition(view.requests)}
-                  interviewStep={view.stage}
-                  busy={busy || operations.pendingSaves.has(view.id)}
-                  showGraders={showGraders}
-                  onShowGradersChange={setShowGraders}
-                  graderByFqn={graderByFqn}
-                  gradersLoading={
-                    graderState === "idle" || graderState === "loading"
-                  }
-                  gradersError={graderState === "error"}
-                  done={view.done}
-                  onFinish={() => void finish()}
-                  onDownload={() => {
-                    if (record) void downloadCurrent(record);
-                  }}
-                  activeSections={review ? reviewParts(review) : []}
-                  renderReview={(part) =>
-                    review && (
-                      <ActiveReview
-                        key={`${view.id}:${part}`}
-                        request={review}
-                        part={part}
-                        busy={replyBusy}
-                        onRespond={send}
-                        form={profileForm}
-                        formFailure={profileFailure}
-                        formDrafts={formDrafts.current}
-                        draftPrefix={view.id}
-                      />
-                    )
-                  }
-                  renderSectionActions={(part) =>
-                    review && (
-                      <ReviewSectionActions
-                        request={review}
-                        part={part}
-                        busy={replyBusy}
-                        onRespond={send}
-                      />
-                    )
-                  }
-                />
+                {view.done && profileMode === "yaml" && record ? (
+                  <div className="flex h-full min-h-0 flex-col p-4">
+                    <ProfileHeading toolbar={profileToolbar} />
+                    <div className="min-h-0 flex-1">
+                      <YamlView state={record.state} />
+                    </div>
+                  </div>
+                ) : (
+                  <SpecificationView
+                    toolbar={profileToolbar}
+                    footDownload={false}
+                    key={view.id}
+                    specification={view.specification}
+                    excludedTasks={record?.state.excluded_tasks}
+                    position={stepPosition(view.requests)}
+                    interviewStep={view.stage}
+                    busy={busy || operations.pendingSaves.has(view.id)}
+                    showGraders={showGraders}
+                    onShowGradersChange={setShowGraders}
+                    graderByFqn={graderByFqn}
+                    gradersLoading={
+                      graderState === "idle" || graderState === "loading"
+                    }
+                    gradersError={graderState === "error"}
+                    done={view.done}
+                    onFinish={() => void finish()}
+                    onDownload={() => {
+                      if (record) void downloadCurrent(record);
+                    }}
+                    activeSections={review ? reviewParts(review) : []}
+                    renderReview={(part) =>
+                      review && (
+                        <ActiveReview
+                          key={`${view.id}:${part}`}
+                          request={review}
+                          part={part}
+                          busy={replyBusy}
+                          onRespond={send}
+                          form={profileForm}
+                          formFailure={profileFailure}
+                          formDrafts={formDrafts.current}
+                          draftPrefix={view.id}
+                        />
+                      )
+                    }
+                    renderSectionActions={(part) =>
+                      review && (
+                        <ReviewSectionActions
+                          request={review}
+                          part={part}
+                          busy={replyBusy}
+                          onRespond={send}
+                        />
+                      )
+                    }
+                  />
+                )}
               </aside>
             </div>
           </UploadContext.Provider>

@@ -3,6 +3,7 @@ import { test } from "node:test";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Router } from "wouter";
+import { ProfileToolbar } from "./ProfileToolbar";
 import { ExperimentsTab, TargetTabs } from "./TargetPage";
 import { TargetRail } from "./TargetRail";
 
@@ -133,6 +134,40 @@ test("a new Target shows its Specification tab with Experiments and Run off", ()
   assert.match(tab(markup, "Specification"), /href="\/targets\/new"/);
   assert.match(tab(markup, "Experiments"), /disabled=""/);
   assert.match(runButton(markup), /disabled=""/);
+});
+
+const toolbar = (done: boolean) =>
+  renderToStaticMarkup(
+    <ProfileToolbar
+      mode="document"
+      onMode={() => {}}
+      done={done}
+      busy={false}
+      onDownload={() => {}}
+    />,
+  );
+
+test("the Profile toolbar offers Download and the Document and YAML views", () => {
+  const markup = toolbar(true);
+
+  assert.match(markup, /role="radiogroup" aria-label="View"/);
+  assert.match(control(markup, "Document"), /aria-checked="true"/);
+  assert.match(control(markup, "YAML"), /aria-checked="false"/);
+  assert.doesNotMatch(control(markup, "YAML"), /disabled=""/);
+  assert.doesNotMatch(control(markup, "Download"), /disabled=""/);
+});
+
+test("the YAML view and Download wait for the end of the Interview", () => {
+  const markup = toolbar(false);
+
+  assert.match(control(markup, "YAML"), /disabled=""/);
+  assert.match(control(markup, "YAML"), /title="Finish the Interview first"/);
+  assert.match(control(markup, "Download"), /disabled=""/);
+  assert.match(
+    control(markup, "Download"),
+    /title="Finish the Interview first"/,
+  );
+  assert.doesNotMatch(control(markup, "Document"), /disabled=""/);
 });
 
 test("an empty Experiments tab offers Run", () => {
