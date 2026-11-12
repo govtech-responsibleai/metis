@@ -11,6 +11,9 @@ records and their files. The wizard routes translate request and response JSON
 and status codes and hold no user state. Every interview rule stays inside metis-wizard; this
 package must not learn any of them.
 
+The API also reads the experiment folders under the project folder, the same folder as the store.
+It holds no report rules. metis-insights builds the reports.
+
 ## The client-held state boundary
 
 The wizard routes keep only immutable settings and model clients for the process lifetime. They keep
@@ -98,6 +101,7 @@ src/metis/api/
 ├── main.py            the app composition root: /health, routers, the store, and error handlers
 ├── routes/graders.py  read-only installed grader catalogue route
 ├── routes/models.py   read-only model role status route
+├── routes/reports.py  experiment report and report download routes
 ├── routes/wizard.py   client config, Interview lifecycle, compile, and package routes
 ├── routes/targets.py  store routes for Interview records and files
 ├── records.py         the wire models of the store routes
@@ -108,7 +112,8 @@ src/metis/api/
 └── __init__.py        version and the re-exported core version
 ```
 
-The dependency arrow is `apps/api -> metis.wizard`. The router calls `handle_interview`,
+The dependency arrows are `apps/api -> metis.wizard` and `apps/api -> metis.insights`. The wizard
+router calls `handle_interview`,
 `compile_specification`, and `package_specification` from the `metis.wizard` facade and maps typed results
 onto an HTTP status (200/400/422/503/500) in one error shape. No stage, Specification, prompt, matching,
 fixture validation, or compilation rule lives here.
@@ -121,6 +126,15 @@ files.
 missing variable names of each LLM role. It never returns a key or a URL. The API starts when model
 settings are missing. Then each Interview route returns 503 `model_unavailable`, with the missing
 variables, the `.env` path, and the model guide path in the message.
+
+The report routes find an experiment id among the folder names in
+`<project folder>/experiments/execute/`, so an id cannot name another path.
+`GET /api/v1/experiments/{experiment_id}/report` returns `report.json`, and
+`GET /api/v1/experiments/{experiment_id}/report/download` returns `report.html` as an attachment.
+Both call `metis.insights.ensure_report`, which builds the files when they are missing or older
+than `results.json`. While an experiment has no `results.json`, both give 202
+`results_pending`. An unknown id gives 404 `experiment_not_found`, and an experiment whose report
+cannot be built gives 409 `report_build_failed`.
 
 `GET /api/v1/wizard/config` returns package-owned opening copy, working status, and perspective
 definitions from the public wizard facade. The API transports this text but does not own or copy it.
