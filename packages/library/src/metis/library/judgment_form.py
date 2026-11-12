@@ -1,8 +1,8 @@
 """Shared definitions for judgment forms: what the judge returns for one assessment.
 
 The judge replies with the form's ``response_model``: a status, a score and a reason. A
-``not_applicable`` reply means the event that the criterion looks for did not happen, and the
-grader records it as an errored result with the judge's reason.
+``not_applicable`` reply means that the criterion does not apply to the evidence, and the
+grader records it as a skipped result with the judge's reason.
 """
 
 from dataclasses import dataclass

@@ -70,7 +70,8 @@ For the full specification (component contracts, dependency invariants, versioni
 
 ### Branching
 
-Branch off `main` with a descriptive prefix:
+Branch off the branch your pull request targets with a descriptive prefix. That is `next` while v1
+is in beta and `main` after v1.0.0:
 
 | Prefix | Use |
 |--------|-----|
@@ -82,8 +83,8 @@ Branch off `main` with a descriptive prefix:
 
 Example: `feat/langfuse-ingester`, `fix/score-validation`
 
-While v1 is in beta, `next` replaces `main` in the rule above. Branch off `next` and open your
-pull request against `next`, except for the documentation fixes described below.
+During the beta, open your pull request against `next`, except for the documentation fixes
+described below, which branch off `main` and target it.
 
 While v1 is in beta, `main` is the branch we present to users, and the published site is built from
 `main` alone. A change under `website/` or `landing-page/` that corrects or clarifies something
@@ -115,6 +116,31 @@ When you change a wizard HTTP request or response, update the Pydantic contract 
 `npm --prefix apps/web run generate:api` and run `npm --prefix apps/web run check:api`. Do not edit
 `apps/web/src/generated/api.ts` by hand.
 
+### Running the Landing Page and Docs
+
+The public site has two parts, each with its own Node project: the landing page in
+`landing-page/` and the docs in `website/`. The docs need Node.js 22 or later and use npm, which
+comes with Node. The landing page uses [pnpm](https://pnpm.io/), which Node does not include, so
+install it first with `corepack enable pnpm` or `brew install pnpm`. CI uses pnpm 11. If pnpm is
+missing, the landing page targets stop and say so.
+
+```bash
+make install-landing    # once: install landing-page dependencies (needs pnpm)
+make run-landing        # landing page dev server on port 8443
+make build-landing      # production build into landing-page/dist
+
+make install-docs       # once: install docs dependencies
+make run-docs           # docs dev server on port 3000
+make build-docs         # production build into website/build
+make check-docs         # build the docs and check links
+
+make run-site           # both dev servers together
+make build-site         # both builds, laid out into _site/ as GitHub Pages serves them
+```
+
+`make install-extras` installs both sets of dependencies, along with Playwright. See
+[`website/README.md`](website/README.md) for more on previewing the docs.
+
 ### Commit Messages
 
 We follow a convention for commit messages [borrowed from Deis/CoreOS/AngularJS](https://github.com/deis/deis/blob/master/CONTRIBUTING.md#commit-style-guideline). The format is:
@@ -129,7 +155,7 @@ We follow a convention for commit messages [borrowed from Deis/CoreOS/AngularJS]
 
 **Rules:**
 
-- `{type}` is one of: `feat`, `fix`, `docs`, `style`, `ref`, `test`, `chore`
+- `{type}` is one of: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 - `{scope}` is the affected package or app name (e.g., `core`, `engine`, `wizard`, `api`)
 - `{subject}` uses imperative present tense ("change", not "changed"), no capital first letter, no trailing dot
 - Subject line limited to **50 characters**; body lines limited to **72 characters**
@@ -229,8 +255,16 @@ When adding a new workspace package:
 
 ### Merging
 
-PRs require at least one approval. CI must pass. Squash-merge is preferred for single-concern branches; merge commits are acceptable for larger feature branches with meaningful intermediate commits. While v1 is in beta, the release merge of `next` into `main` and the merge of
-`main` into `next` are always merge commits, never squashes (see "Beta releases").
+PRs require at least one approval. CI must pass.
+
+Squash-merge every feature, fix, and documentation PR, so each one lands as a single commit whose
+title is the PR title. Write the PR title as a Conventional Commit with a package scope, because
+that title becomes the commit on the target branch.
+
+The exception is a PR that carries one long-lived branch into another. While v1 is in beta, the
+release merge of `next` into `main` and the merge of `main` into `next` are always merge commits,
+never squashes (see "Beta releases"). A squash would drop the link between the two branches, and
+the next merge between them would replay the same changes and raise conflicts.
 
 ## Dependency Rules
 

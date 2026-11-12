@@ -213,9 +213,15 @@ the existing CLI review belongs at `outputs/review.md`. Engine reads the `output
 The CLI publishes `outputs/specification.yaml` last as its completion marker and retains
 recovery state until export succeeds. Wizard MUST NOT create Testbed caches or scores.
 
-Engine creates `experiments/execute/<specification-id>-YYYYMMDD-HHMMSS/`. It copies
+Engine creates `experiments/execute/<specification-id>-YYYYMMDD-HHMMSS/` under the project
+folder. `--project-dir` names that folder, which must exist; without it, Engine uses the
+working directory or the nearest folder above it that has a `pyproject.toml`. A new run MUST NOT write into a run folder that exists: a new run with a taken
+name stops with an error. `--resume` continues in the run folder that `--experiment-dir` names.
+A caller finds its runs by listing `experiments/execute/` in the project folder. Engine copies
 `--input-dir` into `inputs/`, writes trial records and artifacts under `outputs/trials/`,
-and writes evaluation results to `outputs/reports/results.json`. Insights reads the
+and writes evaluation results to `outputs/reports/results.json`. `outputs/evaluation/` is the
+engine-private record of attempted trials, one file per trial, and Engine writes `results.json`
+last, from those files, once every trial was attempted. Insights reads the
 same execution root and writes `report.json` and `report.html` beside the results.
 Insights reads recorded `GraderRecord` results and rejects the earlier `turn_results` and
 `session_results` format. It uses recorded Criterion IDs and arguments without creating graders.
@@ -223,6 +229,14 @@ Insights reads recorded `GraderRecord` results and rejects the earlier `turn_res
 `metis.core.execution_layout` owns the paths shared by Engine and Insights.
 Logs remain under `logs/`, with the existing simulation log override. Artifact paths
 in trial records remain relative to the execution root.
+Engine appends one `PhaseEvent` per line to `logs/events.jsonl` in the execution root, also
+when the log override is set. `metis.core.phase_events` owns the model and the writer, and
+`packages/core/schemas/phase-event.schema.json` is its published schema. Each line carries a
+`seq` that increases by one and continues across resumes and later evaluations, so a
+reader can resume from the last `seq` it saw. Every line has `seq`, `at`, `phase`, `trial`
+and `status`, and the status decides which extra fields the line has. Each phase starts and
+ends with a line that has no `trial`. Events MUST NOT carry secrets, prompts or model
+replies.
 
 `GET /api/v1/wizard/config` returns the wizard-owned ordered ARC capability categories with the
 opening copy and perspective definitions. `POST /api/v1/wizard/interview/start` accepts the

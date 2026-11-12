@@ -17,9 +17,10 @@ grader_args:
 
 After a simulation, the engine gives the grader the recorded session for one trial. The
 grader returns one result for each part of the session that it judged. A result is `scored`
-with a score from `0` to `1`, or it is `errored` with a reason. The engine applies the
-criterion's threshold to a scored result. An errored result
-has no score and does not count as a failure. The scope sets how many results there are (see
+with a score from `0` to `1`, `skipped` with a reason, or `errored` with a reason. The
+engine applies the criterion's threshold to a scored result. Skipped and errored results have
+no score and do not count as failures (see [Result statuses](#result-statuses)). The scope
+sets how many results there are (see
 [Results and records](#results-and-records)).
 
 A grader does not see the scenario, the persona, or the stop reason. It sees only the
@@ -35,7 +36,7 @@ Use a decision grader when you need fast results. Use an LLM judge when you need
 explanation of why a criterion failed.
 
 The grader asks two questions in one request: does the criterion apply, and does the session
-satisfy it. If the probability that it applies is below `0.5`, the result is `errored`. If not,
+satisfy it. If the probability that it applies is below `0.5`, the result is `skipped`. If not,
 the score is the probability that the session satisfies the criterion. Each result records
 both probabilities as measurements, and the report shows them as bars.
 The grader type is `decision_model`, and the judgment form is `scalar`.
@@ -150,11 +151,41 @@ Three models carry a grader's output, from the grader to `results.json`:
 
 | Model | Made by | Holds |
 |---|---|---|
-| `GraderResult` | The grader | `status` (`scored` or `errored`), `score`, `reason`, and `scope`, the label of what it judged |
-| `RecordedResult` | The engine | The same result with an `outcome`: `passed` or `failed` from the criterion's `threshold`, or `errored` |
+| `GraderResult` | The grader | `status` (`scored`, `skipped` or `errored`), `score`, `reason`, and `scope`, the label of what it judged |
+| `RecordedResult` | The engine | The same result with an `outcome`: `passed` or `failed` from the criterion's `threshold`, or `skipped` or `errored` |
 | `GraderRecord` | The engine | One grader run on one session: the session, scenario, task, trial, criterion, resolved `grader_args`, `aggregation`, and the list of `RecordedResult` |
 
 A grader never decides pass or fail. It returns a score, and the engine applies the threshold.
+
+### Result statuses
+
+Two questions set the status of a result:
+
+1. Did the grading work? If not, the result is `errored`.
+2. Does the criterion apply to this session? If not, the result is `skipped`.
+
+If the grading worked and the criterion applies, the result is `scored`.
+
+| Situation | `status` | `outcome` | Example |
+|---|---|---|---|
+| The evidence meets the criterion. | `scored`, score `1` | `passed` | The reply answers the user's question. |
+| The evidence does not meet the criterion. | `scored`, score `0` | `failed` | The reply ignores the user's question. |
+| The session can be read, but the criterion does not apply to it. | `skipped` | `skipped` | `ToolArgumentCorrectnessGrader` on a session with no tool calls. `CrossTurnCoherenceGrader` on a session of one recorded turn. |
+| METIS cannot read or find the evidence. | `errored` | `errored` | The session has no recorded turns. The named file does not exist. |
+| A setting is missing or not valid. | `errored` | `errored` | `ToolChoiceAppropriatenessGrader` with no tool list. `FormatSchemaComplianceGrader` with a JSON Schema that is not valid. |
+| The judge call fails. | `errored` | `errored` | The provider fails, the reply cannot be read, or the input is above the token limit. |
+| The grader raises an exception or returns an empty list. | `errored` | `errored` | The engine records one errored result in its place. |
+
+A skipped result says that the criterion does not apply to this session. An errored result
+says that METIS could not grade the session. Neither says that the target passed or failed.
+Rates and mean scores leave out both, and the report counts them separately.
+
+The absence of an event is a skip only when the criterion is about how the target handles
+that event. `AvoidingUnproductiveRepetitionGrader` scores `1` on a session with no repeated
+actions, because no repetition is the behaviour that it looks for.
+
+A session with no recorded turns is errored. The trial recorded nothing, so METIS has no
+evidence about the target.
 
 ### How many records
 
@@ -187,6 +218,8 @@ There is always at least one result:
 - **The session cannot be judged.** This happens when the session has no recorded turns, the named
   file does not exist, or the evidence that the measure needs is missing. The grader returns
   one errored result with no `scope` label.
+- **The criterion does not apply to the session.** For example, the session has no tool calls.
+  The grader returns one skipped result with no `scope` label.
 - **One entry cannot be judged.** For example, the reply of one recorded turn cannot be read. That
   entry gives an errored result with its label. The other entries are still judged.
 - **The grader raises an exception, or returns an empty list.** The engine records one errored
@@ -207,21 +240,26 @@ results beside each rate.
 The aggregation rules for several rules are these:
 
 - `pass_if_all`: one failed rule gives `0`. Otherwise, one errored rule gives `errored`.
-  Otherwise the result is `1`.
+  Otherwise, if every rule is skipped, the result is `skipped`. Otherwise the result is `1`,
+  and the reason names the skipped rules.
 - `pass_if_any`: one passed rule gives `1`. Otherwise, one errored rule gives `errored`.
-  Otherwise the result is `0`.
+  Otherwise, if every rule is skipped, the result is `skipped`. Otherwise the result is `0`.
+
+An errored rule comes before a skipped rule, because the errored rule could have changed the
+result.
 
 ## Rules for results
 
-- **Missing evidence is an error.** Before the judge call, check that the session has the
-  evidence that the measure needs. For example, `ToolArgumentCorrectnessGrader` needs
-  recorded tool calls. If the evidence is missing, return `GradingOutput.errored(reason)`, and
-  say what is missing in the reason.
-- **"Did not happen" is an error.** If the event that the criterion looks for did not happen,
-  the judge replies `not_applicable`, and `judge` records an errored result. An example is an
-  error recovery grader on a session that has no error.
-- **Never score a `Problem`.** A trace processor function returns a `Problem` when METIS
-  cannot read the evidence. Return it as `errored` with its detail. `judge` does this for you.
+- **Missing evidence is an error.** A trace processor function returns a `Problem` when METIS
+  cannot read or find the evidence. Never score a `Problem`, and never skip it. Return
+  `GradingOutput.errored(selected.detail)`. `judge` does this for you.
+- **"Did not happen" is a skip.** Before the judge call, check that the event that the
+  measure looks for is in the session. For example, `ToolArgumentCorrectnessGrader` needs
+  recorded tool calls. If the event is not there, return `GradingOutput.skipped(reason)`, and
+  say what the session does not contain in the reason. If the judge finds that the criterion
+  does not apply, it replies `not_applicable`, and `judge` records a skipped result.
+- **A setting problem is an error.** If a setting that the grader needs is missing or not
+  valid, return `GradingOutput.errored(reason)`. No session content can fix it.
 - **Never return an empty list.** A grader that cannot judge the session returns one errored
   result (see [How many results in one record](#how-many-results-in-one-record)).
 
@@ -321,7 +359,7 @@ measure that, compare its results with human labels on representative sessions.
 | `FormatSchemaComplianceGrader` | A check in code before the judge call, and `check_setup()` |
 | `RelevanceGrader` | `SESSION` by default, or `SUBSESSION` for one result for each recorded turn |
 | `ToneAppropriatenessGrader` | Its own render function, `render_dialogue` |
-| `ActionStatusTransparencyGrader` | An errored result before the judge call when the evidence is missing |
+| `ActionStatusTransparencyGrader` | A skipped result before the judge call when the session has no tool calls |
 | `demo.DemoTraceBudgetGrader` | A deterministic grader with no judge call |
 | `CriterionJudgeGrader` | The fallback judge, with `measure=None`. See the [Criterion Judge guide](criterionjudge.md). |
 | `CriterionDecisionGrader` | A provider decision endpoint in place of `judge`, and measurements on each result. See [Use a decision grader](#use-a-decision-grader). |

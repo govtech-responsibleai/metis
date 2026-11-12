@@ -25,8 +25,15 @@ When it finishes, the command prints the output folder, the `evaluate` command f
 metis engine simulate --input-dir my-evaluation --concurrency 4
 ```
 
-`--concurrency` (short `-c`) sets how many trials run at once. The default is `1`. Raise it only
-as far as your application can handle, and check any rate limits in your target connection.
+`--concurrency` (short `-c`) sets how many trials run at once. The default is `1`, and the lowest
+value is `1`. Raise it only as far as your application can handle, and check any rate limits in
+your target connection.
+
+`metis engine run` takes the same option and uses the one number twice: it runs that many trials
+at once, and then
+[grades that many trials at once](run-graders.md#grade-several-trials-at-once). If your
+application and your model provider can handle different numbers, run `simulate` and `evaluate`
+yourself and give each its own `--concurrency`.
 
 ## Resume a stopped run
 
@@ -40,6 +47,11 @@ Give both flags together. Resume reads the specification from the frozen `inputs
 output folder, not from your source folder, and it retries only the trials that are missing or
 failed with a system error. Do not combine `--resume` with `--input-dir`.
 
+If the resume re-runs at least one trial, it deletes the earlier evaluation
+(`outputs/evaluation/`, `outputs/traces/` and `results.json`), because the old grades no longer
+match. It does this once the runner is built, so a setup error leaves them in place. If there is
+nothing to re-run, it keeps them.
+
 ## Simulate and evaluate together
 
 `metis engine run` does both steps, and also takes `--resume --experiment-dir`:
@@ -48,6 +60,10 @@ failed with a system error. Do not combine `--resume` with `--input-dir`.
 metis engine run --input-dir my-evaluation
 metis engine run --resume --experiment-dir experiments/execute/<your-run>
 ```
+
+`run --resume` resumes the simulation as above, then the grading as in
+[Resume a stopped evaluation](run-graders.md#resume-a-stopped-evaluation). A run that stopped
+during grading keeps the trials it already graded.
 
 ## Other options
 
@@ -73,8 +89,13 @@ experiments/execute/<your-run>/
 │           ├── evidence/
 │           └── artifacts/
 └── logs/
+    ├── events.jsonl   # One progress event per line
     └── simulate.log
 ```
+
+`logs/events.jsonl` records the progress of the experiment as it happens, one JSON event per
+line, so another program can follow it. The schema of each line is
+`packages/core/schemas/phase-event.schema.json`.
 
 ## Next step
 

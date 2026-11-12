@@ -16,6 +16,7 @@ The recorded turns: messages, calls, reply    ``turns(input.traces)``
 The files the target produced                 ``find_artifacts(input, name)``
 The files the user gave the target            ``find_fixtures(input)``
 The tools each agent had                      ``tools_offered(input.traces)``
+The tokens and cost of the turns, per model   ``usage_of(turns)``
 **2. Select what to judge**
 Each recorded turn on its own (trace scope)   ``select_by_turn(turns, last_only=...)``
 A recorded turn and those before it           ``select_by_window(turns, size, last_only=...)``
@@ -91,6 +92,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal
 
+import pydantic
 from pydantic import BaseModel
 
 from metis.core.artifacts import media_type
@@ -317,6 +319,69 @@ def tools_offered(traces: Sequence[Trace]) -> tuple[OfferedTool, ...]:
             for rank, tool in _tools_recorded(observation, by_id):
                 found.setdefault((tool.agent, tool.name), []).append((rank, tool))
     return tuple(_merged(entries) for entries in found.values())
+
+
+class Tokens(BaseModel, frozen=True):
+    """Token counts, summed as Langfuse reported them."""
+
+    input: int = 0
+    output: int = 0
+    total: int = 0
+    """Langfuse's ``total``; ``input + output`` for a call that recorded none."""
+    other: dict[str, int] = pydantic.Field(default_factory=dict)
+    """Provider-specific ``usageDetails`` keys, e.g. ``input_cached_tokens``, summed as sent."""
+
+
+class ModelUsage(BaseModel, frozen=True):
+    """The tokens and cost of every counted call to one model."""
+
+    model: str | None
+    """Langfuse's ``model``, e.g. ``"gpt-5.6-luna"``; ``None`` for calls that recorded none."""
+    calls: int
+    tokens: Tokens
+    cost: float | None
+    """Sum of ``totalCost`` in USD; ``None`` when any of these calls has tokens but no cost."""
+
+
+class Usage(BaseModel, frozen=True):
+    """The tokens and cost of a set of recorded turns, in total and per model."""
+
+    tokens: Tokens
+    cost: float | None
+    """``None`` when any counted call has tokens but no cost, so a partial sum is never
+    shown as the total."""
+    by_model: tuple[ModelUsage, ...]
+    """One entry per model, in the order first seen."""
+
+
+def usage_of(turns: tuple[Turn, ...]) -> Usage | Problem:
+    """The tokens and cost of these recorded turns.
+
+    Read from each observation's ``model``, ``usageDetails`` and ``totalCost`` as Langfuse
+    returned them. An observation counts when it records usage and none of its descendants in
+    the same trace also does, because some instrumentations write a rolled-up count onto a
+    parent span as well as onto each model call. A ``missing`` problem when no observation
+    records usage, since unknown usage is not zero usage.
+    """
+    calls = [call for turn in turns for call in _counted_calls(turn.trace)]
+    if not calls:
+        return Problem(kind="missing", detail="no observation records token usage")
+    by_model: dict[str | None, list[_Call]] = {}
+    for call in calls:
+        by_model.setdefault(call.model, []).append(call)
+    return Usage(
+        tokens=_sum_tokens(calls),
+        cost=_sum_cost(calls),
+        by_model=tuple(
+            ModelUsage(
+                model=model,
+                calls=len(group),
+                tokens=_sum_tokens(group),
+                cost=_sum_cost(group),
+            )
+            for model, group in by_model.items()
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -756,6 +821,97 @@ _ERROR_LEVELS = ("ERROR", "WARNING")
 _MEDIA_REFERENCE = re.compile(
     r"@@@langfuseMedia:type=([^|@]*)\|id=([^|@]*)\|source=[^@]*@@@"
 )
+
+
+class _Call(BaseModel, frozen=True):
+    """One counted observation's model, tokens and cost."""
+
+    model: str | None
+    tokens: Tokens
+    cost: float | None
+
+
+def _counted_calls(trace: Trace) -> list[_Call]:
+    """The observations in ``trace`` that record usage and have no descendant that does."""
+    recorded = {
+        observation.id: (observation, details)
+        for observation in trace.observations
+        if (details := _usage_details(observation))
+    }
+    by_id = {observation.id: observation for observation in trace.observations}
+    ancestors: set[str] = set()
+    for observation, _ in recorded.values():
+        parent_id = observation.parent_observation_id
+        while parent_id and parent_id in by_id and parent_id not in ancestors:
+            ancestors.add(parent_id)
+            parent_id = by_id[parent_id].parent_observation_id
+    return [
+        _Call(
+            model=_model_of(observation),
+            tokens=_tokens(details),
+            cost=_number(observation.raw.get("totalCost")),
+        )
+        for observation_id, (observation, details) in recorded.items()
+        if observation_id not in ancestors
+    ]
+
+
+def _usage_details(observation: Observation) -> dict[str, int]:
+    """The numeric entries of the observation's ``usageDetails``; ``{}`` when it has none."""
+    details = observation.raw.get("usageDetails")
+    if not isinstance(details, dict):
+        return {}
+    return {
+        str(key): int(number)
+        for key, raw in details.items()
+        if (number := _number(raw)) is not None
+    }
+
+
+def _model_of(observation: Observation) -> str | None:
+    model = observation.raw.get("model")
+    return model if isinstance(model, str) and model else None
+
+
+def _number(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return value
+
+
+def _tokens(details: dict[str, int]) -> Tokens:
+    input = details.get("input", 0)
+    output = details.get("output", 0)
+    return Tokens(
+        input=input,
+        output=output,
+        total=details.get("total", input + output),
+        other={
+            key: value
+            for key, value in details.items()
+            if key not in ("input", "output", "total")
+        },
+    )
+
+
+def _sum_tokens(calls: Sequence[_Call]) -> Tokens:
+    other: dict[str, int] = {}
+    for call in calls:
+        for key, value in call.tokens.other.items():
+            other[key] = other.get(key, 0) + value
+    return Tokens(
+        input=sum(call.tokens.input for call in calls),
+        output=sum(call.tokens.output for call in calls),
+        total=sum(call.tokens.total for call in calls),
+        other=other,
+    )
+
+
+def _sum_cost(calls: Sequence[_Call]) -> float | None:
+    """The summed cost; ``None`` when any call has tokens but no cost."""
+    if any(call.cost is None and call.tokens.total for call in calls):
+        return None
+    return sum(call.cost or 0.0 for call in calls)
 
 
 def _turn(index: int, trace: Trace) -> Turn:

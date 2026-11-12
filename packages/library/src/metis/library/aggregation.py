@@ -4,6 +4,11 @@ A grader that checks several rules judges each rule on its own, then combines th
 results with ``AGGREGATION_DEFINITIONS[grader.aggregation]`` into one result for each thing it
 judged. A grader that checks one criterion declares ``none_single_score`` and does not combine
 anything. The engine records the rule on ``GraderRecord.aggregation``.
+
+A rule that decides the result comes first: a failed rule for ``pass_if_all``, a passed rule
+for ``pass_if_any``. Otherwise an errored rule makes the result errored, because that rule
+could have decided it. Otherwise the judged rules decide, and the result is skipped only when
+every rule is skipped.
 """
 
 from __future__ import annotations
@@ -23,10 +28,11 @@ def _single(results: Sequence[GraderResult], label: str) -> GraderResult:
 
 
 def _pass_if_all(results: Sequence[GraderResult], label: str) -> GraderResult:
-    """0 when any rule failed; else errored when any rule errored; else 1."""
+    """0 when any rule failed; else errored when any rule errored; else skipped when every
+    rule is skipped; else 1."""
     if failed := [r.reason for r in results if r.status == "scored" and r.score != 1.0]:
         return _result("scored", 0.0, "Not every rule is met", failed, label)
-    if errored := [r.reason for r in results if r.status != "scored"]:
+    if errored := [r.reason for r in results if r.status == "errored"]:
         return _result(
             "errored",
             None,
@@ -34,14 +40,19 @@ def _pass_if_all(results: Sequence[GraderResult], label: str) -> GraderResult:
             errored,
             label,
         )
-    return _result("scored", 1.0, "Every rule is met", [], label)
+    skipped = [r.reason for r in results if r.status == "skipped"]
+    if len(skipped) == len(results):
+        return _result("skipped", None, "No rule applies", skipped, label)
+    summary = "Every rule that applies is met" if skipped else "Every rule is met"
+    return _result("scored", 1.0, summary, skipped, label)
 
 
 def _pass_if_any(results: Sequence[GraderResult], label: str) -> GraderResult:
-    """1 when any rule passed; else errored when any rule errored; else 0."""
+    """1 when any rule passed; else errored when any rule errored; else skipped when every
+    rule is skipped; else 0."""
     if passed := [r.reason for r in results if r.status == "scored" and r.score == 1.0]:
         return _result("scored", 1.0, "A rule is met", passed[:1], label)
-    if errored := [r.reason for r in results if r.status != "scored"]:
+    if errored := [r.reason for r in results if r.status == "errored"]:
         return _result(
             "errored",
             None,
@@ -49,7 +60,10 @@ def _pass_if_any(results: Sequence[GraderResult], label: str) -> GraderResult:
             errored,
             label,
         )
-    return _result("scored", 0.0, "No rule is met", [r.reason for r in results], label)
+    reasons = [r.reason for r in results]
+    if all(r.status == "skipped" for r in results):
+        return _result("skipped", None, "No rule applies", reasons, label)
+    return _result("scored", 0.0, "No rule is met", reasons, label)
 
 
 def _result(

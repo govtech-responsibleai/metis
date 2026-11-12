@@ -59,7 +59,7 @@ def test_uses_the_shared_binary_judgment_definition() -> None:
                 "score": None,
                 "reason": "The condition did not occur.",
             },
-            "errored",
+            "skipped",
             None,
         ),
         ({"status": "scored", "score": 0.5, "reason": "Partial."}, "errored", None),

@@ -295,8 +295,10 @@ class Grader(abc.ABC, Generic[ArgsT]):
         A model-based grader calls ``input_budget_error`` before each model call.
 
         Before any judge call, check that the session has the evidence the measure needs. When
-        it does not, or the event the measure looks for did not happen, return one errored
-        result that says what is missing, never an empty list. When a grader LLM call fails or
+        METIS cannot read or find it, return one errored result that says what is missing.
+        When the session can be read but the event the measure looks for did not happen,
+        return one skipped result that says what the session does not contain. Never return
+        an empty list. When a grader LLM call fails or
         its reply can't be parsed for one part of the session, record that part as errored and
         carry on. An exception that escapes ``grade()`` is recorded as
         one errored result for the whole grader run.

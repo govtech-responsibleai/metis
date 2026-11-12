@@ -10,7 +10,7 @@ METIS graders assess a recorded session against one criterion. Each grader measu
 attribute of agent quality and gives a score. The grader's judgment form decides the form
 of that score. Most graders are `binary`, so they score 0 or 1. The decision grader is
 `scalar`, so it scores from 0 to 1. When the
-event that the criterion looks for does not happen in the session, the result is errored and
+event that the criterion looks for does not happen in the session, the result is skipped and
 has no score.
 
 To learn how the Wizard uses the library, which settings a grader takes, and how a grader turns
