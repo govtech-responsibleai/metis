@@ -106,7 +106,7 @@ export function SpecificationView({
   gradersLoading: boolean;
   gradersError: boolean;
   onCollapse?: () => void;
-  // The shell owns whether the local Interview has reached its end.
+  // The shell owns whether the Interview has reached its end.
   done?: boolean;
   onFinish?: () => void;
   onDownload?: () => void;

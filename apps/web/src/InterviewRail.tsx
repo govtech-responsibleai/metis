@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import type { InterviewSummary } from "./transport/api";
 import { useThemeChoice, type ThemeChoice } from "./theme";
-import type { LocalStorageProblem } from "./storage/repository";
+import type { StorageProblem } from "./storage/repository";
 import { relativeTime } from "./relative-time";
 import { Button, cn } from "./ui";
 
@@ -28,7 +28,7 @@ export function InterviewRail({
   onCollapse,
 }: {
   interviews: InterviewSummary[];
-  problems: readonly LocalStorageProblem[];
+  problems: readonly StorageProblem[];
   currentId: string | null;
   activeIds: ReadonlySet<string>;
   onOpen: (id: string) => void;
@@ -147,7 +147,7 @@ export function InterviewRail({
                 title={
                   activeIds.has(s.id)
                     ? "Wait for this Interview to finish sending."
-                    : "Delete local Interview"
+                    : "Delete Interview"
                 }
                 disabled={activeIds.has(s.id)}
                 className={cn(
@@ -172,7 +172,7 @@ export function InterviewRail({
               <button
                 type="button"
                 aria-label={`Remove unreadable Interview ${problem.id}`}
-                title="Remove local record"
+                title="Remove saved record"
                 className="shrink-0 rounded p-1 text-destructive hover:bg-destructive/10"
                 onClick={() => onDelete(problem.id)}
               >
