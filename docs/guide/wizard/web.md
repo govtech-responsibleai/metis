@@ -5,8 +5,9 @@ the Engine.
 
 - The web client uses the Wizard API to process answers and build the download. The
   [API guide](api.md) shows how to use the same features in your own client.
-- The browser stores Interview records, original documents, fixture files, and the display
-  transcript in its IndexedDB database.
+- The API saves Interview records, original documents, fixture files, and the display
+  transcript in its store. Another browser that uses the same API opens the same Interviews.
+  See [Where the API saves your work](#where-the-api-saves-your-work).
 
 See the [Wizard overview](../wizard.md) for the shared Interview flow and output concepts.
 
@@ -47,6 +48,25 @@ See the [Wizard overview](../wizard.md) for the shared Interview flow and output
 The API runs at `http://localhost:8001` by default. If the API uses another address, set
 `METIS_API_ORIGIN` before you start the web development server. The web development server
 forwards `/api` requests to that address.
+
+### Where the API saves your work
+
+The API saves each Interview in its project folder. The project folder is the nearest folder at
+or above the folder where you start the API that has a `pyproject.toml`. For `make run-web`, it is
+the repository folder. To use another folder, start the API with
+`metis-api --project-dir PATH`.
+
+- The database is `experiments/metis.db` in the project folder. To use another database, set
+  `METIS_DATABASE_URL` to a SQLAlchemy URL.
+- The files of each Interview are in `experiments/design/<id>/`, the same layout as the CLI
+  wizard. `inputs/` holds the files that you upload.
+- The `<id>` is `YYYYMMDD-HHMMSS-interview`, in the local time when you send the first message.
+  For example, `20261112-101500-interview`. A `metis wizard init` folder has the same name. When
+  another Interview already has the id, the web app adds `-2`, `-3`, and so on.
+- To run the finished Specification, download its package and extract it. See
+  [Finish and download](#finish-and-download).
+
+The repository ignores `experiments/`, so Git does not save it.
 
 ## Start a guided Interview
 
@@ -200,6 +220,10 @@ Document facts:
 - The API does not run OCR. Scanned PDFs give no text.
 - A Test Case has no files at first. Select its pen to add an opening document or upload a file
   in its **Files** cell.
+- The browser never replaces a file. When you add a file with the name of a file that the
+  Interview already has, the new file gets a number before its extension, for example
+  `policy (2).pdf`. Names that differ only by case are the same name, so `POLICY.pdf` also gets a
+  number when the Interview has `policy.pdf`. The manual form uses the same rule.
 - The final package contains only files that a Test Case uses.
 
 ## Finish and download
@@ -234,7 +258,7 @@ YYYYMMDD-HHMMSS-interview/
 
 The API compiles the Specification from the same final Interview state that it saves in the
 archive. This state keeps document names, extracted text, and limited recent history. The full
-display transcript stays in browser storage.
+display transcript stays in the API store.
 
 Extract the archive into `experiments/design/`. For an Interview exported on 2026-10-16 at 22:30:45, run:
 

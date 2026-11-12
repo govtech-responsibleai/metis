@@ -189,7 +189,7 @@ adapters belong in the testbed so the same case data can support other systems.
 | | |
 |---|---|
 | **Import Path** | `from metis.api import ...` |
-| **Purpose** | A thin, stateless HTTP door exposing METIS capabilities as a REST service. |
+| **Purpose** | A thin HTTP door exposing METIS capabilities as a REST service, with a store of Interview records and their files. |
 
 MAY depend on all `packages/*` members. For the wizard it depends on the `metis.wizard` public
 Interview interface only (`apps/api -> metis.wizard`): the router calls `handle_interview`,
@@ -242,12 +242,46 @@ description, required known capability ids, required confidence, and any other o
 then passes them to the wizard facade. The API does not validate or store a separate capability
 catalogue.
 
-**Client-held state boundary.** The service holds only immutable settings and model clients for the
-process lifetime. It holds no Interview state: start creates state, turn carries the complete state
-and one typed response, and end carries the complete state for best-effort completion. The next state
-goes back whole in the response, so any instance serves any operation and no Interview file is
-written. Web clients drive the wizard through these HTTP lifecycle routes; they MUST NOT embed the
-wizard.
+**Client-held state boundary.** The wizard routes hold only immutable settings and model clients
+for the process lifetime. They hold no Interview state: start creates state, turn carries the
+complete state and one typed response, and end carries the complete state for best-effort
+completion. The next state goes back whole in the response, so any instance serves any operation
+and the wizard routes write no Interview file. Web clients drive the wizard through these HTTP
+lifecycle routes; they MUST NOT embed the wizard.
+
+**The store.** The store routes under `/api/v1/targets` keep Interview records and their files.
+They do not change the wizard routes. The `interviews` table holds one JSON record per Interview,
+with its id and save time. That record contains the Target details, Specification, transcript,
+and file references. There are no separate Target, Specification, or Experiment records.
+Saving an Interview does not compile the Specification or prepare an engine input folder.
+The existing compile and package routes keep those roles.
+
+SQLAlchemy opens the database from `METIS_DATABASE_URL`. The default is a SQLite file at
+`<project>/experiments/metis.db`. `metis-api --project-dir` names the project folder. Without it,
+the API finds the nearest folder at or above the working directory that has a `pyproject.toml`.
+If no such folder exists, it uses the working directory. The table uses portable SQL types.
+PostgreSQL support is later work.
+
+The files of an Interview are under
+`<project>/experiments/design/<target_id>/inputs/fixtures/`. The web app gives a new Interview
+the id `YYYYMMDD-HHMMSS-interview` in local time. When the id is taken, it adds `-2`, `-3`,
+and so on. The `created_at` of the record tells one Interview from another. A save with the id
+of another Interview gets 409 `target_exists` and changes nothing.
+
+Each file has its own name. Names that differ only by case are the same name. A record with two
+files of the same name gets 400 `validation_error`. The web client gives a new file with a taken
+name the next free ` (n)` before its extension.
+
+A save writes the new files into the fixture folder, saves the row, and then deletes the files
+that the record no longer refers to. Thus a saved record always has all its files. The store has
+no recovery step. A save that stops before its last step can leave a file that no record refers
+to, and the next save of that Interview deletes it. Each store holds a thread lock for the full
+time of a save or a delete. The store has no lock between processes.
+
+A first save refuses an existing Target folder that has no Interview row. It returns 409
+`target_exists` and leaves the folder unchanged. DELETE requires an Interview row. A missing row
+gets 404 `not_found`, and its folder stays in place. A delete removes the row and then the Target
+folder.
 
 ---
 
@@ -258,10 +292,10 @@ wizard.
 | **Purpose** | Web frontend providing a graphical interface for METIS capabilities. |
 
 MUST communicate exclusively with `apps/api` via REST. MUST NOT import or depend on any Python package directly.
-The browser owns the local Interview record, fixture Blobs, and display transcript in IndexedDB. It
-sends only the client-held `InterviewState` and typed responses to lifecycle routes; fixture bytes
-are sent only for request-scoped text extraction or packaging. It MUST NOT depend on server Interview
-resources, wizard static assets, or an embedded wizard runtime.
+The browser saves the Interview record, its fixture files, and the display transcript through the
+store routes of `apps/api`. It sends only the client-held `InterviewState` and typed responses to
+lifecycle routes; fixture bytes go to those routes only for request-scoped text extraction or
+packaging. It MUST NOT depend on wizard static assets or an embedded wizard runtime.
 
 It MUST offer two authoring paths: the guided Interview, and a manual form for a user who already
 knows the graders to run. The manual form MUST stay flat: it MUST NOT surface Feature, Behaviour, or
