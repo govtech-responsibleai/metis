@@ -76,3 +76,14 @@ export function placeOf(path: string): Place {
 export function targetOf(place: Place): string | null {
   return "targetId" in place ? place.targetId : null;
 }
+
+// Where a loaded Target sends its user. Only a done Interview has a Specification to run, so
+// every other place of an unfinished Target opens its Specification tab.
+export function targetRedirect(place: Place, done: boolean): string | null {
+  if (place.page === "target" && place.tab === null)
+    return paths.target(place.targetId, done ? "experiments" : "specification");
+  if (done || place.page === "new-target" || !("targetId" in place))
+    return null;
+  if (place.page === "target" && place.tab === "specification") return null;
+  return paths.target(place.targetId, "specification");
+}

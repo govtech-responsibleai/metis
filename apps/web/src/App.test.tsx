@@ -35,7 +35,6 @@ import {
 } from "./Conversation";
 import { ConnectionForm, ModePicker } from "./ConnectionStep";
 import { emptyConnectionDraft, type ConnectionDraft } from "./connection";
-import { InterviewRail } from "./InterviewRail";
 import {
   api,
   type CapabilityEvidence,
@@ -916,43 +915,6 @@ test("The Files menu offers upload first and then each unattached document", () 
   ].map(([, item]) => (item ?? "").replace(/<[^>]+>/g, ""));
 
   assert.deepEqual(items, ["Upload a file", "terms.pdf", "notes.txt"]);
-});
-
-test("History stays usable while the sending Interview is protected from deletion", () => {
-  let opened = "";
-  const rail = InterviewRail({
-    interviews: [
-      { id: "a", title: "A", updated: Date.now() },
-      { id: "b", title: "B", updated: Date.now() },
-    ],
-    problems: [],
-    currentId: "a",
-    activeIds: new Set(["a"]),
-    onOpen: (id) => {
-      opened = id;
-    },
-    onNew: () => {},
-    onDelete: () => {},
-  });
-  assert.equal(
-    findElement(rail, (element) => element.props["aria-label"] === "Delete A")
-      .props.disabled,
-    true,
-  );
-  assert.equal(
-    findElement(rail, (element) => element.props["aria-label"] === "Delete B")
-      .props.disabled,
-    false,
-  );
-  const buttons = findElements(
-    rail,
-    (element) =>
-      element.type === "button" &&
-      !!element.props.onClick &&
-      !element.props["aria-label"],
-  );
-  (buttons[1]!.props.onClick as () => void)();
-  assert.equal(opened, "b");
 });
 
 test("failed reply feedback routes retry through its Interview", () => {

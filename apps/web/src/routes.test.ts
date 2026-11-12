@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { NEW_EXPERIMENT, paths, placeOf } from "./routes.ts";
+import { NEW_EXPERIMENT, paths, placeOf, targetRedirect } from "./routes.ts";
 
 test("each path builder gives a path that reads back as its place", () => {
   assert.deepEqual(placeOf(paths.newTarget()), { page: "new-target" });
@@ -49,6 +49,45 @@ test("a Target id with reserved URL characters survives the round trip", () => {
     targetId: "a b/c",
     tab: "specification",
   });
+});
+
+test("a Target opens its Experiments tab when its Interview is done", () => {
+  assert.equal(
+    targetRedirect(placeOf("/targets/a"), true),
+    "/targets/a/experiments",
+  );
+  assert.equal(
+    targetRedirect(placeOf("/targets/a"), false),
+    "/targets/a/specification",
+  );
+});
+
+test("an unfinished Target sends every place but its Specification tab there", () => {
+  for (const path of [
+    paths.target("a", "experiments"),
+    paths.experiment("a", NEW_EXPERIMENT),
+    paths.experiment("a", "e1", "report"),
+    paths.compare("a"),
+  ])
+    assert.equal(
+      targetRedirect(placeOf(path), false),
+      "/targets/a/specification",
+      path,
+    );
+  assert.equal(
+    targetRedirect(placeOf(paths.target("a", "specification")), false),
+    null,
+  );
+});
+
+test("a done Target stays on the place that its URL names", () => {
+  for (const path of [
+    paths.target("a", "specification"),
+    paths.target("a", "experiments"),
+    paths.experiment("a", "e1", "report"),
+    paths.compare("a"),
+  ])
+    assert.equal(targetRedirect(placeOf(path), true), null, path);
 });
 
 test("an unknown path is not found", () => {

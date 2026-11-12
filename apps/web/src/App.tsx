@@ -50,7 +50,8 @@ import {
   type RunModels,
 } from "./RunSettings";
 import { SpecificationView, stepPosition } from "./SpecificationView";
-import { InterviewRail } from "./InterviewRail";
+import { TargetRail, type RailSelection } from "./TargetRail";
+import { ExperimentsTab, TargetTabs } from "./TargetPage";
 import { PaneDivider, useChatWidth } from "./pane-divider";
 import { Button, buttonClass, cn } from "./ui";
 import {
@@ -79,7 +80,14 @@ import {
   type TargetSummary,
 } from "./targets";
 import { Link, useLocation } from "wouter";
-import { paths, placeOf, targetOf } from "./routes";
+import {
+  NEW_EXPERIMENT,
+  paths,
+  placeOf,
+  targetOf,
+  targetRedirect,
+  type Place,
+} from "./routes";
 import { admitFiles, type AdmittedFile } from "./fixture-policy";
 import { specificationHasCriteria } from "./graders";
 import { downloadArchive } from "./download";
@@ -165,6 +173,11 @@ export function openedPath(
   return placeOf(currentPath).page === "new-target" && currentOpening === origin
     ? paths.target(id, "specification")
     : null;
+}
+
+function railSelection(place: Place): RailSelection {
+  if (place.page === "experiments") return { kind: "experiments" };
+  return "targetId" in place ? { kind: "target", id: place.targetId } : null;
 }
 
 export function App() {
@@ -266,7 +279,14 @@ export function App() {
   // user continues from that step.
   const [runSettingsFor, setRunSettingsFor] = useState<string | null>(null);
 
-  const view = useMemo(() => record && toPresentation(record), [record]);
+  const loadedView = useMemo(() => record && toPresentation(record), [record]);
+  // Only the record of the Target in the URL shows. For one render after a change of Target,
+  // the record of the Target before is still loaded.
+  const view = loadedView?.id === targetId ? loadedView : null;
+  const redirect = view ? targetRedirect(place, view.done) : null;
+  useEffect(() => {
+    if (redirect) navigate(redirect, { replace: true });
+  }, [redirect, navigate]);
   const review = view && !view.done ? activeReview(view.requests) : null;
   const conversationScrollRef = useRef<HTMLDivElement | null>(null);
   const conversationRevision = conversationScrollRevision(
@@ -836,25 +856,21 @@ export function App() {
   return (
     <div className="flex h-full w-full overflow-hidden">
       {railOpen ? (
-        <InterviewRail
-          interviews={targets}
+        <TargetRail
+          targets={targets}
           problems={storageProblems}
-          currentId={targetId}
+          selected={railSelection(place)}
           activeIds={
             new Set([...operations.active, ...operations.pendingSaves.keys()])
           }
-          onOpen={(id) => navigate(paths.target(id, "specification"))}
-          onNew={() => {
-            startNew();
-            navigate(paths.newTarget());
-          }}
+          onNew={startNew}
           onDelete={remove}
           onCollapse={() => setRailOpen(false)}
         />
       ) : (
         <EdgeStrip
           side="left"
-          label="Show interviews"
+          label="Show targets"
           onClick={() => setRailOpen(true)}
         />
       )}
@@ -866,6 +882,22 @@ export function App() {
             onRetry={
               feedback?.retry ? () => void feedback.retry?.() : undefined
             }
+          />
+        )}
+        {(place.page === "new-target" ||
+          (place.page === "target" && view && !redirect)) && (
+          <TargetTabs
+            targetId={place.page === "target" ? place.targetId : null}
+            tab={
+              place.page === "target"
+                ? (place.tab ?? "specification")
+                : "specification"
+            }
+            done={view?.done ?? false}
+            onRun={() => {
+              if (targetId)
+                navigate(paths.experiment(targetId, NEW_EXPERIMENT));
+            }}
           />
         )}
         {manualOpen ? (
@@ -901,7 +933,10 @@ export function App() {
             onSave={() => void saveConnection()}
             onCancel={() => setConnectionStep(null)}
           />
-        ) : place.page === "not-found" || place.page === "experiments" ? (
+        ) : place.page === "not-found" ||
+          place.page === "experiments" ||
+          place.page === "experiment" ||
+          place.page === "compare" ? (
           <NotFound onNew={startNew} />
         ) : view === null && targetId !== null ? (
           <div className="m-auto flex flex-col gap-4 p-8" role="status">
@@ -912,6 +947,13 @@ export function App() {
             </p>
             <NewTargetLink onClick={startNew} />
           </div>
+        ) : redirect ? null : place.page === "target" &&
+          place.tab === "experiments" ? (
+          <ExperimentsTab
+            onRun={() =>
+              navigate(paths.experiment(place.targetId, NEW_EXPERIMENT))
+            }
+          />
         ) : view === null ? (
           <OpeningRoute
             configState={wizardConfig}
