@@ -21,6 +21,7 @@ from metis.core.traces import GradingInput, Observation, Trace
 from metis.core.trials import TrialConfig, TrialOutcome, TrialRecord
 from metis.engine import cli
 from metis.engine.cli import app
+from metis.engine.extractor.langfuse import NO_TRACES, TracesNotReadyError, TraceWait
 from metis.engine.simulation.binding import TargetBindingError
 from metis.engine.simulation.exceptions import ConsecutiveFailureEscalation
 from metis.engine.simulation.experiment import (
@@ -290,7 +291,7 @@ def test_a_trial_that_cannot_be_graded_fails_with_its_reason(
     simulated = _run(tmp_path, "--input-dir", str(input_dir), command="simulate")
 
     async def no_traces(*_args: object, **_kwargs: object) -> GradingInput:
-        return GradingInput(traces=())
+        raise TracesNotReadyError(TraceWait("no_traces", 2, 90.0))
 
     monkeypatch.setattr("metis.engine.extractor.fetch_session", no_traces)
 
@@ -307,7 +308,7 @@ def test_a_trial_that_cannot_be_graded_fails_with_its_reason(
     failed = [
         event for event in evaluated if event["trial"] and event["status"] == "failed"
     ]
-    assert [event["reason"] for event in failed] == ["No traces found in Langfuse"] * 2
+    assert [event["reason"] for event in failed] == [NO_TRACES] * 2
 
 
 @pytest.mark.usefixtures("fake_services")

@@ -12,6 +12,7 @@ specification.yaml criteria ──▶ build_grader (once per criterion)
                                    resolve judge model (JudgeArgs only)
                                    validate grader_args against args_model
 trial record ──▶ fetch_session ──▶ GradingInput (every trace + artifacts)
+                    waits until the traces stop changing, or fails the trial
                                    │──▶ outputs/traces/<session_id>.json (traces only, for the report)
                                    │
                  grade_session ◀───┘  every grader of THIS session once, together
