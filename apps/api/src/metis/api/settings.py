@@ -43,6 +43,9 @@ CONNECTION_CHECK_ENV = "METIS_API_CONNECTION_CHECK"
 """`1` lets the connection-check route reach the target, and `0` stops it. When it is unset,
 the check is on only for an API that listens on this computer."""
 
+DEFAULT_HOST = "127.0.0.1"
+"""The API listens for its own computer only, unless ``HOST`` names another address."""
+
 _LOCAL_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 
 DATABASE_URL_ENV = "METIS_DATABASE_URL"
@@ -77,7 +80,7 @@ def connection_check_from_env() -> bool:
     flag = os.environ.get(CONNECTION_CHECK_ENV, "").strip()
     if flag in ("0", "1"):
         return flag == "1"
-    return os.environ.get("HOST", "0.0.0.0").strip() in _LOCAL_HOSTS  # noqa: S104
+    return os.environ.get("HOST", DEFAULT_HOST).strip() in _LOCAL_HOSTS
 
 
 @dataclass(frozen=True)
@@ -166,6 +169,7 @@ def build_dependencies(settings: Settings) -> WizardDependencies:
 
 
 __all__ = [
+    "DEFAULT_HOST",
     "API_ROLES",
     "CONNECTION_CHECK_ENV",
     "DATABASE_URL_ENV",

@@ -43,11 +43,12 @@ def main(argv: list[str] | None = None) -> None:
     import uvicorn
 
     from metis.api.main import create_app
+    from metis.api.settings import DEFAULT_HOST
     from metis.core.model_settings import load_env
 
     arguments = _parser().parse_args(argv)
     load_env()
-    host = os.environ.get("HOST", "0.0.0.0")  # noqa: S104 — a container binds all interfaces
+    host = os.environ.get("HOST", DEFAULT_HOST)
     port = int(os.environ.get("PORT", "8000"))
     # Uvicorn gets the app object, so the app keeps the project folder of this command. An
     # import string would make a new app without it. One process with no reload accepts an object.
