@@ -190,10 +190,20 @@ class TestPaging:
         lf.async_api.observations_v_2.get_many.return_value = _page([])
         await _page_through_observations(lf, "sessionId", "s1")
         kwargs = lf.async_api.observations_v_2.get_many.call_args.kwargs
-        assert kwargs["fields"] == "core,basic,time,io,metadata"
+        assert kwargs["fields"] == "core,basic,time,io,metadata,model,usage"
         assert kwargs["limit"] == 1000
         assert _filter(kwargs) == ("sessionId", "s1")
         assert kwargs["expand_metadata"] is None
+
+    @pytest.mark.asyncio
+    async def test_requests_the_model_and_its_usage(self) -> None:
+        """Langfuse returns ``model`` and ``usageDetails``/``costDetails``/``totalCost`` only
+        when the request names their field groups."""
+        lf = _async_mock_client()
+        lf.async_api.observations_v_2.get_many.return_value = _page([])
+        await _page_through_observations(lf, "traceId", "t1")
+        kwargs = lf.async_api.observations_v_2.get_many.call_args.kwargs
+        assert {"model", "usage"} <= set(kwargs["fields"].split(","))
 
     @pytest.mark.asyncio
     async def test_never_sends_parse_io_as_json(self) -> None:
