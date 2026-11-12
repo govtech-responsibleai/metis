@@ -60,8 +60,9 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-_FIELDS = "core,basic,time,io,metadata"
-"""``time`` holds ``updatedAt``, which the trace wait reads."""
+_FIELDS = "core,basic,time,io,metadata,model,usage"
+"""``time`` holds ``updatedAt``, which the trace wait reads. ``model`` holds the model name and
+``usage`` holds ``usageDetails``, ``costDetails`` and ``totalCost``, which ``usage_of`` reads."""
 _PAGE_SIZE = 1000
 _TRUNCATION_LIMIT = 200
 """Langfuse truncates metadata values longer than this unless the key is expanded."""
