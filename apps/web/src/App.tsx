@@ -275,7 +275,6 @@ export function App() {
     return () => narrow.removeEventListener("change", closePanels);
   }, []);
   const [manualOpen, setManualOpen] = useState(false);
-  const [showGraders, setShowGraders] = useState(false);
   const [graderCatalogue, setGraderCatalogue] = useState<Awaited<
     ReturnType<typeof api.graders>
   > | null>(null);
@@ -351,10 +350,9 @@ export function App() {
     ? specificationHasCriteria(view.specification)
     : false;
 
-  const [runOpen, setRunOpen] = useState(false);
   const [profileMode, setProfileMode] = useState<ProfileMode>("document");
+  const [runOpen, setRunOpen] = useState(false);
   useEffect(() => {
-    setShowGraders(false);
     setRunModelDrafts(null);
     setProfileMode("document");
   }, [record?.id]);
@@ -404,9 +402,9 @@ export function App() {
 
   // The record follows the Target of the URL. A change of tab inside one Target keeps it.
   useEffect(() => {
-    setRunOpen(false);
     setManualOpen(false);
     setConnectionStep(null);
+    setRunOpen(false);
     setRecord(null);
     setLoadingRecord(targetId !== null);
     if (targetId === null) return;
@@ -881,6 +879,8 @@ export function App() {
     />
   );
 
+  return (
+    <div className="flex h-full w-full overflow-hidden">
       {runOpen && record && view?.done && (
         <RunDialog
           title={record.title}
@@ -892,8 +892,6 @@ export function App() {
           }}
         />
       )}
-  return (
-    <div className="flex h-full w-full overflow-hidden">
       {railOpen ? (
         <TargetRail
           targets={targets}
@@ -1090,6 +1088,8 @@ export function App() {
                     profileForm={profileForm?.request_id ?? null}
                   />
                   {busy && <ThinkingLine message={workingStatus} />}
+                  {/* The end of the Interview stands clear of the last message. */}
+                  {view.done && <div aria-hidden className="h-4 shrink-0" />}
                   {view.done && runSettingsFor === view.id ? (
                     <RunSettings
                       roles={runRoles(view.specification)}
@@ -1159,12 +1159,7 @@ export function App() {
                     position={stepPosition(view.requests)}
                     interviewStep={view.stage}
                     busy={busy || operations.pendingSaves.has(view.id)}
-                    showGraders={showGraders}
-                    onShowGradersChange={setShowGraders}
                     graderByFqn={graderByFqn}
-                    gradersLoading={
-                      graderState === "idle" || graderState === "loading"
-                    }
                     gradersError={graderState === "error"}
                     done={view.done}
                     onFinish={() => void finish()}

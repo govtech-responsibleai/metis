@@ -75,10 +75,7 @@ export function SpecificationView({
   position,
   interviewStep,
   busy,
-  showGraders,
-  onShowGradersChange,
   graderByFqn,
-  gradersLoading,
   gradersError,
   onCollapse,
   onFinish,
@@ -102,10 +99,8 @@ export function SpecificationView({
   position?: StepPosition | null;
   interviewStep?: string;
   busy?: boolean;
-  showGraders: boolean;
-  onShowGradersChange: (show: boolean) => void;
   graderByFqn: ReadonlyMap<string, GraderSpec>;
-  gradersLoading: boolean;
+  // The grader list did not load, so "Grader details" shows only what the Criterion holds.
   gradersError: boolean;
   onCollapse?: () => void;
   // The shell owns whether the Interview has reached its end.
@@ -160,11 +155,6 @@ export function SpecificationView({
   const { features } = specification;
   const writing =
     busy && interviewStep ? WRITING_TARGET[interviewStep] : undefined;
-  const hasCriteria = features.some((feature) =>
-    feature.behaviours.some((behaviour) => behaviour.criteria.length > 0),
-  );
-  const gradersAvailable = !gradersLoading && !gradersError;
-
   // The user is choosing which behaviours to measure on the combined Behaviours screen, and a
   // criteria blank must not appear until that choice is committed with Continue. The commit signal
   // is the *step*, not `busy`: a tick is a live server round-trip that recomposes the screen and
@@ -176,6 +166,19 @@ export function SpecificationView({
   // not draft, which is exactly what the blank should report.)
   const selecting = interviewStep === "behaviours";
 
+  // A done Interview shows every step as complete. A user who skips the Interview leaves from an
+  // early step, and the last request still names that step.
+  const shownPosition =
+    done && position
+      ? { title: "Complete", step: position.steps, steps: position.steps }
+      : position;
+
+  const graderProblem = gradersError && (
+    <span role="alert" className="text-xs text-destructive">
+      Grader details unavailable
+    </span>
+  );
+
   return (
     <div className="flex h-full min-h-0 flex-col p-4">
       <ProfileHeading toolbar={toolbar} />
@@ -184,13 +187,13 @@ export function SpecificationView({
           filling left to right; the collapse control sits at the right. Both are outside the sheet
           so its corner stays free for the document header, and the segments read as a header for the
           page below rather than floating inside it. */}
-      {(position || onCollapse) && (
+      {(shownPosition || onCollapse) && (
         <div className="mb-2 flex shrink-0 items-center gap-3">
-          {position && (
+          {shownPosition && (
             <ProgressSegments
-              step={position.step}
-              steps={position.steps}
-              title={position.title}
+              step={shownPosition.step}
+              steps={shownPosition.steps}
+              title={shownPosition.title}
             />
           )}
           {onCollapse && (
@@ -218,38 +221,15 @@ export function SpecificationView({
         className="quiet-scrollbar flex-1 overflow-y-auto overflow-x-hidden rounded-[12px] bg-card text-sm text-card-foreground shadow-sm"
       >
         <KeepInPlaceContext.Provider value={keepInPlace}>
-          <div className="flex flex-col gap-8 px-5 pb-5">
-            {/* The header carries only the pane's grader controls, pinned to the right. It draws
-              nothing until there is a control to hold, so an early document opens straight onto
-              Target rather than onto an empty strip. */}
-            {!reviewing("behaviours") && (hasCriteria || gradersError) && (
-              <header className="flex flex-wrap items-center justify-end gap-2 pt-5">
-                {hasCriteria && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    active={showGraders}
-                    disabled={!gradersAvailable}
-                    aria-pressed={showGraders}
-                    title={
-                      gradersError
-                        ? "Grader details unavailable"
-                        : "Show graders"
-                    }
-                    onClick={() => onShowGradersChange(!showGraders)}
-                    className="px-2 py-1 text-xs"
-                  >
-                    Show graders
-                  </Button>
-                )}
-                {gradersError && (
-                  <span role="alert" className="text-xs text-destructive">
-                    Grader details unavailable
-                  </span>
-                )}
-              </header>
+          {/* While a model call writes into the document, every blank of the page takes the slow
+              crest (`is-writing`, in globals.css). The dot in a section heading marks the one
+              section that the call fills. */}
+          <div
+            className={cn(
+              "flex flex-col gap-8 px-5 pb-5",
+              writing && "is-writing",
             )}
-
+          >
             <Section
               title="Target"
               writing={writing === "target"}
@@ -281,7 +261,9 @@ export function SpecificationView({
             which is what made it read as the odd one out. */}
             <Section
               title="Features / Expected Behaviours"
-              actions={actions("behaviours")}
+              actions={
+                reviewing("behaviours") ? actions("behaviours") : graderProblem
+              }
               mode={mode("behaviours")}
               writing={writing === "behaviours"}
             >
@@ -297,13 +279,12 @@ export function SpecificationView({
                       key={feature.id}
                       feature={feature}
                       selecting={selecting}
-                      showGraders={showGraders}
                       graderByFqn={graderByFqn}
                     />
                   ))}
                 </div>
               ) : (
-                <Placeholder boxed />
+                <Placeholder />
               )}
             </Section>
 
@@ -318,7 +299,7 @@ export function SpecificationView({
               ) : specification.personas.length > 0 ? (
                 <ItemList items={specification.personas} />
               ) : (
-                <Placeholder boxed />
+                <Placeholder />
               )}
             </Section>
 
@@ -333,7 +314,7 @@ export function SpecificationView({
               ) : specification.scenarios.length > 0 ? (
                 <ItemList items={specification.scenarios} />
               ) : (
-                <Placeholder boxed />
+                <Placeholder />
               )}
             </Section>
 
@@ -363,7 +344,7 @@ export function SpecificationView({
                   </p>
                 </div>
               ) : (
-                <Placeholder boxed />
+                <Placeholder />
               )}
             </Section>
           </div>
@@ -428,57 +409,29 @@ function SpecificationFooter({
 
 // ── the scaffold ─────────────────────────────────────────────────────────────
 
-// What an unwritten section shows: ruled lines, framed for a list, bare for prose.
+// What an unwritten section shows: three rounded grey bars, the same for each section and each
+// Target field. Identical blanks read as one kind of thing, which is space reserved. The headings
+// of the document already say what each section holds.
 //
-// The frame is the part that makes the lines work for a list. On its own a run of hairlines read as
-// rules under the heading and debris below it — the lines looked like structure that had broken
-// rather than space waiting to be filled. Enclosed, they are unambiguously the contents of a
-// reserved region, and the dotted edge carries that message rather than the lines themselves.
-//
-// The frame specifically means "a list will grow here": Behaviours, Personas and Scenarios all fill
-// with lists of items, so all three get the identical framed placeholder. A Target field is one
-// piece of prose, not a list, so it takes the same lines without the frame — framing a single line
-// would promise a growing region that never arrives.
-//
-// Every framed section is given the same lines at the same widths. Shaping each placeholder after
-// the row it would hold was tried and dropped: it made an empty page busier than a written one, and
-// the document's own headings already say what each section holds. Identical blanks read as one
-// consistent kind of thing — space reserved — which is all the empty state needs to say.
+// The bars carry `placeholder-rule`, so they take the travelling accent crest while a model call
+// writes into the document (`is-writing`, in globals.css).
 //
 // `aria-hidden` throughout: the section heading above already carries the meaning, and a screen
 // reader should not hear a description of furniture.
 const PLACEHOLDER_WIDTHS = ["w-full", "w-4/5", "w-3/5"];
 
-function Placeholder({
-  writing = false,
-  boxed = false,
-  widths = PLACEHOLDER_WIDTHS,
-}: {
-  writing?: boolean;
-  boxed?: boolean;
-  widths?: string[];
-}) {
-  // The lines carry `placeholder-rule`, so they take the travelling accent crest while the model is
-  // writing into this section (`is-writing`, in globals.css). The frame stays still — it is
-  // structure, and animating it would make the reserved region itself look unsettled.
-  const rules = (
-    <div className={cn("flex flex-col gap-2", writing && "is-writing")}>
+function Placeholder({ widths = PLACEHOLDER_WIDTHS }: { widths?: string[] }) {
+  return (
+    <div aria-hidden className="flex flex-col gap-2.5 py-1">
       {widths.map((width, i) => (
         <span
           key={i}
-          className={cn("placeholder-rule block h-px bg-border", width)}
+          className={cn(
+            "placeholder-rule block h-2.5 rounded-full bg-border",
+            width,
+          )}
         />
       ))}
-    </div>
-  );
-
-  if (!boxed) return <div aria-hidden>{rules}</div>;
-  return (
-    <div
-      aria-hidden
-      className="rounded-lg border border-dotted border-border px-3 py-3"
-    >
-      {rules}
     </div>
   );
 }
@@ -563,7 +516,7 @@ function Section({
   return (
     <section
       aria-current={current ? "step" : undefined}
-      className={cn("flex flex-col gap-3", writing && "is-writing")}
+      className="flex flex-col gap-3"
     >
       <div className="sticky top-0 z-10 -mx-5 flex min-h-12 items-end justify-between gap-3 border-b border-border bg-card px-5 pb-2 pt-4">
         <h2
@@ -786,12 +739,10 @@ function TestCaseTable({
 function FeatureView({
   feature,
   selecting,
-  showGraders,
   graderByFqn,
 }: {
   feature: Feature;
   selecting?: boolean;
-  showGraders: boolean;
   graderByFqn: ReadonlyMap<string, GraderSpec>;
 }) {
   // The open state lives here, so this component re-renders on a toggle and its keep-in-place
@@ -830,7 +781,6 @@ function FeatureView({
               key={b.id}
               behaviour={b}
               selecting={selecting}
-              showGraders={showGraders}
               graderByFqn={graderByFqn}
             />
           ))}
@@ -843,12 +793,10 @@ function FeatureView({
 function BehaviourView({
   behaviour,
   selecting,
-  showGraders,
   graderByFqn,
 }: {
   behaviour: Behaviour;
   selecting?: boolean;
-  showGraders: boolean;
   graderByFqn: ReadonlyMap<string, GraderSpec>;
 }) {
   // A behaviour the user hasn't ticked is dormant: its criteria are kept but won't be
@@ -912,12 +860,25 @@ function BehaviourView({
                 <p className="text-foreground">{c.description}</p>
                 <Disclosure tone="muted" summary="Grader details">
                   <div className="mt-1 flex flex-col gap-0.5">
-                    <p>{c.name}</p>
-                    <p>{grader?.name ?? c.grader_fqn ?? "Not selected"}</p>
-                    {!grader && c.grader_fqn && (
-                      <p>Unlisted settings use the grader defaults.</p>
-                    )}
-                    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3">
+                    {/* The two names have labels, because a bare name does not say if it is the
+                        Criterion or the grader. The settings follow in the same grid. */}
+                    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5">
+                      <dt>Criterion</dt>
+                      <dd>{c.name}</dd>
+                      <dt>Grader</dt>
+                      <dd>
+                        <span className="block font-medium text-foreground">
+                          {grader?.name ?? c.grader_fqn ?? "Not selected"}
+                        </span>
+                        {grader && (
+                          <span className="block">{grader.description}</span>
+                        )}
+                        {!grader && c.grader_fqn && (
+                          <span className="block">
+                            Unlisted settings use the grader defaults.
+                          </span>
+                        )}
+                      </dd>
                       {Object.entries({
                         ...Object.fromEntries(
                           (grader?.settings ?? [])
@@ -936,25 +897,15 @@ function BehaviourView({
                     </dl>
                   </div>
                 </Disclosure>
-                {showGraders && grader && (
-                  <Mono className="block break-words rounded border border-border bg-muted px-2 py-1 leading-relaxed">
-                    <span className="block text-foreground">{grader.name}</span>
-                    <span className="block text-muted-foreground">
-                      {grader.description}
-                    </span>
-                  </Mono>
-                )}
               </li>
             );
           })}
         </ul>
       )}
       {awaitingCriteria && (
-        // One short rule per behaviour still to be written up. Not boxed and not the full
+        // One short bar per behaviour still to be written up. It is not the full
         // three-line placeholder: this repeats once per selected behaviour, so anything larger
-        // would put the grey back on the page that the sections were kept spare to avoid. It never
-        // shimmers: the criteria are drafted during the Continue that leaves Behaviours, before
-        // this blank is allowed to appear, so there is no in-flight window to mark here.
+        // would put too much grey on the page.
         <div className="col-start-2 pt-0.5">
           <Placeholder widths={["w-28"]} />
         </div>
