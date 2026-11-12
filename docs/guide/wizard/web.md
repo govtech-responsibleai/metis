@@ -68,11 +68,42 @@ the repository folder. To use another folder, start the API with
 
 The repository ignores `experiments/`, so Git does not save it.
 
+## Targets and their pages
+
+Each Interview makes one Target. The rail on the left lists the Targets, newest first. Select
+**New target** at the top of the rail to start a new Interview. At the foot of the rail,
+**All experiments** opens the list of experiments, and the theme switch sets the colour theme.
+
+A Target page has two tabs:
+
+- **Specification** holds the Interview and its Profile. A new Target opens this tab with the
+  opening screen.
+- **Experiments** lists the experiments of the Target. It is off until the Interview is done.
+
+**Run**, on the right of the tab row, starts an experiment. It is also off until the Interview
+is done. When you open a Target, the app shows Experiments for a done Interview and Specification
+for one that is not done.
+
+Each page has its own address, so you can bookmark a Target or open it in another browser
+that uses the same API:
+
+| Page | Address |
+|---|---|
+| New target | `/targets/new` |
+| Specification tab | `/targets/<id>/specification` |
+| Experiments tab | `/targets/<id>/experiments` |
+| An experiment | `/targets/<id>/experiments/<experiment>` |
+| The report of an experiment | `/targets/<id>/experiments/<experiment>/report` |
+| Compare experiments | `/targets/<id>/compare` |
+| All experiments | `/experiments` |
+
+The experiment pages do not show experiments yet. Each one says what it will show.
+
 ## Start a guided Interview
 
-The chat is on the left and the Profile is on the right. To change the chat width, drag the line
-between them. You can also focus the line and use the arrow keys. Double-click the line to
-return to the default width. The browser keeps the width for your next visit.
+On the Specification tab, the chat is on the left and the Profile is on the right. To change the
+chat width, drag the line between them. You can also focus the line and use the arrow keys.
+Double-click the line to return to the default width. The browser keeps the width for your next visit.
 
 Above the opening box, choose the mode: **Build Spec only**, or **Build Spec and connect
 target**. The bottom row of the box has the documents button, the Perspective control, and
@@ -121,7 +152,7 @@ content.
 
 Clarify has no Back, because it is the first step. To correct the description, say so in your
 answer, for example "The target is for staff only." To change the Perspective, capabilities, or
-documents, select **New evaluation**. The earlier Interview stays in History.
+documents, select **New target**. The earlier Interview stays in the rail.
 
 ## Connect the target
 
@@ -238,7 +269,11 @@ Document facts:
 5. Select **Continue and download**. The browser downloads `YYYYMMDD-HHMMSS-interview.zip`, with
    the models that you set. If you change no field, the download is the same as without the step.
 
-To download the specification again later, select **Download specification** in the document pane.
+To download the specification again later, select **Download** in the toolbar of the Profile.
+
+The toolbar also has the views **Document** and **YAML**. Document is the Profile. YAML shows the
+`specification.yaml` of the download, with a **Copy** button. Download and YAML are off until the
+Interview is done.
 
 To finish early, select **Skip interview and download specification**. The Wizard checks whether
 the specification is ready. It can ask for more information or a document review before it
