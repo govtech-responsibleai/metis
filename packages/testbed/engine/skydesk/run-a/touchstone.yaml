@@ -1,0 +1,15 @@
+# How Run A lines up with SkyDesk's suite.yaml in Project Touchstone.
+#
+# checks: the suite check each criterion states. scenarios: the suite scenario each Scenario
+# states. `metis-testbed touchstone-verdicts` reports METIS's verdicts under these IDs.
+checks:
+  AC-1-1: identity
+  AC-2-1: confirmation
+  AC-3-1: fare_rule
+  AC-4-1: honest_outcome
+  AC-5-1: correct_change
+scenarios:
+  S-1: move-to-thursday
+  S-2: colleague-change
+  S-3: basic-economy
+  S-4: last-seat
