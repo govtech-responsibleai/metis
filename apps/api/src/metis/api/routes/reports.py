@@ -4,35 +4,24 @@ An experiment id is the name of an experiment folder under
 ``<project folder>/experiments/execute/``. The routes find the folder among the names in that
 directory, so an id can never name another path. metis-insights builds the reports. These
 routes hold no report rules.
-
-While an experiment has no results.json, its results are pending. Each report route then
-returns 202 with ``ReportPending``, which is not an error.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel
 
 from metis.api.routes.wizard import ServiceError
 from metis.core import execution_layout
 from metis.core.report import Report
-from metis.insights import ReportBuildError, ReportFiles, ResultsPending, ensure_report
+from metis.insights import ReportBuildError, ReportFiles, ResultsMissing, ensure_report
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 router = APIRouter(prefix="/api/v1/experiments", tags=["reports"])
-
-
-class ReportPending(BaseModel):
-    """The experiment has no results.json yet. Ask again after `metis engine evaluate`."""
-
-    status: Literal["results_pending"] = "results_pending"
-    message: str
 
 
 def _failure(status_code: int, code: str, message: str) -> JSONResponse:
@@ -41,7 +30,6 @@ def _failure(status_code: int, code: str, message: str) -> JSONResponse:
 
 
 _RESPONSES = {
-    202: {"model": ReportPending},
     404: {"model": ServiceError},
     409: {"model": ServiceError},
     500: {"model": ServiceError},
@@ -64,18 +52,15 @@ def _report_files(request: Request, experiment_id: str) -> ReportFiles | JSONRes
     if isinstance(experiment_dir, JSONResponse):
         return experiment_dir
     try:
-        files = ensure_report(experiment_dir)
+        return ensure_report(experiment_dir)
+    except ResultsMissing as exc:
+        return _failure(
+            409,
+            "results_missing",
+            f"{exc} Run `metis engine evaluate` on the experiment, then ask again.",
+        )
     except ReportBuildError as exc:
         return _failure(409, "report_build_failed", str(exc))
-    if isinstance(files, ResultsPending):
-        body = ReportPending(
-            message=(
-                "The experiment has no results.json yet. "
-                "Run `metis engine evaluate` on it, then ask again."
-            )
-        )
-        return JSONResponse(body.model_dump(), status_code=202)
-    return files
 
 
 @router.get(
@@ -120,4 +105,4 @@ def download_experiment_report(experiment_id: str, request: Request) -> Response
     )
 
 
-__all__ = ["ReportPending", "router"]
+__all__ = ["router"]

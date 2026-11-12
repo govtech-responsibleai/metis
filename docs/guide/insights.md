@@ -56,8 +56,9 @@ It also prints a terminal passed/failed/skipped/errored table per Criterion and 
 
 The METIS API builds the same report when a client asks for it. It calls `ensure_report`,
 which writes `report.json` and `report.html` when they are missing or older than
-`results.json`. Otherwise it keeps the files as they are. While an experiment has no
-`results.json`, its results are pending, and that is not an error.
+`results.json`. Otherwise it keeps the files as they are. An experiment with no
+`results.json` has no report, so `ensure_report` raises `ResultsMissing`. Run
+`metis engine evaluate` on the experiment first.
 
 The report's content — scoring, statuses, and failure evidence — is defined in the
 [report contract](report.md), and its JSON shape in the

@@ -207,8 +207,8 @@ The report routes read the experiment folders under `<project folder>/experiment
 The project folder is the one that `metis-api --project-dir` names, or the default project
 folder that the store also uses. An experiment id is an experiment
 folder name. The routes return the report of an experiment and its `report.html` as a download.
-They call `metis.insights.ensure_report`, so the API holds no report rules. While an experiment
-has no `results.json`, the routes give 202 `results_pending`.
+They call `metis.insights.ensure_report`, so the API holds no report rules. An experiment
+with no `results.json` gives 409 `results_missing`.
 
 Wizard exports share `inputs/` and `outputs/` at the design root. The CLI defaults to
 `experiments/design/YYYY-MM-DD-interview/`. An explicit `--out-dir` selects the exact root.

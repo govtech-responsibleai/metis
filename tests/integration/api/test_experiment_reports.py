@@ -38,18 +38,16 @@ def _page_data(html: str) -> Report:
     return Report.model_validate(json.loads(match.group(1)))
 
 
-def test_an_experiment_without_results_is_pending_and_gets_no_report(
-    client: TestClient, make_experiment: MakeExperiment
+@pytest.mark.parametrize("route", ["report", "report/download"])
+def test_an_experiment_without_results_has_no_report(
+    client: TestClient, make_experiment: MakeExperiment, route: str
 ) -> None:
     experiment_dir = make_experiment(evaluate=False)
 
-    report = client.get(f"/api/v1/experiments/{experiment_dir.name}/report")
-    download = client.get(f"/api/v1/experiments/{experiment_dir.name}/report/download")
+    response = client.get(f"/api/v1/experiments/{experiment_dir.name}/{route}")
 
-    for response in (report, download):
-        assert response.status_code == 202
-        body = response.json()
-        assert body["status"] == "results_pending"
+    assert response.status_code == 409
+    assert response.json()["code"] == "results_missing"
     assert not (experiment_dir / execution_layout.REPORT_JSON).exists()
     assert not (experiment_dir / execution_layout.REPORT_HTML).exists()
 

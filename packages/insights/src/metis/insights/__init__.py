@@ -6,7 +6,7 @@ from metis.insights._report import build_report, load_report_sources
 from metis.insights.report import (
     ReportBuildError,
     ReportFiles,
-    ResultsPending,
+    ResultsMissing,
     ensure_report,
     format_terminal_summary,
     save_report,
@@ -19,7 +19,7 @@ except PackageNotFoundError:
 
 __all__ = [
     "ReportFiles",
-    "ResultsPending",
+    "ResultsMissing",
     "ReportBuildError",
     "__version__",
     "build_report",

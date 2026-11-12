@@ -79,10 +79,12 @@ class ReportFiles:
     html: Path
 
 
-@dataclass(frozen=True)
-class ResultsPending:
-    """The experiment has no results.json yet, because `evaluate` has not finished. That is
-    not an error."""
+class ResultsMissing(Exception):
+    """The experiment has no results.json, so it has no report.
+
+    The results appear only when `metis engine evaluate` finishes on the experiment. An
+    `evaluate` that scores nothing or is interrupted leaves no results.json.
+    """
 
 
 class ReportBuildError(Exception):
@@ -154,18 +156,21 @@ def save_report(results: EvaluationResults, experiment_dir: Path) -> ReportFiles
     return ReportFiles(json=json_path, html=html_path)
 
 
-def ensure_report(experiment_dir: Path) -> ReportFiles | ResultsPending:
+def ensure_report(experiment_dir: Path) -> ReportFiles:
     """Return the report files of ``experiment_dir``, and build them when they are missing or stale.
 
     A report is stale when it is older than results.json. A second call with no new results
     writes nothing.
 
+    :raises ResultsMissing: the experiment has no results.json.
     :raises ReportBuildError: results.json or the frozen Specification cannot be read, or
         the results do not make a report, such as an experiment with an invalid threshold.
     """
     results_path = experiment_dir / execution_layout.RESULTS
     if not results_path.is_file():
-        return ResultsPending()
+        raise ResultsMissing(
+            f"{experiment_dir.name} has no {execution_layout.RESULTS}."
+        )
     files = ReportFiles(
         json=experiment_dir / execution_layout.REPORT_JSON,
         html=experiment_dir / execution_layout.REPORT_HTML,

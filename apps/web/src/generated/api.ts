@@ -2380,20 +2380,6 @@ export interface components {
             /** Status */
             status?: string | null;
         };
-        /**
-         * ReportPending
-         * @description The experiment has no results.json yet. Ask again after `metis engine evaluate`.
-         */
-        ReportPending: {
-            /**
-             * Status
-             * @default results_pending
-             * @constant
-             */
-            status: "results_pending";
-            /** Message */
-            message: string;
-        };
         /** ResultTable */
         ResultTable: {
             /** Features */
@@ -3931,15 +3917,6 @@ export interface operations {
                     "application/json": components["schemas"]["Report"];
                 };
             };
-            /** @description Accepted */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReportPending"];
-                };
-            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -3996,15 +3973,6 @@ export interface operations {
                 };
                 content: {
                     "text/html": unknown;
-                };
-            };
-            /** @description Accepted */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReportPending"];
                 };
             };
             /** @description Not Found */

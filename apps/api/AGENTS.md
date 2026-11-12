@@ -132,9 +132,9 @@ The report routes find an experiment id among the folder names in
 `GET /api/v1/experiments/{experiment_id}/report` returns `report.json`, and
 `GET /api/v1/experiments/{experiment_id}/report/download` returns `report.html` as an attachment.
 Both call `metis.insights.ensure_report`, which builds the files when they are missing or older
-than `results.json`. While an experiment has no `results.json`, both give 202
-`results_pending`. An unknown id gives 404 `experiment_not_found`, and an experiment whose report
-cannot be built gives 409 `report_build_failed`.
+than `results.json`. An unknown id gives 404 `experiment_not_found`. An experiment with no
+`results.json` gives 409 `results_missing`, and an experiment whose report cannot be built gives
+409 `report_build_failed`.
 
 `GET /api/v1/wizard/config` returns package-owned opening copy, working status, and perspective
 definitions from the public wizard facade. The API transports this text but does not own or copy it.
