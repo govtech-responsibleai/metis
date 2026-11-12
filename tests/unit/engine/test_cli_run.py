@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 from metis.engine import cli
 from metis.engine.cli import EvaluationOutcome, app
 from metis.engine.extractor import TraceWaitSettings
+from metis.engine.simulation import experiment as experiment_module
 
 runner = CliRunner()
 
@@ -153,8 +154,6 @@ def test_run_stops_before_the_simulation_when_the_timeout_is_shorter_than_the_qu
 
 def test_run_zero_simulation_records_exits_one(monkeypatch, tmp_path: Path) -> None:
     input_dir = _write_source(tmp_path)
-    experiment_dir = tmp_path / "experiment"
-    experiment_dir.mkdir()
     evaluation_called = False
 
     def fail_if_evaluated(*_args: object, **_kwargs: object) -> EvaluationOutcome:
@@ -162,12 +161,15 @@ def test_run_zero_simulation_records_exits_one(monkeypatch, tmp_path: Path) -> N
         evaluation_called = True
         raise AssertionError("evaluation should not run")
 
-    monkeypatch.setattr(cli, "_run_simulation", lambda *_a, **_k: experiment_dir)
+    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "project")
+    monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
+    monkeypatch.setattr(experiment_module, "execute_experiment", lambda *_a, **_k: None)
     monkeypatch.setattr(cli, "_run_evaluation", fail_if_evaluated)
 
-    result = runner.invoke(app, ["run", "--input-dir", str(input_dir)])
+    result = runner.invoke(app, ["run", "--input-dir", str(input_dir), "--no-tui"])
 
     assert result.exit_code == 1
+    assert "No trial records found." in result.output
     assert not evaluation_called
 
 

@@ -22,6 +22,7 @@ from rich.progress import BarColumn, MofNCompleteColumn, Progress, TaskID, TextC
 
 from metis.core import execution_layout
 from metis.core.console import console
+from metis.core.phase_events import INTERRUPTED_REASON, Phase, PhaseEventLog
 from metis.engine import __version__
 from metis.engine.logging import (
     EvaluationLogger,
@@ -342,6 +343,14 @@ class EvaluationOutcome:
 
 class EvaluationInputError(RuntimeError):
     """Raised when an experiment snapshot or run record is invalid."""
+
+
+class CommandFailed(typer.Exit):
+    """Exit code 1 for a command that printed its error. The phase's ``failed`` line records ``reason``."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(code=1)
+        self.reason = reason
 
 
 def _resolve_log_level(verbose: int, quiet: bool) -> str:
@@ -708,10 +717,6 @@ def _run_simulation(
     # module-level loggers that cache the processor chain.
     _configure_process_logging(log_level, use_tui=use_tui)
 
-    from metis.engine.simulation.experiment import (
-        execute_experiment,
-        expand_trial_plan,
-    )
     from metis.engine.simulation.types import Specification
 
     if resume:
@@ -746,12 +751,63 @@ def _run_simulation(
         shutil.copytree(target, experiment_dir / execution_layout.INPUTS)
         fixtures_dir = experiment_dir / execution_layout.FIXTURES
 
+    events = PhaseEventLog.for_experiment_dir(experiment_dir)
+    later_phases: tuple[Phase, ...] = ("evaluating",) if command == "run" else ()
+    try:
+        _simulate_in(
+            experiment_dir,
+            specification,
+            fixtures_dir,
+            events,
+            resume=resume,
+            use_tui=use_tui,
+            log_level=log_level,
+            log_format=log_format,
+            log_dir=log_dir,
+            concurrency=concurrency,
+        )
+        if not _trial_record_files(experiment_dir):
+            console.print("No trial records found.", style="bold red")
+            raise CommandFailed("No trial records found.")
+    except BaseException as exc:
+        _end_phase_on_error(events, "simulating", exc, later_phases=later_phases)
+        raise
+    events.emit("simulating", "completed")
+    return experiment_dir
+
+
+def _simulate_in(
+    experiment_dir: Path,
+    specification: Specification,
+    fixtures_dir: Path,
+    events: PhaseEventLog,
+    *,
+    resume: bool,
+    use_tui: bool,
+    log_level: str,
+    log_format: Literal["text", "json"],
+    log_dir: Path | None,
+    concurrency: int,
+) -> Path:
+    """Simulate the trials in ``experiment_dir`` that still need a record."""
+    from metis.engine.simulation.experiment import (
+        execute_experiment,
+        expand_trial_plan,
+    )
+
     personas_by_id = {persona.id: persona for persona in specification.personas}
     trial_plan = expand_trial_plan(specification, personas_by_id)
     if resume:
         redo_plan, completed_records = _classify_resume_trials(
             experiment_dir, trial_plan
         )
+    else:
+        redo_plan = trial_plan
+        completed_records = {}
+    events.emit(
+        "simulating", "started", total=len(trial_plan), done=len(completed_records)
+    )
+    if resume:
         console.print(
             f"Resume plan: {experiment_dir} — {len(redo_plan)} trials to redo, "
             f"{len(completed_records)} already complete"
@@ -759,9 +815,6 @@ def _run_simulation(
         if not redo_plan:
             console.print("nothing to resume")
             return experiment_dir
-    else:
-        redo_plan = trial_plan
-        completed_records = {}
 
     from metis.engine.simulation.binding import TargetBindingError
     from metis.engine.simulation.runner_resolver import resolve_runner_factory
@@ -779,7 +832,7 @@ def _run_simulation(
     except TargetBindingError as exc:
         # the message holds text the user wrote, so it must not be read as markup
         console.print(f"Error: {exc}", style="bold red", markup=False)
-        raise typer.Exit(code=1) from None
+        raise CommandFailed(str(exc)) from None
 
     trial_max_retries, trial_retry_delay_seconds = runner_factory.retry_defaults
 
@@ -896,6 +949,7 @@ def _run_simulation(
                 log_router=log_router,
                 tui_ctx=tui_ctx,
                 shutdown_event=shutdown_event,
+                events=events,
             )
     finally:
         signal.signal(signal.SIGINT, prev_handler)
@@ -912,6 +966,33 @@ def _run_simulation(
     if shutdown_event.is_set():
         raise typer.Exit(code=130)
     return experiment_dir
+
+
+def _end_phase_on_error(
+    events: PhaseEventLog,
+    phase: Phase,
+    exc: BaseException,
+    *,
+    later_phases: tuple[Phase, ...] = (),
+) -> None:
+    """Write the last line of a phase that stopped with ``exc``, and end the command.
+
+    This is the one writer of a phase line that is ``failed`` or ``interrupted``. Exit
+    code 130 is an interrupt. Any other exit or error is a failure. The reason of a
+    ``CommandFailed`` is the error that the command printed, and the reason of an error
+    is its text. Each phase in ``later_phases`` did not start, so it ends as ``skipped``.
+    """
+    code = getattr(exc, "exit_code", getattr(exc, "code", None))
+    if isinstance(exc, KeyboardInterrupt) or code == 130:
+        events.emit(phase, "interrupted", reason=INTERRUPTED_REASON)
+    elif isinstance(exc, CommandFailed):
+        events.emit(phase, "failed", reason=exc.reason)
+    elif isinstance(exc, typer.Exit | SystemExit):
+        events.emit(phase, "failed")
+    else:
+        events.emit(phase, "failed", reason=f"{type(exc).__name__}: {exc}")
+    for later in later_phases:
+        events.emit(later, "skipped")
 
 
 def _load_evaluation_specification(experiment_dir: Path) -> Specification:
@@ -1087,22 +1168,26 @@ def _run_evaluation(
         return EvaluationOutcome(0, 0, 0, None)
 
     try:
-        records: list[TrialRecord] = [TrialRecord.load_file(path) for path in files]
+        trial_records = [
+            (path.parent.name, TrialRecord.load_file(path)) for path in files
+        ]
     except Exception as exc:
         console.print(f"Error: failed to load trial record: {exc}", style="bold red")
         raise EvaluationInputError("failed to load trial record") from exc
 
-    console.print(f"  Loaded {len(records)} trial record(s)")
-    evaluation_log.write(f"LOADED {len(records)} trial record(s)")
+    console.print(f"  Loaded {len(trial_records)} trial record(s)")
+    evaluation_log.write(f"LOADED {len(trial_records)} trial record(s)")
+    events = PhaseEventLog.for_experiment_dir(experiment_dir)
     return asyncio.run(
         _evaluate_records(
             experiment_dir,
             specification,
-            records,
+            trial_records,
             evaluation_log=evaluation_log,
             trace_wait=trace_wait,
             concurrency=concurrency,
             env_file=env_file,
+            events=events,
         )
     )
 
@@ -1138,6 +1223,7 @@ class _EvaluationContext:
     concurrency: int
     semaphore: asyncio.Semaphore
     running: _RunningCount
+    events: PhaseEventLog | None = None
 
 
 @dataclass(frozen=True)
@@ -1155,6 +1241,7 @@ async def _evaluate_one(
     number: int,
     context: _EvaluationContext,
     phase: Callable[..., None],
+    trial: str,
 ) -> _RecordResult:
     """Fetch and grade one trial record's session, once it holds one of the N slots.
 
@@ -1177,6 +1264,8 @@ async def _evaluate_one(
     async with context.semaphore:
         context.running.value += 1
         try:
+            if context.events:
+                context.events.emit("evaluating", "started", trial=trial)
             result = await _fetch_and_grade(
                 record,
                 number=number,
@@ -1188,6 +1277,13 @@ async def _evaluate_one(
         finally:
             context.running.value -= 1
 
+    if context.events:
+        context.events.emit(
+            "evaluating",
+            "completed" if result.failure_reason is None else "failed",
+            trial=trial,
+            reason=result.failure_reason,
+        )
     if result.failure_reason is None:
         log.write(f"{record_name} — DONE")
         phase("done", advance=1)
@@ -1310,18 +1406,23 @@ async def _fetch_and_grade(
 async def _evaluate_records(
     experiment_dir: Path,
     specification: Specification,
-    records: list[TrialRecord],
+    trial_records: list[tuple[str, TrialRecord]],
     *,
     evaluation_log: EvaluationLogger,
     trace_wait: TraceWaitSettings,
     concurrency: int = 1,
     env_file: Path | None = None,
+    events: PhaseEventLog | None = None,
 ) -> EvaluationOutcome:
     """Grade every trial record's session and write one GraderRecord per grader per session.
 
     Graders are built once per criterion from the specification snapshot.
     A criterion graded in many trials shares one grader. One judge client
     is opened for the whole evaluation, and only when some criterion's grader needs one.
+
+    With ``events``, each trial writes a ``started`` line and a ``completed`` or
+    ``failed`` line to the event log. Each record comes with the name of its trial
+    folder, and the events name the trial by that folder.
     """
     import asyncio
     import time
@@ -1394,7 +1495,7 @@ async def _evaluate_records(
     try:
         with progress if progress else nullcontext():
             task_id = (
-                progress.add_task("Evaluation", total=len(records))
+                progress.add_task("Evaluation", total=len(trial_records))
                 if progress
                 else None
             )
@@ -1406,10 +1507,11 @@ async def _evaluate_records(
                 langfuse=langfuse,
                 trace_wait=trace_wait,
                 evaluation_log=evaluation_log,
-                total_records=len(records),
+                total_records=len(trial_records),
                 concurrency=concurrency,
                 semaphore=asyncio.Semaphore(concurrency),
                 running=_RunningCount(),
+                events=events,
             )
 
             def phase_for(number: int, label: str) -> Callable[..., None]:
@@ -1421,7 +1523,7 @@ async def _evaluate_records(
                         progress,
                         task_id,
                         record_number=number,
-                        total_records=len(records),
+                        total_records=len(trial_records),
                         label=label,
                         phase=name,
                         advance=advance,
@@ -1443,11 +1545,12 @@ async def _evaluate_records(
                         _evaluate_one(
                             record,
                             number=index + 1,
+                            trial=trial,
                             context=context,
                             phase=phase_for(index + 1, _record_label(record)),
                         )
                     )
-                    for index, record in enumerate(records)
+                    for index, (trial, record) in enumerate(trial_records)
                 ]
             for task in tasks:
                 result = task.result()
@@ -1503,7 +1606,7 @@ async def _evaluate_records(
         evaluation_log.write(f"RESULTS WRITTEN — {results_file}")
 
     outcome = EvaluationOutcome(
-        total_records=len(records),
+        total_records=len(trial_records),
         successful_records=successful,
         failed_records=failed,
         results_file=results_file,
@@ -1539,9 +1642,13 @@ def _run_evaluation_command(
     quiet: bool,
     concurrency: int = 1,
 ) -> EvaluationOutcome:
-    """Run evaluation and convert expected input errors to a CLI exit."""
+    """Run evaluation between its phase lines ``started`` and ``completed``, and convert
+    expected input errors to a CLI exit."""
+    events = PhaseEventLog.for_experiment_dir(experiment_dir)
+    trials = [path.parent.name for path in _trial_record_files(experiment_dir)]
+    events.emit("evaluating", "started", total=len(trials), done=0)
     try:
-        return _run_evaluation(
+        outcome = _run_evaluation(
             experiment_dir,
             trace_wait=trace_wait,
             verbose=verbose,
@@ -1552,13 +1659,21 @@ def _run_evaluation_command(
         EvaluationLogger(experiment_dir / execution_layout.LOGS, reset=False).write(
             f"EVALUATION FAILED — {exc}"
         )
-        raise typer.Exit(code=1) from None
+        failed = CommandFailed(str(exc))
+        _end_phase_on_error(events, "evaluating", failed)
+        raise failed from None
     except Exception as exc:
         EvaluationLogger(experiment_dir / execution_layout.LOGS, reset=False).write(
             f"EVALUATION FAILED — {exc}"
         )
         console.print(f"Error: evaluation failed: {exc}", style="bold red")
+        _end_phase_on_error(events, "evaluating", exc)
         raise typer.Exit(code=1) from exc
+    except BaseException as exc:
+        _end_phase_on_error(events, "evaluating", exc)
+        raise
+    events.emit("evaluating", "completed")
+    return outcome
 
 
 @app.command()
@@ -1614,9 +1729,6 @@ def simulate(
         resume=resume,
         project_dir=project_dir,
     )
-    if not _trial_record_files(output_dir):
-        console.print("No trial records found.", style="bold red")
-        raise typer.Exit(code=1)
     _print_handoff(output_dir, command="simulate")
 
 
@@ -1727,9 +1839,6 @@ def run(
         resume=resume,
         project_dir=project_dir,
     )
-    if not _trial_record_files(output_dir):
-        console.print("No trial records found.", style="bold red")
-        raise typer.Exit(code=1)
 
     try:
         outcome = _run_evaluation_command(

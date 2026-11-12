@@ -56,3 +56,9 @@ Private runtime models and API models stay in their owning packages. See the
   (`TrialConfig`, `TrialOutcome`, `TrialFailure`, `GraderRef`). The engine writes and resumes
   from it; the report reads it. Version-guarded by `_TRIAL_RECORD_VERSION`, no published
   schema file.
+- `phase_events.py`: `PhaseEvent` (one line of `logs/events.jsonl`: `seq`, `at`, `phase`,
+  `trial` and `status`, plus the extra fields that `_SHAPES` gives each status) and
+  `PhaseEventLog`, the one writer. It numbers lines with `seq`, continues from the last line
+  of the file, and writes one flushed line per event under a lock. Source of
+  `schemas/phase-event.schema.json`, versioned by `_PHASE_EVENT_VERSION`. Keep events small:
+  IDs, counts, statuses and `short_reason` text, never a key, a prompt or a model reply.

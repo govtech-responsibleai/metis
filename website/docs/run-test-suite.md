@@ -80,8 +80,13 @@ experiments/execute/<your-run>/
 │           ├── evidence/
 │           └── artifacts/
 └── logs/
+    ├── events.jsonl   # One progress event per line
     └── simulate.log
 ```
+
+`logs/events.jsonl` records the progress of the experiment as it happens, one JSON event per
+line, so another program can follow it. The schema of each line is
+`packages/core/schemas/phase-event.schema.json`.
 
 ## Next step
 

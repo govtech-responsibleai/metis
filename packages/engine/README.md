@@ -124,11 +124,20 @@ experiments/execute/toyapp-http-simple-20260730-143022/
 │       ├── report.json            # Insights
 │       └── report.html            # Insights
 └── logs/
+    ├── events.jsonl               # One PhaseEvent per line, for simulate and evaluate
     ├── simulate.log
     ├── simulate-TC-001_cooperative-delegator-01.log
     ├── llm_calls.jsonl            # LLM requests made once per experiment
     └── evaluate.log
 ```
+
+`logs/events.jsonl` is the experiment's progress for other programs. Each line is one
+`PhaseEvent` from `metis.core.phase_events`, validated by
+`packages/core/schemas/phase-event.schema.json`. Every line has `seq`, `at`, `phase`
+(`simulating` or `evaluating`), `trial` and `status`. Each phase starts and ends with a line
+that has no `trial`. `seq` numbers the lines from 1 and continues when a resume or a later
+`evaluate` appends. The file always stays in the
+experiment folder, also when `--log-dir` moves the other logs.
 
 ## Programmatic usage
 

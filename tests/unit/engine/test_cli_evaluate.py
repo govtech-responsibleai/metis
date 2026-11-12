@@ -966,7 +966,11 @@ async def test_evaluate_one_returns_the_graded_records(
     phases: list[str] = []
 
     result = await cli._evaluate_one(
-        record, number=1, context=context, phase=lambda name, **_: phases.append(name)
+        record,
+        number=1,
+        trial="trial-1",
+        context=context,
+        phase=lambda name, **_: phases.append(name),
     )
 
     assert result.failure_reason is None
@@ -987,7 +991,11 @@ async def test_evaluate_one_returns_a_failure_instead_of_raising(
     phases: list[str] = []
 
     result = await cli._evaluate_one(
-        record, number=1, context=context, phase=lambda name, **_: phases.append(name)
+        record,
+        number=1,
+        trial="trial-1",
+        context=context,
+        phase=lambda name, **_: phases.append(name),
     )
 
     assert result.failure_reason == "trace unavailable"
@@ -1007,7 +1015,7 @@ async def test_evaluate_one_fails_a_record_without_a_session_id(
     record = _trial_record(experiment_dir, session_id=None)
 
     result = await cli._evaluate_one(
-        record, number=1, context=context, phase=lambda name, **_: None
+        record, number=1, trial="trial-1", context=context, phase=lambda name, **_: None
     )
 
     assert result.failure_reason == "No target_session_id"
@@ -1185,7 +1193,11 @@ async def test_records_that_cannot_be_graded_leave_the_running_count_at_zero(
 
     for number, record in enumerate([no_session, no_criteria], start=1):
         result = await cli._evaluate_one(
-            record, number=number, context=context, phase=lambda name, **_: None
+            record,
+            number=number,
+            trial=f"trial-{number}",
+            context=context,
+            phase=lambda name, **_: None,
         )
         assert result.failure_reason is not None
         assert context.running.value == 0
@@ -1384,13 +1396,15 @@ async def test_cancellation_stops_every_session_then_closes_the_judge_client(
     )
     log = EvaluationLogger(output / "logs")
     specification = cli._load_evaluation_specification(output)
-    records = [Record.load_file(p) for p in cli._trial_record_files(output)]
+    trial_records = [
+        (p.parent.name, Record.load_file(p)) for p in cli._trial_record_files(output)
+    ]
 
     task = asyncio.create_task(
         cli._evaluate_records(
             output,
             specification,
-            records,
+            trial_records,
             evaluation_log=log,
             trace_wait=TraceWaitSettings(timeout_seconds=90),
             concurrency=2,
@@ -1433,7 +1447,11 @@ async def test_cancelling_a_session_returns_the_running_count_to_zero(
 
     task = asyncio.create_task(
         cli._evaluate_one(
-            record, number=1, context=context, phase=lambda name, **_: None
+            record,
+            number=1,
+            trial="trial-1",
+            context=context,
+            phase=lambda name, **_: None,
         )
     )
     await asyncio.wait_for(started.wait(), timeout=2)
@@ -1527,12 +1545,14 @@ async def test_an_interrupted_evaluation_says_so_and_names_the_retry_command(
     monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
     specification = cli._load_evaluation_specification(output)
-    records = [Record.load_file(p) for p in cli._trial_record_files(output)]
+    trial_records = [
+        (p.parent.name, Record.load_file(p)) for p in cli._trial_record_files(output)
+    ]
     task = asyncio.create_task(
         cli._evaluate_records(
             output,
             specification,
-            records,
+            trial_records,
             evaluation_log=EvaluationLogger(output / "logs"),
             trace_wait=TraceWaitSettings(timeout_seconds=90),
             concurrency=concurrency,

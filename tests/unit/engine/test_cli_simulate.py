@@ -162,12 +162,10 @@ def test_simulate_prints_evaluate_and_resume_handoff(
 
 
 def test_simulate_zero_records_exits_one(monkeypatch, tmp_path: Path) -> None:
-    input_dir = _write_source(tmp_path)
-    experiment_dir = tmp_path / "output"
-    experiment_dir.mkdir()
-    monkeypatch.setattr(cli, "_run_simulation", lambda *_a, **_k: experiment_dir)
+    monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
+    monkeypatch.setattr(experiment_module, "execute_experiment", lambda *_a, **_k: None)
 
-    result = runner.invoke(app, ["simulate", "--input-dir", str(input_dir)])
+    result = _simulate_fresh(monkeypatch, tmp_path, _STUB_REF)
 
     assert result.exit_code == 1
     assert "No trial records found." in result.output
