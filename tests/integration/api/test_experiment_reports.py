@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 from typing import TYPE_CHECKING
+from urllib.parse import quote
 
 import pytest
 from fastapi.testclient import TestClient
@@ -172,18 +173,32 @@ def test_report_generation_methods_match(
     ("route", "content_type"),
     [("report", "application/json"), ("report.html", "text/html")],
 )
+@pytest.mark.parametrize(
+    ("specification_id", "fallback"),
+    [("test-exp", "test-exp"), ('规格"x', "___x")],
+)
 def test_both_report_formats_are_inline_with_their_file_name(
-    client: TestClient, make_experiment: MakeExperiment, route: str, content_type: str
+    client: TestClient,
+    make_experiment: MakeExperiment,
+    route: str,
+    content_type: str,
+    specification_id: str,
+    fallback: str,
 ) -> None:
-    experiment_dir = make_experiment()
+    built = make_experiment()
+    # The engine names an experiment folder <Specification id>-<start time>.
+    experiment_id = built.name.replace("test-exp", specification_id, 1)
+    built.rename(built.with_name(experiment_id))
 
-    response = client.get(f"/api/v1/experiments/{experiment_dir.name}/{route}")
+    response = client.get(f"/api/v1/experiments/{quote(experiment_id)}/{route}")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith(content_type)
     extension = route.removeprefix("report") or ".json"
+    name = f"{experiment_id}-report{extension}"
+    fallback_name = name.replace(specification_id, fallback, 1)
     assert response.headers["content-disposition"] == (
-        f'inline; filename="{experiment_dir.name}-report{extension}"'
+        f"inline; filename=\"{fallback_name}\"; filename*=UTF-8''{quote(name, safe='')}"
     )
 
 

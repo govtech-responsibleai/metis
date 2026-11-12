@@ -12,6 +12,7 @@ report, and both responses are inline. A client that wants a file saves the resp
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from urllib.parse import quote
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
@@ -67,8 +68,18 @@ def _report_files(request: Request, experiment_id: str) -> ReportFiles | JSONRes
 
 
 def _inline(filename: str) -> str:
-    """Name the file for a client that saves the response."""
-    return f'inline; filename="{filename}"'
+    """Name the file for a client that saves the response (RFC 6266).
+
+    ``filename`` holds an ASCII fallback, because Starlette encodes headers as latin-1 and a
+    quote would end the value. ``filename*`` holds the exact name.
+    """
+    fallback = "".join(
+        char if char.isascii() and char.isprintable() and char not in '"\\' else "_"
+        for char in filename
+    )
+    return (
+        f"inline; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename, safe='')}"
+    )
 
 
 @router.get(
