@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, ClassVar
 from pydantic import Field
 
 from metis.core.grading import GraderResult, GradingOutput
-from metis.core.trace_processing import Problem, session_cost
+from metis.core.trace_processing import Problem, turns, usage_of
 from metis.library.grader import Grader, GraderArgs
 from metis.library.scope import SCOPE_DEFINITIONS
 from metis.library.taxonomy import (
@@ -55,9 +55,14 @@ class MonetaryCostGrader(Grader[MonetaryCostArgs]):
         selected = SCOPE_DEFINITIONS[self.scope].select(input, self.args)
         if isinstance(selected, Problem):
             return GradingOutput.errored("The session has no traces to measure.")
-        cost = session_cost(input.traces)
-        if isinstance(cost, Problem):
-            return GradingOutput.errored(cost.detail)
+        usage = usage_of(turns(input.traces))
+        if isinstance(usage, Problem):
+            return GradingOutput.errored(usage.detail)
+        cost = usage.cost
+        if cost is None:
+            return GradingOutput.errored(
+                "Token usage was recorded but no observation has cost data."
+            )
         budget = self.args.max_cost
         return GradingOutput(
             results=[

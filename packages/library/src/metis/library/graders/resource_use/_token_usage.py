@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal
 from pydantic import Field
 
 from metis.core.grading import GraderResult, GradingOutput
-from metis.core.trace_processing import Problem, token_usage
+from metis.core.trace_processing import Problem, turns, usage_of
 from metis.library.grader import Grader, GraderArgs
 from metis.library.scope import SCOPE_DEFINITIONS
 from metis.library.taxonomy import (
@@ -62,16 +62,16 @@ class TokenUsageGrader(Grader[TokenUsageArgs]):
         selected = SCOPE_DEFINITIONS[self.scope].select(input, self.args)
         if isinstance(selected, Problem):
             return GradingOutput.errored("The session has no traces to count.")
-        usage = token_usage(input.traces)
+        usage = usage_of(turns(input.traces))
         if isinstance(usage, Problem):
             return GradingOutput.errored(usage.detail)
         category = self.args.token_category
-        if category not in usage:
+        tokens = usage.tokens
+        count = getattr(tokens, category, None)
+        if count is None:
             return GradingOutput.errored(
-                f"The token category {category!r} is not in the recorded usage data "
-                f"(available: {', '.join(sorted(usage))})."
+                f"The token category {category!r} is not available."
             )
-        count = usage[category]
         budget = self.args.max_total_tokens
         return GradingOutput(
             results=[
