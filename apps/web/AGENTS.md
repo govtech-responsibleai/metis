@@ -3,6 +3,18 @@
 This is the standalone browser client for the wizard. It talks to `apps/api` through the versioned
 REST routes only. It does not import Python packages, read Python files, or read the files of the API store.
 
+The app shell has the Target rail (`TargetRail.tsx`) and Target pages with two tabs
+(`TargetPage.tsx`). The Specification tab holds the Interview, its Profile pane, and for a new
+Target the opening screen with the manual form. The Experiments tab and the "Start an experiment" button stay
+off until the Interview is done. The button opens the experiment dialog (`ExperimentDialog.tsx`). `src/routes.ts` owns every URL: build a path with `paths` and read
+the current place with `placeOf`. Do not write a path string in a component. The router is
+`wouter` with the browser location. Render a routed component in a test inside
+`<Router ssrPath="...">`. The shell reads Targets through `src/targets.ts` only.
+
+The YAML view of the Profile pane sends `exportedSpecification(state)` (`src/export.ts`) to the
+compile route. That function mirrors the export steps of the package route, so the YAML matches
+the download. Change it when those steps change.
+
 The browser saves Interview records, their files, and the display transcript through the store
 routes of `apps/api` (`src/storage/repository.ts`). The browser keeps no copy. The JSON
 `InterviewState` is sent back to the API unchanged; browser IDs, timestamps, and transcript entries

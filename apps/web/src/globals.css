@@ -301,13 +301,13 @@
   animation: arrive 0.2s ease-out both;
 }
 
-/* A section of the document being written into. The blank rules standing in for the content
-   take a slow accent crest travelling along them, so the one section the model is filling is
-   visibly the live one while every other section's blanks stay flat grey.
+/* The document while a model call writes into it. Each blank bar that stands in for content takes
+   a slow accent crest that travels along it. Every blank of the page takes the crest, and the dot
+   in a section heading marks the one section that the call fills.
 
    This is the only looping animation in the pane, and it runs strictly while a model call is in
-   flight — it reports the busy state rather than decorating the page. The reduced-motion rule
-   above freezes it, leaving the flat grey rules. */
+   flight. It reports the busy state. The reduced-motion rule below stops it and leaves the flat
+   grey bars. */
 @keyframes writing {
   from {
     background-position: 180% 0;

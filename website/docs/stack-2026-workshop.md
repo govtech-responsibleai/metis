@@ -165,7 +165,7 @@ Then:
    <Term>features</Term> and <Term>expected behaviours</Term>, the <Term>criteria</Term> and their
    <Term>graders</Term>, the <Term>personas</Term>, the <Term>scenarios</Term> and the
    <Term>test cases</Term>. Choose a few of each. You do not need to review every draft.
-5. When the test cases are chosen, select **Download specification**. Extract the ZIP into
+5. When the test cases are chosen, select **Download** in the toolbar of the Profile. Extract the ZIP into
    `experiments/design/`, and press Ctrl-C in the terminal to stop the servers.
 
 The specification you built here is for learning. The next steps run a prepared specification, so

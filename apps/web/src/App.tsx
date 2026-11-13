@@ -10,7 +10,6 @@ import {
 } from "react";
 import { PanelLeft, PanelRight, Puzzle, X } from "lucide-react";
 import type {
-  InterviewSummary,
   LoadedInterviewRecord,
   CapabilityConfidence,
   CapabilityEvidence,
@@ -50,10 +49,23 @@ import {
   stateForDownload,
   type RunModels,
 } from "./RunSettings";
-import { SpecificationView, stepPosition } from "./SpecificationView";
-import { InterviewRail } from "./InterviewRail";
+import {
+  ProfileHeading,
+  SpecificationView,
+  stepPosition,
+} from "./SpecificationView";
+import { ProfileToolbar, YamlView, type ProfileMode } from "./ProfileToolbar";
+import { TargetRail } from "./TargetRail";
+import { ExperimentsTab, TargetTabs } from "./TargetPage";
+import { ExperimentDialog } from "./ExperimentDialog";
+import { exportedSpecification } from "./export";
+import {
+  AllExperimentsPage,
+  ComparePage,
+  ExperimentPage,
+} from "./ExperimentPages";
 import { PaneDivider, useChatWidth } from "./pane-divider";
-import { Button, cn } from "./ui";
+import { Button, buttonClass, cn } from "./ui";
 import {
   CapabilityConfidencePicker,
   CapabilityPicker,
@@ -64,7 +76,6 @@ import {
   UnderBoxSurface,
 } from "./OpeningControls";
 import {
-  InterviewRepository,
   emptyRecord,
   addFixtures,
   fixturesForSpecification,
@@ -73,6 +84,21 @@ import {
   recordFiles,
   type StorageProblem,
 } from "./storage/repository";
+import {
+  deleteTarget,
+  interviewRepository,
+  listTargets,
+  readTarget,
+  type TargetSummary,
+} from "./targets";
+import { Link, useLocation } from "wouter";
+import {
+  NEW_EXPERIMENT,
+  paths,
+  placeOf,
+  targetOf,
+  targetRedirect,
+} from "./routes";
 import { admitFiles, type AdmittedFile } from "./fixture-policy";
 import { specificationHasCriteria } from "./graders";
 import { downloadArchive } from "./download";
@@ -83,11 +109,8 @@ import {
   startTranscript,
   toPresentation,
 } from "./wizard/transcript";
-
-import { TabNavigation, type TabEntry } from "./wizard/navigation";
 import { InterviewOperations, pendingEntry } from "./wizard/operations";
 
-const repository = new InterviewRepository();
 type WizardConfig = Awaited<ReturnType<typeof api.config>>;
 export type OpeningControl = "perspective" | "capabilities";
 type OpeningDocumentRead =
@@ -150,30 +173,44 @@ export function conversationScrollRevision(
   return `${interviewId ?? "opening"}:${requestCount}:${done ? "complete" : "active"}:${submission}`;
 }
 
+// The path to open when the first save of a new Interview finishes. A user who left that opening
+// stays where they went.
+export function openedPath(
+  currentPath: string,
+  currentOpening: number,
+  origin: number,
+  id: string,
+): string | null {
+  return placeOf(currentPath).page === "new-target" && currentOpening === origin
+    ? paths.target(id, "specification")
+    : null;
+}
+
 export function App() {
-  const [interviews, setInterviews] = useState<InterviewSummary[]>([]);
+  const [location, navigate] = useLocation();
+  const place = placeOf(location);
+  const targetId = targetOf(place);
+  const locationRef = useRef(location);
+  locationRef.current = location;
+  const targetRef = useRef(targetId);
+  targetRef.current = targetId;
+  const [targets, setTargets] = useState<TargetSummary[]>([]);
   const [storageProblems, setStorageProblems] = useState<
     readonly StorageProblem[]
   >([]);
   const [record, setRecord] = useState<LoadedInterviewRecord | null>(null);
-  const [destination, setDestination] = useState<TabEntry | null>(null);
-  const destinationRef = useRef<TabEntry | null>(null);
-  const navigation = useRef<TabNavigation | null>(null);
   const refreshListRef = useRef<() => Promise<void>>(async () => {});
   const [operations] = useState(
     () =>
-      new InterviewOperations(repository, (next) => {
-        const current = destinationRef.current?.destination;
-        if (current?.kind === "interview" && current.id === next.id)
-          setRecord(next);
+      new InterviewOperations(interviewRepository, (next) => {
+        if (targetRef.current === next.id) setRecord(next);
         void refreshListRef.current().catch(() => {});
       }),
   );
   useSyncExternalStore(operations.subscribe, operations.snapshot);
-  const operationKey =
-    destination?.destination.kind === "interview"
-      ? destination.destination.id
-      : `opening:${destination?.entry ?? "loading"}`;
+  // An opening is one visit to the opening screen. "New target" starts the next one.
+  const [opening, setOpening] = useState(0);
+  const operationKey = targetId ?? `opening:${opening}`;
   const busy = operations.active.has(operationKey);
   const feedback = operations.feedback.get(operationKey);
   const error = feedback?.message ?? null;
@@ -217,7 +254,6 @@ export function App() {
     useState<ConnectionCheckResult | null>(null);
 
   const [loadingRecord, setLoadingRecord] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const [railOpen, setRailOpen] = useState(true);
   const [chatWidth, setChatWidth] = useChatWidth();
   const panesRef = useRef<HTMLDivElement>(null);
@@ -233,7 +269,6 @@ export function App() {
     return () => narrow.removeEventListener("change", closePanels);
   }, []);
   const [manualOpen, setManualOpen] = useState(false);
-  const [showGraders, setShowGraders] = useState(false);
   const [graderCatalogue, setGraderCatalogue] = useState<Awaited<
     ReturnType<typeof api.graders>
   > | null>(null);
@@ -249,7 +284,14 @@ export function App() {
   // user continues from that step.
   const [runSettingsFor, setRunSettingsFor] = useState<string | null>(null);
 
-  const view = useMemo(() => record && toPresentation(record), [record]);
+  const loadedView = useMemo(() => record && toPresentation(record), [record]);
+  // Only the record of the Target in the URL shows. For one render after a change of Target,
+  // the record of the Target before is still loaded.
+  const view = loadedView?.id === targetId ? loadedView : null;
+  const redirect = view ? targetRedirect(place, view.done) : null;
+  useEffect(() => {
+    if (redirect) navigate(redirect, { replace: true });
+  }, [redirect, navigate]);
   const review = view && !view.done ? activeReview(view.requests) : null;
   const conversationScrollRef = useRef<HTMLDivElement | null>(null);
   const conversationRevision = conversationScrollRevision(
@@ -302,9 +344,11 @@ export function App() {
     ? specificationHasCriteria(view.specification)
     : false;
 
+  const [profileMode, setProfileMode] = useState<ProfileMode>("document");
+  const [experimentDialogOpen, setExperimentDialogOpen] = useState(false);
   useEffect(() => {
-    setShowGraders(false);
     setRunModelDrafts(null);
+    setProfileMode("document");
   }, [record?.id]);
 
   useEffect(() => {
@@ -340,52 +384,44 @@ export function App() {
   }, [loadWizardConfig]);
 
   const refreshList = useCallback(async () => {
-    setInterviews(await repository.list());
-    setStorageProblems([...repository.problems]);
+    const listed = await listTargets();
+    setTargets(listed.targets);
+    setStorageProblems(listed.problems);
   }, []);
 
   refreshListRef.current = refreshList;
   useEffect(() => {
-    let disposed = false;
-    const nav = new TabNavigation(window, (entry) => {
-      if (disposed) return;
-      destinationRef.current = entry;
-      setDestination(entry);
-      setManualOpen(false);
-      setConnectionStep(null);
-      setRecord(null);
-      setLoadingRecord(entry.destination.kind === "interview");
-      void (async () => {
-        try {
-          if (entry.destination.kind === "interview") {
-            const stored = await repository.read(entry.destination.id);
-            const next = stored
-              ? await operations.recover(
-                  operations.latest.get(stored.id) ?? stored,
-                )
-              : null;
-            if (!disposed && destinationRef.current?.entry === entry.entry)
-              setRecord(next);
-          }
-        } catch (cause) {
-          if (entry.destination.kind === "interview")
-            operations.report(entry.destination.id, errorMessage(cause));
-        } finally {
-          if (!disposed && destinationRef.current?.entry === entry.entry) {
-            setLoaded(true);
-            setLoadingRecord(false);
-          }
-        }
-      })();
-    });
-    navigation.current = nav;
     void refreshList().catch(() => {});
-    void nav.initialize();
+  }, [refreshList]);
+
+  // The record follows the Target of the URL. A change of tab inside one Target keeps it.
+  useEffect(() => {
+    setManualOpen(false);
+    setConnectionStep(null);
+    setExperimentDialogOpen(false);
+    setRecord(null);
+    setLoadingRecord(targetId !== null);
+    if (targetId === null) return;
+    let current = true;
+    void (async () => {
+      try {
+        const target = await readTarget(targetId);
+        const next = target
+          ? await operations.recover(
+              operations.latest.get(target.id) ?? target.interview,
+            )
+          : null;
+        if (current) setRecord(next);
+      } catch (cause) {
+        operations.report(targetId, errorMessage(cause));
+      } finally {
+        if (current) setLoadingRecord(false);
+      }
+    })();
     return () => {
-      disposed = true;
-      nav.dispose();
+      current = false;
     };
-  }, [operations, refreshList]);
+  }, [targetId, operations]);
   useEffect(() => {
     if (!hasCriteria || graderRequest.current) return;
     setGraderState("loading");
@@ -400,12 +436,10 @@ export function App() {
     );
   }, [hasCriteria]);
 
-  const open = useCallback((id: string) => {
-    navigation.current?.go({ kind: "interview", id });
-  }, []);
   const startNew = useCallback(() => {
     openingGeneration.current += 1;
-    navigation.current?.go({ kind: "new" });
+    setOpening(openingGeneration.current);
+    setManualOpen(false);
     setOpeningControl(null);
     setPerspectiveSeen(false);
     setOpeningDescription("");
@@ -512,7 +546,7 @@ export function App() {
       connection: TargetConnection | null = null,
     ) => {
       if (busy) return;
-      const origin = destinationRef.current?.entry;
+      const origin = openingGeneration.current;
       const sent = new Date();
       await operations.run(operationKey, async () => {
         const limits =
@@ -571,19 +605,25 @@ export function App() {
         );
         const record = addFixtures(started, openingDocuments);
         const opened = async (saved: LoadedInterviewRecord) => {
-          if (origin) navigation.current?.started(origin, saved.id);
+          const path = openedPath(
+            locationRef.current,
+            openingGeneration.current,
+            origin,
+            saved.id,
+          );
+          if (path) navigate(path, { replace: true });
           await refreshList();
         };
         let saved: LoadedInterviewRecord;
         try {
-          saved = await putNew(repository, record, sent);
+          saved = await putNew(interviewRepository, record, sent);
         } catch (cause) {
           operations.report(
             operationKey,
             `The new Interview was not saved. ${errorMessage(cause)}`,
             () =>
               operations.run(operationKey, async () => {
-                await opened(await putNew(repository, record, sent));
+                await opened(await putNew(interviewRepository, record, sent));
               }),
           );
           return;
@@ -593,6 +633,7 @@ export function App() {
     },
     [
       busy,
+      navigate,
       operations,
       operationKey,
       openingDocuments,
@@ -785,19 +826,16 @@ export function App() {
     async (id: string) => {
       if (operations.active.has(id) || operations.pendingSaves.has(id)) return;
       try {
-        await repository.delete(id);
+        await deleteTarget(id);
         operations.latest.delete(id);
-        if (
-          destinationRef.current?.destination.kind === "interview" &&
-          destinationRef.current.destination.id === id
-        )
-          setRecord(null);
+        if (targetRef.current === id)
+          navigate(paths.newTarget(), { replace: true });
         await refreshList();
       } catch (cause) {
         operations.report(id, errorMessage(cause));
       }
     },
-    [operations, refreshList],
+    [navigate, operations, refreshList],
   );
 
   // Save the model names, if the user changed any, then start the download. With no change,
@@ -823,19 +861,39 @@ export function App() {
     });
   }, [record, runModelDrafts, operations, packageAndDownload, downloadCurrent]);
 
-  if (!loaded) return null;
+  const profileToolbar = view && (
+    <ProfileToolbar
+      mode={view.done ? profileMode : "document"}
+      onMode={setProfileMode}
+      done={view.done}
+      busy={busy || operations.pendingSaves.has(view.id)}
+      onDownload={() => {
+        if (record) void downloadCurrent(record);
+      }}
+    />
+  );
 
   return (
     <div className="flex h-full w-full overflow-hidden">
+      {experimentDialogOpen && record && view?.done && (
+        <ExperimentDialog
+          title={record.title}
+          specification={exportedSpecification(record.state)}
+          onCancel={() => setExperimentDialogOpen(false)}
+          onStart={() => {
+            setExperimentDialogOpen(false);
+            navigate(paths.experiment(record.id, NEW_EXPERIMENT));
+          }}
+        />
+      )}
       {railOpen ? (
-        <InterviewRail
-          interviews={interviews}
+        <TargetRail
+          targets={targets}
           problems={storageProblems}
-          currentId={record?.id ?? null}
+          selectedId={targetId}
           activeIds={
             new Set([...operations.active, ...operations.pendingSaves.keys()])
           }
-          onOpen={open}
           onNew={startNew}
           onDelete={remove}
           onCollapse={() => setRailOpen(false)}
@@ -843,7 +901,7 @@ export function App() {
       ) : (
         <EdgeStrip
           side="left"
-          label="Show interviews"
+          label="Show targets"
           onClick={() => setRailOpen(true)}
         />
       )}
@@ -857,7 +915,20 @@ export function App() {
             }
           />
         )}
-        {manualOpen ? (
+        {(place.page === "new-target" ||
+          (place.page === "target" && view && !redirect)) && (
+          <TargetTabs
+            targetId={place.page === "target" ? place.targetId : null}
+            tab={
+              place.page === "target"
+                ? (place.tab ?? "specification")
+                : "specification"
+            }
+            done={view?.done ?? false}
+            onStartExperiment={() => setExperimentDialogOpen(true)}
+          />
+        )}
+        {manualOpen && place.page === "new-target" ? (
           <ManualForm
             onBack={() => setManualOpen(false)}
             connectionDraft={connectionDraft}
@@ -873,7 +944,10 @@ export function App() {
             }
             checkConnection={checkDraft}
           />
-        ) : connectionStep === "add" && view !== null ? (
+        ) : connectionStep === "add" &&
+          view !== null &&
+          place.page === "target" &&
+          place.tab === "specification" ? (
           <AddConnection
             draft={connectionDraft}
             onDraft={(next) => {
@@ -890,15 +964,31 @@ export function App() {
             onSave={() => void saveConnection()}
             onCancel={() => setConnectionStep(null)}
           />
-        ) : view === null && destination?.destination.kind === "interview" ? (
+        ) : place.page === "not-found" ? (
+          <NotFound onNew={startNew} />
+        ) : place.page === "experiments" ? (
+          <AllExperimentsPage />
+        ) : view === null && targetId !== null ? (
           <div className="m-auto flex flex-col gap-4 p-8" role="status">
             <p>
               {loadingRecord
-                ? "Loading Interview…"
-                : "This Interview is unavailable. Choose an Interview from History or start a new evaluation."}
+                ? "Loading target…"
+                : "This Target is unavailable. Choose a Target from the list or make a new one."}
             </p>
-            <Button onClick={startNew}>New evaluation</Button>
+            <NewTargetLink onClick={startNew} />
           </div>
+        ) : redirect ? null : place.page === "target" &&
+          place.tab === "experiments" ? (
+          <ExperimentsTab targetId={place.targetId} />
+        ) : place.page === "experiment" && record ? (
+          <ExperimentPage
+            targetId={place.targetId}
+            targetTitle={record.title}
+            experimentId={place.experimentId}
+            tab={place.tab}
+          />
+        ) : place.page === "compare" && record ? (
+          <ComparePage targetId={place.targetId} targetTitle={record.title} />
         ) : view === null ? (
           <OpeningRoute
             configState={wizardConfig}
@@ -989,6 +1079,8 @@ export function App() {
                     profileForm={profileForm?.request_id ?? null}
                   />
                   {busy && <ThinkingLine message={workingStatus} />}
+                  {/* The end of the Interview stands clear of the last message. */}
+                  {view.done && <div aria-hidden className="h-4 shrink-0" />}
                   {view.done && runSettingsFor === view.id ? (
                     <RunSettings
                       roles={runRoles(view.specification)}
@@ -1041,52 +1133,58 @@ export function App() {
                 className="min-h-0 min-w-0 flex-1 bg-muted"
                 aria-label="Profile"
               >
-                <SpecificationView
-                  key={view.id}
-                  specification={view.specification}
-                  excludedTasks={record?.state.excluded_tasks}
-                  position={stepPosition(view.requests)}
-                  interviewStep={view.stage}
-                  busy={busy || operations.pendingSaves.has(view.id)}
-                  showGraders={showGraders}
-                  onShowGradersChange={setShowGraders}
-                  graderByFqn={graderByFqn}
-                  gradersLoading={
-                    graderState === "idle" || graderState === "loading"
-                  }
-                  gradersError={graderState === "error"}
-                  done={view.done}
-                  onFinish={() => void finish()}
-                  onDownload={() => {
-                    if (record) void downloadCurrent(record);
-                  }}
-                  activeSections={review ? reviewParts(review) : []}
-                  renderReview={(part) =>
-                    review && (
-                      <ActiveReview
-                        key={`${view.id}:${part}`}
-                        request={review}
-                        part={part}
-                        busy={replyBusy}
-                        onRespond={send}
-                        form={profileForm}
-                        formFailure={profileFailure}
-                        formDrafts={formDrafts.current}
-                        draftPrefix={view.id}
-                      />
-                    )
-                  }
-                  renderSectionActions={(part) =>
-                    review && (
-                      <ReviewSectionActions
-                        request={review}
-                        part={part}
-                        busy={replyBusy}
-                        onRespond={send}
-                      />
-                    )
-                  }
-                />
+                {view.done && profileMode === "yaml" && record ? (
+                  <div className="flex h-full min-h-0 flex-col p-4">
+                    <ProfileHeading toolbar={profileToolbar} />
+                    <div className="min-h-0 flex-1">
+                      <YamlView state={record.state} />
+                    </div>
+                  </div>
+                ) : (
+                  <SpecificationView
+                    toolbar={profileToolbar}
+                    footDownload={false}
+                    key={view.id}
+                    specification={view.specification}
+                    excludedTasks={record?.state.excluded_tasks}
+                    position={stepPosition(view.requests)}
+                    interviewStep={view.stage}
+                    busy={busy || operations.pendingSaves.has(view.id)}
+                    graderByFqn={graderByFqn}
+                    gradersError={graderState === "error"}
+                    done={view.done}
+                    onFinish={() => void finish()}
+                    onDownload={() => {
+                      if (record) void downloadCurrent(record);
+                    }}
+                    activeSections={review ? reviewParts(review) : []}
+                    renderReview={(part) =>
+                      review && (
+                        <ActiveReview
+                          key={`${view.id}:${part}`}
+                          request={review}
+                          part={part}
+                          busy={replyBusy}
+                          onRespond={send}
+                          form={profileForm}
+                          formFailure={profileFailure}
+                          formDrafts={formDrafts.current}
+                          draftPrefix={view.id}
+                        />
+                      )
+                    }
+                    renderSectionActions={(part) =>
+                      review && (
+                        <ReviewSectionActions
+                          request={review}
+                          part={part}
+                          busy={replyBusy}
+                          onRespond={send}
+                        />
+                      )
+                    }
+                  />
+                )}
               </aside>
             </div>
           </UploadContext.Provider>
@@ -1567,6 +1665,27 @@ export function InitialDocumentPicker({
         <p>Accepted file types: {fixtureExtensions.join(", ")}.</p>
         <p>File size: {limits.max_initial_bytes / 1_000_000} MB total.</p>
       </div>
+    </div>
+  );
+}
+
+function NewTargetLink({ onClick }: { onClick: () => void }) {
+  return (
+    <Link
+      href={paths.newTarget()}
+      onClick={onClick}
+      className={cn(buttonClass("primary"), "w-fit")}
+    >
+      New target
+    </Link>
+  );
+}
+
+function NotFound({ onNew }: { onNew: () => void }) {
+  return (
+    <div className="m-auto flex flex-col gap-4 p-8" role="status">
+      <p>This page does not exist.</p>
+      <NewTargetLink onClick={onNew} />
     </div>
   );
 }
