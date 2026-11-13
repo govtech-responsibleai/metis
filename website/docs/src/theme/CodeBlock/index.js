@@ -1,5 +1,5 @@
 import CodeBlock from '@theme-original/CodeBlock';
-import Terminal from '@site/src/components/Terminal';
+import Terminal from '@site/docs/src/components/Terminal';
 
 const SHELL_LANGUAGES = new Set(['bash', 'sh', 'shell', 'zsh']);
 

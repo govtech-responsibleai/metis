@@ -1,4 +1,4 @@
-import graderData from './src/data/graders.json';
+import graderData from './docs/src/data/graders.json';
 
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
 const sidebars = {

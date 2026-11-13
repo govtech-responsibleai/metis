@@ -1,6 +1,6 @@
 import {useLocation} from '@docusaurus/router';
 import useBrokenLinks from '@docusaurus/useBrokenLinks';
-import Table from '@site/src/components/Table';
+import Table from '@site/docs/src/components/Table';
 
 import {glossary} from './data';
 import Inline from './Inline';

@@ -13,7 +13,7 @@ tokens. If you change a token, update this guide in the same pull request.
 | Landing page | `landing-page/src/index.css` (`:root`) |
 | Web app | `apps/web/src/globals.css` (`:root` and `:root[data-theme="dark"]`) |
 | Web app, report | `PALETTE` in `packages/insights/src/metis/insights/_report_styles.py` |
-| Web app, docs | `website/src/css/custom.css` (a copy of the web app tokens) |
+| Web app, docs | `website/docs/src/css/custom.css` (a copy of the web app tokens) |
 
 ## Brand colours
 

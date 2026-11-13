@@ -1,6 +1,6 @@
 import {readFileSync} from 'node:fs';
 
-import {jettwaveTealDark, jettwaveTealLight} from './src/codeThemes.js';
+import {jettwaveTealDark, jettwaveTealLight} from './docs/src/codeThemes.js';
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
@@ -16,6 +16,7 @@ const config = {
       attributes: {name: 'algolia-site-verification', content: 'B326B139191D7CA5'},
     },
   ],
+  staticDirectories: ['docs/static'],
   plugins: [
     // Lets a page import a file's text with `?raw`, so that `YamlFile` can show the real
     // example files from `packages/` without a copy.
@@ -27,6 +28,14 @@ const config = {
             module: {rules: [{resourceQuery: /raw/, type: 'asset/source'}]},
             resolve: {alias: {'@examples': new URL('../packages/engine/examples', import.meta.url).pathname}},
           };
+        },
+      };
+    },
+    function customThemePath() {
+      return {
+        name: 'custom-theme-path',
+        getThemePath() {
+          return './docs/src/theme';
         },
       };
     },
@@ -62,7 +71,7 @@ const config = {
           sidebarPath: './sidebars.js',
         },
         blog: false,
-        theme: {customCss: './src/css/custom.css'},
+        theme: {customCss: './docs/src/css/custom.css'},
       },
     ],
   ],

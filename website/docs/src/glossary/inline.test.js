@@ -35,7 +35,7 @@ test('a repository file maps to the page the website publishes for it', () => {
 });
 
 test('every inline construct in GLOSSARY.md is understood', () => {
-  const text = readFileSync(new URL('../../../GLOSSARY.md', import.meta.url), 'utf8');
+  const text = readFileSync(new URL('../../../../GLOSSARY.md', import.meta.url), 'utf8');
   const glossary = parseGlossary(text);
   const strings = [];
   const collectItems = (items) => items.forEach((i) => (strings.push(i.text), collectItems(i.children)));

@@ -4,7 +4,7 @@ slug: /library
 description: Every library grader, what each one checks, and the open-source prompt that each one adapts.
 ---
 
-import {GraderList} from '@site/src/components/Graders';
+import {GraderList} from '@site/docs/src/components/Graders';
 
 METIS graders assess a recorded session against one criterion. Each grader measures one
 attribute of agent quality and gives a score. The grader's judgment form decides the form

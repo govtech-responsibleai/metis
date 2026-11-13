@@ -1,6 +1,6 @@
 import Link from '@docusaurus/Link';
-import TermHover from '@site/src/components/Term/TermHover';
-import {parseInline, pageFor} from '@site/src/glossary/inline';
+import TermHover from '@site/docs/src/components/Term/TermHover';
+import {parseInline, pageFor} from '@site/docs/src/glossary/inline';
 
 import {glossary, sectionIds} from './data';
 
