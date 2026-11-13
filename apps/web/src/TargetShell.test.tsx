@@ -184,7 +184,10 @@ test("an experiment links back to its Target and to its Trials and Report", () =
   );
 
   assert.match(control(markup, "Bank bot"), /href="\/targets\/a\/experiments"/);
-  assert.match(tab(markup, "Trials"), /href="\/targets\/a\/experiments\/new"/);
+  assert.match(
+    tab(markup, "Trials"),
+    /href="\/targets\/a\/experiments\/new\/trials"/,
+  );
   assert.match(tab(markup, "Trials"), /aria-selected="true"/);
   assert.match(
     tab(markup, "Report"),

@@ -44,8 +44,10 @@ export function ExperimentPage({
   targetId: string;
   targetTitle: string;
   experimentId: string;
-  tab: ExperimentTab;
+  // Null for the bare experiment URL.
+  tab: ExperimentTab | null;
 }) {
+  const shown = tab ?? "trials";
   return (
     <Page>
       <header className="flex flex-col gap-3">
@@ -62,10 +64,10 @@ export function ExperimentPage({
             key={id}
             href={paths.experiment(targetId, experimentId, id)}
             role="tab"
-            aria-selected={tab === id}
+            aria-selected={shown === id}
             className={cn(
               "-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-150",
-              tab === id
+              shown === id
                 ? "border-accent text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground",
             )}
@@ -75,7 +77,7 @@ export function ExperimentPage({
         ))}
       </div>
       <Placeholder>
-        {tab === "trials"
+        {shown === "trials"
           ? "The trials of this experiment show here."
           : "The report of this experiment shows here."}
       </Placeholder>
