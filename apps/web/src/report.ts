@@ -85,20 +85,40 @@ export interface ScoreFacts {
   testCases: number;
 }
 
+export type Outcome = "passed" | "failed" | "skipped" | "errored";
+
+// One test case that has a result for a Criterion.
+export interface CriterionCase {
+  taskId: string;
+  persona: string;
+  scenario: string;
+  rate: Rate;
+  // One entry for each trial that has an outcome for the Criterion.
+  trials: Array<{ index: number; outcome: Outcome }>;
+}
+
 export interface CriterionResult {
   id: string;
   name: string;
+  description: string;
   rate: Rate;
   passed: number;
   // Passed plus failed results.
   graded: number;
   skipped: number;
   errored: number;
+  graderName: string;
+  judgeModels: string[];
+  // The lowest score that passes. Null when the Grader has no threshold.
+  passMark: number | null;
+  meanScore: number | null;
+  cases: CriterionCase[];
 }
 
 export interface BehaviourResult {
   id: string;
   label: string;
+  statement: string;
   rate: BehaviourRate;
   criteria: CriterionResult[];
 }
@@ -124,6 +144,10 @@ export interface CaseColumnGroup {
 
 export interface CaseCell {
   rate: Rate;
+  passed: number;
+  failed: number;
+  skipped: number;
+  errored: number;
   // The confidence interval in whole percent.
   interval: { lower: number; upper: number } | null;
 }
@@ -142,19 +166,49 @@ export interface CaseRow {
 export interface CaseTable {
   groups: CaseColumnGroup[];
   rows: CaseRow[];
+  // The sums over every row.
+  skipped: number;
+  errored: number;
+}
+
+export interface UnmappedItem {
+  outcome: Outcome;
+  taskId: string;
+  trialIndex: number;
+  // Null when the record has one result.
+  resultNumber: number | null;
+  reason: string;
+  // The recorded Grader and its arguments, as JSON text.
+  settings: string;
 }
 
 export interface UnmappedResult {
   criterionId: string;
-  graderName: string;
+  grader: string;
   why: string;
+  items: UnmappedItem[];
+}
+
+export interface RunDetails {
+  run: string;
+  date: string;
+  personas: number;
+  scenarios: number;
+  trials: number;
+  gradingSeconds: number | null;
+  judgeModels: string[];
+  unmappedRecords: number;
+  unresolvedCriteria: number;
+  schemaVersion: number;
 }
 
 export interface ReportPage {
+  target: string;
   score: ScoreFacts;
   specification: FeatureResult[];
   cases: CaseTable;
   unmapped: UnmappedResult[];
+  details: RunDetails;
 }
 
 function rateOf(value: number | null | undefined, target: number): Rate {
@@ -191,21 +245,62 @@ function scoreFacts(report: Report): ScoreFacts {
   };
 }
 
+type Row = Report["resultTable"]["rows"][number];
+type Counts = { pass: number; fail: number; skip: number; error: number };
+
+const personaOf = (report: Report, row: Row) =>
+  report.names.P?.[row.persona] ?? row.persona;
+const scenarioOf = (report: Report, row: Row) =>
+  report.names.S?.[row.scenario] ?? row.scenario;
+
+function outcomeOf(counts: Counts | undefined): Outcome | null {
+  if (!counts) return null;
+  if (counts.pass) return "passed";
+  if (counts.fail) return "failed";
+  if (counts.error) return "errored";
+  return counts.skip ? "skipped" : null;
+}
+
+function criterionCases(report: Report, id: string): CriterionCase[] {
+  return report.resultTable.rows.flatMap((row) => {
+    const result = row.results?.[id];
+    if (!result) return [];
+    return [
+      {
+        taskId: row.task_id,
+        persona: personaOf(report, row),
+        scenario: scenarioOf(report, row),
+        rate: rateOf(result.rate, report.passRateTarget),
+        trials: (row.trials ?? []).flatMap((trial) => {
+          const outcome = outcomeOf(trial.results?.[id]);
+          return outcome ? [{ index: trial.trial_index, outcome }] : [];
+        }),
+      },
+    ];
+  });
+}
+
 function specificationResults(report: Report): FeatureResult[] {
   const target = report.passRateTarget;
   const criterion = (id: string): CriterionResult | undefined => {
     const found = report.criteria[id];
-    return (
-      found && {
-        id,
-        name: found.name,
-        rate: rateOf(found.rate, target),
-        passed: found.pass,
-        graded: found.pass + found.fail,
-        skipped: found.skip,
-        errored: found.error,
-      }
-    );
+    if (!found) return undefined;
+    const threshold = found.grader_args?.threshold;
+    return {
+      id,
+      name: found.name,
+      description: found.description,
+      rate: rateOf(found.rate, target),
+      passed: found.pass,
+      graded: found.pass + found.fail,
+      skipped: found.skip,
+      errored: found.error,
+      graderName: found.grader_name,
+      judgeModels: found.judge_models ?? [],
+      passMark: typeof threshold === "number" ? threshold : null,
+      meanScore: found.mean_score ?? null,
+      cases: criterionCases(report, id),
+    };
   };
   const behaviour = (id: string): BehaviourResult | undefined => {
     const found = report.behaviours[id];
@@ -213,6 +308,7 @@ function specificationResults(report: Report): FeatureResult[] {
       found && {
         id,
         label: found.label,
+        statement: found.statement,
         rate:
           found.priority === false || found.criteria.length === 0
             ? { kind: "not-measured" }
@@ -247,8 +343,8 @@ function caseTable(report: Report): CaseTable {
     const counted = Object.values(results);
     return {
       taskId: row.task_id,
-      persona: report.names.P?.[row.persona] ?? row.persona,
-      scenario: report.names.S?.[row.scenario] ?? row.scenario,
+      persona: personaOf(report, row),
+      scenario: scenarioOf(report, row),
       skipped: counted.reduce((sum, result) => sum + result.skip, 0),
       errored: counted.reduce((sum, result) => sum + result.error, 0),
       cells: columns.map(({ criterionId }) => {
@@ -257,6 +353,10 @@ function caseTable(report: Report): CaseTable {
         const interval = result.confidence_interval;
         return {
           rate: rateOf(result.rate, target),
+          passed: result.pass,
+          failed: result.fail,
+          skipped: result.skip,
+          errored: result.error,
           interval: interval
             ? {
                 lower: Math.round(interval.lower * 100),
@@ -267,18 +367,67 @@ function caseTable(report: Report): CaseTable {
       }),
     };
   });
-  return { groups, rows };
+  return {
+    groups,
+    rows,
+    skipped: rows.reduce((sum, row) => sum + row.skipped, 0),
+    errored: rows.reduce((sum, row) => sum + row.errored, 0),
+  };
+}
+
+function unmappedResults(report: Report): UnmappedResult[] {
+  return report.unmapped.map((group) => ({
+    criterionId: group.criterion_id,
+    grader: group.grader_fqn,
+    why: group.why,
+    items: (group.records ?? []).flatMap((record) =>
+      record.results.map((result, index) => ({
+        outcome: result.outcome,
+        taskId: record.task_id,
+        trialIndex: record.trial_index,
+        resultNumber: record.results.length > 1 ? index + 1 : null,
+        reason: result.reason,
+        settings: JSON.stringify(
+          { grader_fqn: record.grader_fqn, grader_args: record.grader_args },
+          null,
+          1,
+        ),
+      })),
+    ),
+  }));
+}
+
+function runDetails(report: Report): RunDetails {
+  return {
+    run: report.run,
+    date: report.date,
+    personas: report.personas.length,
+    scenarios: report.scenarios.length,
+    trials: report.plan.tasks.reduce((sum, task) => sum + task.trials, 0),
+    gradingSeconds: report.latency ?? null,
+    judgeModels: [
+      ...new Set(
+        Object.values(report.criteria).flatMap(
+          (criterion) => criterion.judge_models ?? [],
+        ),
+      ),
+    ],
+    unmappedRecords: report.unmapped.reduce(
+      (sum, group) => sum + (group.records ?? []).length,
+      0,
+    ),
+    unresolvedCriteria: report.unresolved.length,
+    schemaVersion: report.schema_version,
+  };
 }
 
 export function reportPage(report: Report): ReportPage {
   return {
+    target: report.target,
     score: scoreFacts(report),
     specification: specificationResults(report),
     cases: caseTable(report),
-    unmapped: report.unmapped.map((group) => ({
-      criterionId: group.criterion_id,
-      graderName: group.grader_name,
-      why: group.why,
-    })),
+    unmapped: unmappedResults(report),
+    details: runDetails(report),
   };
 }

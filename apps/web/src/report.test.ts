@@ -47,10 +47,22 @@ function result(overrides: Partial<CaseResult>): CaseResult {
 // A small report: one Feature with two Behaviours, three Criteria, and two test cases.
 function report(overrides: Partial<Report> = {}): Report {
   return {
+    schema_version: 1,
+    target: "Bank bot",
+    run: "run 1",
+    date: "2026-01-02",
+    personas: ["p1"],
+    scenarios: ["s1", "s2"],
+    unresolved: [],
     passRateTarget: 80,
     scores: { graderPassRate: { ...counts, rate: 75 } },
     trials: { attempted: 4, successful: 3 },
-    plan: { tasks: [{ id: "t1" }, { id: "t2" }] },
+    plan: {
+      tasks: [
+        { id: "t1", trials: 3 },
+        { id: "t2", trials: 2 },
+      ],
+    },
     names: { P: { p1: "New customer" }, S: { s1: "Opens an account" } },
     features: [
       {
@@ -335,15 +347,118 @@ test("a Criterion has its counts of passed, graded, skipped and errored results"
     }),
   );
 
-  assert.deepEqual(specification[0]?.behaviours[0]?.criteria[0], {
-    id: "c1",
-    name: "Says hello",
-    rate: { kind: "measured", percent: 90, low: false },
-    passed: 3,
-    graded: 5,
-    skipped: 1,
-    errored: 4,
+  const { passed, graded, skipped, errored } =
+    specification[0]?.behaviours[0]?.criteria[0] ?? {};
+  assert.deepEqual(
+    { passed, graded, skipped, errored },
+    { passed: 3, graded: 5, skipped: 1, errored: 4 },
+  );
+});
+
+test("a Criterion has its description, Grader, judge models, pass mark and mean score", () => {
+  const criteria = reportPage(
+    report({
+      criteria: {
+        c1: criterion({
+          description: "The reply starts with a greeting.",
+          judge_models: ["model a", "model b"],
+          grader_args: { threshold: 0.5 },
+          mean_score: 0.75,
+        }),
+        c2: criterion({}),
+      },
+    }),
+  ).specification[0]?.behaviours[0]?.criteria;
+
+  const detail = (index: number) => {
+    const { description, graderName, judgeModels, passMark, meanScore } =
+      criteria?.[index] ?? {};
+    return { description, graderName, judgeModels, passMark, meanScore };
+  };
+  assert.deepEqual(detail(0), {
+    description: "The reply starts with a greeting.",
+    graderName: "GreetingGrader",
+    judgeModels: ["model a", "model b"],
+    passMark: 0.5,
+    meanScore: 0.75,
   });
+  assert.deepEqual(detail(1), {
+    description: "",
+    graderName: "GreetingGrader",
+    judgeModels: [],
+    passMark: null,
+    meanScore: null,
+  });
+});
+
+test("a Criterion lists its test cases with the outcome of each trial", () => {
+  type Trial = NonNullable<
+    Report["resultTable"]["rows"][number]["trials"]
+  >[number];
+  const trial = (trial_index: number, c1: Partial<typeof counts>) =>
+    ({
+      trial_index,
+      results: { c1: { ...counts, ...c1 } },
+    }) as unknown as Trial;
+  const criteria = reportPage(
+    report({
+      resultTable: {
+        ...report().resultTable,
+        rows: [
+          {
+            task_id: "t1",
+            persona: "p1",
+            scenario: "s1",
+            results: { c1: result({ rate: 50 }) },
+            trials: [
+              trial(1, { pass: 1 }),
+              trial(2, { fail: 1 }),
+              trial(3, { error: 1 }),
+              trial(4, { skip: 1 }),
+              trial(5, {}),
+            ],
+          },
+          {
+            task_id: "t2",
+            persona: "p1",
+            scenario: "s1",
+            results: { c3: result({}) },
+          },
+        ],
+      },
+    }),
+  ).specification[0]?.behaviours[0]?.criteria;
+
+  assert.deepEqual(criteria?.[0]?.cases, [
+    {
+      taskId: "t1",
+      persona: "New customer",
+      scenario: "Opens an account",
+      rate: { kind: "measured", percent: 50, low: true },
+      trials: [
+        { index: 1, outcome: "passed" },
+        { index: 2, outcome: "failed" },
+        { index: 3, outcome: "errored" },
+        { index: 4, outcome: "skipped" },
+      ],
+    },
+  ]);
+});
+
+test("a Behaviour has its statement", () => {
+  const { specification } = reportPage(
+    report({
+      behaviours: {
+        ...report().behaviours,
+        b1: behaviour({ statement: "The system greets the user." }),
+      },
+    }),
+  );
+
+  assert.equal(
+    specification[0]?.behaviours[0]?.statement,
+    "The system greets the user.",
+  );
 });
 
 test("the table has one column for each Criterion of a Feature with columns", () => {
@@ -401,8 +516,8 @@ test("a test case shows the names of its Persona and Scenario", () => {
   );
 });
 
-test("a test case sums its skipped and errored results", () => {
-  const { rows } = reportPage(
+test("a test case and the table sum their skipped and errored results", () => {
+  const cases = reportPage(
     report({
       resultTable: {
         ...report().resultTable,
@@ -416,16 +531,24 @@ test("a test case sums its skipped and errored results", () => {
               c3: result({ skip: 3 }),
             },
           },
+          {
+            task_id: "t2",
+            persona: "p1",
+            scenario: "s1",
+            results: { c1: result({ skip: 5, error: 1 }) },
+          },
         ],
       },
     }),
   ).cases;
 
-  assert.equal(rows[0]?.skipped, 4);
-  assert.equal(rows[0]?.errored, 2);
+  assert.equal(cases.rows[0]?.skipped, 4);
+  assert.equal(cases.rows[0]?.errored, 2);
+  assert.equal(cases.skipped, 9);
+  assert.equal(cases.errored, 3);
 });
 
-test("a cell has the rate and the rounded confidence interval", () => {
+test("a cell has the rate, the counts and the rounded confidence interval", () => {
   const { rows } = reportPage(
     report({
       resultTable: {
@@ -438,6 +561,10 @@ test("a cell has the rate and the rounded confidence interval", () => {
             results: {
               c3: result({
                 rate: 50,
+                pass: 2,
+                fail: 2,
+                skip: 1,
+                error: 3,
                 confidence_interval: {
                   method: "wilson",
                   confidence_level: 0.95,
@@ -465,34 +592,119 @@ test("a cell has the rate and the rounded confidence interval", () => {
         null,
         {
           rate: { kind: "measured", percent: 50, low: true },
+          passed: 2,
+          failed: 2,
+          skipped: 1,
+          errored: 3,
           interval: { lower: 21, upper: 79 },
         },
       ],
-      [{ rate: { kind: "no-result" }, interval: null }, null],
+      [
+        {
+          rate: { kind: "no-result" },
+          passed: 0,
+          failed: 0,
+          skipped: 0,
+          errored: 0,
+          interval: null,
+        },
+        null,
+      ],
     ],
   );
 });
 
-test("results without a matching Criterion are listed", () => {
-  const { unmapped } = reportPage(
-    report({
-      unmapped: [
-        {
-          ...counts,
-          grader_fqn: "example.graders.ToneGrader",
-          criterion_id: "c9",
-          grader_name: "ToneGrader",
-          why: "No Task has this Criterion.",
-        },
+const UNMAPPED = {
+  ...counts,
+  grader_fqn: "example.graders.ToneGrader",
+  criterion_id: "c9",
+  grader_name: "ToneGrader",
+  why: "No Task has this Criterion.",
+  records: [
+    {
+      task_id: "t1",
+      trial_index: 2,
+      grader_fqn: "example.graders.ToneGrader",
+      grader_args: { threshold: 0.5 },
+      results: [
+        { outcome: "failed", reason: "The tone is cold." },
+        { outcome: "passed", reason: "The tone is warm." },
       ],
-    }),
+    },
+    {
+      task_id: "t2",
+      trial_index: 1,
+      grader_fqn: "example.graders.ToneGrader",
+      grader_args: {},
+      results: [{ outcome: "skipped", reason: "No reply." }],
+    },
+  ],
+};
+
+test("results without a matching Criterion are listed with each recorded result", () => {
+  const { unmapped } = reportPage(report({ unmapped: [UNMAPPED] } as never));
+
+  assert.equal(unmapped.length, 1);
+  assert.equal(unmapped[0]?.criterionId, "c9");
+  assert.equal(unmapped[0]?.grader, "example.graders.ToneGrader");
+  assert.equal(unmapped[0]?.why, "No Task has this Criterion.");
+  assert.deepEqual(
+    unmapped[0]?.items.map(({ settings, ...item }) => item),
+    [
+      {
+        outcome: "failed",
+        taskId: "t1",
+        trialIndex: 2,
+        resultNumber: 1,
+        reason: "The tone is cold.",
+      },
+      {
+        outcome: "passed",
+        taskId: "t1",
+        trialIndex: 2,
+        resultNumber: 2,
+        reason: "The tone is warm.",
+      },
+      {
+        outcome: "skipped",
+        taskId: "t2",
+        trialIndex: 1,
+        resultNumber: null,
+        reason: "No reply.",
+      },
+    ],
+  );
+  assert.deepEqual(JSON.parse(unmapped[0]?.items[0]?.settings ?? ""), {
+    grader_fqn: "example.graders.ToneGrader",
+    grader_args: { threshold: 0.5 },
+  });
+});
+
+test("the page has the Target name and the run details", () => {
+  const { target, details } = reportPage(
+    report({
+      latency: 12.34,
+      unresolved: ["c7"],
+      unmapped: [UNMAPPED],
+      criteria: {
+        c1: criterion({ judge_models: ["model a", "model b"] }),
+        c2: criterion({ judge_models: ["model a"] }),
+      },
+    } as never),
   );
 
-  assert.deepEqual(unmapped, [
-    {
-      criterionId: "c9",
-      graderName: "ToneGrader",
-      why: "No Task has this Criterion.",
-    },
-  ]);
+  assert.equal(target, "Bank bot");
+  assert.deepEqual(details, {
+    run: "run 1",
+    date: "2026-01-02",
+    personas: 1,
+    scenarios: 2,
+    trials: 5,
+    gradingSeconds: 12.34,
+    judgeModels: ["model a", "model b"],
+    unmappedRecords: 2,
+    unresolvedCriteria: 1,
+    schemaVersion: 1,
+  });
+  assert.equal(reportPage(report()).details.gradingSeconds, null);
 });

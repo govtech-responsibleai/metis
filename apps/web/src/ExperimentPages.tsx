@@ -1,8 +1,17 @@
-// The experiment pages. Each one says what it will show until the experiment store fills it.
+// The experiment pages. An experiment has its report. The other pages say what they will show
+// until the experiment store fills them.
 
 import { ChevronLeft } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "wouter";
+import {
+  experimentScreen,
+  loadReport,
+  type ExperimentScreen,
+  type ReportLoad,
+  type SettledReportLoad,
+} from "./report";
+import { DownloadReport, ReportTab } from "./ReportTab";
 import { paths, type ExperimentTab } from "./routes";
 import { cn } from "./ui";
 
@@ -35,52 +44,139 @@ const TABS: Array<{ id: ExperimentTab; label: string }> = [
   { id: "report", label: "Report" },
 ];
 
-export function ExperimentPage({
-  targetId,
-  targetTitle,
-  experimentId,
-  tab,
-}: {
+const TAB =
+  "-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-150";
+
+const LOADING: ReportLoad = { status: "loading" };
+
+// The state holds the request of its answer, so the answer of another experiment or of an
+// earlier attempt reads as loading.
+function useReportLoad(experimentId: string): {
+  load: ReportLoad;
+  reload: () => void;
+} {
+  const [attempt, setAttempt] = useState(0);
+  const [held, setHeld] = useState<{
+    key: string;
+    load: SettledReportLoad;
+  } | null>(null);
+  const key = `${attempt}:${experimentId}`;
+  useEffect(() => {
+    let current = true;
+    void loadReport(experimentId).then((load) => {
+      if (current) setHeld({ key, load });
+    });
+    return () => {
+      current = false;
+    };
+  }, [experimentId, key]);
+  return {
+    load: held?.key === key ? held.load : LOADING,
+    reload: () => setAttempt((count) => count + 1),
+  };
+}
+
+interface ExperimentProps {
   targetId: string;
   targetTitle: string;
   experimentId: string;
+}
+
+export function ExperimentPage({
+  tab,
+  ...experiment
+}: ExperimentProps & {
   // Null for the bare experiment URL.
   tab: ExperimentTab | null;
 }) {
-  const shown = tab ?? "trials";
+  const { load, reload } = useReportLoad(experiment.experimentId);
+  return (
+    <ExperimentView
+      {...experiment}
+      screen={experimentScreen(tab, load)}
+      load={load}
+      onReload={reload}
+    />
+  );
+}
+
+// The page for one load state. It has no hook, so a test can render each state.
+export function ExperimentView({
+  targetId,
+  targetTitle,
+  experimentId,
+  screen,
+  load,
+  onReload,
+}: ExperimentProps & {
+  screen: ExperimentScreen;
+  load: ReportLoad;
+  onReload: () => void;
+}) {
   return (
     <Page>
       <header className="flex flex-col gap-3">
         <BackLink targetId={targetId} title={targetTitle} />
-        <h1 className="text-xl font-semibold">Experiment</h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-xl font-semibold">Experiment</h1>
+          {load.status === "ready" && (
+            <DownloadReport experimentId={experimentId} />
+          )}
+        </div>
       </header>
       <div
         role="tablist"
         aria-label="Experiment"
         className="flex gap-1 border-b border-border"
       >
-        {TABS.map(({ id, label }) => (
-          <Link
-            key={id}
-            href={paths.experiment(targetId, experimentId, id)}
-            role="tab"
-            aria-selected={shown === id}
-            className={cn(
-              "-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-150",
-              shown === id
-                ? "border-accent text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {label}
-          </Link>
-        ))}
+        {TABS.map(({ id, label }) =>
+          id === "report" && screen.reportOff !== null ? (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={screen.tab === id}
+              disabled
+              title={screen.reportOff}
+              className={cn(
+                TAB,
+                "cursor-not-allowed border-transparent text-muted-foreground opacity-45",
+              )}
+            >
+              {label}
+            </button>
+          ) : (
+            <Link
+              key={id}
+              href={paths.experiment(targetId, experimentId, id)}
+              role="tab"
+              aria-selected={screen.tab === id}
+              className={cn(
+                TAB,
+                screen.tab === id
+                  ? "border-accent text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {label}
+            </Link>
+          ),
+        )}
       </div>
-      <Placeholder>
-        {shown === "trials"
-          ? "The trials of this experiment show here."
-          : "The report of this experiment shows here."}
-      </Placeholder>
+      {screen.tab === null ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          Loading the experiment
+        </p>
+      ) : screen.tab === "trials" ? (
+        <Placeholder>The trials of this experiment show here.</Placeholder>
+      ) : (
+        <ReportTab
+          targetId={targetId}
+          experimentId={experimentId}
+          load={load}
+          onReload={onReload}
+        />
+      )}
     </Page>
   );
 }

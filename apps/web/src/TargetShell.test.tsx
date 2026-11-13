@@ -1,36 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Router } from "wouter";
-import { ComparePage, ExperimentPage } from "./ExperimentPages";
+import { ComparePage } from "./ExperimentPages";
+import { at, control, tab } from "./markup.test-helper";
 import { ProfileToolbar } from "./ProfileToolbar";
 import { ExperimentsTab, TargetTabs } from "./TargetPage";
 import { TargetRail } from "./TargetRail";
-
-function at(path: string, node: ReactNode): string {
-  return renderToStaticMarkup(<Router ssrPath={path}>{node}</Router>);
-}
-
-function tab(markup: string, label: string): string {
-  const found = [
-    ...markup.matchAll(/<(a|button)[^>]*role="tab"[^>]*>(.*?)<\/\1>/g),
-  ].find(([, , inner]) => inner === label);
-  assert.ok(found, `no ${label} tab`);
-  return found[0];
-}
-
-const text = (markup: string) => markup.replace(/<[^>]+>/g, "");
-
-// The opening tag of the first link or button whose text starts with `label`. A Target row
-// also shows its time.
-function control(markup: string, label: string): string {
-  const found = [...markup.matchAll(/(<(a|button)\b[^>]*>)(.*?)<\/\2>/g)].find(
-    ([, , , inner]) => text(inner ?? "").startsWith(label),
-  );
-  assert.ok(found, `no ${label} control`);
-  return found[1] ?? "";
-}
 
 const startButton = (markup: string) => control(markup, "Start an experiment");
 
@@ -170,46 +145,6 @@ test("an empty Experiments tab says so and links to the comparison", () => {
 
   assert.match(markup, /No experiments yet\./);
   assert.match(control(markup, "Compare"), /href="\/targets\/a\/compare"/);
-});
-
-test("an experiment links back to its Target and to its Trials and Report", () => {
-  const markup = at(
-    "/targets/a/experiments/new",
-    <ExperimentPage
-      targetId="a"
-      targetTitle="Bank bot"
-      experimentId="new"
-      tab="trials"
-    />,
-  );
-
-  assert.match(control(markup, "Bank bot"), /href="\/targets\/a\/experiments"/);
-  assert.match(
-    tab(markup, "Trials"),
-    /href="\/targets\/a\/experiments\/new\/trials"/,
-  );
-  assert.match(tab(markup, "Trials"), /aria-selected="true"/);
-  assert.match(
-    tab(markup, "Report"),
-    /href="\/targets\/a\/experiments\/new\/report"/,
-  );
-  assert.match(tab(markup, "Report"), /aria-selected="false"/);
-  assert.match(markup, /The trials of this experiment show here\./);
-});
-
-test("the Report tab of an experiment says what it will show", () => {
-  const markup = at(
-    "/targets/a/experiments/new/report",
-    <ExperimentPage
-      targetId="a"
-      targetTitle="Bank bot"
-      experimentId="new"
-      tab="report"
-    />,
-  );
-
-  assert.match(tab(markup, "Report"), /aria-selected="true"/);
-  assert.match(markup, /The report of this experiment shows here\./);
 });
 
 test("the comparison links back to its Target", () => {
