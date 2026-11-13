@@ -81,12 +81,20 @@ failed. The reason is in the **Errored** tab.
 Neither outcome is a failure, and neither is in any pass rate. For the full list of causes, see
 [Result outcomes](library/how-graders-work.md#result-outcomes).
 
+So that a pass rate does not hide errored results, a warning icon shows beside a pass rate
+that has them. Point to the icon to see how many grader runs errored. The icon shows once, at
+the lowest level that you can see: when you open a Feature or a Behaviour, the icon moves to
+the rows under it. When grader runs errored,
+a line under the average pass rate says how many of all the grader runs errored. **Grader runs
+completed** beside it counts the grader runs that passed, failed, or skipped. A Criterion whose
+grader runs errored and that has no pass rate shows **Not graded**, with no icon.
+
 ## How the scores work
 
 | Term | What it means |
 |---|---|
 | Pass&nbsp;mark | A grader scores each Trial from 0 to 1. The result passes when the score is at or above the pass mark. The pass mark is `threshold` under the `grader_args` of the Criterion. |
-| Pass&nbsp;rate | The passed results of a Criterion divided by its graded results. Errored and skipped results are not counted. |
+| Pass&nbsp;rate | The passed results of a Criterion divided by its graded results. Errored and skipped results are not counted. When a pass rate has errored results, a warning icon can show beside it. |
 | Roll&#8209;up | A Behaviour is the average of its Criteria. A Feature is the average of its Behaviours. The average pass rate at the top of the page is the average of the Features. Each one counts once. |
 | Target | A pass rate below 70% shows in red. The target is for display only. It does not change any result. |
 | 95%&nbsp;range | The range where the true pass rate of a Test Case is likely to be. In the Test Case panel, the grey band is the range and the red line is the 70% target. When the band crosses the line, the Trials cannot show if the pass rate is above or below the target. To get more Trials, change **Trials** on the Test Case in the Wizard, or set a larger `num_trials` under [`tasks`](specification-file.md#tasks). |
