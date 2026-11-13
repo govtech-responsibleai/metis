@@ -67,8 +67,13 @@ media type is the type in the record when a header can hold it, else `applicatio
 Each Store holds a thread lock for the full time of a save or a delete, so the owner check and
 the write stay together. The store has no lock between processes.
 
-Before a first save, the store checks both the row and the Target folder. A folder with no row is
-already owned by another tool, so PUT returns 409 `target_exists` and leaves it unchanged. When a
+A folder in `experiments/design/` with a state file that validates is an Interview of the wizard
+CLI. The store adds its rows when it opens and at each Target list. Such a row has no transcript,
+and its file references are the files in `inputs/documents/`.
+
+Before a first save, the store checks both the row and the Target folder. A folder with no row
+has no Interview state that the store can read, so PUT returns 409 `target_exists` and leaves it
+unchanged. When a
 first save fails, the store removes the folder that it made. DELETE requires a row. When no row
 exists, it returns 404 `not_found` and leaves any folder unchanged. A delete removes the row and
 then the Target folder.
@@ -91,7 +96,9 @@ The files of a Target are in the layout that `metis wizard init` writes, under
 `YYYYMMDD-HHMMSS-interview`, which is the name of a `metis wizard init` folder. When the id is
 taken, the web app adds `-2`, `-3`, and so on. The `created_at` of the record tells one Interview
 from another. A save with the id of another Interview gets 409 `target_exists` and changes
-nothing. `inputs/fixtures/` holds the files that the user uploads. `outputs/` is the folder for `metis engine simulate --input-dir`.
+nothing. `inputs/interview_state.json` holds the state of the Interview, in the file that the
+wizard CLI uses. The Interview row holds the other parts of the record, and each read takes the
+state from the file. `inputs/documents/` holds the files that the user uploads, in the folder of the CLI opening documents. `outputs/` is the folder for `metis engine simulate --input-dir`.
 Each save of a done Interview compiles the Specification, then writes the Specification row and
 `outputs/` again. `outputs/` comes from the `outputs/` files of the package archive, and a new
 folder replaces the old one in two renames. A save is all or nothing: a

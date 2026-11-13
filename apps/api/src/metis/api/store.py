@@ -7,15 +7,18 @@ URL also works.
 The store keeps the files of each Target in the layout that `metis wizard init` writes, under
 `<project>/experiments/design/<target_id>/`:
 
-- `inputs/fixtures/` holds the files of the Interview record, by name. The user uploads these
-  files: the fixtures of the Interview, and the files of an answer that the wizard has not
-  accepted yet.
+- `inputs/interview_state.json` holds the state of the Interview. `metis wizard resume` reads
+  and writes the same file. The Interview row holds the other parts of the web record: the
+  transcript, the times, and the file references.
+- `inputs/documents/` holds the files of the Interview record, by name. The user uploads these
+  files: the opening documents, the files for the Test Cases, and the files of an answer that
+  the wizard has not accepted yet. The wizard CLI keeps its opening documents in the same folder.
 - `outputs/` is the input folder of the Specification. Give it to
   `metis engine simulate --input-dir`. It holds `specification.yaml`, `fixtures/`, and
   `target-binding.yaml` when the Interview has a target connection.
 
-A save puts the new files in place, then saves the rows, then deletes the files that the record
-no longer refers to. Thus a saved record always has all its files. A save that stops before its
+A save puts the new files and the state file in place, then saves the rows, then deletes the
+files that the record no longer refers to. Thus a saved record always has all its files. A save that stops before its
 last step can leave a file that no record refers to. The next save of that Interview deletes it.
 
 A save writes each upload under a temporary name first, so a read never gets a part of a file.
@@ -31,6 +34,8 @@ each Experiment folder, so a new Specification does not change an earlier Experi
 from __future__ import annotations
 
 import hashlib
+import json
+import mimetypes
 import os
 import re
 import shutil
@@ -51,6 +56,7 @@ from metis.api.records import (
     TARGET_ID,
     ExperimentRecord,
     ExperimentSave,
+    FileRef,
     InterviewRecord,
     SpecificationRecord,
     TargetList,
@@ -63,6 +69,7 @@ from metis.api.tables import experiments, interviews, metadata, specifications, 
 from metis.core import execution_layout
 from metis.wizard import (
     CompilationError,
+    InterviewState,
     InterviewStep,
     SpecificationError,
     derive_stage,
@@ -81,8 +88,10 @@ DATABASE = EXPERIMENTS / "metis.db"
 """The default SQLite file of the store, relative to the project folder."""
 DESIGN = EXPERIMENTS / "design"
 """The folder of the Target folders. `metis wizard init` writes to the same folder."""
-FILES = Path("inputs") / "fixtures"
+FILES = Path("inputs") / "documents"
 """The folder of a Target that holds the files of its Interview record."""
+STATE = Path("inputs") / "interview_state.json"
+"""The file of a Target that holds the state of its Interview. The wizard CLI uses the same file."""
 OUTPUTS = "outputs"
 """The folder of a Target that `metis engine simulate --input-dir` reads."""
 
@@ -188,7 +197,10 @@ class Store:
         metadata.create_all(self._engine)
         # One save or delete at a time, so the owner check and the write stay together.
         self._lock = threading.Lock()
+        self._move_files()
+        self._move_states()
         self._fill_targets()
+        self._add_cli_interviews()
 
     @property
     def executions_dir(self) -> Path:
@@ -200,6 +212,9 @@ class Store:
     def files_dir(self, target_id: str) -> Path:
         return self.target_dir(target_id) / FILES
 
+    def state_path(self, target_id: str) -> Path:
+        return self.target_dir(target_id) / STATE
+
     def input_dir(self, target_id: str) -> Path:
         return self.target_dir(target_id) / OUTPUTS
 
@@ -207,12 +222,13 @@ class Store:
         self._engine.dispose()
 
     def list_targets(self) -> TargetList:
+        self._add_cli_interviews()
         query = select(interviews).order_by(interviews.c.updated_at.desc())
         summaries: list[TargetSummary] = []
         problems: list[TargetProblem] = []
         with self._engine.connect() as connection:
             for row in connection.execute(query):
-                message = record_problem(row.record)
+                message = record_problem(self._with_state(row.target_id, row.record))
                 if message is not None:
                     problems.append(TargetProblem(id=row.target_id, message=message))
                     continue
@@ -229,6 +245,7 @@ class Store:
         raw = self._saved_record(_target_id(target_id))
         if raw is None:
             raise _not_found(f"The store has no Target {target_id}.")
+        raw = self._with_state(target_id, raw)
         message = record_problem(raw)
         if message is not None:
             raise StoreError(409, "unreadable_record", message)
@@ -264,6 +281,7 @@ class Store:
             if name not in references:
                 raise _invalid(f"The record has no file {name}.")
         directory = self.files_dir(target_id)
+        state_path = self.state_path(target_id)
         outputs = self.input_dir(target_id)
         state = record.state
         done = derive_stage(state) == InterviewStep.DONE and state.pending is None
@@ -287,11 +305,16 @@ class Store:
                     with temporary.open("xb") as stream:
                         shutil.copyfileobj(upload.stream, stream)
                     staged[directory / name] = temporary
+                state_path.parent.mkdir(parents=True, exist_ok=True)
+                temporary = state_path.with_name(f".{uuid.uuid4().hex}.part")
+                written.append(temporary)
+                temporary.write_text(state.model_dump_json(), encoding="utf-8")
+                staged[state_path] = temporary
                 # Each file is in place before the record refers to it. A file that is already
                 # in the folder moves to a backup name first, so a failure can put it back.
                 for path, temporary in staged.items():
                     if os.path.lexists(path):
-                        backup = directory / f".{uuid.uuid4().hex}.old"
+                        backup = path.with_name(f".{uuid.uuid4().hex}.old")
                         path.replace(backup)
                         backups[path] = backup
                     written.append(path)
@@ -314,7 +337,9 @@ class Store:
                 raise
             if specification is not None:
                 input_folder.swap(outputs, specification)
-            # The backups are files that the record does not refer to.
+            if state_path in backups:
+                backups[state_path].unlink(missing_ok=True)
+            # The backups of the fixture folder are files that the record does not refer to.
             keep = {file_name_identity(name) for name in references}
             for path in directory.iterdir() if directory.is_dir() else ():
                 if path.is_file() and file_name_identity(path.name) not in keep:
@@ -461,10 +486,11 @@ class Store:
             .where(targets.c.id.is_(None))
         )
         with self._engine.begin() as connection:
-            for row in connection.execute(query):
-                if record_problem(row.record) is not None:
+            for row in connection.execute(query).all():
+                saved = self._with_state(row.target_id, row.record)
+                if record_problem(saved) is not None:
                     continue
-                record = InterviewRecord.model_validate(row.record)
+                record = InterviewRecord.model_validate(saved)
                 connection.execute(
                     insert(targets).values(
                         id=row.target_id,
@@ -474,12 +500,131 @@ class Store:
                     )
                 )
 
+    def _add_cli_interviews(self) -> None:
+        """Add rows for the Interview folders of the wizard CLI that have no row.
+
+        A folder is an Interview of the CLI when it has a state file that validates. The row
+        gets no transcript, because the CLI keeps none. Its file references are the files in
+        the document folder. The times are the last change of the state file.
+        """
+        design = self.project_dir / DESIGN
+        if not design.is_dir():
+            return
+        with self._lock:
+            with self._engine.connect() as connection:
+                known = set(
+                    connection.execute(select(interviews.c.target_id)).scalars()
+                )
+            for folder in sorted(design.iterdir()):
+                target_id = folder.name
+                if target_id in known or not TARGET_ID.fullmatch(target_id):
+                    continue
+                path = self.state_path(target_id)
+                try:
+                    state = InterviewState.model_validate_json(
+                        path.read_text(encoding="utf-8")
+                    )
+                    changed = path.stat().st_mtime
+                except (OSError, ValueError):
+                    continue
+                record = InterviewRecord(
+                    id=target_id,
+                    title=state.specification.target.name.strip()
+                    or "Untitled Interview",
+                    stage=(state.pending and state.pending.stage)
+                    or derive_stage(state),
+                    created_at=round(changed * 1000),
+                    updated_at=round(changed * 1000),
+                    state=state,
+                    transcript=[],
+                    fixtures=self._document_refs(target_id),
+                )
+                self._save_rows(
+                    target_id, record, None, datetime.fromtimestamp(changed, UTC)
+                )
+
+    def _document_refs(self, target_id: str) -> list[FileRef]:
+        """A reference for each file in the document folder that a record can name."""
+        directory = self.files_dir(target_id)
+        refs: dict[str, FileRef] = {}
+        for path in sorted(directory.iterdir()) if directory.is_dir() else ():
+            if not path.is_file() or path.name.startswith("."):
+                continue
+            try:
+                name = safe_name(path.name)
+            except StoreError:
+                continue
+            refs.setdefault(
+                file_name_identity(name),
+                FileRef(
+                    name=name,
+                    type=mimetypes.guess_type(name)[0] or "application/octet-stream",
+                    size=path.stat().st_size,
+                ),
+            )
+        return list(refs.values())
+
+    def _move_files(self) -> None:
+        """Rename the file folder of each Target that a store of an earlier version wrote."""
+        with self._engine.connect() as connection:
+            ids = connection.execute(select(interviews.c.target_id)).scalars().all()
+        for target_id in ids:
+            if not TARGET_ID.fullmatch(target_id):
+                continue
+            earlier = self.target_dir(target_id) / "inputs" / "fixtures"
+            if earlier.is_dir() and not self.files_dir(target_id).exists():
+                earlier.rename(self.files_dir(target_id))
+
+    def _move_states(self) -> None:
+        """Move the state of each row that holds one into the state file of its Target.
+
+        A store of an earlier version kept the state in the Interview row.
+        """
+        with self._engine.begin() as connection:
+            for row in connection.execute(select(interviews)).all():
+                saved = row.record
+                if (
+                    not isinstance(saved, dict)
+                    or "state" not in saved
+                    or not TARGET_ID.fullmatch(row.target_id)
+                ):
+                    continue
+                path = self.state_path(row.target_id)
+                if not path.is_file():
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    temporary = path.with_name(f".{uuid.uuid4().hex}.part")
+                    temporary.write_text(json.dumps(saved["state"]), encoding="utf-8")
+                    temporary.replace(path)
+                connection.execute(
+                    update(interviews)
+                    .where(interviews.c.target_id == row.target_id)
+                    .values(
+                        record={
+                            key: value for key, value in saved.items() if key != "state"
+                        }
+                    )
+                )
+
+    def _with_state(self, target_id: str, saved: Any) -> Any:
+        """The saved JSON of a row with the state from the state file of the Target.
+
+        A state file that is missing or is not JSON gives the row as it is. Such a record does
+        not validate, so the store reports it as a record that it cannot read.
+        """
+        if not isinstance(saved, dict) or not TARGET_ID.fullmatch(target_id):
+            return saved
+        try:
+            state = json.loads(self.state_path(target_id).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return saved
+        return {**saved, "state": state}
+
     def _require_target(self, target_id: str) -> None:
         if self._saved_record(_target_id(target_id)) is None:
             raise _not_found(f"The store has no Target {target_id}.")
 
     def _saved_record(self, target_id: str) -> Any:
-        """The saved JSON of a Target, or ``None`` when the store has no row for it."""
+        """The saved JSON of the row of a Target, or ``None`` when the store has no row for it."""
         query = select(interviews.c.record).where(interviews.c.target_id == target_id)
         with self._engine.connect() as connection:
             return connection.execute(query).scalar_one_or_none()
@@ -487,8 +632,8 @@ class Store:
     def _check_owner(self, target_id: str, record: InterviewRecord) -> bool:
         """Return whether this is the first save. Refuse an id that something else uses.
 
-        The `created_at` of a record tells one Interview from another. A folder with no row is
-        a folder of the CLI, and the store does not write in it.
+        The `created_at` of a record tells one Interview from another. A folder with no row
+        has no Interview state that the store can read, and the store does not write in it.
         """
         saved = self._saved_record(target_id)
         if saved is None:
@@ -504,9 +649,10 @@ class Store:
         target_id: str,
         record: InterviewRecord,
         specification: Mapping[str, bytes] | None,
+        now: datetime | None = None,
     ) -> None:
         """Write the Target, Interview, and Specification rows in one transaction."""
-        now = datetime.now(UTC)
+        now = now or datetime.now(UTC)
         with self._engine.begin() as connection:
             _upsert(
                 connection,
@@ -519,7 +665,7 @@ class Store:
                 connection,
                 interviews,
                 interviews.c.target_id == target_id,
-                {"record": record.to_json(), "updated_at": now},
+                {"record": record.web_parts(), "updated_at": now},
                 {"target_id": target_id},
             )
             if specification is not None:
@@ -596,6 +742,7 @@ __all__ = [
     "EXPERIMENTS",
     "FILES",
     "OUTPUTS",
+    "STATE",
     "Store",
     "StoreError",
     "StoredFile",

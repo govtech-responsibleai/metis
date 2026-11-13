@@ -549,6 +549,7 @@ folder is found, it is the working directory. `metis engine simulate` uses the s
 - The database is `experiments/metis.db` in the project folder. Set `METIS_DATABASE_URL` to use
   another database.
 - The files of each Target are in `experiments/design/<target_id>/`, the same layout as the CLI
-  wizard. `inputs/` holds the files that you upload.
+  wizard. `inputs/interview_state.json` holds the state of the Interview, and
+  `inputs/documents/` holds the files that you upload.
 - `outputs/` holds the Specification. Give this folder to `metis engine simulate --input-dir`.
   The `input_dir` field of the Specification response is its path.

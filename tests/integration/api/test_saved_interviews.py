@@ -113,7 +113,9 @@ def test_saved_interviews_keep_their_records_files_and_save_times(
     input_dir = Path(specification["input_dir"])
     assert (input_dir / "specification.yaml").is_file()
     assert (input_dir / "fixtures/policy.pdf").read_bytes() == POLICY
-    assert fixture.read_bytes() == POLICY
+    moved = project_dir / "experiments/design/complete/inputs/documents/policy.pdf"
+    assert moved.read_bytes() == POLICY
+    assert not fixture.parent.exists()
     from metis.engine.cli import _validate_inputs as engine_gate
 
     engine_gate(input_dir)
@@ -122,8 +124,19 @@ def test_saved_interviews_keep_their_records_files_and_save_times(
         with engine.connect() as connection:
             stored = list(connection.execute(select(interviews)))
             assert {row.target_id: row.record for row in stored} == {
-                record["id"]: record for record in records
+                record["id"]: {
+                    key: value for key, value in record.items() if key != "state"
+                }
+                for record in records
             }
+            for record in records:
+                state_file = (
+                    project_dir
+                    / "experiments/design"
+                    / record["id"]
+                    / "inputs/interview_state.json"
+                )
+                assert json.loads(state_file.read_text()) == record["state"]
             assert all(row.updated_at == saved_at for row in stored)
             filled = list(connection.execute(select(targets)))
             assert {row.id for row in filled} == {"complete", "draft", "unrunnable"}

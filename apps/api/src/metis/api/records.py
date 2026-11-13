@@ -69,6 +69,14 @@ class InterviewRecord(BaseModel):
         unset = {"submission_revision"} if self.submission_revision is None else None
         return self.model_dump(mode="json", exclude=unset)
 
+    def web_parts(self) -> dict[str, Any]:
+        """The record without its state. The store keeps the state in the state file."""
+        return self.model_dump(
+            mode="json",
+            exclude={"state"}
+            | ({"submission_revision"} if self.submission_revision is None else set()),
+        )
+
     def files(self) -> dict[str, FileRef]:
         """The file references of the record, by name.
 

@@ -180,7 +180,7 @@ def test_the_outputs_folder_passes_the_engine_gate_and_resolves_its_binding(
     )
     target_dir = project_dir.resolve() / "experiments" / "design" / TARGET
     assert input_dir == target_dir / "outputs"
-    assert (target_dir / "inputs" / "fixtures" / "policy.pdf").read_bytes() == POLICY
+    assert (target_dir / "inputs" / "documents" / "policy.pdf").read_bytes() == POLICY
 
     _validate_inputs(input_dir)
 

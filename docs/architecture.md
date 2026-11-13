@@ -269,7 +269,7 @@ tables use portable SQL types. PostgreSQL support is later work.
 | Table | One row holds |
 |---|---|
 | `targets` | The Target id, its name, and its times. |
-| `interviews` | The Interview record of the Target, as JSON. |
+| `interviews` | The web parts of the Interview record, as JSON: the transcript, the times, and the file references. |
 | `specifications` | The last Specification of the Target and its SHA-256 hash. |
 | `experiments` | An Experiment folder name, its Target, its start time, and its last engine step. |
 
@@ -284,7 +284,10 @@ The files of a Target are in the layout that `metis wizard init` writes, under
 `YYYYMMDD-HHMMSS-interview` in local time, the same name as a `metis wizard init` folder. When
 the id is taken, it adds `-2`, `-3`, and so on. The `created_at` of the record tells one
 Interview from another, so a save with the id of another Interview gets 409 `target_exists` and
-changes nothing. `inputs/fixtures/` holds the files that the Interview record refers to.
+changes nothing. `inputs/interview_state.json` holds the state of the Interview. It is the file
+that `metis wizard resume` reads and writes, and each read of an Interview takes the state from
+it. `inputs/documents/` holds the files that the Interview record refers to. The wizard CLI keeps
+its opening documents in the same folder.
 
 Each file has its own name. Names that differ only by case are the same name. A record with two
 files of the same name gets 400 `validation_error`. The web client gives a new file with a taken
@@ -305,7 +308,13 @@ Specification. An Experiment row refers to an Experiment folder under `experimen
 engine copies the input folder into each Experiment folder, so a new Specification does not
 change an earlier Experiment.
 
-A first save refuses an existing Target folder that has no Interview row. It returns 409
+The wizard CLI and the store use the same Target folder. A folder with a state file that
+validates is an Interview of the CLI, and the store adds its rows when it opens and at each
+Target list. Such an Interview has no transcript in the store. Its file references are the files
+in `inputs/documents/`. The web app adds a transcript entry for a pending request that has none.
+
+A first save refuses an existing Target folder that has no Interview row. Such a folder has no
+Interview state that the store can read. The save returns 409
 `target_exists` and leaves the folder unchanged. DELETE requires an Interview row. A missing row
 gets 404 `not_found`, and its folder stays in place. A delete removes the rows of the Target and
 then its folder in `experiments/design/`. Experiment folders in `experiments/execute/` stay on
