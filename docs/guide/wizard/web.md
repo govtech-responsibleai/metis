@@ -341,15 +341,16 @@ selected files under `outputs/fixtures/`. It contains no Interview state. In run
 contains `outputs/target-binding.yaml`, and `outputs/specification.yaml` names the generic runner
 and the binding file. This is the same export as an Interview with the same binding.
 
-## Browser storage and current limits
+## Storage and current limits
 
 - Unsent drafts are lost on refresh or page closure.
 - Edit each Interview in one tab at a time.
 - Failed or interrupted replies require a manual retry. Use **Edit reply** to correct the input.
-- Browser data belongs to the exact web origin. For example, `http://localhost:5173` and
-  `http://127.0.0.1:5173` have separate Interview lists.
+- The Interview list belongs to the API store. Each browser that uses the same API shows the same
+  list. For example, `http://localhost:5173` and `http://127.0.0.1:5173` show the same Interviews.
+  An API with a different project folder or database has a different list.
 - The web client does not provide:
-  - hosted or cross-device Interview storage;
+  - hosted Interview storage, because the store is on the computer that runs the API;
   - authentication or multi-user access;
   - source-code or trace analysis; or
   - evaluation execution.

@@ -101,7 +101,7 @@ to complete your specification.
   </tbody>
 </Table>
 
-The browser saves each interview. To open one again, select it in the list on the left.
+The Wizard saves each interview. To open one again, select it in the list on the left.
 
 ![The Wizard steps, from the start to the specification download](./assets/wizard-flow.svg)
 
