@@ -1,4 +1,5 @@
-// The dialog that "Start a run" opens. It shows what the run covers and holds the run options.
+// The dialog that "Start an experiment" opens. It shows what the experiment covers and holds
+// its options.
 // Start opens the experiment view.
 
 import { Play } from "lucide-react";
@@ -6,32 +7,32 @@ import { useId, useState } from "react";
 import { Button, formatTrials, Modal } from "./ui";
 import type { Specification } from "./transport/api";
 
-export interface RunOptions {
+export interface ExperimentOptions {
   // The number of trials that run at one time.
   concurrency: number;
   // The time to wait for the traces of a trial, in seconds.
   traceWait: number;
 }
 
-export const DEFAULT_RUN_OPTIONS: RunOptions = {
+export const DEFAULT_EXPERIMENT_OPTIONS: ExperimentOptions = {
   concurrency: 1,
   traceWait: 90,
 };
 
-export function RunDialog({
+export function ExperimentDialog({
   title,
   specification,
   onCancel,
   onStart,
 }: {
   title: string;
-  // The Specification that the run uses, which is the one that the download exports.
+  // The Specification that the experiment uses, which is the one that the download exports.
   specification: Specification;
   onCancel: () => void;
-  onStart: (options: RunOptions) => void;
+  onStart: (options: ExperimentOptions) => void;
 }) {
   const id = useId();
-  const [options, setOptions] = useState(DEFAULT_RUN_OPTIONS);
+  const [options, setOptions] = useState(DEFAULT_EXPERIMENT_OPTIONS);
   const cases = specification.tasks.length;
   const trials = specification.tasks.reduce(
     (total, task) => total + task.num_trials,
@@ -46,7 +47,7 @@ export function RunDialog({
     >
       <div className="flex flex-col gap-1">
         <h2 id={`${id}-title`} className="text-base font-semibold">
-          Start a run
+          Start an experiment
         </h2>
         <p id={`${id}-scope`} className="text-sm text-muted-foreground">
           {title} has {cases} {cases === 1 ? "Test Case" : "Test Cases"} and{" "}

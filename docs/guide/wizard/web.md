@@ -80,7 +80,7 @@ A Target page has two tabs:
   opening screen.
 - **Experiments** lists the experiments of the Target. It is off until the Interview is done.
 
-**Start a run**, on the right of the tab row, opens a dialog with the run options: the number
+**Start an experiment**, on the right of the tab row, opens a dialog with the experiment options: the number
 of trials at a time and the trace wait. **Start** in the dialog opens the experiment view. The
 button is also off until the Interview is done. When you open a Target, the app shows Experiments for a done Interview and Specification
 for one that is not done.
@@ -382,8 +382,8 @@ and the binding file. This is the same export as an Interview with the same bind
 - Unsent drafts are lost on refresh or page closure.
 - Edit each Interview in one tab at a time.
 - Failed or interrupted replies require a manual retry. Use **Edit reply** to correct the input.
-- The Interview list belongs to the API store. Each browser that uses the same API shows the same
-  list. For example, `http://localhost:5173` and `http://127.0.0.1:5173` show the same Interviews.
+- The list of Targets belongs to the API store. Each browser that uses the same API shows the same
+  list. For example, `http://localhost:5173` and `http://127.0.0.1:5173` show the same Targets.
   An API with a different project folder or database has a different list.
 - The web client does not provide:
   - hosted Interview storage, because the store is on the computer that runs the API;

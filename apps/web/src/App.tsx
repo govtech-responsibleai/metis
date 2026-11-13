@@ -57,7 +57,7 @@ import {
 import { ProfileToolbar, YamlView, type ProfileMode } from "./ProfileToolbar";
 import { TargetRail, type RailSelection } from "./TargetRail";
 import { ExperimentsTab, TargetTabs } from "./TargetPage";
-import { RunDialog } from "./RunDialog";
+import { ExperimentDialog } from "./ExperimentDialog";
 import { exportedSpecification } from "./export";
 import {
   AllExperimentsPage,
@@ -351,7 +351,7 @@ export function App() {
     : false;
 
   const [profileMode, setProfileMode] = useState<ProfileMode>("document");
-  const [runOpen, setRunOpen] = useState(false);
+  const [experimentDialogOpen, setExperimentDialogOpen] = useState(false);
   useEffect(() => {
     setRunModelDrafts(null);
     setProfileMode("document");
@@ -404,7 +404,7 @@ export function App() {
   useEffect(() => {
     setManualOpen(false);
     setConnectionStep(null);
-    setRunOpen(false);
+    setExperimentDialogOpen(false);
     setRecord(null);
     setLoadingRecord(targetId !== null);
     if (targetId === null) return;
@@ -881,13 +881,13 @@ export function App() {
 
   return (
     <div className="flex h-full w-full overflow-hidden">
-      {runOpen && record && view?.done && (
-        <RunDialog
+      {experimentDialogOpen && record && view?.done && (
+        <ExperimentDialog
           title={record.title}
           specification={exportedSpecification(record.state)}
-          onCancel={() => setRunOpen(false)}
+          onCancel={() => setExperimentDialogOpen(false)}
           onStart={() => {
-            setRunOpen(false);
+            setExperimentDialogOpen(false);
             navigate(paths.experiment(record.id, NEW_EXPERIMENT));
           }}
         />
@@ -931,7 +931,7 @@ export function App() {
                 : "specification"
             }
             done={view?.done ?? false}
-            onRun={() => setRunOpen(true)}
+            onStartExperiment={() => setExperimentDialogOpen(true)}
           />
         )}
         {manualOpen && place.page === "new-target" ? (
@@ -987,7 +987,7 @@ export function App() {
           place.tab === "experiments" ? (
           <ExperimentsTab
             targetId={place.targetId}
-            onRun={() => setRunOpen(true)}
+            onStartExperiment={() => setExperimentDialogOpen(true)}
           />
         ) : place.page === "experiment" && record ? (
           <ExperimentPage

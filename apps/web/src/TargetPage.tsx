@@ -1,4 +1,4 @@
-// The tab row of a Target page, with the "Start a run" button on its right. Experiments and the
+// The tab row of a Target page, with the "Start an experiment" button on its right. Experiments and the
 // button stay off until the Interview is done, because only then does the Target have its
 // Specification.
 
@@ -16,13 +16,13 @@ export function TargetTabs({
   targetId,
   tab,
   done,
-  onRun,
+  onStartExperiment,
 }: {
   // Null for a new Target, which has no saved Interview yet.
   targetId: string | null;
   tab: TargetTab;
   done: boolean;
-  onRun: () => void;
+  onStartExperiment: () => void;
 }) {
   const tabs: Array<{ id: TargetTab; label: string; href: string | null }> = [
     {
@@ -80,10 +80,10 @@ export function TargetTabs({
           variant="primary"
           disabled={!done}
           title={done ? undefined : LOCKED}
-          onClick={onRun}
+          onClick={onStartExperiment}
         >
           <Play size={14} strokeWidth={2} aria-hidden />
-          Start a run
+          Start an experiment
         </Button>
       </div>
     </div>
@@ -92,10 +92,10 @@ export function TargetTabs({
 
 export function ExperimentsTab({
   targetId,
-  onRun,
+  onStartExperiment,
 }: {
   targetId: string;
-  onRun: () => void;
+  onStartExperiment: () => void;
 }) {
   return (
     <div className="quiet-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-6">
@@ -108,7 +108,7 @@ export function ExperimentsTab({
         </div>
         <Panel className="flex items-center justify-between gap-3 px-5 py-4 text-sm">
           <span>No experiments yet.</span>
-          <Button onClick={onRun}>Start a run</Button>
+          <Button onClick={onStartExperiment}>Start an experiment</Button>
         </Panel>
       </div>
     </div>

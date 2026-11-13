@@ -18,7 +18,7 @@ export type Place =
   | { page: "experiments" }
   | { page: "not-found" };
 
-// The run dialog opens the experiment view with this id until the app saves experiments.
+// The experiment dialog opens the experiment view with this id until the app saves experiments.
 export const NEW_EXPERIMENT = "new";
 
 const segment = encodeURIComponent;
