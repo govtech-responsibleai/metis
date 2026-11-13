@@ -1,14 +1,14 @@
-import type { api } from "./transport/api";
+import type { NamedFile } from "./transport/api.ts";
 
-export function downloadArchive(
-  archive: Awaited<ReturnType<typeof api.package>>,
+export function saveFile(
+  file: NamedFile,
   ownerDocument: Pick<Document, "createElement"> = document,
   urlApi: Pick<typeof URL, "createObjectURL" | "revokeObjectURL"> = URL,
 ): void {
-  const url = urlApi.createObjectURL(archive.blob);
+  const url = urlApi.createObjectURL(file.blob);
   const anchor = ownerDocument.createElement("a");
   anchor.href = url;
-  anchor.download = archive.filename;
+  anchor.download = file.filename;
   anchor.click();
   anchor.remove();
   urlApi.revokeObjectURL(url);
