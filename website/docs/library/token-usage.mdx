@@ -1,0 +1,31 @@
+---
+title: "Token usage"
+description: "The session stayed within the allowed number of tokens."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/resource_use/_token_usage.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="TokenUsageGrader" />
+
+The session stayed within the allowed number of tokens.
+
+<GraderCode>
+
+```python
+class TokenUsageArgs(GraderArgs):
+    max_total_tokens: int = Field(
+        ge=1,
+        strict=True,
+        description="Maximum number of tokens allowed in the session.",
+    )
+    """The most tokens the session may consume and still pass."""
+    token_category: Literal["input", "output", "total"] = Field(
+        default="total",
+        description="Which token category to measure: input, output, or total.",
+    )
+    """Which token category to count. Defaults to total."""
+```
+
+</GraderCode>

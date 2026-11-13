@@ -35,6 +35,7 @@ CATALOGUE = Path(catalogue.__file__).parent / "README.md"
 _GROUPS = {
     "task_and_output_quality": "Task and Output Quality",
     "execution_and_decision_quality": "Execution and Decision Quality",
+    "resource_use": "Resource Use",
     "reliability_and_robustness": "Reliability and Robustness",
     "interaction_quality": "Interaction Quality",
 }
@@ -111,6 +112,8 @@ def _fields_only(cls: type) -> str:
 
 def _prompt(grader: type[Grader[Any]]) -> str:
     """The grader's class header, its ``criteria()`` method, and the helpers that it calls."""
+    if not hasattr(grader, "criteria"):
+        return ""
     source = inspect.getsource(grader)
     node = ast.parse(textwrap.dedent(source)).body[0]
     assert isinstance(node, ast.ClassDef)
