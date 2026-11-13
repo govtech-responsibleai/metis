@@ -297,7 +297,7 @@ def test_run_resume_that_resimulates_a_trial_grades_every_trial(
     from tests.unit.engine.test_cli_evaluate import _patch_evaluation
     from tests.unit.engine.test_cli_evaluate_resume import write_trial_file
 
-    output = _resumable_run(tmp_path, ["goal_achieved", "system_error"])
+    output = _resumable_run(tmp_path, ["goal_achieved", "interrupted"])
     write_trial_file(output, "TC-001-alice-1", session_id="session-1")
     write_trial_file(output, "TC-001-alice-2", session_id="session-2")
     simulated = _simulate_with_fake_experiment(monkeypatch, tmp_path)

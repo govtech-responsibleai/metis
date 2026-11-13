@@ -47,10 +47,10 @@ def quarantine_stale_artifacts(
     and the folder holds the debris of several.
 
     The trigger is the folder's contents rather than the attempt counter,
-    because ``--resume`` re-runs a ``system_error`` run in a **new process**
+    because ``--resume`` re-runs an ``interrupted`` run in a **new process**
     whose counter starts at 1 again while the folder still holds the previous
-    process's downloads. An interrupted run is the same case with no
-    ``record.json`` at all, so its files are referenced by nothing.
+    process's downloads. A run whose ``record.json`` is missing or unreadable is
+    the same case, and its files are referenced by nothing.
 
     The destination is ``artifacts-superseded-<UTC timestamp>``, named for the
     moment of the move rather than for an attempt number: an attempt that
