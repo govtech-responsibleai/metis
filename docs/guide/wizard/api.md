@@ -24,7 +24,8 @@ status of each role, never a key or a URL. Until the interview role is configure
 503 `model_unavailable`. The interview role also matches each Criterion to a library grader. The examples use `http://localhost:8001` and require `curl`
 and `jq`.
 
-The API is stateless. Your client owns the Interview state.
+The Interview routes are stateless. Your client owns the Interview state. The API also has
+store routes that can save it for you. See [Save Interviews in the store](#save-interviews-in-the-store).
 
 | Client rule | Required action |
 |---|---|
@@ -413,6 +414,10 @@ loads the start page, and checks that the API server answers. Any other API only
 binding: `live` is `false` and `status` is `unchecked`, because a server that fetches any URL that
 a client sends is a risk. `METIS_API_CONNECTION_CHECK=1` or `0` overrides this.
 
+The API reads the `HOST` variable to know its address. Start the API with `metis-api`, which
+listens on that same address. If you start Uvicorn directly with a `--host` option, also set
+`HOST` to that address, or the live check can be on for a server that other computers can reach.
+
 The API never puts a value from its own environment into a URL that it requests. Otherwise a
 client could send `https://attacker.example/${OPENAI_API_KEY}` and receive the server's key. A
 `spec_url` or `start_url` that names a `${NAME}` variable is not requested: its probe says so, and
@@ -483,3 +488,60 @@ Keep the `specification` returned by `/compile` when the request contains new Ta
 with blank IDs. Submit that Specification on later edits and to `/package`. Task IDs
 are assigned by the backend. Keep them when editing a Task. A Task is unique by its Persona and
 Scenario pair. `specification.yaml` is the only YAML file in the archive.
+
+## Save Interviews in the store
+
+The store routes save an Interview record for your client. The Interview routes do not use them.
+The web client uses them to keep its Interviews. A record is the JSON that the web client keeps:
+its id, title, stage, times, `state`, display `transcript`, and `fixtures` file list.
+
+| Route | Purpose |
+|---|---|
+| `GET /api/v1/targets` | List saved Interview summaries, newest first, and unreadable rows. |
+| `PUT /api/v1/targets/{target_id}/interview` | Save the record and its new files. |
+| `GET /api/v1/targets/{target_id}/interview` | Read the record. |
+| `GET /api/v1/targets/{target_id}/interview/files/{name}` | Read one saved file. |
+| `DELETE /api/v1/targets/{target_id}` | Delete the Interview record and its files. |
+
+The save is a multipart form. The `record` part is a file that contains the record JSON. Send each new file as a part
+named `files`, with the file name from the record. A file that the store already
+has needs no part. The store keeps only the files that the record refers to.
+
+Each file of the record has its own name. This includes the `fixtures` and the files of each
+transcript `outbound`. Two names that differ only by case are the same name. A record with two
+files of the same name gets 400 `validation_error`, and the store does not change. To add a file
+whose name is taken, give it a new name first. The web client adds ` (2)`, ` (3)`, and so on
+before the extension. A save that fails does not change the stored files.
+
+A file name is one portable name without a path. It has no control character and none of the
+characters `< > : " | ? *`, and it does not end with a dot or a space. It is not a Windows device
+name such as `CON` or `COM1`, with or without an extension. A name that breaks this rule gets 400
+`validation_error`. The web client applies the same rule when a user adds a file.
+
+```bash
+curl --fail-with-body -X PUT \
+  -F record=@record.json \
+  -F files=@policy.pdf \
+  http://localhost:8001/api/v1/targets/20261112-101500-interview/interview
+```
+
+The Target id is also the name of its folder. It has 1 to 64 letters, digits, `-` or `_`. The
+web client uses `YYYYMMDD-HHMMSS-interview`, in the local time of the first message. A
+`metis wizard init` folder has the same name. The `created_at` of the record tells one Interview
+from another. A save with the id of another Interview gets 409 `target_exists` and the store does
+not change. The web client then saves again with `-2`, `-3`, and so on at the end of the id.
+
+The store saves the whole Interview record. Its state contains the Target details and
+Specification. Saving a done Interview does not compile it or write an engine input folder.
+Use the compile and package routes to prepare a download. A missing record or file gets 404
+`not_found`.
+
+The API keeps its store in the project folder. Start the API with
+`metis-api --project-dir PATH` to choose that folder. Without the option, the project folder is
+the nearest folder at or above the working directory that has a `pyproject.toml`. When no such
+folder is found, it is the working directory. `metis engine simulate` uses the same rule.
+
+- The database is `experiments/metis.db` in the project folder. Set `METIS_DATABASE_URL` to use
+  another database.
+- The files of each Target are in `experiments/design/<target_id>/`, the same layout as the CLI
+  wizard. `inputs/` holds the files that you upload.

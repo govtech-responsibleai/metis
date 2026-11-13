@@ -96,7 +96,7 @@ def _simulate_fresh(monkeypatch, tmp_path: Path, factory_ref: str):
     input_dir = tmp_path / "input"
     input_dir.mkdir()
     (input_dir / "specification.yaml").write_text(_with_factory(factory_ref))
-    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "project")
+    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "project")
     return runner.invoke(app, ["simulate", "--input-dir", str(input_dir), "--no-tui"])
 
 
@@ -356,7 +356,7 @@ def test_resume_with_input_dir_lists_outputs_and_chooses_none(
     root = tmp_path / "project"
     older = _write_output(root / "experiments" / "execute" / "test-exp-20260101-010101")
     newer = _write_output(root / "experiments" / "execute" / "test-exp-20260102-020202")
-    monkeypatch.setattr(cli, "_find_project_root", lambda: root)
+    monkeypatch.setattr(cli, "find_project_root", lambda: root)
 
     result = runner.invoke(app, ["simulate", "--resume", "--input-dir", str(input_dir)])
 
@@ -409,7 +409,7 @@ def _start_run(
         "_run_evaluation_command",
         lambda *_a, **_k: cli.EvaluationOutcome(1, 1, 0, None),
     )
-    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "cwd-root")
+    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "cwd-root")
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
@@ -658,7 +658,7 @@ def test_simulate_rejects_a_concurrency_below_one(
     """Before this check, 0 raised ZeroDivisionError and -1 raised IndexError in
     ``_distribute_trials`` once the run had at least one trial."""
     input_dir = _write_source(tmp_path)
-    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "project")
+    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "project")
 
     result = runner.invoke(
         app, ["simulate", "--input-dir", str(input_dir), "--no-tui", "-c", value]

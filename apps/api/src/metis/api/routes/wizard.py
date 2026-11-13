@@ -5,6 +5,9 @@ calls the wizard's public facade, and maps the typed result onto an HTTP status 
 behaviour of its own. Every stage, Specification, prompt, matching and compilation rule lives in
 metis-wizard.
 
+These routes keep no state and do not use the store. Each request carries the whole Interview
+state, and the client saves the returned state through the store routes in `targets.py`.
+
 Document extraction stands outside the Interview lifecycle. It reads the uploaded file streams,
 returns their text, and retains neither the files nor any state, so the caller holds the result.
 

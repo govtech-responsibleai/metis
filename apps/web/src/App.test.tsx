@@ -766,6 +766,7 @@ test("Scenario review exposes early fixture suggestions for user selection", () 
       available: ["policy.pdf", "terms.pdf"],
     },
     disabled: false,
+    admit: () => [],
     onChange: (names, _files, removed) => {
       submitted = { names, removed };
     },

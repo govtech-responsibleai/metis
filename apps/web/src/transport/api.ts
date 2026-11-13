@@ -47,6 +47,10 @@ type ConnectionCheckOperation =
 type ConnectionOperation =
   operations["update_target_connection_api_v1_wizard_connection_post"];
 type PackageWireRequest = Schema["Body_package_api_v1_wizard_package_post"];
+type TargetsOperation = operations["list_targets_api_v1_targets_get"];
+type InterviewReadOperation =
+  operations["read_interview_api_v1_targets__target_id__interview_get"];
+type InterviewWireRecord = JsonResponse<InterviewReadOperation>;
 
 export type InterviewStep = Schema["InterviewStep"];
 export type Perspective = Schema["Perspective"];
@@ -352,7 +356,7 @@ export interface InteractionEntry {
   response?: UserResponse;
   status: "pending" | "sending" | "failed" | "answered" | "ended_unanswered";
   outbound?: {
-    files: LocalFixture[];
+    files: LoadedFixture[];
     removedFixtures: string[];
     attempt: number;
   };
@@ -363,8 +367,8 @@ export interface InteractionEntry {
   };
 }
 export type TranscriptEntry = InitialDescriptionEntry | InteractionEntry;
-export interface LocalInterviewRecord {
-  storage_version: 6;
+// An Interview record with the bytes of its files, as the app holds an open Interview.
+export interface LoadedInterviewRecord {
   submission_revision?: number;
   id: string;
   created_at: number;
@@ -373,9 +377,9 @@ export interface LocalInterviewRecord {
   stage: InterviewStep;
   state: InterviewState;
   transcript: TranscriptEntry[];
-  fixtures: LocalFixture[];
+  fixtures: LoadedFixture[];
 }
-export interface LocalFixture {
+export interface LoadedFixture {
   name: string;
   type: string;
   size: number;
@@ -386,6 +390,24 @@ export interface InterviewSummary {
   title: string;
   updated: number;
 }
+export type FileRef = Schema["FileRef"];
+export type StorageProblem = Schema["TargetProblem"];
+export type TargetList = JsonResponse<TargetsOperation>;
+// The record as the store keeps it: each file is a reference to bytes in the store.
+export type StoredInterviewRecord = Omit<
+  LoadedInterviewRecord,
+  "fixtures" | "transcript"
+> & {
+  fixtures: FileRef[];
+  transcript: Array<
+    | InitialDescriptionEntry
+    | (Omit<InteractionEntry, "outbound"> & {
+        outbound?: Omit<NonNullable<InteractionEntry["outbound"]>, "files"> & {
+          files: FileRef[];
+        };
+      })
+  >;
+};
 export interface PresentationView {
   id: string;
   stage: InterviewStep;
@@ -418,8 +440,21 @@ export class TransportError extends Error {
   }
 }
 
+// A path from the OpenAPI document with its `{name}` parameters filled in.
+type RoutedPath = string & { readonly routed: unique symbol };
+function route<P extends keyof ApiPaths>(
+  template: P,
+  params: Record<string, string>,
+): RoutedPath {
+  return template.replace(/\{(\w+)\}/gu, (_, name: string) => {
+    const value = params[name];
+    if (value === undefined) throw new Error(`Missing path parameter ${name}.`);
+    return encodeURIComponent(value);
+  }) as RoutedPath;
+}
+
 async function responseFor(
-  path: keyof ApiPaths,
+  path: keyof ApiPaths | RoutedPath,
   init?: RequestInit,
 ): Promise<Response> {
   let response: Response;
@@ -450,7 +485,10 @@ async function responseFor(
   return response;
 }
 
-async function call<T>(path: keyof ApiPaths, init?: RequestInit): Promise<T> {
+async function call<T>(
+  path: keyof ApiPaths | RoutedPath,
+  init?: RequestInit,
+): Promise<T> {
   return (await responseFor(path, init).then((response) =>
     response.json(),
   )) as T;
@@ -589,9 +627,55 @@ export const api = {
   },
 };
 
-export function toSummary(record: LocalInterviewRecord): InterviewSummary {
-  return { id: record.id, title: record.title, updated: record.updated_at };
-}
+// The store routes keep each Target: its Interview record, the record files, and the
+// Specification. A file is a reference in the record, and its bytes are a separate request.
+export const store = {
+  targets: () => call<TargetList>("/api/v1/targets"),
+  interview: async (id: string): Promise<StoredInterviewRecord> => {
+    const record = await call<InterviewWireRecord>(
+      route("/api/v1/targets/{target_id}/interview", { target_id: id }),
+    );
+    return {
+      ...(record as unknown as StoredInterviewRecord),
+      state: normalizeState(record.state as Schema["InterviewState-Input"]),
+    };
+  },
+  interviewFile: async (id: string, name: string) =>
+    (
+      await responseFor(
+        route("/api/v1/targets/{target_id}/interview/files/{name}", {
+          target_id: id,
+          name,
+        }),
+      )
+    ).blob(),
+  // Send the record as a file part, because a text field has a size limit of 1 MB.
+  // Send each new file in the `files` field, with its record name as the filename.
+  putInterview: async (
+    id: string,
+    record: StoredInterviewRecord,
+    uploads: readonly LoadedFixture[],
+  ) => {
+    const form = new FormData();
+    form.append(
+      "record",
+      new Blob([JSON.stringify(record)], { type: "application/json" }),
+      "record.json",
+    );
+    for (const fixture of uploads)
+      form.append("files", fixture.blob, fixture.name);
+    await responseFor(
+      route("/api/v1/targets/{target_id}/interview", { target_id: id }),
+      { method: "PUT", body: form },
+    );
+  },
+  deleteTarget: async (id: string) => {
+    await responseFor(route("/api/v1/targets/{target_id}", { target_id: id }), {
+      method: "DELETE",
+    });
+  },
+};
+
 export function titleFor(specification: Specification): string {
   return specification.target.name.trim() || "Untitled Interview";
 }

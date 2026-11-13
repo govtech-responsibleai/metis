@@ -11,7 +11,7 @@ import {
 import { PanelLeft, PanelRight, Puzzle, X } from "lucide-react";
 import type {
   InterviewSummary,
-  LocalInterviewRecord,
+  LoadedInterviewRecord,
   CapabilityConfidence,
   CapabilityEvidence,
   InterviewDocument,
@@ -21,7 +21,7 @@ import type {
   ConnectionCheckResult,
   TargetConnection,
 } from "./transport/api";
-import { api, TransportError, toSummary } from "./transport/api";
+import { api, TransportError } from "./transport/api";
 import {
   ActiveReview,
   Composer,
@@ -29,6 +29,8 @@ import {
   reviewParts,
   ReviewSectionActions,
   Transcript,
+  UploadContext,
+  type AdmitUploads,
 } from "./Conversation";
 import { ConnectionForm, ModePicker } from "./ConnectionStep";
 import {
@@ -66,12 +68,12 @@ import {
   emptyRecord,
   addFixtures,
   fixturesForSpecification,
-  type LocalStorageProblem,
+  interviewId,
+  putNew,
+  recordFiles,
+  type StorageProblem,
 } from "./storage/repository";
-import {
-  normalizeFixtureName,
-  validateFixtureSelection,
-} from "./fixture-policy";
+import { admitFiles, type AdmittedFile } from "./fixture-policy";
 import { specificationHasCriteria } from "./graders";
 import { downloadArchive } from "./download";
 import { ManualAuthoringEntry, ManualForm } from "./ManualForm";
@@ -151,9 +153,9 @@ export function conversationScrollRevision(
 export function App() {
   const [interviews, setInterviews] = useState<InterviewSummary[]>([]);
   const [storageProblems, setStorageProblems] = useState<
-    readonly LocalStorageProblem[]
+    readonly StorageProblem[]
   >([]);
-  const [record, setRecord] = useState<LocalInterviewRecord | null>(null);
+  const [record, setRecord] = useState<LoadedInterviewRecord | null>(null);
   const [destination, setDestination] = useState<TabEntry | null>(null);
   const destinationRef = useRef<TabEntry | null>(null);
   const navigation = useRef<TabNavigation | null>(null);
@@ -198,7 +200,7 @@ export function App() {
   // The default Perspective stays marked until the user first opens the Perspective control.
   const [perspectiveSeen, setPerspectiveSeen] = useState(false);
   const [openingDescription, setOpeningDescription] = useState("");
-  const [openingDocuments, setOpeningDocuments] = useState<File[]>([]);
+  const [openingDocuments, setOpeningDocuments] = useState<AdmittedFile[]>([]);
   // An extraction response belongs only to the opening session that requested it.
   const openingGeneration = useRef(0);
   const [documentTrayOpen, setDocumentTrayOpen] = useState(false);
@@ -338,8 +340,7 @@ export function App() {
   }, [loadWizardConfig]);
 
   const refreshList = useCallback(async () => {
-    const rows = await repository.list();
-    setInterviews(rows.map(toSummary));
+    setInterviews(await repository.list());
     setStorageProblems([...repository.problems]);
   }, []);
 
@@ -426,16 +427,7 @@ export function App() {
         )
           throw new Error("Document limits are not available yet.");
         const limits = wizardConfig.config.document_limits;
-        const names = validateFixtureSelection(files, openingDocuments, limits);
-        const normalized = files.map((file, index) => {
-          const name = names[index] ?? normalizeFixtureName(file.name);
-          return name === file.name
-            ? file
-            : new File([file], name, {
-                type: file.type,
-                lastModified: file.lastModified,
-              });
-        });
+        const normalized = admitFiles(files, openingDocuments, limits);
         const reads: Record<string, OpeningDocumentRead> = {};
         for (const file of normalized) {
           const canRead = limits.extraction_extensions?.includes(
@@ -521,7 +513,7 @@ export function App() {
     ) => {
       if (busy) return;
       const origin = destinationRef.current?.entry;
-      const localId = crypto.randomUUID();
+      const sent = new Date();
       await operations.run(operationKey, async () => {
         const limits =
           wizardConfig.status === "ready"
@@ -529,7 +521,6 @@ export function App() {
             : undefined;
         if (openingDocuments.length > 0 && !limits)
           throw new Error("Document limits are not available yet.");
-        if (limits) validateFixtureSelection(openingDocuments, [], limits);
         const unresolved = openingDocuments.filter((file) => {
           const status = openingDocumentReads[file.name]?.status;
           return status === "reading" || status === "failed";
@@ -573,29 +564,31 @@ export function App() {
           connection,
         );
         const started = emptyRecord(
-          localId,
+          interviewId(sent),
           result.state,
           result.stage,
           startTranscript(description, result.state),
         );
-        const next = addFixtures(started, openingDocuments);
+        const record = addFixtures(started, openingDocuments);
+        const opened = async (saved: LoadedInterviewRecord) => {
+          if (origin) navigation.current?.started(origin, saved.id);
+          await refreshList();
+        };
+        let saved: LoadedInterviewRecord;
         try {
-          await repository.put(next);
+          saved = await putNew(repository, record, sent);
         } catch (cause) {
           operations.report(
             operationKey,
             `The new Interview was not saved. ${errorMessage(cause)}`,
             () =>
               operations.run(operationKey, async () => {
-                await repository.put(next);
-                if (origin) navigation.current?.started(origin, next.id);
-                await refreshList();
+                await opened(await putNew(repository, record, sent));
               }),
           );
           return;
         }
-        if (origin) navigation.current?.started(origin, next.id);
-        await refreshList();
+        await opened(saved);
       });
     },
     [
@@ -611,10 +604,10 @@ export function App() {
   );
 
   const packageAndDownload = useCallback(
-    async (localRecord: LocalInterviewRecord) => {
+    async (loadedRecord: LoadedInterviewRecord) => {
       const archive = await api.package(
-        { state: localRecord.state },
-        fixturesForSpecification(localRecord),
+        { state: loadedRecord.state },
+        fixturesForSpecification(loadedRecord),
       );
       downloadArchive(archive);
     },
@@ -622,13 +615,13 @@ export function App() {
   );
 
   const downloadCurrent = useCallback(
-    async (localRecord: LocalInterviewRecord) => {
-      await operations.run(localRecord.id, async () => {
+    async (loadedRecord: LoadedInterviewRecord) => {
+      await operations.run(loadedRecord.id, async () => {
         try {
-          await packageAndDownload(localRecord);
+          await packageAndDownload(loadedRecord);
         } catch (cause) {
-          operations.report(localRecord.id, errorMessage(cause), () =>
-            downloadCurrent(localRecord),
+          operations.report(loadedRecord.id, errorMessage(cause), () =>
+            downloadCurrent(loadedRecord),
           );
         }
       });
@@ -639,7 +632,7 @@ export function App() {
   const send = useCallback(
     async (
       response: UserResponse,
-      files: readonly File[] = [],
+      files: readonly AdmittedFile[] = [],
       removedFixtures: readonly string[] = [],
     ) => {
       if (!record) return;
@@ -653,6 +646,27 @@ export function App() {
       });
     },
     [operations, record, draftKey, composerKey],
+  );
+
+  // An answer file gets a name that no file of the Interview has, and no file that waits in the
+  // same input. The files of an answer that failed count too, because the store holds them. A
+  // refused file shows its reason and adds nothing.
+  const admitUploads = useCallback<AdmitUploads>(
+    (files, queued) => {
+      try {
+        return admitFiles(
+          files,
+          [...(record ? recordFiles(record) : []), ...queued],
+          wizardConfig.status === "ready"
+            ? wizardConfig.config.document_limits
+            : undefined,
+        );
+      } catch (cause) {
+        setError(errorMessage(cause));
+        return [];
+      }
+    },
+    [record, wizardConfig, setError],
   );
 
   // Typed text goes to the pending request. A review takes it as feedback. The package accepts only
@@ -881,7 +895,7 @@ export function App() {
             <p>
               {loadingRecord
                 ? "Loading Interview…"
-                : "This local Interview is unavailable. Choose an Interview from History or start a new evaluation."}
+                : "This Interview is unavailable. Choose an Interview from History or start a new evaluation."}
             </p>
             <Button onClick={startNew}>New evaluation</Button>
           </div>
@@ -931,149 +945,151 @@ export function App() {
             perspectiveSeen={perspectiveSeen}
           />
         ) : (
-          <div
-            ref={panesRef}
-            className="flex min-h-0 flex-1 flex-col md:flex-row"
-            style={{ "--chat-width": `${chatWidth}%` } as CSSProperties}
-          >
-            <div className="flex h-[35vh] min-h-40 min-w-0 shrink-0 flex-col md:h-auto md:min-h-0 md:w-[var(--chat-width)]">
-              <div
-                key={view.id}
-                ref={conversationScrollRef}
-                onScroll={(event) => {
-                  const element = event.currentTarget;
-                  nearFoot.current =
-                    element.scrollHeight -
-                      element.scrollTop -
-                      element.clientHeight <
-                    100;
-                }}
-                className="quiet-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-8"
-              >
-                <Transcript
-                  requests={view.requests}
-                  entries={record?.transcript}
-                  formDrafts={formDrafts.current}
-                  draftPrefix={view.id}
-                  onRetry={() => {
-                    if (record) void operations.retry(record);
+          <UploadContext.Provider value={admitUploads}>
+            <div
+              ref={panesRef}
+              className="flex min-h-0 flex-1 flex-col md:flex-row"
+              style={{ "--chat-width": `${chatWidth}%` } as CSSProperties}
+            >
+              <div className="flex h-[35vh] min-h-40 min-w-0 shrink-0 flex-col md:h-auto md:min-h-0 md:w-[var(--chat-width)]">
+                <div
+                  key={view.id}
+                  ref={conversationScrollRef}
+                  onScroll={(event) => {
+                    const element = event.currentTarget;
+                    nearFoot.current =
+                      element.scrollHeight -
+                        element.scrollTop -
+                        element.clientHeight <
+                      100;
                   }}
-                  onEdit={() => {
-                    if (!record) return;
-                    const response = pendingEntry(record)?.response;
-                    if (response?.type === "chat")
-                      drafts.current.set(draftKey, response.text);
-                    if (response?.type === "choice" && response.feedback)
-                      drafts.current.set(composerKey, response.feedback);
-                    if (response?.type === "form")
-                      formDrafts.current.set(draftKey, response.values ?? {});
-                    void operations.edit(record);
-                  }}
-                  busy={busy}
-                  onRespond={send}
-                  profileForm={profileForm?.request_id ?? null}
-                />
-                {busy && <ThinkingLine message={workingStatus} />}
-                {view.done && runSettingsFor === view.id ? (
-                  <RunSettings
-                    roles={runRoles(view.specification)}
-                    statuses={modelStatuses}
-                    values={runModelDrafts ?? runModels(view.specification)}
-                    busy={busy || operations.pendingSaves.has(view.id)}
-                    onChange={(role, value) => {
-                      setRunModelDrafts((current) => ({
-                        ...(current ?? runModels(view.specification)),
-                        [role]: value,
-                      }));
+                  className="quiet-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-8"
+                >
+                  <Transcript
+                    requests={view.requests}
+                    entries={record?.transcript}
+                    formDrafts={formDrafts.current}
+                    draftPrefix={view.id}
+                    onRetry={() => {
+                      if (record) void operations.retry(record);
                     }}
-                    onContinue={() => void continueToDownload()}
-                    onBack={() => void backFromDone()}
+                    onEdit={() => {
+                      if (!record) return;
+                      const response = pendingEntry(record)?.response;
+                      if (response?.type === "chat")
+                        drafts.current.set(draftKey, response.text);
+                      if (response?.type === "choice" && response.feedback)
+                        drafts.current.set(composerKey, response.feedback);
+                      if (response?.type === "form")
+                        formDrafts.current.set(draftKey, response.values ?? {});
+                      void operations.edit(record);
+                    }}
+                    busy={busy}
+                    onRespond={send}
+                    profileForm={profileForm?.request_id ?? null}
                   />
-                ) : (
-                  view.done && (
-                    <Done
-                      connection={record?.state.context.connection ?? null}
-                      onConnect={openAddConnection}
-                      busy={replyBusy}
+                  {busy && <ThinkingLine message={workingStatus} />}
+                  {view.done && runSettingsFor === view.id ? (
+                    <RunSettings
+                      roles={runRoles(view.specification)}
+                      statuses={modelStatuses}
+                      values={runModelDrafts ?? runModels(view.specification)}
+                      busy={busy || operations.pendingSaves.has(view.id)}
+                      onChange={(role, value) => {
+                        setRunModelDrafts((current) => ({
+                          ...(current ?? runModels(view.specification)),
+                          [role]: value,
+                        }));
+                      }}
+                      onContinue={() => void continueToDownload()}
                       onBack={() => void backFromDone()}
                     />
-                  )
-                )}
+                  ) : (
+                    view.done && (
+                      <Done
+                        connection={record?.state.context.connection ?? null}
+                        onConnect={openAddConnection}
+                        busy={replyBusy}
+                        onBack={() => void backFromDone()}
+                      />
+                    )
+                  )}
+                </div>
+                <Composer
+                  key={composerKey}
+                  request={review ?? pending}
+                  value={drafts.current.get(composerKey) ?? ""}
+                  onValueChange={(value) => {
+                    drafts.current.set(composerKey, value);
+                    setDraftRevision((revision) => revision + 1);
+                  }}
+                  busy={replyBusy}
+                  sendBlockedReason={
+                    review && pending?.type === "form" && !pending.cancellable
+                      ? "Save the form first"
+                      : undefined
+                  }
+                  onSend={(text) => void sendText(text)}
+                />
               </div>
-              <Composer
-                key={composerKey}
-                request={review ?? pending}
-                value={drafts.current.get(composerKey) ?? ""}
-                onValueChange={(value) => {
-                  drafts.current.set(composerKey, value);
-                  setDraftRevision((revision) => revision + 1);
-                }}
-                busy={replyBusy}
-                sendBlockedReason={
-                  review && pending?.type === "form" && !pending.cancellable
-                    ? "Save the form first"
-                    : undefined
-                }
-                onSend={(text) => void sendText(text)}
+              <PaneDivider
+                rowRef={panesRef}
+                width={chatWidth}
+                onWidth={setChatWidth}
               />
+              <aside
+                className="min-h-0 min-w-0 flex-1 bg-muted"
+                aria-label="Profile"
+              >
+                <SpecificationView
+                  key={view.id}
+                  specification={view.specification}
+                  excludedTasks={record?.state.excluded_tasks}
+                  position={stepPosition(view.requests)}
+                  interviewStep={view.stage}
+                  busy={busy || operations.pendingSaves.has(view.id)}
+                  showGraders={showGraders}
+                  onShowGradersChange={setShowGraders}
+                  graderByFqn={graderByFqn}
+                  gradersLoading={
+                    graderState === "idle" || graderState === "loading"
+                  }
+                  gradersError={graderState === "error"}
+                  done={view.done}
+                  onFinish={() => void finish()}
+                  onDownload={() => {
+                    if (record) void downloadCurrent(record);
+                  }}
+                  activeSections={review ? reviewParts(review) : []}
+                  renderReview={(part) =>
+                    review && (
+                      <ActiveReview
+                        key={`${view.id}:${part}`}
+                        request={review}
+                        part={part}
+                        busy={replyBusy}
+                        onRespond={send}
+                        form={profileForm}
+                        formFailure={profileFailure}
+                        formDrafts={formDrafts.current}
+                        draftPrefix={view.id}
+                      />
+                    )
+                  }
+                  renderSectionActions={(part) =>
+                    review && (
+                      <ReviewSectionActions
+                        request={review}
+                        part={part}
+                        busy={replyBusy}
+                        onRespond={send}
+                      />
+                    )
+                  }
+                />
+              </aside>
             </div>
-            <PaneDivider
-              rowRef={panesRef}
-              width={chatWidth}
-              onWidth={setChatWidth}
-            />
-            <aside
-              className="min-h-0 min-w-0 flex-1 bg-muted"
-              aria-label="Profile"
-            >
-              <SpecificationView
-                key={view.id}
-                specification={view.specification}
-                excludedTasks={record?.state.excluded_tasks}
-                position={stepPosition(view.requests)}
-                interviewStep={view.stage}
-                busy={busy || operations.pendingSaves.has(view.id)}
-                showGraders={showGraders}
-                onShowGradersChange={setShowGraders}
-                graderByFqn={graderByFqn}
-                gradersLoading={
-                  graderState === "idle" || graderState === "loading"
-                }
-                gradersError={graderState === "error"}
-                done={view.done}
-                onFinish={() => void finish()}
-                onDownload={() => {
-                  if (record) void downloadCurrent(record);
-                }}
-                activeSections={review ? reviewParts(review) : []}
-                renderReview={(part) =>
-                  review && (
-                    <ActiveReview
-                      key={`${view.id}:${part}`}
-                      request={review}
-                      part={part}
-                      busy={replyBusy}
-                      onRespond={send}
-                      form={profileForm}
-                      formFailure={profileFailure}
-                      formDrafts={formDrafts.current}
-                      draftPrefix={view.id}
-                    />
-                  )
-                }
-                renderSectionActions={(part) =>
-                  review && (
-                    <ReviewSectionActions
-                      request={review}
-                      part={part}
-                      busy={replyBusy}
-                      onRespond={send}
-                    />
-                  )
-                }
-              />
-            </aside>
-          </div>
+          </UploadContext.Provider>
         )}
       </main>
     </div>
