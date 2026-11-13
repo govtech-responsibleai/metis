@@ -125,8 +125,8 @@ temporary fields, abandoned approaches, and the sequence of feedback.
 - Release workflow: develop on `release/<package>/v<semver>` branch → merge to `main` → tag the merge commit (`<package>/v<semver>`)
 - Every release merge to `main` MUST be tagged with a version bump for the affected package(s).
   Documentation-only merges to `main` need no tag and no version bump.
-- Beta branching: while v1 is in beta, documentation for released behaviour under `website/` or
-  `landing-page/` goes to `main`, because the site is published from `main`. All other work goes to
+- Beta branching: while v1 is in beta, documentation for released behaviour under `website/`
+  goes to `main`, because the site is published from `main`. All other work goes to
   `next`. Merge `main` into `next` with a merge commit after any pull request lands on `main`.
 - Beta exception: while v1 is in beta, all packages share one version (`1.0.0bN`) and each beta gets
   one suite tag `v1.0.0bN`; see "Beta releases" in [CONTRIBUTING.md](CONTRIBUTING.md)
