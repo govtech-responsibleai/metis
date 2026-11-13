@@ -791,11 +791,6 @@
   border-bottom: 1px solid var(--line);
   font-size: 14px;
 }
-.report .drawer-head .crumb {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
 .report .drawer-head .to-trials {
   margin-left: auto;
   color: var(--quiet);
@@ -826,23 +821,24 @@
   overflow: auto;
   padding: 18px 22px 28px;
 }
+/* The Persona and the Scenario are side by side. The description of the Scenario is below it. */
 .report .dm-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 4px 32px;
   margin-bottom: 12px;
 }
+.report .dm-names {
+  display: contents;
+}
 .report .dm-head h3 {
-  font-size: 19px;
+  font-size: 17px;
   font-weight: 700;
-}
-.report .dm-head h3 span {
-  display: block;
-}
-.report .dm-head h3 .n {
-  font-size: 15px;
-  font-weight: 400;
+  line-height: 1.3;
 }
 .report .dm-head p {
+  grid-column: 2;
   max-width: 760px;
-  margin-top: 2px;
 }
 .report .dm-sec {
   display: flex;
@@ -1184,19 +1180,17 @@
   margin-bottom: 6px;
 }
 .report .why-row {
-  padding: 9px 0;
+  padding: 16px 12px;
   border-top: 1px solid var(--line);
 }
 .report .why-row.mark {
-  margin: 0 -8px;
-  padding: 9px 8px;
   box-shadow: inset 3px 0 0 var(--mark);
 }
 .report .why-head b {
   font-weight: 600;
 }
 .report .why-row .why {
-  margin-top: 3px;
+  margin-top: 6px;
   font-size: 14px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;

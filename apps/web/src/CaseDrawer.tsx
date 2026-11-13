@@ -2,7 +2,7 @@
 // range for each Criterion, the trials, and for one trial its conversation and what the Graders
 // returned. `report.css` has the rules.
 
-import { ChevronRight, ChevronsRight } from "lucide-react";
+import { ChevronsRight } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import type {
@@ -539,12 +539,7 @@ export function CaseDrawerView({
         >
           <ChevronsRight size={18} aria-hidden />
         </button>
-        <span className="n crumb">
-          Results by test case
-          <ChevronRight size={12} aria-hidden />
-        </span>
-        <b>{row.persona}</b>
-        <span className="n">{row.scenario}</span>
+        <span className="n">Test case</span>
         <Link href={trialsHref} className="to-trials">
           Open in the Trials tab
         </Link>
@@ -552,10 +547,16 @@ export function CaseDrawerView({
       <div className="drawer-body">
         <div className="drawer-main quiet-scrollbar">
           <div className="dm-head">
-            <h3 id={DRAWER_TITLE}>
-              <span>{row.persona}</span>
-              <span className="n">{row.scenario}</span>
-            </h3>
+            <div className="dm-names" id={DRAWER_TITLE}>
+              <div>
+                <div className="n">Persona</div>
+                <h3>{row.persona}</h3>
+              </div>
+              <div>
+                <div className="n">Scenario</div>
+                <h3>{row.scenario}</h3>
+              </div>
+            </div>
             <p className="n">{row.description}</p>
           </div>
           <h4 className="dm-sec">

@@ -479,14 +479,13 @@ test("the trial drawer shows the test case, the range of each Criterion and the 
 
   assert.match(
     shown,
-    /Results by test caseNew customerOpens an accountOpen in the Trials tab/,
+    /Test caseOpen in the Trials tabPersonaNew customerScenarioOpens an accountA new customer opens an account\./,
   );
   assert.ok(
     control(markup, "Open in the Trials tab").includes(
       ` href="${paths.testCase("a", "e1", "case 1")}"`,
     ),
   );
-  assert.match(shown, /A new customer opens an account\./);
   assert.match(shown, /0%25%50%100%80% target/);
   assert.match(shown, /Says hello50%21 to 79%2 of 4 passed/);
   assert.doesNotMatch(shown, /Asks for proof/);
