@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
+from contextlib import suppress
 from dataclasses import dataclass
 from json import loads
 from pathlib import Path
@@ -67,6 +69,8 @@ MAX_ROUNDS = 12
 """Most LLM rounds one action may take."""
 ACT_MARGIN = 60.0
 """Seconds added to ``response_wait_ms`` for one action's time limit."""
+_SESSION_ID = re.compile(r"[\w.:-]{1,200}")
+"""Characters and length accepted for a target session identifier."""
 _sleep = asyncio.sleep  # names tests replace
 _now = time.monotonic
 
@@ -224,7 +228,7 @@ class HttpRunner(Runner):
         """
         allowed = [*self.answers, *self.results[self._action_start :]]
         value, _ = resolve(pointer, self._log, allowed=allowed)
-        self._session_id = str(value)
+        self._session_id = _session_id(value)
         logger.info(
             "session_id_found", session_id=self._session_id, entry=pointer.entry
         )
@@ -834,6 +838,21 @@ def trimmed(messages: list[Any]) -> list[Any]:
             continue
         sent[i] = {**message, "content": json.dumps(result, ensure_ascii=False)}
     return sent
+
+
+def _session_id(value: object) -> str:
+    """Extract and validate a session ID from a response value."""
+    if isinstance(value, str) and value.lstrip().startswith("{"):
+        with suppress(json.JSONDecodeError):
+            value = json.loads(value)
+    if isinstance(value, dict):
+        value = value.get("session_id")
+    if value is None or isinstance(value, bool):
+        raise PointerError("that is not a session ID")
+    text = str(value)
+    if not _SESSION_ID.fullmatch(text):
+        raise PointerError("that is not a session ID")
+    return text
 
 
 def _skipped(name: str | None, why: str) -> dict[str, Any]:
