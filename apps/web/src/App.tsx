@@ -55,7 +55,7 @@ import {
   stepPosition,
 } from "./SpecificationView";
 import { ProfileToolbar, YamlView, type ProfileMode } from "./ProfileToolbar";
-import { TargetRail, type RailSelection } from "./TargetRail";
+import { TargetRail } from "./TargetRail";
 import { ExperimentsTab, TargetTabs } from "./TargetPage";
 import { ExperimentDialog } from "./ExperimentDialog";
 import { exportedSpecification } from "./export";
@@ -98,7 +98,6 @@ import {
   placeOf,
   targetOf,
   targetRedirect,
-  type Place,
 } from "./routes";
 import { admitFiles, type AdmittedFile } from "./fixture-policy";
 import { specificationHasCriteria } from "./graders";
@@ -185,11 +184,6 @@ export function openedPath(
   return placeOf(currentPath).page === "new-target" && currentOpening === origin
     ? paths.target(id, "specification")
     : null;
-}
-
-function railSelection(place: Place): RailSelection {
-  if (place.page === "experiments") return { kind: "experiments" };
-  return "targetId" in place ? { kind: "target", id: place.targetId } : null;
 }
 
 export function App() {
@@ -896,7 +890,7 @@ export function App() {
         <TargetRail
           targets={targets}
           problems={storageProblems}
-          selected={railSelection(place)}
+          selectedId={targetId}
           activeIds={
             new Set([...operations.active, ...operations.pendingSaves.keys()])
           }
@@ -985,10 +979,7 @@ export function App() {
           </div>
         ) : redirect ? null : place.page === "target" &&
           place.tab === "experiments" ? (
-          <ExperimentsTab
-            targetId={place.targetId}
-            onStartExperiment={() => setExperimentDialogOpen(true)}
-          />
+          <ExperimentsTab targetId={place.targetId} />
         ) : place.page === "experiment" && record ? (
           <ExperimentPage
             targetId={place.targetId}

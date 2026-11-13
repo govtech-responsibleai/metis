@@ -5,7 +5,7 @@
 import { GitCompareArrows, Play } from "lucide-react";
 import { Link } from "wouter";
 import { paths, type TargetTab } from "./routes";
-import { Button, buttonClass, cn, Panel } from "./ui";
+import { Button, buttonClass, cn } from "./ui";
 
 export const LOCKED = "Finish the Interview first";
 
@@ -90,15 +90,10 @@ export function TargetTabs({
   );
 }
 
-export function ExperimentsTab({
-  targetId,
-  onStartExperiment,
-}: {
-  targetId: string;
-  onStartExperiment: () => void;
-}) {
+export function ExperimentsTab({ targetId }: { targetId: string }) {
   return (
-    <div className="quiet-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-6">
+    // The left padding puts the content in line with the text of the first tab label.
+    <div className="quiet-scrollbar min-h-0 flex-1 overflow-y-auto py-6 pl-9 pr-6">
       <div className="flex flex-col gap-4">
         <div className="flex justify-end">
           <Link href={paths.compare(targetId)} className={buttonClass()}>
@@ -106,10 +101,7 @@ export function ExperimentsTab({
             Compare
           </Link>
         </div>
-        <Panel className="flex items-center justify-between gap-3 px-5 py-4 text-sm">
-          <span>No experiments yet.</span>
-          <Button onClick={onStartExperiment}>Start an experiment</Button>
-        </Panel>
+        <p className="text-sm text-muted-foreground">No experiments yet.</p>
       </div>
     </div>
   );

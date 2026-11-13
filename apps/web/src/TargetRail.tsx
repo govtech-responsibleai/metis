@@ -1,17 +1,15 @@
-// The left rail: "New target", the list of Targets, and at its foot "All experiments" and the
-// colour theme. The selected row follows the URL.
+// The left rail: "New target", the list of Targets, and at its foot the colour theme. The
+// selected row follows the URL.
 
 import {
   CirclePlus,
   FolderClosed,
-  ListChecks,
   Monitor,
   Moon,
   PanelLeft,
   Sun,
   Trash2,
 } from "lucide-react";
-import type { ReactNode } from "react";
 import { Link } from "wouter";
 import type { TargetSummary } from "./targets";
 import { useThemeChoice, type ThemeChoice } from "./theme";
@@ -20,14 +18,10 @@ import { relativeTime } from "./relative-time";
 import { paths } from "./routes";
 import { buttonClass, cn } from "./ui";
 
-// The selected row of the rail.
-export type RailSelection =
-  { kind: "target"; id: string } | { kind: "experiments" } | null;
-
 export function TargetRail({
   targets,
   problems,
-  selected,
+  selectedId,
   activeIds,
   onNew,
   onDelete,
@@ -35,7 +29,8 @@ export function TargetRail({
 }: {
   targets: TargetSummary[];
   problems: readonly StorageProblem[];
-  selected: RailSelection;
+  // The Target of the URL, which is the selected row.
+  selectedId: string | null;
   activeIds: ReadonlySet<string>;
   onNew: () => void;
   onDelete: (id: string) => void;
@@ -78,8 +73,7 @@ export function TargetRail({
       </div>
       <ul className="quiet-scrollbar flex-1 overflow-y-auto p-3">
         {targets.map((target) => {
-          const active =
-            selected?.kind === "target" && selected.id === target.id;
+          const active = selectedId === target.id;
           return (
             <li key={target.id}>
               {/* Inside the selected row, the icon and the time take the fill's foreground,
@@ -169,45 +163,10 @@ export function TargetRail({
           </li>
         ))}
       </ul>
-      <div className="flex flex-col gap-3 border-t border-border p-3">
-        <RailLink
-          href={paths.experiments()}
-          active={selected?.kind === "experiments"}
-        >
-          <ListChecks
-            size={15}
-            strokeWidth={1.3}
-            aria-hidden
-            className="shrink-0"
-          />
-          <span className="flex-1 truncate">All experiments</span>
-        </RailLink>
+      <div className="border-t border-border p-3">
         <ThemeSwitch />
       </div>
     </nav>
-  );
-}
-
-function RailLink({
-  href,
-  active,
-  children,
-}: {
-  href: string;
-  active: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm font-medium transition-colors duration-150",
-        active ? "bg-accent text-accent-foreground" : "hover:bg-background",
-      )}
-    >
-      {children}
-    </Link>
   );
 }
 

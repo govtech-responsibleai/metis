@@ -71,8 +71,8 @@ The repository ignores `experiments/`, so Git does not save it.
 ## Targets and their pages
 
 Each Interview makes one Target. The rail on the left lists the Targets, newest first. Select
-**New target** at the top of the rail to start a new Interview. At the foot of the rail,
-**All experiments** opens the list of experiments, and the theme switch sets the colour theme.
+**New target** at the top of the rail to start a new Interview. At the foot of the rail, the
+theme switch sets the colour theme.
 
 A Target page has two tabs:
 

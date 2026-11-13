@@ -34,7 +34,7 @@ function control(markup: string, label: string): string {
 
 const startButton = (markup: string) => control(markup, "Start an experiment");
 
-const rail = (selected: Parameters<typeof TargetRail>[0]["selected"]) =>
+const rail = (selectedId: string | null) =>
   at(
     "/",
     <TargetRail
@@ -43,34 +43,27 @@ const rail = (selected: Parameters<typeof TargetRail>[0]["selected"]) =>
         { id: "b", title: "Shop bot", updated: Date.now() },
       ]}
       problems={[]}
-      selected={selected}
+      selectedId={selectedId}
       activeIds={new Set(["a"])}
       onNew={() => {}}
       onDelete={() => {}}
     />,
   );
 
-test("the rail links New target, each Target, and All experiments", () => {
+test("the rail links New target and each Target", () => {
   const markup = rail(null);
 
   assert.match(control(markup, "New target"), /^<a[^>]*href="\/targets\/new"/);
   assert.match(control(markup, "Bank bot"), /^<a[^>]*href="\/targets\/a"/);
   assert.match(control(markup, "Shop bot"), /^<a[^>]*href="\/targets\/b"/);
-  assert.match(
-    control(markup, "All experiments"),
-    /^<a[^>]*href="\/experiments"/,
-  );
   assert.match(markup, /role="radiogroup" aria-label="Colour theme"/);
   assert.doesNotMatch(markup, /aria-current/);
 });
 
-test("the rail marks the selected Target or All experiments", () => {
-  const target = rail({ kind: "target", id: "b" });
+test("the rail marks the selected Target", () => {
+  const target = rail("b");
   assert.match(control(target, "Shop bot"), /aria-current="page"/);
   assert.doesNotMatch(control(target, "Bank bot"), /aria-current/);
-  const experiments = rail({ kind: "experiments" });
-  assert.match(control(experiments, "All experiments"), /aria-current="page"/);
-  assert.doesNotMatch(control(experiments, "Shop bot"), /aria-current/);
 });
 
 test("a Target that is sending cannot be deleted", () => {
@@ -172,14 +165,10 @@ test("the YAML view and Download wait for the end of the Interview", () => {
   assert.doesNotMatch(control(markup, "Document"), /disabled=""/);
 });
 
-test("an empty Experiments tab offers a start and links to the comparison", () => {
-  const markup = at(
-    "/targets/a/experiments",
-    <ExperimentsTab targetId="a" onStartExperiment={() => {}} />,
-  );
+test("an empty Experiments tab says so and links to the comparison", () => {
+  const markup = at("/targets/a/experiments", <ExperimentsTab targetId="a" />);
 
   assert.match(markup, /No experiments yet\./);
-  assert.match(startButton(markup), /^<button/);
   assert.match(control(markup, "Compare"), /href="\/targets\/a\/compare"/);
 });
 
