@@ -178,7 +178,7 @@ def test_task_records_keep_criterion_configuration_and_trial_identity(
     assert by_criterion["AC-UNI-22"].results[0].outcome == "failed"
     assert by_criterion["AC-LONG"].results[0].outcome == "passed"
     assert by_criterion["AC-TWIN"].results[0].outcome == "failed"
-    assert by_criterion["AC-LONG"].grader_args == {"threshold": 0.5, "score": 0.9}
+    assert by_criterion["AC-LONG"].grader_args == {"threshold": 0.8, "score": 0.9}
     assert [(r.task_id, r.trial_index) for r in records] == [
         ("TC-001", 1),
         ("TC-001", 1),

@@ -288,7 +288,7 @@ def test_evaluation_writes_results_file_and_prints_report_command(
         "TC-001",
         "AC-1-1",
     )
-    assert record.grader_args == {"threshold": 0.5, "score": 1.0}
+    assert record.grader_args == {"threshold": 0.8, "score": 1.0}
     assert [(r.outcome, r.score) for r in record.results] == [("passed", 1.0)]
     # Engine no longer builds the report; insights does.
     assert not (output / "outputs" / "reports" / "report.json").exists()
@@ -583,7 +583,7 @@ def test_a_failing_score_is_recorded_as_failed(monkeypatch, tmp_path: Path) -> N
         output / "outputs" / "reports" / "results.json"
     ).records
     assert [(r.outcome, r.score) for r in record.results] == [("failed", 0.2)]
-    assert record.grader_args == {"threshold": 0.5, "score": 0.2}
+    assert record.grader_args == {"threshold": 0.8, "score": 0.2}
 
 
 def test_criteria_keep_snapshot_settings_and_reuse_instances_across_sessions(
@@ -657,7 +657,7 @@ def test_criteria_keep_snapshot_settings_and_reuse_instances_across_sessions(
     ]
     assert [record.grader_args for record in records] == [
         {"threshold": 0.3, "score": 0.2},
-        {"threshold": 0.5, "score": 0.9},
+        {"threshold": 0.8, "score": 0.9},
     ] * 2
     assert all(record.grader_fqn == f"{GRADERS}.FixedScoreGrader" for record in records)
     assert [record.results[0].outcome for record in records] == ["failed", "passed"] * 2

@@ -26,7 +26,7 @@ grader_args:
 
 | Setting | Default | Description |
 | --- | --- | --- |
-| `threshold` | `0.5` | A score passes when it is at least this value. |
+| `threshold` | `0.8` | A score passes when it is at least this value. |
 | `model` | See below | The judge model for this criterion. |
 | `max_input_tokens` | `128000` | The largest request that one judge call can send. A larger request gives an errored result. |
 

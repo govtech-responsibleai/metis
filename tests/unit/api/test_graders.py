@@ -61,7 +61,7 @@ def test_grader_catalogue_rows_carry_the_taxonomy_dimension_and_settings(
         "name": "threshold",
         "kind": "number",
         "required": False,
-        "default": 0.5,
+        "default": 0.8,
         "choices": [],
         "base": True,
         "description": None,

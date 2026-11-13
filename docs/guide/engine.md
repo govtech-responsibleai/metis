@@ -438,7 +438,7 @@ criteria:
 
 `grader_args` is validated before anything runs: an unknown key, a wrong type or a
 `threshold` outside 0–1 stops the run and names the Criterion. Use `grader_args: {}` to take
-every default. Every grader accepts `threshold` (default 0.5): a scored result passes when its
+every default. Every grader accepts `threshold` (default 0.8): a scored result passes when its
 score is at least the threshold.
 
 For a model-based grader, set the judge model once for the experiment and override it per

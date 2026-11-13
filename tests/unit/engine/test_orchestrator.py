@@ -335,7 +335,7 @@ class TestThresholdRule:
 
 class TestGradeSession:
     def test_one_record_per_grader_with_run_facts(self) -> None:
-        (record,) = _run(_build(FixedGrader, {"score": 0.7}))
+        (record,) = _run(_build(FixedGrader, {"score": 0.9}))
         assert (
             record.session_id,
             record.scenario_id,
@@ -349,7 +349,7 @@ class TestGradeSession:
         )
         assert record.criterion_id == "AC-1"
         assert record.grader_fqn == f"{HERE}.FixedGrader"
-        assert [(r.outcome, r.score) for r in record.results] == [("passed", 0.7)]
+        assert [(r.outcome, r.score) for r in record.results] == [("passed", 0.9)]
 
     def test_the_record_carries_the_aggregation_rule_and_scope(self) -> None:
         (record,) = _run(_build(CheckedGrader))
@@ -369,7 +369,7 @@ class TestGradeSession:
             _build(EchoJudgeGrader, env={"JUDGE_MODEL": "env-model"}), llm=llm
         )
         assert record.grader_args == {
-            "threshold": 0.5,
+            "threshold": 0.8,
             "model": "env-model",
             "max_input_tokens": DEFAULT_MAX_INPUT_TOKENS,
         }
