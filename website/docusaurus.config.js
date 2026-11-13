@@ -31,14 +31,6 @@ const config = {
         },
       };
     },
-    function customThemePath() {
-      return {
-        name: 'custom-theme-path',
-        getThemePath() {
-          return './docs/src/theme';
-        },
-      };
-    },
     // Hands the text of `GLOSSARY.md` to the bundle as `__GLOSSARY_MARKDOWN__`. A `?raw` import
     // cannot do this, because Docusaurus compiles every `.md` file as MDX before that rule runs.
     function glossaryText({siteDir}) {

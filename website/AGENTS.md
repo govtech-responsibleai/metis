@@ -52,8 +52,8 @@ The `@examples` alias maps to `packages/engine/examples/` for importing example 
 
 ## Theme overrides
 
-Docusaurus discovers swizzled theme components via a `getThemePath` plugin in
-`docusaurus.config.js` (because `docs/src/theme/` is not at the default `src/theme/` path).
+Docusaurus expects swizzled theme components at `src/theme/`. Thin proxy files there
+re-export from the actual implementations in `docs/src/theme/`.
 
 ## Commands
 
