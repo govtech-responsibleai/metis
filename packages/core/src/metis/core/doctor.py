@@ -41,6 +41,8 @@ INSTALLED_PACKAGES = (
 
 
 class DoctorStatus(StrEnum):
+    """How one check went. A warning or a skip does not fail the run."""
+
     PASS = "pass"
     FAIL = "fail"
     WARN = "warn"
@@ -49,6 +51,8 @@ class DoctorStatus(StrEnum):
 
 @dataclass(frozen=True)
 class DoctorResult:
+    """The result of one check. `run_doctor()` returns one per check, in display order."""
+
     name: str
     status: DoctorStatus
     detail: str
