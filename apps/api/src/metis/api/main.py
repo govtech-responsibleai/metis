@@ -1,11 +1,12 @@
 """The app composition root.
 
-`main.py` creates the FastAPI app, keeps `/health`, includes the wizard and store routers, and
-installs the handlers that give every failure one stable JSON shape. The wizard routes keep no
-state: each request carries the whole Interview state in its body. The store routes keep the
-Interview records and their files in the `Store` that the app composes at startup.
-The store is in the project folder that `create_app` gets, or the default project folder of
-`Settings.from_env`.
+`main.py` creates the FastAPI app, keeps `/health`, includes the wizard, store, and report
+routers, and installs the handlers that give every failure one stable JSON shape. The wizard
+routes keep no state: each request carries the whole Interview state in its body. The store
+routes keep the Interview records and their files in the `Store` that the app composes at
+startup. The report routes read the experiment folders. The store and the experiment folders
+are in the project folder that `create_app` gets, or the default project folder that
+`find_project_root` finds.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from fastapi.responses import JSONResponse
 from metis.api import __version__, core_version
 from metis.api.routes.graders import router as graders_router
 from metis.api.routes.models import router as models_router
+from metis.api.routes.reports import router as reports_router
 from metis.api.routes.targets import router as targets_router
 from metis.api.routes.wizard import ServiceError
 from metis.api.routes.wizard import router as wizard_router
@@ -31,6 +33,7 @@ from metis.api.settings import (
     build_dependencies,
 )
 from metis.api.store import Store, StoreError
+from metis.core.execution_layout import find_project_root
 from metis.core.logging import get_logger
 from metis.wizard import InterviewerUnavailable
 
@@ -56,6 +59,14 @@ _OPENAPI_TAGS = [
         "description": (
             "Keep complete Interview records and their uploaded files on the server. "
             "The Specification and Target details stay inside the Interview state."
+        ),
+    },
+    {
+        "name": "reports",
+        "description": (
+            "Read the report of an experiment folder in the project folder, as JSON or "
+            "as the HTML report page. An experiment with no results.json returns 409 "
+            "results_missing."
         ),
     },
 ]
@@ -102,6 +113,7 @@ def create_app(
     """Assemble the API for production, or with an injected handler and store for tests.
 
     ``project_dir`` is the project folder of the store that the app builds at startup.
+    The report routes read the experiment folders in the same project folder.
     """
     app = FastAPI(
         title="METIS API",
@@ -109,7 +121,7 @@ def create_app(
         lifespan=_lifespan,
         openapi_tags=_OPENAPI_TAGS,
     )
-    app.state.project_dir = project_dir
+    app.state.project_dir = (project_dir or find_project_root()).resolve()
     if interview_handler is not None:
         app.state.wizard_dependencies = WizardDependencies(
             interview_handler=interview_handler
@@ -126,6 +138,7 @@ def create_app(
     app.include_router(graders_router)
     app.include_router(models_router)
     app.include_router(targets_router)
+    app.include_router(reports_router)
 
     @app.exception_handler(StoreError)
     def _on_store_error(_request: Request, exc: StoreError) -> JSONResponse:

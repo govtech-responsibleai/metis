@@ -203,6 +203,13 @@ dated ZIP archive; it retains no uploaded files. Wizard owns the archive filenam
 and dated root folder. The API sends the filename in `Content-Disposition`, and the
 browser uses it for the download.
 
+The report routes read the experiment folders under `<project folder>/experiments/execute/`.
+The project folder is the one that `metis-api --project-dir` names, or the default project
+folder that the store also uses. An experiment id is an experiment folder name. The routes
+return the report of an experiment as `report.json` and as `report.html`, both inline.
+They call `metis.insights.ensure_report`, so the API holds no report rules. An experiment
+with no `results.json` gives 409 `results_missing`.
+
 Wizard exports share `inputs/` and `outputs/` at the design root. The CLI defaults to
 `experiments/design/YYYY-MM-DD-interview/`. An explicit `--out-dir` selects the exact root.
 Resume requires that path. ZIP exports contain a dated `interview` or `manual` root

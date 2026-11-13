@@ -5,9 +5,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from metis.core.report import Report
 from metis.core.reporting import EvaluationResults
 from metis.insights._aggregation import wilson_interval
-from metis.insights._models import Report
 from metis.insights._report import build_report
 from metis.insights.report import save_report
 from tests.fixtures.insights.report_experiment import (
@@ -88,10 +88,9 @@ def test_case_interval_uses_only_passed_and_failed_trials() -> None:
 def test_saved_report_excludes_ungraded_trials_from_intervals(tmp_path: Path) -> None:
     records = grader_records()
     write_experiment(tmp_path, records)
-    paths = save_report(EvaluationResults(run_id="run-1", records=records), tmp_path)
-    assert paths is not None
-    _, json_path = paths
-    saved = json.loads(json_path.read_text(encoding="utf-8"))
+    files = save_report(EvaluationResults(run_id="run-1", records=records), tmp_path)
+    assert files is not None
+    saved = json.loads(files.json.read_text(encoding="utf-8"))
     report = Report.model_validate(saved)
     first, second = report.resultTable.rows
     interval = first.results["C-1"].confidence_interval

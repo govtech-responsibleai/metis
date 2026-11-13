@@ -672,6 +672,7 @@ source = { editable = "apps/api" }
 dependencies = [
     { name = "fastapi" },
     { name = "metis-core" },
+    { name = "metis-insights" },
     { name = "metis-wizard" },
     { name = "pydantic" },
     { name = "python-multipart" },
@@ -691,6 +692,7 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'test'", specifier = ">=0.27" },
     { name = "metis-core", editable = "packages/core" },
     { name = "metis-engine", marker = "extra == 'test'", editable = "packages/engine" },
+    { name = "metis-insights", editable = "packages/insights" },
     { name = "metis-wizard", editable = "packages/wizard" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "python-multipart", specifier = ">=0.0.9" },
