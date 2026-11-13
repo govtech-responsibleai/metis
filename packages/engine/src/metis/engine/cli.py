@@ -1655,7 +1655,37 @@ async def _evaluate_records(
         f"{outcome.successful_records}/{outcome.total_records} records succeeded, "
         f"{outcome.failed_records} failed"
     )
+    grader_errors = _grader_errors_line(every_trial)
+    if grader_errors:
+        evaluation_log.write(grader_errors)
     return outcome
+
+
+def _grader_errors_line(evaluations: list[TrialEvaluation]) -> str | None:
+    """Name the errored grader results, or ``None`` when no result errored.
+
+    A grader that raises leaves an errored result and does not fail its record, so the
+    completion line alone does not show it.
+    """
+    results = 0
+    records = 0
+    criteria: set[str] = set()
+    for evaluation in evaluations:
+        errored = [
+            record.criterion_id
+            for record in evaluation.records
+            for result in record.results
+            if result.outcome == "errored"
+        ]
+        results += len(errored)
+        records += bool(errored)
+        criteria.update(errored)
+    if not results:
+        return None
+    return (
+        f"GRADER ERRORS: {results} result{'s' * (results != 1)} errored in "
+        f"{records} record{'s' * (records != 1)} ({', '.join(sorted(criteria))})"
+    )
 
 
 def _clear_evaluation_outputs(experiment_dir: Path) -> None:
