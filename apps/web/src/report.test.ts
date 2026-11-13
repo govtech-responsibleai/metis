@@ -211,7 +211,7 @@ test("another failure keeps the message of the API", async () => {
   });
 });
 
-test("the score has the pass rate, the target and the number of test cases", () => {
+test("the score has the pass rate, the target and the report date", () => {
   const { score } = reportPage(report());
 
   assert.deepEqual(score.passRate, {
@@ -220,11 +220,29 @@ test("the score has the pass rate, the target and the number of test cases", () 
     low: true,
   });
   assert.equal(score.target, 80);
-  assert.equal(score.testCases, 2);
-  assert.deepEqual(score.trialsReached, { successful: 3, attempted: 4 });
+  assert.equal(score.date, "2026-01-02");
 });
 
-test("Behaviours below the target are counted among the Behaviours with a rate", () => {
+test("a test case passes when none of its rates is below the target", () => {
+  const rows = [
+    { c1: result({ rate: 100 }), c3: result({ rate: 80 }) },
+    { c1: result({ rate: 100 }), c3: result({ rate: 50 }) },
+    { c1: result({ rate: null }) },
+    {},
+  ].map((results, index) => ({
+    task_id: `t${index}`,
+    persona: "p1",
+    scenario: "s1",
+    results,
+  }));
+  const { score } = reportPage(
+    report({ resultTable: { ...report().resultTable, rows } } as never),
+  );
+
+  assert.deepEqual(score.testCases, { passing: 1, graded: 2 });
+});
+
+test("passing Behaviours are counted among the Behaviours with a rate", () => {
   const { score } = reportPage(
     report({
       features: [
@@ -239,19 +257,19 @@ test("Behaviours below the target are counted among the Behaviours with a rate",
     }),
   );
 
-  assert.deepEqual(score.behavioursBelowTarget, { below: 1, graded: 2 });
+  assert.deepEqual(score.behaviours, { passing: 1, graded: 2 });
 });
 
 test("a score fact with nothing to count has no value", () => {
   const { score } = reportPage(
     report({
       behaviours: { b1: behaviour({ rate: null }) },
-      trials: { attempted: 0, successful: 0 },
+      resultTable: { ...report().resultTable, rows: [] },
     }),
   );
 
-  assert.equal(score.behavioursBelowTarget, null);
-  assert.equal(score.trialsReached, null);
+  assert.equal(score.behaviours, null);
+  assert.equal(score.testCases, null);
 });
 
 test("the specification list follows the order of the report", () => {
@@ -798,31 +816,6 @@ test("results without a matching Criterion are listed with each recorded result"
   });
 });
 
-test("the page has the Target name and the run details", () => {
-  const { target, details } = reportPage(
-    report({
-      latency: 12.34,
-      unresolved: ["c7"],
-      unmapped: [UNMAPPED],
-      criteria: {
-        c1: criterion({ judge_models: ["model a", "model b"] }),
-        c2: criterion({ judge_models: ["model a"] }),
-      },
-    } as never),
-  );
-
-  assert.equal(target, "Bank bot");
-  assert.deepEqual(details, {
-    run: "run 1",
-    date: "2026-01-02",
-    personas: 1,
-    scenarios: 2,
-    trials: 5,
-    gradingSeconds: 12.34,
-    judgeModels: ["model a", "model b"],
-    unmappedRecords: 2,
-    unresolvedCriteria: 1,
-    schemaVersion: 1,
-  });
-  assert.equal(reportPage(report()).details.gradingSeconds, null);
+test("the page has the Target name", () => {
+  assert.equal(reportPage(report()).target, "Bank bot");
 });

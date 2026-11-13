@@ -20,9 +20,9 @@ const PAGE: ReportPage = {
   score: {
     passRate: { kind: "measured", percent: 75, low: true },
     target: 80,
-    behavioursBelowTarget: { below: 1, graded: 2 },
-    trialsReached: { successful: 3, attempted: 4 },
-    testCases: 2,
+    behaviours: { passing: 1, graded: 2 },
+    testCases: { passing: 3, graded: 4 },
+    date: "2026-01-02",
   },
   specification: [
     {
@@ -203,18 +203,6 @@ const PAGE: ReportPage = {
     errored: 1,
   },
   unmapped: [],
-  details: {
-    run: "run 1",
-    date: "2026-01-02",
-    personas: 1,
-    scenarios: 2,
-    trials: 5,
-    gradingSeconds: 12.34,
-    judgeModels: ["model a", "model b"],
-    unmappedRecords: 0,
-    unresolvedCriteria: 0,
-    schemaVersion: 1,
-  },
 };
 
 // The sections of the report for one state of the specification results.
@@ -305,18 +293,16 @@ test("a finished experiment opens on its report", () => {
 test("a ready report shows the score, the specification results and the results by test case", () => {
   const shown = text(view("report", READY));
 
-  assert.match(shown, /Behaviours below the target1 of 2/);
-  assert.match(shown, /Trials that reached their goal3 of 4/);
-  assert.match(shown, /Test cases2/);
   assert.match(
     shown,
-    /Onboarding75%Greets the user90%Checks identityNot measuredPick a criterion/,
+    /Passing behaviours1\/2Passing test cases3\/4Report date2026-01-02/,
   );
+  assert.match(shown, /TARGETFEATUREBEHAVIOURCRITERION/);
   assert.match(
     shown,
     /Click a test case to see its trials\.2 skipped1 errored/,
   );
-  assert.match(shown, /Test caseOnboardingSays helloAsks for proof/);
+  assert.match(shown, /PersonaScenarioOnboardingSays helloAsks for proof/);
   assert.match(shown, /New customerOpens an account50%\(21 to 79%\)/);
   assert.match(
     shown,
@@ -335,29 +321,40 @@ test("a missing number shows No result", () => {
         score: {
           ...PAGE.score,
           passRate: { kind: "no-result" },
-          behavioursBelowTarget: null,
-          trialsReached: null,
+          behaviours: null,
+          testCases: null,
+          date: "",
         },
-        details: { ...PAGE.details, gradingSeconds: null },
       },
     ),
   );
 
-  assert.match(shown, /shown in red\.No resultBehaviours below the target/);
-  assert.match(shown, /Behaviours below the targetNo result/);
-  assert.match(shown, /Trials that reached their goalNo result/);
-  assert.match(shown, /Grading timeNo result/);
+  assert.match(
+    shown,
+    /shown in red\.No resultPassing behavioursNo resultPassing test casesNo resultReport dateNo result/,
+  );
 });
 
-test("a rate below the target is red", () => {
-  const markup = sections();
+test("the list view shows each Feature with its Behaviours", () => {
+  const shown = text(sections({ view: "list" }));
+
+  assert.match(
+    shown,
+    /Onboarding75%Greets the user90%Checks identityNot measuredPick a criterion/,
+  );
+});
+
+test("a rate below the target is red in the list view", () => {
+  const markup = sections({ view: "list" });
 
   assert.match(markup, /<span class="score-val low">75%</);
   assert.match(markup, /<span class="score-val">90%</);
 });
 
-test("an open Behaviour shows its Criteria", () => {
-  const shown = text(sections({ openBehaviours: new Set(["b2"]) }));
+test("an open Behaviour of the list view shows its Criteria", () => {
+  const shown = text(
+    sections({ view: "list", openBehaviours: new Set(["b2"]) }),
+  );
 
   assert.match(
     shown,
@@ -366,8 +363,10 @@ test("an open Behaviour shows its Criteria", () => {
   assert.doesNotMatch(shown, /Says hello100%/);
 });
 
-test("a closed Feature hides its Behaviours", () => {
-  const shown = text(sections({ closedFeatures: new Set(["f1"]) }));
+test("a closed Feature of the list view hides its Behaviours", () => {
+  const shown = text(
+    sections({ view: "list", closedFeatures: new Set(["f1"]) }),
+  );
 
   assert.match(shown, /Onboarding75%Pick a criterion/);
 });
@@ -381,7 +380,7 @@ test("a picked Criterion shows its panel and marks its column", () => {
 
   assert.match(
     shown,
-    /OnboardingBehaviourGreets the user90%The system greets the user\./,
+    /BehaviourGreets the user90%The system greets the user\./,
   );
   assert.match(
     shown,
@@ -407,7 +406,7 @@ test("a test case of the panel marks its row and its cell in the results table",
 
   assert.match(
     markup,
-    /<tr class="mark"><th class="stick"[^>]*><button[^>]*><span class="case-name"><b>New customer</,
+    /<tr class="mark"><th class="stick"[^>]*><button[^>]*><span class="case-name"[^>]*>New customer<\/span><\/button><\/th><td class="stick second">/,
   );
   assert.match(
     markup,
@@ -429,8 +428,8 @@ test("a Criterion with no threshold, score or judge model says so", () => {
   assert.match(shown, /Judge modelNonePass markNoneMean scoreNo result/);
 });
 
-test("the tree view shows the Target, each Feature and each open level", () => {
-  const markup = sections({ view: "tree", openBehaviours: new Set(["b2"]) });
+test("the report starts on the tree view with the Target, each Feature and each open level", () => {
+  const markup = sections({ openBehaviours: new Set(["b2"]) });
   const shown = text(markup);
 
   assert.match(markup, /aria-label="Specification tree"/);
@@ -606,15 +605,6 @@ test("a report with no test case result says so", () => {
   );
 
   assert.match(shown, /0 skipped0 erroredNo test case has a grader result\./);
-});
-
-test("the run details follow the results", () => {
-  const shown = text(sections());
-
-  assert.match(
-    shown,
-    /Run details Runrun 1Report date2026-01-02Plan1 personas2 scenarios5 trialsGrading time12\.3 sJudge modelsmodel amodel bResults without a criterion0Unresolved criteria0report\.jsonschema version 1/,
-  );
 });
 
 test("only a ready report has the download button", () => {

@@ -102,8 +102,8 @@ that uses the same API:
 
 An experiment page has two tabs, **Trials** and **Report**. `<experiment>` is the name of the
 experiment folder in `experiments/execute/`. The Report tab shows the results of `report.html`
-in the same layout: the score, the results for each Feature, Behaviour and Criterion, the results
-for each test case, and the run details. The specification results have a **List** view and a
+in the same layout: the score with the report date, the results for each
+Feature, Behaviour and Criterion, and the results for each test case. The specification results have a **List** view and a
 **Tree** view. Open a Behaviour and select a Criterion to see its Grader, its pass mark and its
 test cases in the panel. The tab is off until `metis engine evaluate` is done for the experiment,
 and a finished experiment opens on it. Select a test case in the panel to go to its row in the

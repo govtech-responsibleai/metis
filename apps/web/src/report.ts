@@ -78,11 +78,18 @@ export type BehaviourRate = Rate | { kind: "not-measured" };
 export interface ScoreFacts {
   passRate: Rate;
   target: number;
-  // Null when no Behaviour has a rate.
-  behavioursBelowTarget: { below: number; graded: number } | null;
-  // Null when no trial was attempted.
-  trialsReached: { successful: number; attempted: number } | null;
-  testCases: number;
+  // The Behaviours with a rate, and how many of them have a rate at the target or above it. Null
+  // when no Behaviour has a rate.
+  behaviours: Passing | null;
+  // The test cases with a rate, and how many of them have no rate below the target. Null when no
+  // test case has a rate.
+  testCases: Passing | null;
+  date: string;
+}
+
+export interface Passing {
+  passing: number;
+  graded: number;
 }
 
 export type Outcome = "passed" | "failed" | "skipped" | "errored";
@@ -232,26 +239,12 @@ export interface UnmappedResult {
   items: UnmappedItem[];
 }
 
-export interface RunDetails {
-  run: string;
-  date: string;
-  personas: number;
-  scenarios: number;
-  trials: number;
-  gradingSeconds: number | null;
-  judgeModels: string[];
-  unmappedRecords: number;
-  unresolvedCriteria: number;
-  schemaVersion: number;
-}
-
 export interface ReportPage {
   target: string;
   score: ScoreFacts;
   specification: FeatureResult[];
   cases: CaseTable;
   unmapped: UnmappedResult[];
-  details: RunDetails;
 }
 
 function rateOf(value: number | null | undefined, target: number): Rate {
@@ -264,7 +257,13 @@ function present<T>(value: T | undefined): value is T {
   return value !== undefined;
 }
 
-function scoreFacts(report: Report): ScoreFacts {
+function passing(low: boolean[]): Passing | null {
+  return low.length === 0
+    ? null
+    : { passing: low.filter((isLow) => !isLow).length, graded: low.length };
+}
+
+function scoreFacts(report: Report, cases: CaseTable): ScoreFacts {
   const target = report.passRateTarget;
   const rates = report.features
     .flatMap((feature) => feature.behaviours)
@@ -272,19 +271,19 @@ function scoreFacts(report: Report): ScoreFacts {
     .filter(present)
     .map((behaviour) => behaviour.rate)
     .filter((rate) => rate !== null && rate !== undefined);
-  const { attempted, successful } = report.trials;
+  const measured = cases.rows
+    .map((row) =>
+      row.cells.flatMap((cell) =>
+        cell?.rate.kind === "measured" ? [cell.rate.low] : [],
+      ),
+    )
+    .filter((cells) => cells.length > 0);
   return {
     passRate: rateOf(report.scores.graderPassRate.rate, target),
     target,
-    behavioursBelowTarget:
-      rates.length === 0
-        ? null
-        : {
-            below: rates.filter((rate) => rate < target).length,
-            graded: rates.length,
-          },
-    trialsReached: attempted === 0 ? null : { successful, attempted },
-    testCases: report.plan.tasks.length,
+    behaviours: passing(rates.map((rate) => rate < target)),
+    testCases: passing(measured.map((cells) => cells.some(Boolean))),
+    date: report.date,
   };
 }
 
@@ -504,37 +503,13 @@ function unmappedResults(report: Report): UnmappedResult[] {
   }));
 }
 
-function runDetails(report: Report): RunDetails {
-  return {
-    run: report.run,
-    date: report.date,
-    personas: report.personas.length,
-    scenarios: report.scenarios.length,
-    trials: report.plan.tasks.reduce((sum, task) => sum + task.trials, 0),
-    gradingSeconds: report.latency ?? null,
-    judgeModels: [
-      ...new Set(
-        Object.values(report.criteria).flatMap(
-          (criterion) => criterion.judge_models ?? [],
-        ),
-      ),
-    ],
-    unmappedRecords: report.unmapped.reduce(
-      (sum, group) => sum + (group.records ?? []).length,
-      0,
-    ),
-    unresolvedCriteria: report.unresolved.length,
-    schemaVersion: report.schema_version,
-  };
-}
-
 export function reportPage(report: Report): ReportPage {
+  const cases = caseTable(report);
   return {
     target: report.target,
-    score: scoreFacts(report),
+    score: scoreFacts(report, cases),
     specification: specificationResults(report),
-    cases: caseTable(report),
+    cases,
     unmapped: unmappedResults(report),
-    details: runDetails(report),
   };
 }

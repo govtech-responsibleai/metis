@@ -1,6 +1,6 @@
 // The Report tab of an experiment. It has the sections of report.html from `metis insights report`
 // and the same layout: the score, the results for each Feature, Behaviour and Criterion as a list
-// or a tree with a panel for one Criterion, the results for each test case, and the run details.
+// or a tree with a panel for one Criterion, and the results for each test case.
 // `report.css` has the rules. Every number comes from `reportPage` in `report.ts`. A test case of
 // the results table opens the trial drawer (`CaseDrawer.tsx`).
 
@@ -23,7 +23,7 @@ import type {
   FeatureResult,
   ReportLoad,
   ReportPage,
-  RunDetails,
+  Passing,
   ScoreFacts,
   UnmappedResult,
 } from "./report";
@@ -59,8 +59,15 @@ function Counts({ criterion }: { criterion: CriterionResult }) {
 }
 
 function Score({ score }: { score: ScoreFacts }) {
-  const { behavioursBelowTarget, trialsReached } = score;
   const none = <span className="n">No result</span>;
+  const count = (fact: Passing | null) =>
+    fact ? (
+      <b>
+        {fact.passing}/{fact.graded}
+      </b>
+    ) : (
+      none
+    );
   return (
     <section className="score" aria-label="Score">
       <div>
@@ -78,28 +85,16 @@ function Score({ score }: { score: ScoreFacts }) {
       </div>
       <div className="facts">
         <div>
-          <span>Behaviours below the target</span>
-          {behavioursBelowTarget ? (
-            <b>
-              {behavioursBelowTarget.below} of {behavioursBelowTarget.graded}
-            </b>
-          ) : (
-            none
-          )}
+          <span>Passing behaviours</span>
+          {count(score.behaviours)}
         </div>
         <div>
-          <span>Trials that reached their goal</span>
-          {trialsReached ? (
-            <b>
-              {trialsReached.successful} of {trialsReached.attempted}
-            </b>
-          ) : (
-            none
-          )}
+          <span>Passing test cases</span>
+          {count(score.testCases)}
         </div>
         <div>
-          <span>Test cases</span>
-          <b>{score.testCases}</b>
+          <span>Report date</span>
+          {score.date ? <b>{score.date}</b> : none}
         </div>
       </div>
     </section>
@@ -121,9 +116,9 @@ export interface SpecState {
   openCase: string | null;
 }
 
-// Features start open and Behaviours start closed, as in report.html.
+// The report starts on the tree. Features start open and Behaviours start closed.
 export const SPEC_START: SpecState = {
-  view: "list",
+  view: "tree",
   closedFeatures: new Set(),
   openBehaviours: new Set(),
   selected: null,
@@ -487,15 +482,11 @@ function CriterionPanel({
         <span>Open a behaviour, then click one of its criteria.</span>
       </div>
     );
-  const { feature, behaviour, criterion } = path;
+  const { behaviour, criterion } = path;
   return (
     <>
       <div className="parent">
-        <div className="n crumb">
-          <span>{feature.name}</span>
-          <ChevronRight size={12} aria-hidden />
-          <span>Behaviour</span>
-        </div>
+        <div className="n">Behaviour</div>
         <div className="parent-row">
           <b>{behaviour.label}</b>
           <RateText rate={behaviour.rate} className="score-val" />
@@ -623,6 +614,7 @@ function SpecificationResults({
       {label}
     </button>
   );
+  const path = picked(page.specification, state.selected);
   return (
     <section aria-labelledby="spec-title">
       <div className="sechead">
@@ -634,11 +626,11 @@ function SpecificationResults({
           behaviours. Skipped and errored results are not counted.
         </Tip>
         <div className="seg" role="group" aria-label="View">
-          {viewButton("list", "List", LIST_ICON)}
           {viewButton("tree", "Tree", TREE_ICON)}
+          {viewButton("list", "List", LIST_ICON)}
         </div>
       </div>
-      <div className="inv">
+      <div className={cn("inv", path && "picked")}>
         <div className="specview">
           {state.view === "list" ? (
             <SpecList
@@ -651,10 +643,7 @@ function SpecificationResults({
           )}
         </div>
         <aside className="panel quiet-scrollbar">
-          <CriterionPanel
-            path={picked(page.specification, state.selected)}
-            showCase={actions.showCase}
-          />
+          <CriterionPanel path={path} showCase={actions.showCase} />
         </aside>
       </div>
     </section>
@@ -754,7 +743,10 @@ function CaseResults({
             <thead>
               <tr>
                 <th className="stick fg" rowSpan={2} scope="col">
-                  Test case
+                  Persona
+                </th>
+                <th className="stick second fg" rowSpan={2} scope="col">
+                  Scenario
                 </th>
                 {table.groups.map((group) => (
                   <th
@@ -787,19 +779,30 @@ function CaseResults({
             </thead>
             <tbody>
               {table.rows.map((row) => (
+                // The button of the Persona cell is the control. A click on any part of the row
+                // comes to the row and does the same.
                 <tr
                   key={row.taskId}
                   className={row.taskId === shownCase ? "mark" : undefined}
+                  onClick={() => openCase(row.taskId)}
                 >
                   <th className="stick" scope="row">
                     <button
                       type="button"
                       className="case-toggle"
-                      onClick={() => openCase(row.taskId)}
+                      aria-label={`${row.persona}, ${row.scenario}`}
                     >
-                      <span className="case-name">
-                        <b>{row.persona}</b>
-                        <span className="n">{row.scenario}</span>
+                      <span className="case-name" title={row.persona}>
+                        {row.persona}
+                      </span>
+                    </button>
+                  </th>
+                  <td className="stick second">
+                    <span className="case-open">
+                      <span>
+                        <span className="case-name" title={row.scenario}>
+                          {row.scenario}
+                        </span>
                         {(row.skipped > 0 || row.errored > 0) && (
                           <span className="probs">
                             {row.skipped > 0 && (
@@ -811,8 +814,9 @@ function CaseResults({
                           </span>
                         )}
                       </span>
-                    </button>
-                  </th>
+                      <ChevronRight size={16} aria-hidden />
+                    </span>
+                  </td>
                   {row.cells.map((cell, index) => (
                     <Cell
                       key={columns[index]?.criterionId ?? index}
@@ -877,65 +881,6 @@ function UnmappedResults({ results }: { results: UnmappedResult[] }) {
   );
 }
 
-function RunDetailsSection({ details }: { details: RunDetails }) {
-  const none = <dd className="n">No result</dd>;
-  return (
-    <details className="run">
-      <summary>
-        Run details <Caret />
-      </summary>
-      <dl className="rd">
-        <div>
-          <dt>Run</dt>
-          <dd>{details.run}</dd>
-        </div>
-        <div>
-          <dt>Report date</dt>
-          {details.date ? <dd>{details.date}</dd> : none}
-        </div>
-        <div>
-          <dt>Plan</dt>
-          <dd className="parts">
-            <span>{details.personas} personas</span>
-            <span>{details.scenarios} scenarios</span>
-            <span>{details.trials} trials</span>
-          </dd>
-        </div>
-        <div>
-          <dt>Grading time</dt>
-          {details.gradingSeconds === null ? (
-            none
-          ) : (
-            <dd>{details.gradingSeconds.toFixed(1)} s</dd>
-          )}
-        </div>
-        <div>
-          <dt>Judge models</dt>
-          <dd className="parts">
-            {details.judgeModels.length > 0
-              ? details.judgeModels.map((model) => (
-                  <span key={model}>{model}</span>
-                ))
-              : "None"}
-          </dd>
-        </div>
-        <div>
-          <dt>Results without a criterion</dt>
-          <dd>{details.unmappedRecords}</dd>
-        </div>
-        <div>
-          <dt>Unresolved criteria</dt>
-          <dd>{details.unresolvedCriteria}</dd>
-        </div>
-        <div>
-          <dt>report.json</dt>
-          <dd>schema version {details.schemaVersion}</dd>
-        </div>
-      </dl>
-    </details>
-  );
-}
-
 // The sections for one state of the specification results. It has no hook, so a test can render
 // each state.
 export function ReportSections({
@@ -961,7 +906,6 @@ export function ReportSections({
         openCase={actions.openCase}
       />
       <UnmappedResults results={page.unmapped} />
-      <RunDetailsSection details={page.details} />
       {opened && (
         <CaseDrawer
           key={opened.taskId}
@@ -996,16 +940,22 @@ function ReadyReport({
     row.scrollIntoView({ behavior: "smooth", block: "center" });
     const box = row.closest<HTMLElement>(".results-scroll");
     const column = box?.querySelector<HTMLElement>("th[data-marked]");
-    const sticky = box?.querySelector<HTMLElement>("thead .stick");
     if (!box || !column) return;
+    const sticky = [
+      ...box.querySelectorAll<HTMLElement>("thead .stick"),
+    ].reduce((width, cell) => width + cell.offsetWidth, 0);
     box.scrollTo({
-      left: Math.max(
-        0,
-        column.offsetLeft - (sticky?.offsetWidth ?? 0) - 2 * column.offsetWidth,
-      ),
+      left: Math.max(0, column.offsetLeft - sticky - 2 * column.offsetWidth),
       behavior: "smooth",
     });
   }, [shows]);
+  // The Criterion boxes are the last column of the tree. When the tree is wider than its area,
+  // this brings them into view after the user opens a Behaviour or picks a Criterion.
+  useEffect(() => {
+    if (state.openBehaviours.size === 0 && state.selected === null) return;
+    const tree = root.current?.querySelector<HTMLElement>(".treewrap");
+    tree?.scrollTo({ left: tree.scrollWidth, behavior: "smooth" });
+  }, [state.openBehaviours, state.selected, state.view]);
   const actions: SpecActions = {
     show: (view) => setState((now) => ({ ...now, view })),
     toggleFeature: (id) =>
