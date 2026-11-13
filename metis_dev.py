@@ -85,7 +85,10 @@ def site_services() -> list[Service]:
             [npm, "--prefix", str(REPO_ROOT / "website"), "start"],
             ready_url="http://127.0.0.1:3000/metis/docs/",
         ),
-        Service("landing", [pnpm, "--dir", str(REPO_ROOT / "website" / "landing-page"), "dev"]),
+        Service(
+            "landing",
+            [pnpm, "--dir", str(REPO_ROOT / "website" / "landing-page"), "dev"],
+        ),
     ]
 
 
