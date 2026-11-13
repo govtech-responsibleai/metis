@@ -106,8 +106,11 @@ in the same layout: the score, the results for each Feature, Behaviour and Crite
 for each test case, and the run details. The specification results have a **List** view and a
 **Tree** view. Open a Behaviour and select a Criterion to see its Grader, its pass mark and its
 test cases in the panel. The tab is off until `metis engine evaluate` is done for the experiment,
-and a finished experiment opens on it. Select a test case in the table or in the panel to open
-its trials. The **report.html** button downloads the same page that `metis insights report`
+and a finished experiment opens on it. Select a test case in the panel to go to its row in the
+table. The table marks that row and the cell of the Criterion. Select a test case in the table
+to open its trials in a drawer. The drawer shows the pass rate and the 95% range of each
+Criterion, the trials, and for the trial that you select its conversation and what each Grader
+returned. The **report.html** button downloads the same page that `metis insights report`
 writes.
 
 The Trials tab, the comparison and the list of all experiments do not show experiments yet. Each

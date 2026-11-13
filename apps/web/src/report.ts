@@ -152,10 +152,53 @@ export interface CaseCell {
   interval: { lower: number; upper: number } | null;
 }
 
+// One result that a Grader returned for a Criterion in a trial.
+export interface GraderResult {
+  outcome: Outcome;
+  score: number | null;
+  reason: string;
+  // The named numbers of the result, each from 0 to 1.
+  measurements: Array<{ name: string; value: number }>;
+  // The lowest score that passes. Null when the Grader has no threshold.
+  passMark: number | null;
+}
+
+export interface TrialCriterion {
+  criterionId: string;
+  name: string;
+  outcome: Outcome;
+  results: GraderResult[];
+}
+
+export interface Turn {
+  turn: number;
+  // Null when the trial has no record of the message.
+  user: string | null;
+  target: string | null;
+  errors: string[];
+}
+
+export interface TrialDetail {
+  index: number;
+  // How the trial ended: "succeeded", "abandoned", "error" or "timedOut".
+  category: string;
+  // Why a trial ended early.
+  message: string;
+  failureSource: string;
+  attempt: number;
+  turns: Turn[];
+  conversationProblem: string | null;
+  // One entry for each Criterion that has an outcome in the trial.
+  criteria: TrialCriterion[];
+}
+
 export interface CaseRow {
   taskId: string;
   persona: string;
   scenario: string;
+  // The description of the Scenario.
+  description: string;
+  trials: TrialDetail[];
   skipped: number;
   errored: number;
   // One entry for each column of the groups, in the same order. Null is a test case with no
@@ -280,6 +323,68 @@ function criterionCases(report: Report, id: string): CriterionCase[] {
   });
 }
 
+const MEASUREMENT: Record<string, string> = {
+  applicable: "Applicable",
+  satisfied: "Satisfied",
+};
+
+function measurementName(key: string): string {
+  return (
+    MEASUREMENT[key] ??
+    key.replace(/_/g, " ").replace(/^./, (first) => first.toUpperCase())
+  );
+}
+
+function trialDetails(report: Report, row: Row): TrialDetail[] {
+  return (row.trials ?? []).map((trial) => ({
+    index: trial.trial_index,
+    category: trial.category,
+    message: trial.message || trial.stopReason,
+    failureSource: trial.failureSource,
+    attempt: trial.attempt,
+    turns: (trial.conversation ?? []).map((turn) => ({
+      turn: turn.turn,
+      user: turn.user || null,
+      target:
+        !turn.target || /^\[unreadable: missing/.test(turn.target)
+          ? null
+          : turn.target,
+      errors: turn.errors ?? [],
+    })),
+    conversationProblem: trial.conversationProblem ?? null,
+    criteria: Object.entries(trial.results ?? {}).flatMap(([id, counts]) => {
+      const outcome = outcomeOf(counts);
+      if (!outcome) return [];
+      const evidence = (report.criteria[id]?.evidence ?? [])
+        .filter(
+          (item) =>
+            item.task_id === row.task_id &&
+            item.trial_index === trial.trial_index,
+        )
+        .sort((a, b) => a.result_number - b.result_number);
+      return [
+        {
+          criterionId: id,
+          name: report.criteria[id]?.name ?? id,
+          outcome,
+          results: evidence.map((item) => {
+            const threshold = item.grader_args?.threshold;
+            return {
+              outcome: item.outcome,
+              score: item.score ?? null,
+              reason: item.message,
+              measurements: Object.entries(item.measurements ?? {}).map(
+                ([key, value]) => ({ name: measurementName(key), value }),
+              ),
+              passMark: typeof threshold === "number" ? threshold : null,
+            };
+          }),
+        },
+      ];
+    }),
+  }));
+}
+
 function specificationResults(report: Report): FeatureResult[] {
   const target = report.passRateTarget;
   const criterion = (id: string): CriterionResult | undefined => {
@@ -345,6 +450,8 @@ function caseTable(report: Report): CaseTable {
       taskId: row.task_id,
       persona: personaOf(report, row),
       scenario: scenarioOf(report, row),
+      description: report.describe.S?.[row.scenario] ?? "",
+      trials: trialDetails(report, row),
       skipped: counted.reduce((sum, result) => sum + result.skip, 0),
       errored: counted.reduce((sum, result) => sum + result.error, 0),
       cells: columns.map(({ criterionId }) => {

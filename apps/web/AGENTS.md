@@ -23,8 +23,10 @@ load, and `ExperimentView` draws one load state, so a test can render each state
 The Report tab has the layout of `report.html`. `src/report.css` follows `REPORT_CSS` in
 `packages/insights/src/metis/insights/_report_styles.py` with the same class names, and makes each
 colour from a token of `globals.css`. When the layout of `report.html` changes, change
-`ReportTab.tsx` and `report.css` to match. The tab has no trial drawer: a test case links to the
-Trials tab. `ReportSections` draws one state of the list, the tree and the Criterion panel, so a
+`ReportTab.tsx` and `report.css` to match. A test case of the Criterion panel moves the page to its
+row in the table. A test case of the table opens the trial drawer (`CaseDrawer.tsx`), which is
+the drawer of `report.html` inside the `Modal` of `ui.tsx`. `CaseDrawerView` draws one state of
+the drawer. `ReportSections` draws one state of the list, the tree and the Criterion panel, so a
 test can render each state.
 
 The YAML view of the Profile pane sends `exportedSpecification(state)` (`src/export.ts`) to the

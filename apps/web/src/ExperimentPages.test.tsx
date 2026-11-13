@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { CaseDrawerView, DRAWER_START, type DrawerState } from "./CaseDrawer";
 import { ExperimentView } from "./ExperimentPages";
 import { at, control, tab, text } from "./markup.test-helper";
 import { experimentScreen, type ReportLoad, type ReportPage } from "./report";
@@ -100,6 +101,69 @@ const PAGE: ReportPage = {
         taskId: "case 1",
         persona: "New customer",
         scenario: "Opens an account",
+        description: "A new customer opens an account.",
+        trials: [
+          {
+            index: 1,
+            category: "succeeded",
+            message: "",
+            failureSource: "",
+            attempt: 1,
+            turns: [
+              { turn: 1, user: "Hello", target: "Good morning.", errors: [] },
+              { turn: 2, user: "Open an account", target: null, errors: [] },
+            ],
+            conversationProblem: null,
+            criteria: [
+              {
+                criterionId: "c1",
+                name: "Says hello",
+                outcome: "passed",
+                results: [
+                  {
+                    outcome: "passed",
+                    score: 0.75,
+                    reason: "The reply starts with a greeting.",
+                    measurements: [{ name: "Satisfied", value: 0.75 }],
+                    passMark: 0.5,
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            index: 2,
+            category: "timedOut",
+            message: "The Target did not answer.",
+            failureSource: "target",
+            attempt: 2,
+            turns: [],
+            conversationProblem: "The trace is not complete",
+            criteria: [
+              {
+                criterionId: "c1",
+                name: "Says hello",
+                outcome: "failed",
+                results: [
+                  {
+                    outcome: "failed",
+                    score: null,
+                    reason: "The reply has no greeting.",
+                    measurements: [],
+                    passMark: null,
+                  },
+                  {
+                    outcome: "failed",
+                    score: 0,
+                    reason: "",
+                    measurements: [],
+                    passMark: null,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
         skipped: 0,
         errored: 0,
         cells: [
@@ -118,6 +182,8 @@ const PAGE: ReportPage = {
         taskId: "case 2",
         persona: "Old customer",
         scenario: "Closes an account",
+        description: "",
+        trials: [],
         skipped: 2,
         errored: 1,
         cells: [
@@ -163,6 +229,9 @@ function sections(state: Partial<SpecState> = {}, page = PAGE): string {
         toggleFeature: () => {},
         toggleBehaviour: () => {},
         select: () => {},
+        showCase: () => {},
+        openCase: () => {},
+        closeCase: () => {},
       }}
       caseHref={(taskId) => paths.testCase("a", "e1", taskId)}
     />,
@@ -323,14 +392,29 @@ test("a picked Criterion shows its panel and marks its column", () => {
     /GraderGreetingGraderJudge modelmodel amodel bPass markScore ≥ 0\.50Mean score0\.75Criterion IDc1/,
   );
   assert.match(shown, /case 1New customerOpens an account50%/);
-  assert.ok(
-    control(markup, "case 1").includes(
-      ` href="${paths.testCase("a", "e1", "case 1")}"`,
-    ),
-  );
   assert.match(markup, /title="Trial 2: Failed"/);
   assert.match(markup, /<th class="crit mark"[^>]*><span>Says hello</);
   assert.match(markup, /<th class="crit"[^>]*><span>Asks for proof</);
+  assert.doesNotMatch(markup, /<tr class="mark">/);
+});
+
+test("a test case of the panel marks its row and its cell in the results table", () => {
+  const markup = sections({
+    openBehaviours: new Set(["b1"]),
+    selected: "c1",
+    shownCase: "case 1",
+  });
+
+  assert.match(
+    markup,
+    /<tr class="mark"><th class="stick"[^>]*><button[^>]*><span class="case-name"><b>New customer</,
+  );
+  assert.match(
+    markup,
+    /<td class="cell scaled hit"[^>]*aria-label="Says hello:/,
+  );
+  assert.equal(markup.match(/<tr class="mark">/g)?.length, 1);
+  assert.equal(markup.match(/ hit"/g)?.length, 1);
 });
 
 test("a Criterion with no threshold, score or judge model says so", () => {
@@ -360,14 +444,111 @@ test("the tree view shows the Target, each Feature and each open level", () => {
   assert.doesNotMatch(shown, /Says hello100%/);
 });
 
-test("a test case links to its trials in the Trials tab", () => {
-  const markup = view("report", READY);
+// The trial drawer of one test case of the report.
+function drawer(
+  state: Partial<DrawerState> = {},
+  marked: string | null = null,
+  row = PAGE.cases.rows[0]!,
+): string {
+  return at(
+    paths.experiment("a", "e1", "report"),
+    <CaseDrawerView
+      row={row}
+      columns={PAGE.cases.groups.flatMap((group) => group.columns)}
+      target={PAGE.score.target}
+      targetName={PAGE.target}
+      marked={marked}
+      trialsHref={paths.testCase("a", "e1", row.taskId)}
+      state={{ ...DRAWER_START, ...state }}
+      onTrial={() => {}}
+      onTab={() => {}}
+      onClose={() => {}}
+    />,
+  );
+}
 
+test("a test case of the results table is a button that opens the trial drawer", () => {
+  assert.match(
+    control(sections(), "New customer"),
+    /^<button type="button" class="case-toggle"/,
+  );
+});
+
+test("the trial drawer shows the test case, the range of each Criterion and the trials", () => {
+  const markup = drawer();
+  const shown = text(markup);
+
+  assert.match(
+    shown,
+    /Results by test caseNew customerOpens an accountOpen in the Trials tab/,
+  );
   assert.ok(
-    control(markup, "New customer").includes(
+    control(markup, "Open in the Trials tab").includes(
       ` href="${paths.testCase("a", "e1", "case 1")}"`,
     ),
   );
+  assert.match(shown, /A new customer opens an account\./);
+  assert.match(shown, /0%25%50%100%80% target/);
+  assert.match(shown, /Says hello50%21 to 79%2 of 4 passed/);
+  assert.doesNotMatch(shown, /Asks for proof/);
+  assert.match(
+    shown,
+    /TrialSays helloReached its goalTrial 1HelloReached its goal2 turnsPassedTimed outTrial 2/,
+  );
+  assert.match(
+    shown,
+    /Trial 2No conversation was recorded\.Timed out: The Target did not answer\.Retried, attempt 2Failed/,
+  );
+  assert.match(control(markup, "Trial 1"), /aria-pressed="true"/);
+  assert.match(control(markup, "Trial 2"), /aria-pressed="false"/);
+});
+
+test("the trial drawer starts on the first trial with its conversation and its grader results", () => {
+  const shown = text(drawer());
+
+  assert.match(
+    shown,
+    /Trial 1Turn 1UserHelloBank botGood morning\.Turn 2UserOpen an accountBank botNo reply recorded/,
+  );
+  assert.match(
+    shown,
+    /What the graders returnedPassedSays helloScore 0\.75Pass mark ≥ 0\.50Satisfied0\.75The reply starts with a greeting\./,
+  );
+  assert.doesNotMatch(shown, /Ended early/);
+});
+
+test("a trial that ended early says why, and each of its grader results has a number", () => {
+  const markup = drawer({ trial: 2 });
+  const shown = text(markup);
+
+  assert.match(
+    shown,
+    /Trial 2Ended early\. Timed out: The Target did not answer\. Source: Target\. Retried, attempt 2\./,
+  );
+  assert.match(
+    shown,
+    /No conversation was recorded for this trial\. The trace is not complete\./,
+  );
+  assert.match(
+    shown,
+    /Says helloResult 1: The reply has no greeting\.Result 2: \{\s+&quot;outcome&quot;: &quot;failed&quot;,\s+&quot;score&quot;: 0\s+\}/,
+  );
+  assert.match(control(markup, "Trial 2"), /aria-pressed="true"/);
+});
+
+test("the trial drawer marks the picked Criterion", () => {
+  const markup = drawer({}, "c1");
+
+  assert.match(markup, /<div class="ci-row mark">/);
+  assert.match(markup, /<th class="cc mark"/);
+  assert.match(markup, /<div class="why-row mark">/);
+});
+
+test("a test case with no trial record says so", () => {
+  const shown = text(drawer({}, null, PAGE.cases.rows[1]!));
+
+  assert.match(shown, /Asks for proofNo resultNo result0 of 0 passed/);
+  assert.match(shown, /No trial record was found for this test case\./);
 });
 
 test("a cell says its counts and its range to a screen reader", () => {

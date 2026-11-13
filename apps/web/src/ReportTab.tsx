@@ -1,17 +1,19 @@
 // The Report tab of an experiment. It has the sections of report.html from `metis insights report`
 // and the same layout: the score, the results for each Feature, Behaviour and Criterion as a list
 // or a tree with a panel for one Criterion, the results for each test case, and the run details.
-// `report.css` has the rules. Every number comes from `reportPage` in `report.ts`. The trials of a
-// test case are in the Trials tab, so this tab has no trial drawer.
+// `report.css` has the rules. Every number comes from `reportPage` in `report.ts`. A test case of
+// the results table opens the trial drawer (`CaseDrawer.tsx`).
 
-import { ArrowRight, ChevronRight, Download } from "lucide-react";
+import { ArrowDown, ChevronRight, Download } from "lucide-react";
 import {
+  useEffect,
+  useRef,
   useState,
   type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { Link } from "wouter";
+import { CaseDrawer } from "./CaseDrawer";
 import { saveFile } from "./download";
 import type {
   BehaviourRate,
@@ -19,54 +21,20 @@ import type {
   CaseTable,
   CriterionResult,
   FeatureResult,
-  Outcome,
   ReportLoad,
   ReportPage,
   RunDetails,
   ScoreFacts,
   UnmappedResult,
 } from "./report";
+import { OUTCOME, RateText, Tip } from "./ReportParts";
 import { paths } from "./routes";
 import { api } from "./transport/api";
 import { Button, cn, Mono } from "./ui";
 
 const QUIET = "text-sm text-muted-foreground";
 
-const OUTCOME: Record<Outcome, string> = {
-  passed: "Passed",
-  failed: "Failed",
-  skipped: "Skipped",
-  errored: "Errored",
-};
-
 const isLow = (rate: BehaviourRate) => rate.kind === "measured" && rate.low;
-
-// A rate, or the words for a missing rate. `className` is the class of report.html for the place.
-function RateText({
-  rate,
-  className,
-}: {
-  rate: BehaviourRate;
-  className: string;
-}) {
-  if (rate.kind !== "measured")
-    return (
-      <span className={cn(className, "none")}>
-        {rate.kind === "no-result" ? "No result" : "Not measured"}
-      </span>
-    );
-  return (
-    <span className={cn(className, rate.low && "low")}>{rate.percent}%</span>
-  );
-}
-
-function Tip({ children }: { children: ReactNode }) {
-  return (
-    <span className="ibtn" tabIndex={0} aria-label="About this">
-      i<span className="tip">{children}</span>
-    </span>
-  );
-}
 
 function Caret() {
   return (
@@ -147,6 +115,10 @@ export interface SpecState {
   openBehaviours: ReadonlySet<string>;
   // The id of the picked Criterion.
   selected: string | null;
+  // The id of the test case that the results table marks.
+  shownCase: string | null;
+  // The id of the test case that the trial drawer shows.
+  openCase: string | null;
 }
 
 // Features start open and Behaviours start closed, as in report.html.
@@ -155,6 +127,8 @@ export const SPEC_START: SpecState = {
   closedFeatures: new Set(),
   openBehaviours: new Set(),
   selected: null,
+  shownCase: null,
+  openCase: null,
 };
 
 export interface SpecActions {
@@ -162,6 +136,10 @@ export interface SpecActions {
   toggleFeature: (id: string) => void;
   toggleBehaviour: (id: string) => void;
   select: (criterionId: string) => void;
+  // Mark one test case of the picked Criterion in the results table.
+  showCase: (taskId: string) => void;
+  openCase: (taskId: string) => void;
+  closeCase: () => void;
 }
 
 function toggled(set: ReadonlySet<string>, id: string): ReadonlySet<string> {
@@ -497,10 +475,10 @@ function SpecTree({
 
 function CriterionPanel({
   path,
-  caseHref,
+  showCase,
 }: {
   path: ReturnType<typeof picked>;
-  caseHref: (taskId: string) => string;
+  showCase: (taskId: string) => void;
 }) {
   if (!path)
     return (
@@ -558,13 +536,16 @@ function CriterionPanel({
         <dd className="mono id">{criterion.id}</dd>
       </dl>
       <b>By test case</b>
-      <p className="n by-case">Click a test case to open its trials.</p>
+      <p className="n by-case">
+        Click a test case to see it in the results table.
+      </p>
       {criterion.cases.map((testCase) => (
-        <Link
+        <button
           key={testCase.taskId}
-          href={caseHref(testCase.taskId)}
+          type="button"
           className="tc"
-          title="Open the trials of this test case"
+          title="Show this test case in the results table"
+          onClick={() => showCase(testCase.taskId)}
         >
           <span>
             <b>{testCase.taskId}</b>
@@ -581,8 +562,8 @@ function CriterionPanel({
             ))}
           </span>
           <RateText rate={testCase.rate} className="score-val" />
-          <ArrowRight size={14} aria-hidden className="arrow" />
-        </Link>
+          <ArrowDown size={14} aria-hidden className="arrow" />
+        </button>
       ))}
     </>
   );
@@ -627,12 +608,10 @@ function SpecificationResults({
   page,
   state,
   actions,
-  caseHref,
 }: {
   page: ReportPage;
   state: SpecState;
   actions: SpecActions;
-  caseHref: (taskId: string) => string;
 }) {
   const viewButton = (id: SpecView, label: string, icon: ReactNode) => (
     <button
@@ -674,7 +653,7 @@ function SpecificationResults({
         <aside className="panel quiet-scrollbar">
           <CriterionPanel
             path={picked(page.specification, state.selected)}
-            caseHref={caseHref}
+            showCase={actions.showCase}
           />
         </aside>
       </div>
@@ -693,7 +672,16 @@ function scaleStyle(percent: number): CSSProperties {
   } as CSSProperties;
 }
 
-function Cell({ cell, name }: { cell: CaseCell | null; name: string }) {
+function Cell({
+  cell,
+  name,
+  hit,
+}: {
+  cell: CaseCell | null;
+  name: string;
+  // The cell of the marked test case in the column of the picked Criterion.
+  hit: boolean;
+}) {
   if (!cell) return <td className="cell" />;
   const counts = [
     `${cell.passed} passed`,
@@ -706,13 +694,16 @@ function Cell({ cell, name }: { cell: CaseCell | null; name: string }) {
     : null;
   if (cell.rate.kind !== "measured")
     return (
-      <td className="cell none" aria-label={`${name}: ${counts}`}>
+      <td
+        className={cn("cell none", hit && "hit")}
+        aria-label={`${name}: ${counts}`}
+      >
         No result
       </td>
     );
   return (
     <td
-      className="cell scaled"
+      className={cn("cell scaled", hit && "hit")}
       style={scaleStyle(cell.rate.percent)}
       aria-label={`${name}: ${counts}${range ? `. 95% range: ${range}` : ""}`}
     >
@@ -725,12 +716,15 @@ function Cell({ cell, name }: { cell: CaseCell | null; name: string }) {
 function CaseResults({
   table,
   marked,
-  caseHref,
+  shownCase,
+  openCase,
 }: {
   table: CaseTable;
   // The id of the picked Criterion. Its column has the accent colour.
   marked: string | null;
-  caseHref: (taskId: string) => string;
+  // The id of the marked test case. Its row has the accent colour.
+  shownCase: string | null;
+  openCase: (taskId: string) => void;
 }) {
   const columns = table.groups.flatMap((group) => group.columns);
   return (
@@ -784,6 +778,7 @@ function CaseResults({
                     )}
                     scope="col"
                     title={column.label}
+                    data-marked={column.criterionId === marked || undefined}
                   >
                     <span>{column.label}</span>
                   </th>
@@ -792,9 +787,16 @@ function CaseResults({
             </thead>
             <tbody>
               {table.rows.map((row) => (
-                <tr key={row.taskId}>
+                <tr
+                  key={row.taskId}
+                  className={row.taskId === shownCase ? "mark" : undefined}
+                >
                   <th className="stick" scope="row">
-                    <Link href={caseHref(row.taskId)} className="case-toggle">
+                    <button
+                      type="button"
+                      className="case-toggle"
+                      onClick={() => openCase(row.taskId)}
+                    >
                       <span className="case-name">
                         <b>{row.persona}</b>
                         <span className="n">{row.scenario}</span>
@@ -809,13 +811,17 @@ function CaseResults({
                           </span>
                         )}
                       </span>
-                    </Link>
+                    </button>
                   </th>
                   {row.cells.map((cell, index) => (
                     <Cell
                       key={columns[index]?.criterionId ?? index}
                       cell={cell}
                       name={columns[index]?.label ?? ""}
+                      hit={
+                        row.taskId === shownCase &&
+                        columns[index]?.criterionId === marked
+                      }
                     />
                   ))}
                 </tr>
@@ -943,22 +949,31 @@ export function ReportSections({
   actions: SpecActions;
   caseHref: (taskId: string) => string;
 }) {
+  const opened = page.cases.rows.find((row) => row.taskId === state.openCase);
   return (
     <div className="report">
       <Score score={page.score} />
-      <SpecificationResults
-        page={page}
-        state={state}
-        actions={actions}
-        caseHref={caseHref}
-      />
+      <SpecificationResults page={page} state={state} actions={actions} />
       <CaseResults
         table={page.cases}
         marked={state.selected}
-        caseHref={caseHref}
+        shownCase={state.shownCase}
+        openCase={actions.openCase}
       />
       <UnmappedResults results={page.unmapped} />
       <RunDetailsSection details={page.details} />
+      {opened && (
+        <CaseDrawer
+          key={opened.taskId}
+          row={opened}
+          columns={page.cases.groups.flatMap((group) => group.columns)}
+          target={page.score.target}
+          targetName={page.target}
+          marked={state.selected}
+          trialsHref={caseHref(opened.taskId)}
+          onClose={actions.closeCase}
+        />
+      )}
     </div>
   );
 }
@@ -971,6 +986,26 @@ function ReadyReport({
   caseHref: (taskId: string) => string;
 }) {
   const [state, setState] = useState(SPEC_START);
+  const root = useRef<HTMLDivElement>(null);
+  // Each click on a test case of the panel moves the page, also a second click on the same one.
+  const [shows, setShows] = useState(0);
+  useEffect(() => {
+    if (shows === 0) return;
+    const row = root.current?.querySelector<HTMLElement>(".rt tr.mark");
+    if (!row) return;
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    const box = row.closest<HTMLElement>(".results-scroll");
+    const column = box?.querySelector<HTMLElement>("th[data-marked]");
+    const sticky = box?.querySelector<HTMLElement>("thead .stick");
+    if (!box || !column) return;
+    box.scrollTo({
+      left: Math.max(
+        0,
+        column.offsetLeft - (sticky?.offsetWidth ?? 0) - 2 * column.offsetWidth,
+      ),
+      behavior: "smooth",
+    });
+  }, [shows]);
   const actions: SpecActions = {
     show: (view) => setState((now) => ({ ...now, view })),
     toggleFeature: (id) =>
@@ -983,15 +1018,25 @@ function ReadyReport({
         ...now,
         openBehaviours: toggled(now.openBehaviours, id),
       })),
-    select: (selected) => setState((now) => ({ ...now, selected })),
+    select: (selected) =>
+      setState((now) => ({ ...now, selected, shownCase: null })),
+    showCase: (shownCase) => {
+      setState((now) => ({ ...now, shownCase }));
+      setShows((count) => count + 1);
+    },
+    openCase: (openCase) =>
+      setState((now) => ({ ...now, openCase, shownCase: null })),
+    closeCase: () => setState((now) => ({ ...now, openCase: null })),
   };
   return (
-    <ReportSections
-      page={page}
-      state={state}
-      actions={actions}
-      caseHref={caseHref}
-    />
+    <div ref={root} className="contents">
+      <ReportSections
+        page={page}
+        state={state}
+        actions={actions}
+        caseHref={caseHref}
+      />
+    </div>
   );
 }
 

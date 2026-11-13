@@ -64,6 +64,7 @@ function report(overrides: Partial<Report> = {}): Report {
       ],
     },
     names: { P: { p1: "New customer" }, S: { s1: "Opens an account" } },
+    describe: { S: { s1: "A new customer opens an account." } },
     features: [
       {
         ...counts,
@@ -440,6 +441,123 @@ test("a Criterion lists its test cases with the outcome of each trial", () => {
         { index: 2, outcome: "failed" },
         { index: 3, outcome: "errored" },
         { index: 4, outcome: "skipped" },
+      ],
+    },
+  ]);
+});
+
+test("a test case has the description of its Scenario and the detail of each trial", () => {
+  const row = reportPage(
+    report({
+      criteria: {
+        c1: criterion({
+          evidence: [
+            {
+              task_id: "t1",
+              trial_index: 1,
+              result_number: 2,
+              outcome: "failed",
+              score: null,
+              message: "",
+              measurements: null,
+            },
+            {
+              task_id: "t1",
+              trial_index: 1,
+              result_number: 1,
+              outcome: "failed",
+              score: 0.25,
+              message: "The reply has no greeting.",
+              measurements: { answer_relevance: 0.5, satisfied: 0 },
+              grader_args: { threshold: 0.5 },
+            },
+            {
+              task_id: "t1",
+              trial_index: 2,
+              result_number: 1,
+              outcome: "passed",
+              message: "",
+            },
+          ],
+        } as unknown as Partial<Criterion>),
+        c3: criterion({ name: "Asks for proof" }),
+      },
+      resultTable: {
+        ...report().resultTable,
+        rows: [
+          {
+            task_id: "t1",
+            persona: "p1",
+            scenario: "s1",
+            results: { c1: result({}) },
+            trials: [
+              {
+                trial_index: 1,
+                category: "timedOut",
+                message: "",
+                stopReason: "The Target did not answer.",
+                failureSource: "target",
+                attempt: 2,
+                conversation: [
+                  { turn: 1, user: "Hello", target: "" },
+                  {
+                    turn: 2,
+                    user: "",
+                    target: "[unreadable: missing reply]",
+                    errors: ["The request failed."],
+                  },
+                ],
+                conversationProblem: "The trace is not complete",
+                results: {
+                  c1: { ...counts, fail: 2 },
+                  c3: { ...counts },
+                },
+              },
+            ],
+          },
+        ],
+      },
+    } as unknown as Partial<Report>),
+  ).cases.rows[0];
+
+  assert.equal(row?.description, "A new customer opens an account.");
+  assert.deepEqual(row?.trials, [
+    {
+      index: 1,
+      category: "timedOut",
+      message: "The Target did not answer.",
+      failureSource: "target",
+      attempt: 2,
+      turns: [
+        { turn: 1, user: "Hello", target: null, errors: [] },
+        { turn: 2, user: null, target: null, errors: ["The request failed."] },
+      ],
+      conversationProblem: "The trace is not complete",
+      criteria: [
+        {
+          criterionId: "c1",
+          name: "Says hello",
+          outcome: "failed",
+          results: [
+            {
+              outcome: "failed",
+              score: 0.25,
+              reason: "The reply has no greeting.",
+              measurements: [
+                { name: "Answer relevance", value: 0.5 },
+                { name: "Satisfied", value: 0 },
+              ],
+              passMark: 0.5,
+            },
+            {
+              outcome: "failed",
+              score: null,
+              reason: "",
+              measurements: [],
+              passMark: null,
+            },
+          ],
+        },
       ],
     },
   ]);
