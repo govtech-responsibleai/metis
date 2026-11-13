@@ -9,7 +9,6 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING
 
-from metis.core import Status
 from metis.core import __version__ as core_version
 from metis.library.taxonomy import MEASURE_DIMENSIONS
 from metis.wizard.application import (
@@ -182,7 +181,6 @@ __all__ = [
     "SpecificationArchive",
     "SpecificationFixture",
     "SpecificationError",
-    "Status",
     "TargetConnection",
     "UserResponse",
     "WizardRequest",

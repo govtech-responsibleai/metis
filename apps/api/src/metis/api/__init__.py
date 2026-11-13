@@ -6,7 +6,6 @@ JSON and status codes and holds no user state. Every wizard rule stays inside me
 
 from importlib.metadata import PackageNotFoundError, version
 
-from metis.core import Status
 from metis.core import __version__ as core_version
 
 try:
@@ -14,4 +13,4 @@ try:
 except PackageNotFoundError:
     __version__ = "0.0.0.dev0"
 
-__all__ = ["Status", "__version__", "core_version"]
+__all__ = ["__version__", "core_version"]
