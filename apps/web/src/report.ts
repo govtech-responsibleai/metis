@@ -203,8 +203,8 @@ export interface CaseRow {
   taskId: string;
   persona: string;
   scenario: string;
-  // The description of the Scenario.
-  description: string;
+  personaDescription: string;
+  scenarioDescription: string;
   trials: TrialDetail[];
   skipped: number;
   errored: number;
@@ -449,7 +449,8 @@ function caseTable(report: Report): CaseTable {
       taskId: row.task_id,
       persona: personaOf(report, row),
       scenario: scenarioOf(report, row),
-      description: report.describe.S?.[row.scenario] ?? "",
+      personaDescription: report.describe.P?.[row.persona] ?? "",
+      scenarioDescription: report.describe.S?.[row.scenario] ?? "",
       trials: trialDetails(report, row),
       skipped: counted.reduce((sum, result) => sum + result.skip, 0),
       errored: counted.reduce((sum, result) => sum + result.error, 0),

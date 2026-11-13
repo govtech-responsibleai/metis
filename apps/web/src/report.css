@@ -481,7 +481,7 @@
   display: block;
 }
 .report .q.passed {
-  background: var(--faint);
+  background: var(--green);
 }
 .report .q.failed {
   background: var(--red);
@@ -520,10 +520,15 @@
 .report .results-scroll {
   overflow: auto;
   max-height: 640px;
+  /* The room that a small table does not fill is grey, as the area of the tree is. */
+  background: var(--tree);
   border: 1px solid var(--line);
   border-radius: 8px;
 }
 .report table.rt {
+  /* The widths of the ID column and of the Persona and Scenario columns, which stay in place. */
+  --id-width: 88px;
+  --name-width: 220px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 14px;
@@ -598,14 +603,34 @@
   z-index: 2;
   padding-top: 6px;
   padding-bottom: 6px;
-  width: 220px;
-  min-width: 220px;
-  max-width: 220px;
+  width: var(--name-width);
+  min-width: var(--name-width);
+  max-width: var(--name-width);
   box-shadow: 1px 0 0 var(--line);
   font-weight: 400;
 }
+.report .rt .stick.id {
+  width: var(--id-width);
+  min-width: var(--id-width);
+  max-width: var(--id-width);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font:
+    13px var(--font-mono),
+    monospace;
+  color: var(--quiet);
+}
+.report .rt thead .stick.id {
+  font:
+    600 13px var(--font-sans),
+    sans-serif;
+}
+.report .rt .stick.first {
+  left: var(--id-width);
+}
 .report .rt .stick.second {
-  left: 220px;
+  left: calc(var(--id-width) + var(--name-width));
 }
 .report .rt tbody tr {
   cursor: pointer;
@@ -821,15 +846,17 @@
   overflow: auto;
   padding: 18px 22px 28px;
 }
-/* The Persona and the Scenario are side by side. The description of the Scenario is below it. */
+/* The Persona and the Scenario are side by side, each with its description. */
 .report .dm-head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 4px 32px;
   margin-bottom: 12px;
 }
-.report .dm-names {
-  display: contents;
+.report .drawer-head .case-id {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
 }
 .report .dm-head h3 {
   font-size: 17px;
@@ -837,8 +864,7 @@
   line-height: 1.3;
 }
 .report .dm-head p {
-  grid-column: 2;
-  max-width: 760px;
+  margin-top: 4px;
 }
 .report .dm-sec {
   display: flex;
@@ -1095,6 +1121,14 @@
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
   gap: 28px;
 }
+/* The grader results stay in view while the conversation scrolls. */
+.report .verdicts {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+}
 .report .verdicts h4 {
   margin-bottom: 8px;
   font-size: 13px;
@@ -1266,6 +1300,13 @@
   .report .split {
     grid-template-columns: 1fr;
   }
+  .report .verdicts {
+    position: static;
+    max-height: none;
+  }
+  .report .dm-head {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 1000px) {
@@ -1292,6 +1333,10 @@
   .report .score .facts {
     min-width: 0;
     width: 100%;
+  }
+  .report table.rt {
+    --id-width: 64px;
+    --name-width: 140px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -64,7 +64,10 @@ function report(overrides: Partial<Report> = {}): Report {
       ],
     },
     names: { P: { p1: "New customer" }, S: { s1: "Opens an account" } },
-    describe: { S: { s1: "A new customer opens an account." } },
+    describe: {
+      P: { p1: "A person with no account." },
+      S: { s1: "A new customer opens an account." },
+    },
     features: [
       {
         ...counts,
@@ -464,7 +467,7 @@ test("a Criterion lists its test cases with the outcome of each trial", () => {
   ]);
 });
 
-test("a test case has the description of its Scenario and the detail of each trial", () => {
+test("a test case has the descriptions of its Persona and Scenario and the detail of each trial", () => {
   const row = reportPage(
     report({
       criteria: {
@@ -538,7 +541,8 @@ test("a test case has the description of its Scenario and the detail of each tri
     } as unknown as Partial<Report>),
   ).cases.rows[0];
 
-  assert.equal(row?.description, "A new customer opens an account.");
+  assert.equal(row?.personaDescription, "A person with no account.");
+  assert.equal(row?.scenarioDescription, "A new customer opens an account.");
   assert.deepEqual(row?.trials, [
     {
       index: 1,

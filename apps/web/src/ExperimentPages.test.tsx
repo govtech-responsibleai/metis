@@ -101,7 +101,8 @@ const PAGE: ReportPage = {
         taskId: "case 1",
         persona: "New customer",
         scenario: "Opens an account",
-        description: "A new customer opens an account.",
+        personaDescription: "A person with no account.",
+        scenarioDescription: "A new customer opens an account.",
         trials: [
           {
             index: 1,
@@ -182,7 +183,8 @@ const PAGE: ReportPage = {
         taskId: "case 2",
         persona: "Old customer",
         scenario: "Closes an account",
-        description: "",
+        personaDescription: "",
+        scenarioDescription: "",
         trials: [],
         skipped: 2,
         errored: 1,
@@ -247,9 +249,10 @@ function view(urlTab: ExperimentTab | null, load: ReportLoad): string {
   );
 }
 
-test("an experiment links back to its Target and to its Trials and Report", () => {
+test("an experiment has its name and links back to its Target and to its Trials and Report", () => {
   const markup = view("trials", READY);
 
+  assert.match(text(markup), /Experimente1/);
   assert.match(control(markup, "Bank bot"), /href="\/targets\/a\/experiments"/);
   assert.match(
     tab(markup, "Trials"),
@@ -302,11 +305,11 @@ test("a ready report shows the score, the specification results and the results 
     shown,
     /Click a test case to see its trials\.2 skipped1 errored/,
   );
-  assert.match(shown, /PersonaScenarioOnboardingSays helloAsks for proof/);
-  assert.match(shown, /New customerOpens an account50%\(21 to 79%\)/);
+  assert.match(shown, /IDPersonaScenarioOnboardingSays helloAsks for proof/);
+  assert.match(shown, /case 1New customerOpens an account50%\(21 to 79%\)/);
   assert.match(
     shown,
-    /Old customerCloses an account2 skipped1 erroredNo result/,
+    /case 2Old customerCloses an account2 skipped1 erroredNo result/,
   );
   assert.doesNotMatch(shown, /Opens an account\d+ skipped/);
   assert.doesNotMatch(shown, /Results without a matching criterion/);
@@ -406,7 +409,7 @@ test("a test case of the panel marks its row and its cell in the results table",
 
   assert.match(
     markup,
-    /<tr class="mark"><th class="stick"[^>]*><button[^>]*><span class="case-name"[^>]*>New customer<\/span><\/button><\/th><td class="stick second">/,
+    /<tr class="mark"><td class="stick id"[^>]*>case 1<\/td><th class="stick first"[^>]*><button[^>]*><span class="case-name"[^>]*>New customer<\/span><\/button><\/th><td class="stick second">/,
   );
   assert.match(
     markup,
@@ -479,7 +482,7 @@ test("the trial drawer shows the test case, the range of each Criterion and the 
 
   assert.match(
     shown,
-    /Test caseOpen in the Trials tabPersonaNew customerScenarioOpens an accountA new customer opens an account\./,
+    /Test casecase 1Open in the Trials tabPersonaNew customerA person with no account\.ScenarioOpens an accountA new customer opens an account\./,
   );
   assert.ok(
     control(markup, "Open in the Trials tab").includes(

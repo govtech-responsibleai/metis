@@ -119,7 +119,14 @@ export function ExperimentView({
       <div className="flex flex-col gap-3 px-6 pt-6">
         <BackLink targetId={targetId} title={targetTitle} />
         <header className="flex items-center justify-between gap-4">
-          <h1 className="text-xl font-semibold">Experiment</h1>
+          <h1 className="flex min-w-0 items-baseline gap-2 text-xl font-semibold">
+            <span className="text-sm font-normal text-muted-foreground">
+              Experiment
+            </span>
+            <span className="truncate" title={experimentId}>
+              {experimentId}
+            </span>
+          </h1>
           {load.status === "ready" && (
             <DownloadReport experimentId={experimentId} />
           )}

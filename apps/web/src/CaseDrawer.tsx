@@ -539,7 +539,10 @@ export function CaseDrawerView({
         >
           <ChevronsRight size={18} aria-hidden />
         </button>
-        <span className="n">Test case</span>
+        <span className="case-id" id={DRAWER_TITLE}>
+          <span className="n">Test case</span>
+          <b className="mono">{row.taskId}</b>
+        </span>
         <Link href={trialsHref} className="to-trials">
           Open in the Trials tab
         </Link>
@@ -547,17 +550,16 @@ export function CaseDrawerView({
       <div className="drawer-body">
         <div className="drawer-main quiet-scrollbar">
           <div className="dm-head">
-            <div className="dm-names" id={DRAWER_TITLE}>
-              <div>
-                <div className="n">Persona</div>
-                <h3>{row.persona}</h3>
-              </div>
-              <div>
-                <div className="n">Scenario</div>
-                <h3>{row.scenario}</h3>
-              </div>
+            <div>
+              <div className="n">Persona</div>
+              <h3>{row.persona}</h3>
+              <p className="n">{row.personaDescription}</p>
             </div>
-            <p className="n">{row.description}</p>
+            <div>
+              <div className="n">Scenario</div>
+              <h3>{row.scenario}</h3>
+              <p className="n">{row.scenarioDescription}</p>
+            </div>
           </div>
           <h4 className="dm-sec">
             Pass rate and 95% range for each criterion

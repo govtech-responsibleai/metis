@@ -696,7 +696,9 @@ function Cell({
       style={scaleStyle(cell.rate.percent)}
       aria-label={`${name}: ${counts}${range ? `. 95% range: ${range}` : ""}`}
     >
-      <span className="rate">{cell.rate.percent}%</span>
+      <span className={cn("rate", cell.rate.low && "low")}>
+        {cell.rate.percent}%
+      </span>
       {range && <span className="ci">({range})</span>}
     </td>
   );
@@ -742,7 +744,10 @@ function CaseResults({
           <table className="rt">
             <thead>
               <tr>
-                <th className="stick fg" rowSpan={2} scope="col">
+                <th className="stick id fg" rowSpan={2} scope="col">
+                  ID
+                </th>
+                <th className="stick first fg" rowSpan={2} scope="col">
                   Persona
                 </th>
                 <th className="stick second fg" rowSpan={2} scope="col">
@@ -786,11 +791,14 @@ function CaseResults({
                   className={row.taskId === shownCase ? "mark" : undefined}
                   onClick={() => openCase(row.taskId)}
                 >
-                  <th className="stick" scope="row">
+                  <td className="stick id" title={row.taskId}>
+                    {row.taskId}
+                  </td>
+                  <th className="stick first" scope="row">
                     <button
                       type="button"
                       className="case-toggle"
-                      aria-label={`${row.persona}, ${row.scenario}`}
+                      aria-label={`${row.taskId}: ${row.persona}, ${row.scenario}`}
                     >
                       <span className="case-name" title={row.persona}>
                         {row.persona}
