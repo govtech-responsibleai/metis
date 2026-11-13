@@ -21,8 +21,9 @@ function outboundFiles(entry: TranscriptEntry): LoadedFixture[] {
   return entry.kind === "interaction" ? (entry.outbound?.files ?? []) : [];
 }
 
-// Each file of a record, one time for each name.
-function recordFiles(record: LoadedInterviewRecord): LoadedFixture[] {
+// Each file of a record, one time for each name. The files of an answer that is not accepted
+// yet are in the transcript and not in `fixtures`, and the store holds them too.
+export function recordFiles(record: LoadedInterviewRecord): LoadedFixture[] {
   const files = new Map<string, LoadedFixture>();
   for (const fixture of [
     ...record.fixtures,
@@ -55,7 +56,15 @@ function storedRecord(record: LoadedInterviewRecord): StoredInterviewRecord {
 }
 
 async function loadedFixture(id: string, ref: FileRef): Promise<LoadedFixture> {
-  return { ...ref, blob: await store.interviewFile(id, ref.name) };
+  try {
+    return { ...ref, blob: await store.interviewFile(id, ref.name) };
+  } catch (cause) {
+    if (cause instanceof TransportError && cause.status === 404)
+      throw new Error(`The file ${ref.name} is missing from the store.`, {
+        cause,
+      });
+    throw cause;
+  }
 }
 
 async function loadedRecord(

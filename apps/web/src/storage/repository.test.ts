@@ -11,6 +11,7 @@ import {
   fixturesForSpecification,
   interviewId,
   putNew,
+  recordFiles,
   removeUnreferencedFixtures,
 } from "./repository.ts";
 import { fakeStore } from "./fake-store.test-helper.ts";
@@ -147,6 +148,41 @@ test("a put sends only the files that the store does not have", async () => {
   assert.deepEqual(
     puts.map((request) => request.files),
     [["files/one.txt"], [], ["files/two.txt"], [], ["files/one.txt"]],
+  );
+});
+
+test("a new answer file with the name of a file of an unaccepted answer gets its own name", async () => {
+  const server = fakeStore();
+  globalThis.fetch = server.fetch;
+  const repository = new InterviewRepository();
+  const started = emptyRecord("target-e", state, "clarify", []);
+  const first = withReply(started, new File(["first"], "notes.txt"));
+  await repository.put(first);
+
+  const [other] = admitFiles(
+    [new File(["other"], "notes.txt")],
+    recordFiles(first),
+  );
+  await repository.put(withReply(started, other!));
+
+  const stored = server.targets.get("target-e")!.files;
+  assert.deepEqual([...stored.keys()], ["notes (2).txt"]);
+  assert.equal(await stored.get("notes (2).txt")?.blob.text(), "other");
+});
+
+test("an Interview with a file that the store lost names the file", async () => {
+  const server = fakeStore();
+  globalThis.fetch = server.fetch;
+  const record = addFixtures(
+    emptyRecord("target-f", state, "clarify", []),
+    admitFiles([new File(["policy bytes"], "policy.pdf")], []),
+  );
+  await new InterviewRepository().put(record);
+  server.targets.get("target-f")!.files.delete("policy.pdf");
+
+  await assert.rejects(
+    new InterviewRepository().read("target-f"),
+    /The file policy\.pdf is missing from the store\./,
   );
 });
 

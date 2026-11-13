@@ -70,6 +70,7 @@ import {
   fixturesForSpecification,
   interviewId,
   putNew,
+  recordFiles,
   type StorageProblem,
 } from "./storage/repository";
 import { admitFiles, type AdmittedFile } from "./fixture-policy";
@@ -648,13 +649,14 @@ export function App() {
   );
 
   // An answer file gets a name that no file of the Interview has, and no file that waits in the
-  // same input. A refused file shows its reason and adds nothing.
+  // same input. The files of an answer that failed count too, because the store holds them. A
+  // refused file shows its reason and adds nothing.
   const admitUploads = useCallback<AdmitUploads>(
     (files, queued) => {
       try {
         return admitFiles(
           files,
-          [...(record?.fixtures ?? []), ...queued],
+          [...(record ? recordFiles(record) : []), ...queued],
           wizardConfig.status === "ready"
             ? wizardConfig.config.document_limits
             : undefined,
