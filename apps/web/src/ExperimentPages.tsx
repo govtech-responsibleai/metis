@@ -114,70 +114,73 @@ export function ExperimentView({
   onReload: () => void;
 }) {
   return (
-    <Page>
-      <header className="flex flex-col gap-3">
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* The back link, the title and the tabs are outside the scroll box, so they stay in view. */}
+      <div className="flex flex-col gap-3 px-6 pt-6">
         <BackLink targetId={targetId} title={targetTitle} />
-        <div className="flex items-center justify-between gap-4">
+        <header className="flex items-center justify-between gap-4">
           <h1 className="text-xl font-semibold">Experiment</h1>
           {load.status === "ready" && (
             <DownloadReport experimentId={experimentId} />
           )}
+        </header>
+        <div
+          role="tablist"
+          aria-label="Experiment"
+          className="flex gap-1 border-b border-border"
+        >
+          {TABS.map(({ id, label }) =>
+            id === "report" && screen.reportOff !== null ? (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={screen.tab === id}
+                disabled
+                title={screen.reportOff}
+                className={cn(
+                  TAB,
+                  "cursor-not-allowed border-transparent text-muted-foreground opacity-45",
+                )}
+              >
+                {label}
+              </button>
+            ) : (
+              <Link
+                key={id}
+                href={paths.experiment(targetId, experimentId, id)}
+                role="tab"
+                aria-selected={screen.tab === id}
+                className={cn(
+                  TAB,
+                  screen.tab === id
+                    ? "border-accent text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {label}
+              </Link>
+            ),
+          )}
         </div>
-      </header>
-      <div
-        role="tablist"
-        aria-label="Experiment"
-        className="flex gap-1 border-b border-border"
-      >
-        {TABS.map(({ id, label }) =>
-          id === "report" && screen.reportOff !== null ? (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={screen.tab === id}
-              disabled
-              title={screen.reportOff}
-              className={cn(
-                TAB,
-                "cursor-not-allowed border-transparent text-muted-foreground opacity-45",
-              )}
-            >
-              {label}
-            </button>
-          ) : (
-            <Link
-              key={id}
-              href={paths.experiment(targetId, experimentId, id)}
-              role="tab"
-              aria-selected={screen.tab === id}
-              className={cn(
-                TAB,
-                screen.tab === id
-                  ? "border-accent text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {label}
-            </Link>
-          ),
-        )}
       </div>
-      {screen.tab === null ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          Loading the experiment
-        </p>
-      ) : screen.tab === "trials" ? (
-        <Placeholder>The trials of this experiment show here.</Placeholder>
-      ) : (
-        <ReportTab
-          targetId={targetId}
-          experimentId={experimentId}
-          load={load}
-          onReload={onReload}
-        />
-      )}
-    </Page>
+      <Page>
+        {screen.tab === null ? (
+          <p role="status" className="text-sm text-muted-foreground">
+            Loading the experiment
+          </p>
+        ) : screen.tab === "trials" ? (
+          <Placeholder>The trials of this experiment show here.</Placeholder>
+        ) : (
+          <ReportTab
+            targetId={targetId}
+            experimentId={experimentId}
+            load={load}
+            onReload={onReload}
+          />
+        )}
+      </Page>
+    </div>
   );
 }
 
