@@ -245,6 +245,35 @@ test("a deleted Interview reads as missing", async () => {
   assert.deepEqual(await repository.list(), []);
 });
 
+test("an Interview from the wizard CLI opens with an entry for its pending request", async () => {
+  const server = fakeStore();
+  globalThis.fetch = server.fetch;
+  const repository = new InterviewRepository();
+  const pending = {
+    type: "chat" as const,
+    prompt: "Describe it",
+    request_id: "req-cli",
+    stage: "clarify" as const,
+    state: "pending" as const,
+    multiline: true,
+    answer: "",
+  };
+  await repository.put(
+    emptyRecord("from-cli", { ...state, pending }, "clarify", []),
+  );
+
+  const opened = await repository.read("from-cli");
+
+  assert.deepEqual(opened?.transcript, [
+    {
+      kind: "interaction",
+      request_id: "req-cli",
+      request: pending,
+      status: "pending",
+    },
+  ]);
+});
+
 test("a record refuses a file whose name it already has", () => {
   const started = emptyRecord("name-conflict", state, "clarify", []);
   const initial = addFixtures(

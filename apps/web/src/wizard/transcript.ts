@@ -21,24 +21,40 @@ function localId(): string {
   );
 }
 
+// The transcript with an entry for the pending request of the state. The wizard CLI can move
+// an Interview on and it keeps no transcript, so a stored transcript can lack that entry.
+export function withPendingEntry(
+  transcript: TranscriptEntry[],
+  state: InterviewState,
+): TranscriptEntry[] {
+  const pending = state.pending;
+  if (
+    !pending ||
+    transcript.some(
+      (entry) =>
+        entry.kind === "interaction" && entry.request_id === pending.request_id,
+    )
+  )
+    return transcript;
+  return [
+    ...transcript,
+    {
+      kind: "interaction",
+      request_id: pending.request_id ?? "",
+      request: clone(pending),
+      status: "pending",
+    },
+  ];
+}
+
 export function startTranscript(
   description: string,
   state: InterviewState,
 ): TranscriptEntry[] {
-  const pending = state.pending;
-  return [
-    { kind: "initial_description", id: localId(), description },
-    ...(pending
-      ? [
-          {
-            kind: "interaction" as const,
-            request_id: pending.request_id ?? "",
-            request: clone(pending),
-            status: "pending" as const,
-          },
-        ]
-      : []),
-  ];
+  return withPendingEntry(
+    [{ kind: "initial_description", id: localId(), description }],
+    state,
+  );
 }
 
 function resolvedRequest(
