@@ -6,8 +6,8 @@ import httpx
 import pytest
 from typer.testing import CliRunner
 
-from metis.engine import doctor
-from metis.engine.doctor import Status
+from metis.core import doctor
+from metis.core.doctor import Status
 
 SECRET = "sk-super-secret-value"
 GOOD_ENV = {
@@ -108,3 +108,14 @@ def test_cli_exit_codes(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:  # n
     for name, value in GOOD_ENV.items():
         monkeypatch.setenv(name, value)
     assert runner.invoke(metis_cli.app, ["doctor"]).exit_code == 0
+
+
+def test_install_check_lists_every_cli_package() -> None:
+    names = [r.name for r in doctor.check_install()]
+    assert names == [
+        "metis-core",
+        "metis-library",
+        "metis-engine",
+        "metis-wizard",
+        "metis-insights",
+    ]

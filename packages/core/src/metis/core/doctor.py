@@ -30,7 +30,14 @@ REQUIRED_VARS = ("OPENAI_API_KEY",)
 LANGFUSE_VARS = ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_BASE_URL")
 """Only `metis engine evaluate` reads them, so a missing one is a warning, not a failure."""
 
-INSTALLED_PACKAGES = ("metis-core", "metis-library", "metis-engine")
+INSTALLED_PACKAGES = (
+    "metis-core",
+    "metis-library",
+    "metis-engine",
+    "metis-wizard",
+    "metis-insights",
+)
+"""The packages `metis_cli.py` imports at start. A CLI user does not need `metis-api`."""
 
 
 class Status(StrEnum):

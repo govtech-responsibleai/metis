@@ -36,8 +36,8 @@ def main(
 @app.command()
 def doctor() -> None:
     """Check the local environment: keys are set, the services accept them, the install is sound."""
+    from metis.core.doctor import report, run_checks
     from metis.core.model_settings import ModelSettingsError, load_env
-    from metis.engine.doctor import report, run_checks
 
     try:
         load_env()
