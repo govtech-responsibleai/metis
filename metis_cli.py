@@ -36,7 +36,7 @@ def main(
 @app.command()
 def doctor() -> None:
     """Check the local environment: keys are set, the services accept them, the install is sound."""
-    from metis.core.doctor import report, run_checks
+    from metis.core.doctor import report, run_doctor
     from metis.core.model_settings import ModelSettingsError, load_env
 
     try:
@@ -44,7 +44,7 @@ def doctor() -> None:
     except ModelSettingsError as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from exc
-    if not report(run_checks()):
+    if not report(run_doctor()):
         raise typer.Exit(1)
 
 
