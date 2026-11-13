@@ -31,8 +31,8 @@ clear its checkbox.
 
 ## 2. Download the specification
 
-The chat shows **Your specification is ready**. Select **Download specification** at the bottom
-of the Profile.
+The chat shows **Your specification is ready**. Select **Download** in the toolbar of the
+Profile.
 
 The browser downloads a ZIP file, for example `20261016-223045-interview.zip`. Extract it into
 `experiments/design/` in the repository folder:
