@@ -1149,82 +1149,53 @@ def _save_session_traces(
         evaluation_log.write(f"TRACES NOT SAVED — session={session_id} — {exc}")
 
 
-def _trial_evaluation_key(
-    record: TrialRecord,
-) -> tuple[str, str, str, int] | None:
-    """The stable identity shared by a trial record and its grader results."""
-    if not record.target_session_id:
-        return None
-    return (
-        record.target_session_id,
-        record.config.scenario,
-        record.config.task_id,
-        record.config.trial_index,
-    )
-
-
-def _partition_failed_evaluation_records(
-    records: list[TrialRecord],
-    previous: EvaluationResults,
-    *,
-    known_criterion_ids: set[str],
-) -> tuple[list[TrialRecord], list[GraderRecord]]:
-    """Select trials without all expected grader results and keep completed results."""
-    expected_by_key: dict[tuple[str, str, str, int], set[str]] = {}
-    for record in records:
-        key = _trial_evaluation_key(record)
-        if key is None:
+def _failed_only_trial_names(
+    trial_records: list[tuple[str, TrialRecord]],
+    previous: EvaluationResults | None,
+    specification: Specification,
+) -> set[str]:
+    """Return trial folders whose grader results are incomplete or errored."""
+    if previous is None:
+        return {name for name, _ in trial_records}
+    known_criteria = {
+        criterion.id
+        for behaviour in specification.behaviours()
+        for criterion in behaviour.criteria
+    }
+    expected: dict[tuple[str, str, str, int], set[str]] = {}
+    names: dict[tuple[str, str, str, int], str] = {}
+    for name, record in trial_records:
+        if not record.target_session_id:
             continue
-        expected_by_key.setdefault(key, set()).update(
+        key = (
+            record.target_session_id,
+            record.config.scenario,
+            record.config.task_id,
+            record.config.trial_index,
+        )
+        names[key] = name
+        expected[key] = {
             ref.criterion_id
             for ref in record.config.grader_refs
-            if ref.criterion_id in known_criterion_ids
-        )
-
-    completed_criteria: dict[tuple[str, str, str, int], set[str]] = {}
-    for grader_record in previous.records:
+            if ref.criterion_id in known_criteria
+        }
+    completed: dict[tuple[str, str, str, int], set[str]] = {}
+    for record in previous.records:
         key = (
-            grader_record.session_id,
-            grader_record.scenario_id,
-            grader_record.task_id,
-            grader_record.trial_index,
+            record.session_id,
+            record.scenario_id,
+            record.task_id,
+            record.trial_index,
         )
-        if key in expected_by_key and not any(
-            result.outcome == "errored" for result in grader_record.results
+        if key in expected and not any(
+            result.outcome == "errored" for result in record.results
         ):
-            completed_criteria.setdefault(key, set()).add(grader_record.criterion_id)
-
-    completed_keys = {
-        key
-        for key, expected in expected_by_key.items()
-        if expected and expected <= completed_criteria.get(key, set())
+            completed.setdefault(key, set()).add(record.criterion_id)
+    return {
+        names[key]
+        for key, criteria in expected.items()
+        if not criteria or not criteria <= completed.get(key, set())
     }
-    failed_records = [
-        record
-        for record in records
-        if _trial_evaluation_key(record) not in completed_keys
-    ]
-    preserved_records = [
-        grader_record
-        for grader_record in previous.records
-        if (
-            grader_record.session_id,
-            grader_record.scenario_id,
-            grader_record.task_id,
-            grader_record.trial_index,
-        )
-        in completed_keys
-        and grader_record.criterion_id
-        in expected_by_key[
-            (
-                grader_record.session_id,
-                grader_record.scenario_id,
-                grader_record.task_id,
-                grader_record.trial_index,
-            )
-        ]
-    ]
-    return failed_records, preserved_records
 
 
 def _run_evaluation(
@@ -1247,8 +1218,9 @@ def _run_evaluation(
     tracing_key()
     log_level = _resolve_log_level(verbose, quiet)
     _configure_process_logging(log_level)
+    effective_resume = resume or failed_only
     evaluation_log = EvaluationLogger(
-        experiment_dir / execution_layout.LOGS, reset=not resume
+        experiment_dir / execution_layout.LOGS, reset=not effective_resume
     )
     evaluation_log.write(
         f"EVALUATION STARTED — {experiment_dir} (concurrency {concurrency})"
@@ -1256,7 +1228,6 @@ def _run_evaluation(
 
     import asyncio
 
-    from metis.core.reporting import EvaluationResults
     from metis.core.trials import TrialRecord
 
     specification = _load_evaluation_specification(experiment_dir)
@@ -1273,99 +1244,51 @@ def _run_evaluation(
         console.print(f"Error: failed to load trial record: {exc}", style="bold red")
         raise EvaluationInputError("failed to load trial record") from exc
 
-    records_to_evaluate = trial_records
-    preserved_records: list[GraderRecord] = []
-    previous_results: EvaluationResults | None = None
     if failed_only:
+        from metis.core.reporting import EvaluationResults
+        from metis.engine.evaluation.trial_files import load_trial_evaluations
+
         results_path = experiment_dir / execution_layout.RESULTS
+        previous = None
         if results_path.is_file():
-            try:
-                previous_results = EvaluationResults.load_file(results_path)
-            except Exception as exc:
-                console.print(
-                    f"Error: failed to load previous evaluation results: {exc}",
-                    style="bold red",
-                    markup=False,
-                )
-                raise EvaluationInputError(
-                    "failed to load previous evaluation results"
-                ) from exc
-        else:
-            previous_results = EvaluationResults(run_id="report")
+            previous = EvaluationResults.load_file(results_path)
+        failed_names = _failed_only_trial_names(trial_records, previous, specification)
+        for name, record in trial_records:
+            if name not in failed_names:
+                continue
+            shutil.rmtree(
+                experiment_dir / execution_layout.EVALUATION / name,
+                ignore_errors=True,
+            )
+            if record.target_session_id:
+                (
+                    experiment_dir
+                    / execution_layout.TRACES
+                    / execution_layout.trace_file_name(record.target_session_id)
+                ).unlink(missing_ok=True)
+        if not failed_names:
+            saved = load_trial_evaluations(
+                experiment_dir, [name for name, _ in trial_records]
+            )
+            return _evaluation_outcome(list(saved.values()), results_path)
 
-        known_criterion_ids = {
-            criterion.id
-            for behaviour in specification.behaviours()
-            for criterion in behaviour.criteria
-        }
-        records_to_evaluate, preserved_records = _partition_failed_evaluation_records(
-            [record for _, record in trial_records],
-            previous_results,
-            known_criterion_ids=known_criterion_ids,
-        )
-        record_by_name = {name: record for name, record in trial_records}
-        records_to_evaluate = [
-            (name, record_by_name[name])
-            for name, record in trial_records
-            if record in records_to_evaluate
-        ]
-        from metis.engine.evaluation.trial_files import trial_evaluation_path
-
-        for trial, _ in records_to_evaluate:
-            trial_evaluation_path(experiment_dir, trial).unlink(missing_ok=True)
-        evaluation_log.write(
-            "FAILED-ONLY SELECTION — "
-            f"{len(preserved_records)} completed grader record(s) preserved, "
-            f"{len(records_to_evaluate)} trial record(s) to retry"
-        )
-        if not records_to_evaluate:
-            console.print("No failed evaluation records")
-            evaluation_log.write("NO FAILED EVALUATION RECORDS")
-            evaluation_log.write("EVALUATION COMPLETED — 0 records")
-            return EvaluationOutcome(0, 0, 0, results_path)
-
-    console.print(f"  Loaded {len(records_to_evaluate)} trial record(s)")
-    evaluation_log.write(f"LOADED {len(records_to_evaluate)} trial record(s)")
+    console.print(f"  Loaded {len(trial_records)} trial record(s)")
+    evaluation_log.write(f"LOADED {len(trial_records)} trial record(s)")
     events = PhaseEventLog.for_experiment_dir(experiment_dir)
-    outcome = asyncio.run(
+    return asyncio.run(
         _evaluate_records(
             experiment_dir,
             specification,
-            records_to_evaluate,
+            trial_records,
             evaluation_log=evaluation_log,
             trace_wait=trace_wait,
             concurrency=concurrency,
             env_file=env_file,
             events=events,
             command=command,
-            resume=resume or failed_only,
+            resume=effective_resume,
         )
     )
-    if failed_only and preserved_records:
-        current = (
-            EvaluationResults.load_file(outcome.results_file)
-            if outcome.results_file
-            else EvaluationResults(run_id="report")
-        )
-        merged = EvaluationResults(
-            run_id=current.run_id,
-            records=[*preserved_records, *current.records],
-            timings=current.timings,
-            latency_seconds=current.latency_seconds,
-        )
-        results_path = experiment_dir / execution_layout.RESULTS
-        merged.save(results_path)
-        outcome = EvaluationOutcome(
-            total_records=len(trial_records),
-            successful_records=sum(
-                1
-                for record in merged.records
-                if all(result.outcome != "errored" for result in record.results)
-            ),
-            failed_records=max(0, len(trial_records) - len(preserved_records)),
-            results_file=results_path,
-        )
-    return outcome
 
 
 class _RunningCount:
@@ -1913,7 +1836,7 @@ def _run_evaluation_command(
 
     trials = [path.parent.name for path in _trial_record_files(experiment_dir)]
     results_path = experiment_dir / execution_layout.RESULTS
-    if resume and _evaluation_is_complete(experiment_dir):
+    if resume and not failed_only and _evaluation_is_complete(experiment_dir):
         console.print("nothing to resume")
         saved = load_trial_evaluations(experiment_dir, trials)
         if command == "run":
@@ -2066,7 +1989,9 @@ def evaluate(
         raise typer.Exit(code=1) from None
     console.print(f"Selected experiment: {resolved_experiment_dir}")
     # A resume of a finished evaluation says "nothing to resume", which already covers it.
-    nothing_to_resume = resume and _evaluation_is_complete(resolved_experiment_dir)
+    nothing_to_resume = (
+        resume and not failed_only and _evaluation_is_complete(resolved_experiment_dir)
+    )
     trace_wait = _trace_wait_settings(langfuse_timeout)
     outcome = _run_evaluation_command(
         resolved_experiment_dir,
@@ -2078,7 +2003,7 @@ def evaluate(
         command="evaluate",
         resume=resume,
     )
-    if outcome.total_records == 0 and not (nothing_to_resume or failed_only):
+    if outcome.total_records == 0 and not nothing_to_resume:
         console.print("nothing to evaluate")
     _print_evaluation_summary(resolved_experiment_dir, outcome, pipeline=False)
 

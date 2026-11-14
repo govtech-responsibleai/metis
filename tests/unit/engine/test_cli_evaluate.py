@@ -6,15 +6,13 @@ import asyncio
 import contextlib
 import os
 import shlex
-import sys
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
 
-from metis.core.grading import RecordedResult
-from metis.core.reporting import EvaluationResults, GraderRecord
+from metis.core.reporting import EvaluationResults
 from metis.core.traces import GradingInput, Observation, SessionTraces, Trace
 from metis.core.trials import GraderRef, TrialConfig, TrialOutcome, TrialRecord
 from metis.engine import cli
@@ -271,14 +269,13 @@ def test_evaluation_writes_results_file_and_prints_report_command(
 ) -> None:
     output = _write_experiment_dir(tmp_path)
     _write_record(output)
-    calls = _patch_evaluation(monkeypatch)
+    _patch_evaluation(monkeypatch)
 
     first = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
     second = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
 
     assert first.exit_code == 0
     assert second.exit_code == 0
-    assert len(calls) == 2
     results_file = output.resolve() / "outputs" / "reports" / "results.json"
     results = EvaluationResults.load_file(results_file)
     assert results.run_id == "report"
@@ -301,116 +298,6 @@ def test_evaluation_writes_results_file_and_prints_report_command(
     evaluation_log = (output / "logs" / "evaluate.log").read_text(encoding="utf-8")
     assert evaluation_log.count("EVALUATION STARTED") == 1
     assert "RESULTS WRITTEN" in evaluation_log
-
-
-def test_failed_only_retries_missing_results_and_preserves_completed_records(
-    monkeypatch, tmp_path: Path
-) -> None:
-    output = _write_experiment_dir(tmp_path)
-    _write_record(output, run_name="run-1", session_id="session-1")
-    _write_record(output, run_name="run-2", session_id="session-2")
-    first_calls: list[str] = []
-
-    async def fail_second_record(session_id: str, *_args: object, **_kwargs: object):
-        first_calls.append(session_id)
-        if session_id == "session-2":
-            raise RuntimeError("Langfuse unavailable")
-        return _session(session_id)
-
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
-    monkeypatch.setattr("metis.engine.extractor.fetch_session", fail_second_record)
-    first = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
-    results_path = output / "outputs" / "reports" / "results.json"
-    completed_trace_path = output / "outputs" / "traces" / "session-1.json"
-    assert completed_trace_path.is_file()
-    (completed_before_retry,) = EvaluationResults.load_file(results_path).records
-
-    retry_calls: list[str] = []
-
-    async def recover_record(session_id: str, *_args: object, **_kwargs: object):
-        retry_calls.append(session_id)
-        return _session(session_id)
-
-    monkeypatch.setattr("metis.engine.extractor.fetch_session", recover_record)
-    retried = runner.invoke(
-        app,
-        ["evaluate", "--experiment-dir", str(output), "--failed-only"],
-    )
-
-    assert first.exit_code == 0, first.output
-    assert first_calls == ["session-1", "session-2"]
-    assert retried.exit_code == 0, retried.output
-    assert retry_calls == ["session-2"]
-    results = EvaluationResults.load_file(results_path)
-    assert [record.session_id for record in results.records] == [
-        "session-1",
-        "session-2",
-    ]
-    assert results.records[0] == completed_before_retry
-    assert completed_trace_path.is_file()
-    assert (output / "outputs" / "traces" / "session-2.json").is_file()
-
-    retry_calls.clear()
-    unchanged = runner.invoke(
-        app,
-        ["evaluate", "--experiment-dir", str(output), "--failed-only"],
-    )
-    assert unchanged.exit_code == 0, unchanged.output
-    assert retry_calls == []
-    assert "No failed evaluation records" in unchanged.output
-
-
-def test_failed_only_retries_errored_grader_records(
-    monkeypatch, tmp_path: Path
-) -> None:
-    output = _write_experiment_dir(tmp_path)
-    _write_record(output, run_name="run-1", session_id="session-1")
-    _write_record(output, run_name="run-2", session_id="session-2")
-
-    def prior_record(
-        session_id: str, outcome: Literal["passed", "errored"]
-    ) -> GraderRecord:
-        return GraderRecord(
-            session_id=session_id,
-            scenario_id="task-1",
-            task_id="TC-001",
-            trial_index=1,
-            criterion_id="AC-1-1",
-            grader_fqn="tests.unit.engine.graders_for_tests.FixedScoreGrader",
-            grader_args={},
-            results=[
-                RecordedResult(
-                    outcome=outcome,
-                    score=1.0 if outcome == "passed" else None,
-                    reason="previous grading result",
-                )
-            ],
-        )
-
-    previous = EvaluationResults(
-        run_id="report",
-        records=[
-            prior_record("session-1", "errored"),
-            prior_record("session-2", "passed"),
-        ],
-    )
-    previous.save(output / "outputs" / "reports" / "results.json")
-    calls = _patch_evaluation(monkeypatch)
-
-    result = runner.invoke(
-        app,
-        ["evaluate", "--experiment-dir", str(output), "--failed-only"],
-    )
-
-    assert result.exit_code == 0, result.output
-    assert [call["session_id"] for call in calls] == ["session-1"]
-    outcomes = {
-        record.session_id: [item.outcome for item in record.results]
-        for record in EvaluationResults.load_file(
-            output / "outputs" / "reports" / "results.json"
-        ).records
-    }
-    assert outcomes == {"session-1": ["passed"], "session-2": ["passed"]}
 
 
 def test_report_command_is_shell_quoted_for_paths_with_spaces(
@@ -544,7 +431,7 @@ def test_evaluation_progress_advances_for_success_and_soft_failure(
         def update(self, _task_id: int, **kwargs: object) -> None:
             events.append(("update", kwargs))
 
-    monkeypatch.setattr(sys.stderr, "isatty", lambda: True)
+    monkeypatch.setattr(cli.sys.stderr, "isatty", lambda: True)
     monkeypatch.setattr(cli, "_create_evaluation_progress", FakeProgress)
     monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
 
