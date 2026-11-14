@@ -44,8 +44,10 @@ metis engine simulate --resume --experiment-dir experiments/execute/<your-run>
 ```
 
 Give both flags together. Resume reads the specification from the frozen `inputs/` folder in that
-output folder, not from your source folder, and it retries only the trials that are missing or
-failed with a system error. Do not combine `--resume` with `--input-dir`.
+output folder, not from your source folder. It runs again only the trials that did not end: a trial
+that was interrupted, or one whose record is missing or unreadable. A trial that failed with a
+system error used up its retries, so it stays failed. To run failed trials again, start a new run
+with `--input-dir`. Do not combine `--resume` with `--input-dir`.
 
 If the resume re-runs at least one trial, it deletes the earlier evaluation
 (`outputs/evaluation/`, `outputs/traces/` and `results.json`), because the old grades no longer

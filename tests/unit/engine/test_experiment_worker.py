@@ -901,9 +901,11 @@ class TestAttemptScopedArtifacts:
     async def test_resumed_run_starts_at_attempt_one_and_keeps_old_artifacts(
         self, simple_persona: Persona, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Two successive _worker calls on one experiment_root == a --resume.
+        """Two successive _worker calls on one experiment_root, as a --resume makes.
 
-        Pins the documented semantics: the attempt counter is per-process, so a
+        The first call fails only to leave spent attempts and downloads behind;
+        which records a resume redoes is decided in cli.py, not here. This pins
+        the documented semantics: the attempt counter is per-process, so a
         resumed run starts at attempt 1 with an empty prior_failures list even
         though an earlier process already spent attempts on it. The previous
         process's downloads are moved aside rather than written over.

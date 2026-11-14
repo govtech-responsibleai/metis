@@ -127,7 +127,7 @@ metis engine simulate --resume --experiment-dir experiments/execute/toyapp-http-
 metis engine run --resume --experiment-dir experiments/execute/toyapp-http-simple-20260820-143000/
 ```
 
-Resume reads the experiment and the fixtures from the frozen `inputs/` snapshot in the named directory, not from the source directory. It retries only missing, invalid, or `system_error` records, and appends to the experiment-level simulation log. Extra run folders are ignored. A valid record is complete even if an artifact file is missing. Passing `--resume` with `--input-dir` is an error: the message lists the outputs that exist for the experiment `id` and names the correct flag.
+Resume reads the experiment and the fixtures from the frozen `inputs/` snapshot in the named directory, not from the source directory. It runs again only the trials that did not end: a record that is missing, unreadable, or not valid, or a record with stop reason `interrupted`. A trial that ended is not run again, whatever its result, so a `system_error` trial, which ended after its retry limit, stays failed. To run failed trials again, start a new experiment with `simulate --input-dir`. Resume appends to the experiment-level simulation log. Extra run folders are ignored. A valid record is complete even if an artifact file is missing. Passing `--resume` with `--input-dir` is an error: the message lists the outputs that exist for the experiment `id` and names the correct flag.
 
 ### What You'll See
 
