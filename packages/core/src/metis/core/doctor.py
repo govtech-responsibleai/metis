@@ -30,10 +30,19 @@ REQUIRED_VARS = ("OPENAI_API_KEY",)
 LANGFUSE_VARS = ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_BASE_URL")
 """Only `metis engine evaluate` reads them, so a missing one is a warning, not a failure."""
 
-INSTALLED_PACKAGES = ("metis-core", "metis-library", "metis-engine")
+INSTALLED_PACKAGES = (
+    "metis-core",
+    "metis-library",
+    "metis-engine",
+    "metis-wizard",
+    "metis-insights",
+)
+"""The packages `metis_cli.py` imports at start. A CLI user does not need `metis-api`."""
 
 
-class Status(StrEnum):
+class DoctorStatus(StrEnum):
+    """How one check went. A warning or a skip does not fail the run."""
+
     PASS = "pass"
     FAIL = "fail"
     WARN = "warn"
@@ -41,25 +50,27 @@ class Status(StrEnum):
 
 
 @dataclass(frozen=True)
-class CheckResult:
+class DoctorResult:
+    """The result of one check. `run_doctor()` returns one per check, in display order."""
+
     name: str
-    status: Status
+    status: DoctorStatus
     detail: str
     fix: str | None = None
     """A one-line fix, shown for a failure or a warning."""
 
 
-def check_required_vars(env: Mapping[str, str]) -> list[CheckResult]:
+def check_required_vars(env: Mapping[str, str]) -> list[DoctorResult]:
     """One result per required variable. An empty value counts as unset."""
-    results: list[CheckResult] = []
+    results: list[DoctorResult] = []
     for name in REQUIRED_VARS:
         if env.get(name):
-            results.append(CheckResult(name, Status.PASS, "set"))
+            results.append(DoctorResult(name, DoctorStatus.PASS, "set"))
         else:
             results.append(
-                CheckResult(
+                DoctorResult(
                     name,
-                    Status.FAIL,
+                    DoctorStatus.FAIL,
                     "not set",
                     f"Set {name} in .env (see .env.example).",
                 )
@@ -67,17 +78,17 @@ def check_required_vars(env: Mapping[str, str]) -> list[CheckResult]:
     return results
 
 
-def check_langfuse_vars(env: Mapping[str, str]) -> list[CheckResult]:
+def check_langfuse_vars(env: Mapping[str, str]) -> list[DoctorResult]:
     """One result per `LANGFUSE_*` variable. A missing one warns that `evaluate` cannot run."""
-    results: list[CheckResult] = []
+    results: list[DoctorResult] = []
     for name in LANGFUSE_VARS:
         if env.get(name):
-            results.append(CheckResult(name, Status.PASS, "set"))
+            results.append(DoctorResult(name, DoctorStatus.PASS, "set"))
         else:
             results.append(
-                CheckResult(
+                DoctorResult(
                     name,
-                    Status.WARN,
+                    DoctorStatus.WARN,
                     "not set, so you cannot run `metis engine evaluate`",
                     f"Set {name} in .env to grade a run.",
                 )
@@ -85,37 +96,39 @@ def check_langfuse_vars(env: Mapping[str, str]) -> list[CheckResult]:
     return results
 
 
-def check_internal_langfuse(env: Mapping[str, str]) -> CheckResult:
+def check_internal_langfuse(env: Mapping[str, str]) -> DoctorResult:
     """The METIS-internal trio is all-or-nothing: a partly set trio leaves tracing off."""
     names = METIS_INTERNAL_LANGFUSE_VARS
     missing = [n for n in names if not env.get(n)]
     if len(missing) == len(names):
-        return CheckResult(
-            "METIS-internal Langfuse", Status.PASS, "not set (tracing off)"
+        return DoctorResult(
+            "METIS-internal Langfuse", DoctorStatus.PASS, "not set (tracing off)"
         )
     if missing:
-        return CheckResult(
+        return DoctorResult(
             "METIS-internal Langfuse",
-            Status.WARN,
+            DoctorStatus.WARN,
             f"partly set, so tracing stays off. Missing: {', '.join(missing)}",
             "Set all three METIS_INTERNAL_LANGFUSE_* variables, or none.",
         )
-    return CheckResult("METIS-internal Langfuse", Status.PASS, "set (tracing on)")
+    return DoctorResult(
+        "METIS-internal Langfuse", DoctorStatus.PASS, "set (tracing on)"
+    )
 
 
-def check_install() -> list[CheckResult]:
+def check_install() -> list[DoctorResult]:
     """The METIS packages are installed and report a version."""
-    results: list[CheckResult] = []
+    results: list[DoctorResult] = []
     for package in INSTALLED_PACKAGES:
         try:
             results.append(
-                CheckResult(package, Status.PASS, f"version {version(package)}")
+                DoctorResult(package, DoctorStatus.PASS, f"version {version(package)}")
             )
         except PackageNotFoundError:
             results.append(
-                CheckResult(
+                DoctorResult(
                     package,
-                    Status.FAIL,
+                    DoctorStatus.FAIL,
                     "not installed",
                     "Run `make install` from the repository root.",
                 )
@@ -128,7 +141,7 @@ def _http_get(
     url: str,
     headers: dict[str, str] | None = None,
     auth: tuple[str, str] | None = None,
-) -> CheckResult:
+) -> DoctorResult:
     """One authenticated GET. Reports the status code or the error class, never a value."""
     name = f"{service} connection"
     try:
@@ -140,42 +153,42 @@ def _http_get(
             follow_redirects=True,
         )
     except httpx.TimeoutException:
-        return CheckResult(
+        return DoctorResult(
             name,
-            Status.FAIL,
+            DoctorStatus.FAIL,
             f"timed out after {TIMEOUT_SECONDS:g}s",
             f"Check the {service} URL and your network.",
         )
     except httpx.HTTPError as exc:
-        return CheckResult(
+        return DoctorResult(
             name,
-            Status.FAIL,
+            DoctorStatus.FAIL,
             f"could not connect ({type(exc).__name__})",
             f"Check the {service} URL and your network.",
         )
     if response.is_success:
-        return CheckResult(name, Status.PASS, "authenticated")
+        return DoctorResult(name, DoctorStatus.PASS, "authenticated")
     if response.status_code in (401, 403):
-        return CheckResult(
+        return DoctorResult(
             name,
-            Status.FAIL,
+            DoctorStatus.FAIL,
             f"rejected the key (HTTP {response.status_code})",
             f"Check the {service} key in .env.",
         )
-    return CheckResult(
+    return DoctorResult(
         name,
-        Status.FAIL,
+        DoctorStatus.FAIL,
         f"unexpected response (HTTP {response.status_code})",
         f"Check the {service} URL in .env.",
     )
 
 
-def check_gateway(env: Mapping[str, str]) -> CheckResult:
+def check_gateway(env: Mapping[str, str]) -> DoctorResult:
     """List models on the shared gateway with ``OPENAI_API_KEY``."""
     key = env.get("OPENAI_API_KEY")
     if not key:
-        return CheckResult(
-            "Model gateway connection", Status.SKIP, "OPENAI_API_KEY is not set"
+        return DoctorResult(
+            "Model gateway connection", DoctorStatus.SKIP, "OPENAI_API_KEY is not set"
         )
     base = (env.get("OPENAI_BASE_URL") or DEFAULT_GATEWAY_URL).rstrip("/")
     return _http_get(
@@ -183,7 +196,7 @@ def check_gateway(env: Mapping[str, str]) -> CheckResult:
     )
 
 
-def check_langfuse(env: Mapping[str, str]) -> CheckResult:
+def check_langfuse(env: Mapping[str, str]) -> DoctorResult:
     """Read the project list from Langfuse with the public and secret keys."""
     public, secret, base = (
         env.get("LANGFUSE_PUBLIC_KEY"),
@@ -191,9 +204,9 @@ def check_langfuse(env: Mapping[str, str]) -> CheckResult:
         env.get("LANGFUSE_BASE_URL"),
     )
     if not (public and secret and base):
-        return CheckResult(
+        return DoctorResult(
             "Langfuse connection",
-            Status.SKIP,
+            DoctorStatus.SKIP,
             "a LANGFUSE_* variable is not set",
         )
     return _http_get(
@@ -201,10 +214,10 @@ def check_langfuse(env: Mapping[str, str]) -> CheckResult:
     )
 
 
-def run_checks(env: Mapping[str, str] | None = None) -> list[CheckResult]:
+def run_doctor(env: Mapping[str, str] | None = None) -> list[DoctorResult]:
     """Run every check and return the results in display order."""
     env = os.environ if env is None else env
-    steps: list[Callable[[], list[CheckResult] | CheckResult]] = [
+    steps: list[Callable[[], list[DoctorResult] | DoctorResult]] = [
         lambda: check_install(),
         lambda: check_required_vars(env),
         lambda: check_langfuse_vars(env),
@@ -212,7 +225,7 @@ def run_checks(env: Mapping[str, str] | None = None) -> list[CheckResult]:
         lambda: check_gateway(env),
         lambda: check_langfuse(env),
     ]
-    results: list[CheckResult] = []
+    results: list[DoctorResult] = []
     for step in steps:
         outcome = step()
         results.extend(outcome if isinstance(outcome, list) else [outcome])
@@ -220,14 +233,14 @@ def run_checks(env: Mapping[str, str] | None = None) -> list[CheckResult]:
 
 
 _STYLE = {
-    Status.PASS: ("[green]pass[/green]", ""),
-    Status.FAIL: ("[red]FAIL[/red]", ""),
-    Status.WARN: ("[yellow]warn[/yellow]", ""),
-    Status.SKIP: ("[dim]skip[/dim]", ""),
+    DoctorStatus.PASS: ("[green]pass[/green]", ""),
+    DoctorStatus.FAIL: ("[red]FAIL[/red]", ""),
+    DoctorStatus.WARN: ("[yellow]warn[/yellow]", ""),
+    DoctorStatus.SKIP: ("[dim]skip[/dim]", ""),
 }
 
 
-def report(results: list[CheckResult]) -> bool:
+def report(results: list[DoctorResult]) -> bool:
     """Print one line per check, with the fix under each failure or warning.
 
     Returns True when no required check failed. A warning or a skip does not fail the run.
@@ -239,9 +252,9 @@ def report(results: list[CheckResult]) -> bool:
     for result in results:
         label, _ = _STYLE[result.status]
         console.print(f"{label}  {escape(result.name)}: {escape(result.detail)}")
-        if result.fix and result.status in (Status.FAIL, Status.WARN):
+        if result.fix and result.status in (DoctorStatus.FAIL, DoctorStatus.WARN):
             console.print(f"      fix: {escape(result.fix)}")
-    failed = [r for r in results if r.status is Status.FAIL]
+    failed = [r for r in results if r.status is DoctorStatus.FAIL]
     if failed:
         console.print(f"\n[red]{len(failed)} check(s) failed.[/red]")
     else:

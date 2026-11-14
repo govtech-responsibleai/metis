@@ -1,4 +1,4 @@
-.PHONY: install-docs run-docs build-docs check-docs generate-grader-docs install-landing run-landing build-landing run-site build-site help install install-wizard install-engine install-api install-web install-extras install-extras-playwright run run-api run-web lint lint-fix format format-check fix typecheck check check-env ci test test-unit format-check-web typecheck-web test-web build-web check-api-web check-web clean release-branch
+.PHONY: check-pnpm install-docs run-docs build-docs check-docs generate-grader-docs install-landing run-landing build-landing run-site build-site help install install-wizard install-engine install-api install-web install-extras install-extras-playwright run run-api run-web lint lint-fix format format-check fix typecheck check check-env ci test test-unit format-check-web typecheck-web test-web build-web check-api-web check-web clean release-branch
 
 help:
 	@printf "Available targets:\n"
@@ -74,13 +74,21 @@ build-docs:
 check-docs: build-docs
 	npm --prefix website test
 
-install-landing:
+# The landing page uses pnpm, which Node does not bring with it, so fail early with the fix.
+check-pnpm:
+	@command -v pnpm >/dev/null 2>&1 || { \
+		printf "pnpm is not installed, and the landing page needs it.\n" >&2; \
+		printf "Install it with 'corepack enable pnpm' or 'brew install pnpm', then rerun make.\n" >&2; \
+		exit 1; \
+	}
+
+install-landing: check-pnpm
 	pnpm --dir landing-page install --frozen-lockfile
 
-run-landing:
+run-landing: check-pnpm
 	pnpm --dir landing-page dev
 
-build-landing:
+build-landing: check-pnpm
 	pnpm --dir landing-page build
 
 # Both site servers, as build-site builds both. They run on separate ports, so the published

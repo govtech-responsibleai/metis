@@ -9,11 +9,11 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from metis.core import SessionTraces, execution_layout
+from metis.core.report import Report
 from metis.core.reporting import EvaluationResults
 from metis.core.trace_processing import Problem, turns
 from metis.core.traces import Observation, Trace
 from metis.insights._conversation import conversation_rows, read_turns
-from metis.insights._models import Report
 from metis.insights._report import build_report, load_report_sources
 from tests.fixtures.insights.report_experiment import (
     grader_records,

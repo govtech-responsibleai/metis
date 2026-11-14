@@ -1,6 +1,6 @@
 import type {
   InteractionEntry,
-  LocalInterviewRecord,
+  LoadedInterviewRecord,
   UserResponse,
 } from "../transport/api.ts";
 import { api, TransportError } from "../transport/api.ts";
@@ -9,6 +9,7 @@ import {
   removeUnreferencedFixtures,
   type InterviewRepository,
 } from "../storage/repository.ts";
+import { readmitSavedFile, type AdmittedFile } from "../fixture-policy.ts";
 import { applyTurn } from "./transcript.ts";
 
 export interface OperationFeedback {
@@ -16,7 +17,7 @@ export interface OperationFeedback {
   retry?: () => Promise<void>;
 }
 export function pendingEntry(
-  record: LocalInterviewRecord,
+  record: LoadedInterviewRecord,
 ): InteractionEntry | undefined {
   return record.transcript.find(
     (entry): entry is InteractionEntry =>
@@ -30,17 +31,17 @@ export function messageOf(cause: unknown): string {
 
 // This page owns live operations. A repository read alone never interrupts a send.
 export class InterviewOperations {
-  readonly pendingSaves = new Map<string, LocalInterviewRecord>();
-  readonly latest = new Map<string, LocalInterviewRecord>();
+  readonly pendingSaves = new Map<string, LoadedInterviewRecord>();
+  readonly latest = new Map<string, LoadedInterviewRecord>();
   readonly active = new Set<string>();
   readonly feedback = new Map<string, OperationFeedback>();
   private revision = 0;
   private listeners = new Set<() => void>();
   private repository: Pick<InterviewRepository, "put">;
-  private saved: (record: LocalInterviewRecord) => void;
+  private saved: (record: LoadedInterviewRecord) => void;
   constructor(
     repository: Pick<InterviewRepository, "put">,
-    saved: (record: LocalInterviewRecord) => void,
+    saved: (record: LoadedInterviewRecord) => void,
   ) {
     this.repository = repository;
     this.saved = (record) => {
@@ -92,14 +93,14 @@ export class InterviewOperations {
       this.changed();
     }
   }
-  async save(record: LocalInterviewRecord): Promise<void> {
+  async save(record: LoadedInterviewRecord): Promise<void> {
     try {
       await this.repository.put(record);
     } catch (cause) {
       this.pendingSaves.set(record.id, record);
       this.report(
         record.id,
-        `The local update was not saved. ${messageOf(cause)}`,
+        `The update was not saved. ${messageOf(cause)}`,
         () => this.run(record.id, () => this.save(record)),
       );
       throw cause;
@@ -107,7 +108,7 @@ export class InterviewOperations {
     this.pendingSaves.delete(record.id);
     this.saved(record);
   }
-  async recover(record: LocalInterviewRecord): Promise<LocalInterviewRecord> {
+  async recover(record: LoadedInterviewRecord): Promise<LoadedInterviewRecord> {
     if (this.active.has(record.id) || this.pendingSaves.has(record.id))
       return record;
     const entry = pendingEntry(record);
@@ -132,9 +133,9 @@ export class InterviewOperations {
     return next;
   }
   async send(
-    record: LocalInterviewRecord,
+    record: LoadedInterviewRecord,
     response: UserResponse,
-    files: readonly File[] = [],
+    files: readonly AdmittedFile[] = [],
     removedFixtures: readonly string[] = [],
     accepted?: () => void,
   ): Promise<void> {
@@ -162,9 +163,10 @@ export class InterviewOperations {
       const sending = structuredClone(record);
       sending.submission_revision = (record.submission_revision ?? 0) + 1;
       const entry = pendingEntry(sending)!;
-      const staged = addFixtures({ ...sending, fixtures: [] }, files).fixtures;
-      // Validate replacement rules before a file name can cross the API boundary.
-      addFixtures(record, files);
+      // `addFixtures` checks the names before they can reach the store.
+      const staged = addFixtures(record, files).fixtures.slice(
+        record.fixtures.length,
+      );
       entry.response = structuredClone(response);
       entry.outbound = {
         files: staged,
@@ -177,7 +179,7 @@ export class InterviewOperations {
       await this.repository.put(sending);
       this.saved(sending);
       accepted?.();
-      let next: LocalInterviewRecord;
+      let next: LoadedInterviewRecord;
       try {
         const result = await api.respond(
           sending.state,
@@ -223,7 +225,7 @@ export class InterviewOperations {
   }
   // Back from a completed Interview. It has no pending request, so the turn carries an empty
   // request id; the package reopens the last review and clears the final confirmation.
-  async reopen(record: LocalInterviewRecord): Promise<void> {
+  async reopen(record: LoadedInterviewRecord): Promise<void> {
     if (record.state.pending || this.pendingSaves.has(record.id)) return;
     await this.run(record.id, async () => {
       const response: UserResponse = { type: "choice", selected: ["back"] };
@@ -231,7 +233,7 @@ export class InterviewOperations {
       await this.save(applyTurn(record, result, response));
     });
   }
-  async edit(record: LocalInterviewRecord): Promise<void> {
+  async edit(record: LoadedInterviewRecord): Promise<void> {
     if (this.pendingSaves.has(record.id)) return;
     await this.run(record.id, async () => {
       const next = structuredClone(record);
@@ -244,14 +246,12 @@ export class InterviewOperations {
       await this.save(next);
     });
   }
-  retry(record: LocalInterviewRecord): Promise<void> {
+  retry(record: LoadedInterviewRecord): Promise<void> {
     const unsaved = this.pendingSaves.get(record.id);
     if (unsaved) return this.run(record.id, () => this.save(unsaved));
     const entry = pendingEntry(record);
     if (!entry?.response || !entry.failure?.retryable) return Promise.resolve();
-    const files = (entry.outbound?.files ?? []).map(
-      (file) => new File([file.blob], file.name, { type: file.type }),
-    );
+    const files = (entry.outbound?.files ?? []).map(readmitSavedFile);
     return this.send(
       record,
       entry.response,

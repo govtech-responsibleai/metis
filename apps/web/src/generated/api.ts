@@ -269,6 +269,146 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the Targets
+         * @description Return the Targets, newest first. A row that this version cannot read is a problem.
+         */
+        get: operations["list_targets_api_v1_targets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/targets/{target_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a Target
+         * @description Delete the saved Interview and its uploaded files.
+         */
+        delete: operations["delete_target_api_v1_targets__target_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/targets/{target_id}/interview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the Interview of a Target
+         * @description Return the record with its file references. Read each file from the files route.
+         */
+        get: operations["read_interview_api_v1_targets__target_id__interview_get"];
+        /**
+         * Save the Interview of a Target
+         * @description Save the record and the files that the store does not have yet.
+         *
+         *     The first save creates the Target. The `created_at` of the record tells one Interview from
+         *     another. Send the record as a file part that contains its JSON. When another Interview
+         *     already uses the id, the save gives 409 `target_exists` and changes nothing. Send each new
+         *     file as a part in the `files` field, with its record name as the filename. A fixture and a
+         *     file of a waiting answer are both files of the record. A reference to a file that is neither
+         *     in this request nor in the store gives 400. The store deletes the files of the Target that
+         *     the record no longer refers to.
+         *
+         *     The save keeps the complete Interview state. Compile and package are separate requests.
+         */
+        put: operations["put_interview_api_v1_targets__target_id__interview_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/targets/{target_id}/interview/files/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read one file of an Interview
+         * @description Return a file that the record refers to, as a download.
+         *
+         *     A client wrote the bytes and the type. The response is an attachment with `nosniff`, so a
+         *     browser that opens the address does not show the file as a page of this origin. A later save
+         *     can put other bytes under the same name, so a browser must not keep a copy.
+         */
+        get: operations["read_interview_file_api_v1_targets__target_id__interview_files__name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the report of an experiment
+         * @description Return report.json of the experiment. The report is built when it is missing or older
+         *     than results.json.
+         */
+        get: operations["experiment_report_api_v1_experiments__experiment_id__report_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/report.html": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the HTML report page of an experiment
+         * @description Return report.html of the experiment, the same page as `metis insights report` writes.
+         *     The report is built when it is missing or older than results.json.
+         */
+        get: operations["experiment_report_page_api_v1_experiments__experiment_id__report_html_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -308,6 +448,63 @@ export interface components {
              * @description The environment variable holding the credential.
              */
             secret_env: string;
+        };
+        /** AxisRow */
+        AxisRow: {
+            /** Id */
+            id: string;
+            /** Rate */
+            rate?: number | null;
+            /**
+             * Pass
+             * @default 0
+             */
+            pass: number;
+            /**
+             * Fail
+             * @default 0
+             */
+            fail: number;
+            /**
+             * Ran
+             * @default 0
+             */
+            ran: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+            /**
+             * Sessions
+             * @default 0
+             */
+            sessions: number;
+            /**
+             * Behaviours
+             * @default 0
+             */
+            behaviours: number;
+            /**
+             * Graders
+             * @default 0
+             */
+            graders: number;
+            /**
+             * Partners
+             * @default 0
+             */
+            partners: number;
+            /**
+             * Partnertotal
+             * @default 0
+             */
+            partnerTotal: number;
         };
         /** Behaviour */
         Behaviour: {
@@ -415,6 +612,13 @@ export interface components {
              */
             blocking: boolean;
         };
+        /** BlankCause */
+        BlankCause: {
+            /** Cause */
+            cause: string;
+            /** Note */
+            note: string;
+        };
         /** Body_extract_document_text_api_v1_wizard_documents_extract_post */
         Body_extract_document_text_api_v1_wizard_documents_extract_post: {
             /** Files */
@@ -430,6 +634,13 @@ export interface components {
             state?: string | null;
             /** Connection */
             connection?: string | null;
+        };
+        /** Body_put_interview_api_v1_targets__target_id__interview_put */
+        Body_put_interview_api_v1_targets__target_id__interview_put: {
+            /** Record */
+            record: string;
+            /** Files */
+            files?: string[] | null;
         };
         /**
          * CapabilityCategory
@@ -645,6 +856,41 @@ export interface components {
             value?: string[];
             /** Available */
             available?: string[];
+        };
+        /** CaseResult */
+        CaseResult: {
+            /**
+             * Pass
+             * @default 0
+             */
+            pass: number;
+            /**
+             * Fail
+             * @default 0
+             */
+            fail: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+            /**
+             * Evaluated
+             * @default 0
+             */
+            evaluated: number;
+            /** Rate */
+            rate?: number | null;
+            /** Mean Score */
+            mean_score?: number | null;
+            /** Status */
+            status?: string | null;
+            confidence_interval?: components["schemas"]["WilsonConfidenceInterval"] | null;
         };
         /** ChatRequest */
         ChatRequest: {
@@ -879,6 +1125,17 @@ export interface components {
          * @enum {string}
          */
         ConnectionTransport: "http" | "browser";
+        /** ConversationTurn */
+        ConversationTurn: {
+            /** Turn */
+            turn: number;
+            /** User */
+            user: string;
+            /** Target */
+            target: string;
+            /** Errors */
+            errors?: string[];
+        };
         /** Criterion */
         Criterion: {
             /** Id */
@@ -893,6 +1150,24 @@ export interface components {
             grader_args?: {
                 [key: string]: unknown;
             };
+        };
+        /** CriterionBreakdownCell */
+        CriterionBreakdownCell: {
+            /** Rate */
+            rate: number | null;
+            /** N */
+            n: number;
+            /** Pass */
+            pass: number;
+            /** Fail */
+            fail: number;
+            /** Skip */
+            skip: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
         };
         /**
          * Dimension
@@ -933,6 +1208,65 @@ export interface components {
         DocumentExtractionResult: {
             /** Documents */
             documents: components["schemas"]["ExtractedDocument"][];
+        };
+        /** EvidenceItem */
+        EvidenceItem: {
+            /**
+             * Task Id
+             * @default
+             */
+            task_id: string;
+            /**
+             * Trial Index
+             * @default 1
+             */
+            trial_index: number;
+            /**
+             * Criterion Id
+             * @default
+             */
+            criterion_id: string;
+            /**
+             * Grader Fqn
+             * @default
+             */
+            grader_fqn: string;
+            /** Grader Args */
+            grader_args?: {
+                [key: string]: unknown;
+            };
+            /** Status */
+            status: string;
+            /** Message */
+            message: string;
+            /** Session */
+            session: string;
+            /** Run Score */
+            run_score?: number | null;
+            /** Run Threshold */
+            run_threshold?: number | null;
+            /**
+             * Run Outcome
+             * @enum {string}
+             */
+            run_outcome: "passed" | "failed" | "skipped" | "errored";
+            /** Result Number */
+            result_number: number;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "passed" | "failed" | "skipped" | "errored";
+            /** Score */
+            score?: number | null;
+            /** Measurements */
+            measurements?: {
+                [key: string]: number;
+            } | null;
+            /** Persona */
+            persona?: string | null;
+            /** Scenario */
+            scenario?: string | null;
         };
         /**
          * Experiment
@@ -996,6 +1330,18 @@ export interface components {
             description: string;
             /** Behaviours */
             behaviours?: components["schemas"]["Behaviour"][];
+        };
+        /**
+         * FileRef
+         * @description One file of an Interview record. The store keeps the bytes on disk.
+         */
+        FileRef: {
+            /** Name */
+            name: string;
+            /** Type */
+            type: string;
+            /** Size */
+            size: number;
         };
         /**
          * FormChoice
@@ -1127,6 +1473,64 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /** GraderPassRate */
+        GraderPassRate: {
+            /**
+             * Fail
+             * @default 0
+             */
+            fail: number;
+            /** Rate */
+            rate?: number | null;
+            /** Mean Score */
+            mean_score?: number | null;
+            /**
+             * Pass
+             * @default 0
+             */
+            pass: number;
+            /**
+             * Ran
+             * @default 0
+             */
+            ran: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+        };
+        /**
+         * GraderRecord
+         * @description One grader run on one session: the run facts plus every result it produced.
+         */
+        GraderRecord: {
+            /** Session Id */
+            session_id: string;
+            /** Scenario Id */
+            scenario_id: string;
+            /** Task Id */
+            task_id: string;
+            /** Trial Index */
+            trial_index: number;
+            /** Criterion Id */
+            criterion_id: string;
+            /** Grader Fqn */
+            grader_fqn: string;
+            /** Grader Args */
+            grader_args: {
+                [key: string]: unknown;
+            };
+            /** Aggregation */
+            aggregation?: string | null;
+            /** Results */
+            results: components["schemas"]["RecordedResult"][];
+        };
         /**
          * GraderSetting
          * @description One key that a Criterion can set under ``grader_args``.
@@ -1207,6 +1611,11 @@ export interface components {
          * @enum {string}
          */
         GraderType: "deterministic" | "statistical_metric" | "learned_discriminative_model" | "embedding_similarity" | "llm" | "decision_model" | "hybrid" | "human";
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
         /**
          * InterviewConfig
          * @description Package-owned values that a wizard door needs to render its opening screen.
@@ -1365,6 +1774,36 @@ export interface components {
             text: string;
         };
         /**
+         * InterviewRecord
+         * @description The web record of one Interview. Its id is the Target id.
+         *
+         *     The store validates `state` as an `InterviewState`. It keeps the transcript as opaque JSON
+         *     and reads from it only the file references in `outbound.files`. These are the files of an
+         *     answer that the wizard has not accepted yet. The store keeps all the files of the record in
+         *     one folder, by name. Each file of the record has its own name. Two names that differ only
+         *     by case are the same name.
+         */
+        InterviewRecord: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            stage: components["schemas"]["InterviewStep"];
+            /** Created At */
+            created_at: number;
+            /** Updated At */
+            updated_at: number;
+            /** Submission Revision */
+            submission_revision?: number | null;
+            state: components["schemas"]["InterviewState-Output"];
+            /** Transcript */
+            transcript: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
+            /** Fixtures */
+            fixtures: components["schemas"]["FileRef"][];
+        };
+        /**
          * InterviewStartRequest
          * @description The first operation, containing all opening evidence.
          */
@@ -1486,6 +1925,7 @@ export interface components {
             /** Response */
             response: components["schemas"]["ChatResponse"] | components["schemas"]["ChoiceResponse"] | components["schemas"]["FormResponse"];
         };
+        JsonValue: unknown;
         /**
          * JudgmentForm
          * @description Result forms that a grader can produce for one scope item.
@@ -1685,12 +2125,352 @@ export interface components {
             /** Question */
             question: string;
         };
+        /** Plan */
+        Plan: {
+            /** Personas */
+            personas: string[];
+            /** Tasks */
+            tasks: components["schemas"]["PlanTask"][];
+        };
+        /** PlanTask */
+        PlanTask: {
+            /** Scenario */
+            scenario: string;
+            /** Id */
+            id: string;
+            /** Personas */
+            personas: string[];
+            /** Trials */
+            trials: number;
+            /** Trialsplanned */
+            trialsPlanned: number;
+            /** Trialsrun */
+            trialsRun: number;
+            /** Personasrun */
+            personasRun: string[];
+            /** Gradersasked */
+            gradersAsked: number;
+            /** Gradersscored */
+            gradersScored: number;
+        };
+        /**
+         * RecordedResult
+         * @description One ``GraderResult`` after the orchestrator has applied the threshold.
+         */
+        RecordedResult: {
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "passed" | "failed" | "skipped" | "errored";
+            /** Score */
+            score?: number | null;
+            /** Reason */
+            reason: string;
+            /** Scope */
+            scope?: string | null;
+            /** Measurements */
+            measurements?: {
+                [key: string]: number;
+            } | null;
+        };
         /**
          * ReferenceType
          * @description Reference categories that a grader can use.
          * @enum {string}
          */
         ReferenceType: "referenceless" | "rubric_based" | "expected_output" | "expected_trajectory_action" | "policy_rule" | "environment_state" | "pairwise_candidate" | "historical_baseline" | "human_preference";
+        /**
+         * Report
+         * @description Top-level model for report.json.
+         *
+         *     This is the contract downstream consumers depend on.
+         */
+        Report: {
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            /** Target */
+            target: string;
+            /** Run */
+            run: string;
+            /** Date */
+            date: string;
+            /** Sessions */
+            sessions: number;
+            /** Results */
+            results: number;
+            /** Latency */
+            latency?: number | null;
+            /** Timings */
+            timings?: {
+                [key: string]: unknown;
+            };
+            trials: components["schemas"]["TrialsSummary"];
+            scores: components["schemas"]["Scores"];
+            plan: components["schemas"]["Plan"];
+            /** Personas */
+            personas: string[];
+            /** Scenarios */
+            scenarios: string[];
+            /** Passratetarget */
+            passRateTarget: number;
+            /** Names */
+            names: {
+                [key: string]: {
+                    [key: string]: string;
+                };
+            };
+            /** Describe */
+            describe: {
+                [key: string]: {
+                    [key: string]: string;
+                };
+            };
+            /** Axes */
+            axes: {
+                [key: string]: components["schemas"]["AxisRow"][];
+            };
+            /** Behaviourtotal */
+            behaviourTotal: number;
+            /** Personasrun */
+            personasRun: string[];
+            /** Scenariosrun */
+            scenariosRun: string[];
+            /** Features */
+            features: components["schemas"]["ReportFeature"][];
+            /** Behaviours */
+            behaviours: {
+                [key: string]: components["schemas"]["ReportBehaviour"];
+            };
+            /** Criteria */
+            criteria: {
+                [key: string]: components["schemas"]["ReportCriterion"];
+            };
+            resultTable: components["schemas"]["ResultTable"];
+            /** Unmapped */
+            unmapped: components["schemas"]["UnmappedGrader"][];
+            /** Unresolved */
+            unresolved: string[];
+        };
+        /** ReportBehaviour */
+        ReportBehaviour: {
+            /**
+             * Pass
+             * @default 0
+             */
+            pass: number;
+            /**
+             * Fail
+             * @default 0
+             */
+            fail: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+            /** Label */
+            label: string;
+            /** Statement */
+            statement: string;
+            /** Detail */
+            detail: string;
+            /** Priority */
+            priority: boolean;
+            /** Criteria */
+            criteria: string[];
+            /** Rate */
+            rate?: number | null;
+            /** Mean Score */
+            mean_score?: number | null;
+            /** Status */
+            status?: string | null;
+        };
+        /** ReportCriterion */
+        ReportCriterion: {
+            /** Name */
+            name: string;
+            /** Grader Args */
+            grader_args?: {
+                [key: string]: unknown;
+            };
+            /** Description */
+            description: string;
+            /** Grader Name */
+            grader_name: string;
+            /** Grader Fqn */
+            grader_fqn?: string | null;
+            /** Judge Models */
+            judge_models?: string[];
+            /**
+             * Pass
+             * @default 0
+             */
+            pass: number;
+            /**
+             * Fail
+             * @default 0
+             */
+            fail: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+            /** Rate */
+            rate?: number | null;
+            /** Mean Score */
+            mean_score?: number | null;
+            /** Status */
+            status?: string | null;
+            blank?: components["schemas"]["BlankCause"] | null;
+            /** P */
+            P?: (components["schemas"]["CriterionBreakdownCell"] | null)[];
+            /** S */
+            S?: (components["schemas"]["CriterionBreakdownCell"] | null)[];
+            /** Evidence */
+            evidence?: components["schemas"]["EvidenceItem"][];
+        };
+        /** ReportFeature */
+        ReportFeature: {
+            /**
+             * Pass
+             * @default 0
+             */
+            pass: number;
+            /**
+             * Fail
+             * @default 0
+             */
+            fail: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Behaviours */
+            behaviours: string[];
+            /** Rate */
+            rate?: number | null;
+            /** Mean Score */
+            mean_score?: number | null;
+            /** Status */
+            status?: string | null;
+        };
+        /** ResultTable */
+        ResultTable: {
+            /** Features */
+            features: components["schemas"]["ResultTableFeature"][];
+            /** Rows */
+            rows: components["schemas"]["ResultTableRow"][];
+        };
+        /** ResultTableColumn */
+        ResultTableColumn: {
+            /** Grader Fqn */
+            grader_fqn?: string | null;
+            /** Criterion */
+            criterion: string;
+            /** Grader Name */
+            grader_name: string;
+        };
+        /** ResultTableFeature */
+        ResultTableFeature: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Columns */
+            columns: components["schemas"]["ResultTableColumn"][];
+        };
+        /**
+         * ResultTableRow
+         * @description One test case: the grader runs of all its trials, pooled per criterion.
+         */
+        ResultTableRow: {
+            /** Task Id */
+            task_id: string;
+            /** Persona */
+            persona: string;
+            /** Scenario */
+            scenario: string;
+            /** Results */
+            results?: {
+                [key: string]: components["schemas"]["CaseResult"];
+            };
+            /** Trials */
+            trials?: components["schemas"]["ResultTableTrial"][];
+        };
+        /** ResultTableTrial */
+        ResultTableTrial: {
+            /**
+             * Task Id
+             * @default
+             */
+            task_id: string;
+            /**
+             * Trial Index
+             * @default 1
+             */
+            trial_index: number;
+            /** Id */
+            id: string;
+            /** Session */
+            session: string;
+            /** Persona */
+            persona: string;
+            /** Scenario */
+            scenario: string;
+            /** Stopreason */
+            stopReason: string;
+            /** Message */
+            message: string;
+            /** Failuresource */
+            failureSource: string;
+            /** Simulated Turns Completed */
+            simulated_turns_completed: number;
+            /** Duration */
+            duration?: number | null;
+            /**
+             * Attempt
+             * @default 1
+             */
+            attempt: number;
+            /** Conversation */
+            conversation?: components["schemas"]["ConversationTurn"][];
+            /** Conversationproblem */
+            conversationProblem?: string | null;
+            /** Category */
+            category: string;
+            /** Features */
+            features?: string[];
+            /** Results */
+            results?: {
+                [key: string]: components["schemas"]["TrialResult"];
+            };
+        };
         /**
          * ReviewSection
          * @description A heading on a review screen, with the actions that belong to it.
@@ -1828,6 +2608,11 @@ export interface components {
          * @enum {string}
          */
         Scope: "model_decision_generation" | "model_reasoning" | "artifact" | "tool_selection" | "tool_arguments" | "tool_execution" | "environment_action" | "trace" | "subsession" | "session";
+        /** Scores */
+        Scores: {
+            graderPassRate: components["schemas"]["GraderPassRate"];
+            trialSuccess: components["schemas"]["TrialSuccess"];
+        };
         /**
          * SecretHeader
          * @description A header the engine adds, from an environment variable, to matching requests.
@@ -1998,6 +2783,26 @@ export interface components {
             version?: string | null;
         };
         /**
+         * TargetList
+         * @description The Targets that the store can read, newest first, and the rows that it cannot read.
+         */
+        TargetList: {
+            /** Targets */
+            targets: components["schemas"]["TargetSummary"][];
+            /** Problems */
+            problems: components["schemas"]["TargetProblem"][];
+        };
+        /**
+         * TargetProblem
+         * @description A stored Interview that the store cannot read with the current version.
+         */
+        TargetProblem: {
+            /** Id */
+            id: string;
+            /** Message */
+            message: string;
+        };
+        /**
          * TargetProfile
          * @description The target context and requirements that an evaluation measures.
          */
@@ -2005,6 +2810,21 @@ export interface components {
             target: components["schemas"]["Target"];
             /** Features */
             features?: components["schemas"]["Feature"][];
+        };
+        /**
+         * TargetSummary
+         * @description One row of the Target list.
+         */
+        TargetSummary: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /**
          * Task
@@ -2046,6 +2866,161 @@ export interface components {
             /** User Agent Model */
             user_agent_model?: string | null;
         };
+        /** Trial */
+        Trial: {
+            /**
+             * Task Id
+             * @default
+             */
+            task_id: string;
+            /**
+             * Trial Index
+             * @default 1
+             */
+            trial_index: number;
+            /** Id */
+            id: string;
+            /** Session */
+            session: string;
+            /** Persona */
+            persona: string;
+            /** Scenario */
+            scenario: string;
+            /** Stopreason */
+            stopReason: string;
+            /** Message */
+            message: string;
+            /** Failuresource */
+            failureSource: string;
+            /** Simulated Turns Completed */
+            simulated_turns_completed: number;
+            /** Duration */
+            duration?: number | null;
+            /**
+             * Attempt
+             * @default 1
+             */
+            attempt: number;
+            /** Conversation */
+            conversation?: components["schemas"]["ConversationTurn"][];
+            /** Conversationproblem */
+            conversationProblem?: string | null;
+            /** Category */
+            category: string;
+            /** Features */
+            features?: string[];
+        };
+        /** TrialResult */
+        TrialResult: {
+            /**
+             * Pass
+             * @default 0
+             */
+            pass: number;
+            /**
+             * Fail
+             * @default 0
+             */
+            fail: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+            /**
+             * Evaluated
+             * @default 0
+             */
+            evaluated: number;
+            /** Rate */
+            rate?: number | null;
+            /** Mean Score */
+            mean_score?: number | null;
+            /** Status */
+            status?: string | null;
+        };
+        /** TrialSuccess */
+        TrialSuccess: {
+            /** Rate */
+            rate?: number | null;
+            /**
+             * Successful
+             * @default 0
+             */
+            successful: number;
+            /**
+             * Attempted
+             * @default 0
+             */
+            attempted: number;
+            /** Status */
+            status?: string | null;
+        };
+        /** TrialsSummary */
+        TrialsSummary: {
+            /** Attempted */
+            attempted: number;
+            /** Successful */
+            successful: number;
+            /** Rate */
+            rate?: number | null;
+            /** Items */
+            items?: components["schemas"]["Trial"][];
+        };
+        /** UnmappedGrader */
+        UnmappedGrader: {
+            /** Grader Fqn */
+            grader_fqn: string;
+            /** Records */
+            records?: components["schemas"]["GraderRecord"][];
+            /** Criterion Id */
+            criterion_id: string;
+            /** Grader Name */
+            grader_name: string;
+            /**
+             * Pass
+             * @default 0
+             */
+            pass: number;
+            /**
+             * Fail
+             * @default 0
+             */
+            fail: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+            /**
+             * Why
+             * @default
+             */
+            why: string;
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
+        };
         /**
          * Warning
          * @description Something the user is told.
@@ -2076,6 +3051,24 @@ export interface components {
          * @enum {string}
          */
         WarningSource: "document" | "runtime";
+        /** WilsonConfidenceInterval */
+        WilsonConfidenceInterval: {
+            /**
+             * Method
+             * @default wilson
+             * @constant
+             */
+            method: "wilson";
+            /**
+             * Confidence Level
+             * @default 0.95
+             */
+            confidence_level: number;
+            /** Lower */
+            lower: number;
+            /** Upper */
+            upper: number;
+        };
         /**
          * WizardRequestState
          * @description Live, or already answered.
@@ -2611,6 +3604,402 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModelStatus"][];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    list_targets_api_v1_targets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TargetList"];
+                };
+            };
+        };
+    };
+    delete_target_api_v1_targets__target_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    read_interview_api_v1_targets__target_id__interview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewRecord"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    put_interview_api_v1_targets__target_id__interview_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_put_interview_api_v1_targets__target_id__interview_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    read_interview_file_api_v1_targets__target_id__interview_files__name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    experiment_report_api_v1_experiments__experiment_id__report_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    experiment_report_page_api_v1_experiments__experiment_id__report_html_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description report.html of the experiment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": unknown;
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
             /** @description Internal Server Error */

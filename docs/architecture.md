@@ -189,7 +189,7 @@ adapters belong in the testbed so the same case data can support other systems.
 | | |
 |---|---|
 | **Import Path** | `from metis.api import ...` |
-| **Purpose** | A thin, stateless HTTP door exposing METIS capabilities as a REST service. |
+| **Purpose** | A thin HTTP door exposing METIS capabilities as a REST service, with a store of Interview records and their files. |
 
 MAY depend on all `packages/*` members. For the wizard it depends on the `metis.wizard` public
 Interview interface only (`apps/api -> metis.wizard`): the router calls `handle_interview`,
@@ -202,6 +202,13 @@ connection in its state. The route accepts request-scoped fixture bytes and retu
 dated ZIP archive; it retains no uploaded files. Wizard owns the archive filename
 and dated root folder. The API sends the filename in `Content-Disposition`, and the
 browser uses it for the download.
+
+The report routes read the experiment folders under `<project folder>/experiments/execute/`.
+The project folder is the one that `metis-api --project-dir` names, or the default project
+folder that the store also uses. An experiment id is an experiment folder name. The routes
+return the report of an experiment as `report.json` and as `report.html`, both inline.
+They call `metis.insights.ensure_report`, so the API holds no report rules. An experiment
+with no `results.json` gives 409 `results_missing`.
 
 Wizard exports share `inputs/` and `outputs/` at the design root. The CLI defaults to
 `experiments/design/YYYY-MM-DD-interview/`. An explicit `--out-dir` selects the exact root.
@@ -219,7 +226,9 @@ working directory or the nearest folder above it that has a `pyproject.toml`. A 
 name stops with an error. `--resume` continues in the run folder that `--experiment-dir` names.
 A caller finds its runs by listing `experiments/execute/` in the project folder. Engine copies
 `--input-dir` into `inputs/`, writes trial records and artifacts under `outputs/trials/`,
-and writes evaluation results to `outputs/reports/results.json`. Insights reads the
+and writes evaluation results to `outputs/reports/results.json`. `outputs/evaluation/` is the
+engine-private record of attempted trials, one file per trial, and Engine writes `results.json`
+last, from those files, once every trial was attempted. Insights reads the
 same execution root and writes `report.json` and `report.html` beside the results.
 Insights reads recorded `GraderRecord` results and rejects the earlier `turn_results` and
 `session_results` format. It uses recorded Criterion IDs and arguments without creating graders.
@@ -227,6 +236,14 @@ Insights reads recorded `GraderRecord` results and rejects the earlier `turn_res
 `metis.core.execution_layout` owns the paths shared by Engine and Insights.
 Logs remain under `logs/`, with the existing simulation log override. Artifact paths
 in trial records remain relative to the execution root.
+Engine appends one `PhaseEvent` per line to `logs/events.jsonl` in the execution root, also
+when the log override is set. `metis.core.phase_events` owns the model and the writer, and
+`packages/core/schemas/phase-event.schema.json` is its published schema. Each line carries a
+`seq` that increases by one and continues across resumes and later evaluations, so a
+reader can resume from the last `seq` it saw. Every line has `seq`, `at`, `phase`, `trial`
+and `status`, and the status decides which extra fields the line has. Each phase starts and
+ends with a line that has no `trial`. Events MUST NOT carry secrets, prompts or model
+replies.
 
 `GET /api/v1/wizard/config` returns the wizard-owned ordered ARC capability categories with the
 opening copy and perspective definitions. `POST /api/v1/wizard/interview/start` accepts the
@@ -234,12 +251,46 @@ description, required known capability ids, required confidence, and any other o
 then passes them to the wizard facade. The API does not validate or store a separate capability
 catalogue.
 
-**Client-held state boundary.** The service holds only immutable settings and model clients for the
-process lifetime. It holds no Interview state: start creates state, turn carries the complete state
-and one typed response, and end carries the complete state for best-effort completion. The next state
-goes back whole in the response, so any instance serves any operation and no Interview file is
-written. Web clients drive the wizard through these HTTP lifecycle routes; they MUST NOT embed the
-wizard.
+**Client-held state boundary.** The wizard routes hold only immutable settings and model clients
+for the process lifetime. They hold no Interview state: start creates state, turn carries the
+complete state and one typed response, and end carries the complete state for best-effort
+completion. The next state goes back whole in the response, so any instance serves any operation
+and the wizard routes write no Interview file. Web clients drive the wizard through these HTTP
+lifecycle routes; they MUST NOT embed the wizard.
+
+**The store.** The store routes under `/api/v1/targets` keep Interview records and their files.
+They do not change the wizard routes. The `interviews` table holds one JSON record per Interview,
+with its id and save time. That record contains the Target details, Specification, transcript,
+and file references. There are no separate Target, Specification, or Experiment records.
+Saving an Interview does not compile the Specification or prepare an engine input folder.
+The existing compile and package routes keep those roles.
+
+SQLAlchemy opens the database from `METIS_DATABASE_URL`. The default is a SQLite file at
+`<project>/experiments/metis.db`. `metis-api --project-dir` names the project folder. Without it,
+the API finds the nearest folder at or above the working directory that has a `pyproject.toml`.
+If no such folder exists, it uses the working directory. The table uses portable SQL types.
+PostgreSQL support is later work.
+
+The files of an Interview are under
+`<project>/experiments/design/<target_id>/inputs/fixtures/`. The web app gives a new Interview
+the id `YYYYMMDD-HHMMSS-interview` in local time. When the id is taken, it adds `-2`, `-3`,
+and so on. The `created_at` of the record tells one Interview from another. A save with the id
+of another Interview gets 409 `target_exists` and changes nothing.
+
+Each file has its own name. Names that differ only by case are the same name. A record with two
+files of the same name gets 400 `validation_error`. The web client gives a new file with a taken
+name the next free ` (n)` before its extension.
+
+A save writes the new files into the fixture folder, saves the row, and then deletes the files
+that the record no longer refers to. Thus a saved record always has all its files. The store has
+no recovery step. A save that stops before its last step can leave a file that no record refers
+to, and the next save of that Interview deletes it. Each store holds a thread lock for the full
+time of a save or a delete. The store has no lock between processes.
+
+A first save refuses an existing Target folder that has no Interview row. It returns 409
+`target_exists` and leaves the folder unchanged. DELETE requires an Interview row. A missing row
+gets 404 `not_found`, and its folder stays in place. A delete removes the row and then the Target
+folder.
 
 ---
 
@@ -250,10 +301,10 @@ wizard.
 | **Purpose** | Web frontend providing a graphical interface for METIS capabilities. |
 
 MUST communicate exclusively with `apps/api` via REST. MUST NOT import or depend on any Python package directly.
-The browser owns the local Interview record, fixture Blobs, and display transcript in IndexedDB. It
-sends only the client-held `InterviewState` and typed responses to lifecycle routes; fixture bytes
-are sent only for request-scoped text extraction or packaging. It MUST NOT depend on server Interview
-resources, wizard static assets, or an embedded wizard runtime.
+The browser saves the Interview record, its fixture files, and the display transcript through the
+store routes of `apps/api`. It sends only the client-held `InterviewState` and typed responses to
+lifecycle routes; fixture bytes go to those routes only for request-scoped text extraction or
+packaging. It MUST NOT depend on wizard static assets or an embedded wizard runtime.
 
 It MUST offer two authoring paths: the guided Interview, and a manual form for a user who already
 knows the graders to run. The manual form MUST stay flat: it MUST NOT surface Feature, Behaviour, or

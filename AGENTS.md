@@ -73,7 +73,7 @@ insights ───────────────► core
 ```
 
 Key invariants:
-- `core` has zero workspace dependencies (Pydantic + structlog + Rich + python-dotenv + stdlib)
+- `core` has zero workspace dependencies (Pydantic + httpx + structlog + Rich + python-dotenv + stdlib)
 - `library` depends only on `core`
 - `wizard` and `engine` depend on `core` + `library` but NOT on each other
 - `insights` depends only on `core`
@@ -95,8 +95,8 @@ See [the schema guide](packages/core/schemas/README.md).
 - **metis-engine:** Evaluation runtime — simulation harness, trace extraction (Langfuse), and grader execution. CLI: `metis engine simulate --input-dir <path>`.
 - **metis-wizard:** Interactive CLI for generating evaluation config YAML. CLI: `metis wizard init`.
 - **metis-insights:** Report generation from evaluation results — the terminal summary, `report.json`, and `report.html`. CLI: `metis insights report --results-file <path>`.
-- **apps/web:** React browser client. It calls `apps/api` over HTTP and stores Interview records and
-  the display transcript in browser-local IndexedDB. It does not import Python packages or use the
+- **apps/web:** React browser client. It calls `apps/api` over HTTP and saves Interview records and
+  the display transcript through the `apps/api` store routes. It does not import Python packages or use the
   wizard's retired server/static-web path. It gives the user two ways to author an experiment: the
   guided Interview, and a manual form for a user who already knows the graders to run. The manual
   form is flat — it never shows Feature, Behaviour, or Criterion — and it builds its own

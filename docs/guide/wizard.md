@@ -8,7 +8,7 @@ The METIS Engine runs that specification.
 | Interface | Best for | Who saves Interview state? | Finished output |
 |---|---|---|---|
 | [CLI](wizard/cli.md) | A person working in a terminal | The CLI saves a local JSON file | Files in an output directory |
-| [Web](wizard/web.md) | A person who wants a guided browser flow | The browser saves data in IndexedDB | `YYYYMMDD-HHMMSS-interview.zip` download |
+| [Web](wizard/web.md) | A person who wants a guided browser flow | The API saves data in its store | `YYYYMMDD-HHMMSS-interview.zip` download |
 | [API](wizard/api.md) | A service or custom client | Your client saves the returned JSON state | YAML strings or `YYYYMMDD-HHMMSS-interview.zip` |
 
 - The CLI runs the Wizard logic on your computer. It does not need the API server.

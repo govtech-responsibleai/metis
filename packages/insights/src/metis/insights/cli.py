@@ -63,7 +63,7 @@ def report(
 
     try:
         console.print(format_terminal_summary(results), markup=False)
-        paths = save_report(results, experiment_dir)
+        files = save_report(results, experiment_dir)
     except Exception as exc:
         console.print(
             f"Error: report not written: {type(exc).__name__}: {exc}",
@@ -72,13 +72,12 @@ def report(
         )
         raise typer.Exit(code=1) from exc
 
-    if paths is None:
+    if files is None:
         specification = experiment_dir / execution_layout.SPECIFICATION
         console.print(
             f"  Report:       not written (no readable {specification})", markup=False
         )
         return
-    html_path, json_path = paths
-    console.print(f"  JSON report:  {json_path}", markup=False)
-    console.print(f"  HTML report:  {html_path}", markup=False)
-    console.print(f"  Open with:    open {html_path}\n", markup=False)
+    console.print(f"  JSON report:  {files.json}", markup=False)
+    console.print(f"  HTML report:  {files.html}", markup=False)
+    console.print(f"  Open with:    open {files.html}\n", markup=False)

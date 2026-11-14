@@ -48,6 +48,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
 from langfuse import Langfuse
+from langfuse.api.core.api_error import ApiError
 
 from metis.core import Artifact, resolve_artifact_path
 from metis.core.logging import get_logger
@@ -59,8 +60,9 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-_FIELDS = "core,basic,time,io,metadata"
-"""``time`` holds ``updatedAt``, which the trace wait reads."""
+_FIELDS = "core,basic,time,io,metadata,model,usage"
+"""``time`` holds ``updatedAt``, which the trace wait reads. ``model`` holds the model name and
+``usage`` holds ``usageDetails``, ``costDetails`` and ``totalCost``, which ``usage_of`` reads."""
 _PAGE_SIZE = 1000
 _TRUNCATION_LIMIT = 200
 """Langfuse truncates metadata values longer than this unless the key is expanded."""
@@ -86,6 +88,8 @@ _RETRYABLE_ERRORS = (
     httpx.RemoteProtocolError,
 )
 """Transport failures worth another try: a timeout, a refused or dropped connection."""
+_RETRYABLE_STATUSES = frozenset({408, 409, 429})
+"""Statuses below 500 worth another try, the same set the Langfuse SDK retries."""
 
 
 class UnsupportedTraceError(RuntimeError):
@@ -116,31 +120,43 @@ def _retry_delay(retry: int) -> float:
     return delay * (1 - 0.25 * random.random())
 
 
+def _is_retryable(exc: Exception) -> bool:
+    """A transport failure, or a response with status 408, 409, 429 or 5xx."""
+    if isinstance(exc, _RETRYABLE_ERRORS):
+        return True
+    if isinstance(exc, ApiError) and exc.status_code is not None:
+        return exc.status_code in _RETRYABLE_STATUSES or exc.status_code >= 500
+    return False
+
+
 async def _get_page(langfuse: Langfuse, **request: Any) -> Any:
     """One ``get_many`` call, retried when Langfuse or the network is briefly unavailable.
 
     With ``--concurrency N`` several sessions call Langfuse at once, so a rate limit or a slow
-    reply is expected now and then. Two kinds of failure are retried, each by its own
-    mechanism, up to ``_MAX_RETRIES`` times with a growing wait:
+    reply is expected now and then. This loop retries, up to ``_MAX_RETRIES`` times with the
+    growing wait of ``_retry_delay``, both a response with status 408, 409, 429 or 5xx and a
+    timeout or connection error. Any other failure, such as a 401 for a bad key, is raised
+    at once.
 
-    * A response with status 408, 409, 429 or 5xx. The SDK retries these itself (honouring
-      ``Retry-After``) once ``request_options`` allows it; its default is no retries.
-    * A timeout or connection error. These raise before any response exists, so the SDK
-      cannot see them and this loop retries them.
-
-    Any other failure, such as a 401 for a bad key, is raised at once.
+    ``request_options`` is never passed, so the SDK's own retries stay off. With it set, the
+    SDK sends a JSON body ``{}`` with the GET, which a proxy in front of Langfuse may reject
+    with HTTP 400 (issue #122). ``Retry-After`` is not honoured: the SDK's ``ApiError`` keeps
+    only the status and body, not the response headers.
     """
     for retry in range(_MAX_RETRIES + 1):
         try:
-            return await langfuse.async_api.observations_v_2.get_many(
-                **request, request_options={"max_retries": _MAX_RETRIES}
-            )
-        except _RETRYABLE_ERRORS as exc:
-            if retry == _MAX_RETRIES:
+            return await langfuse.async_api.observations_v_2.get_many(**request)
+        except (*_RETRYABLE_ERRORS, ApiError) as exc:
+            if retry == _MAX_RETRIES or not _is_retryable(exc):
                 raise
+            reason = (
+                f"HTTP {exc.status_code}"
+                if isinstance(exc, ApiError)
+                else type(exc).__name__
+            )
             logger.warning(
                 "[langfuse] %s on an observations request; retrying (%d/%d)",
-                type(exc).__name__,
+                reason,
                 retry + 1,
                 _MAX_RETRIES,
             )

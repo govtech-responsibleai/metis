@@ -7,7 +7,7 @@ evidence. It does not make release decisions or set target priorities.
 
 ## File contract and current input support
 
-The insights [Report model](../../packages/insights/src/metis/insights/_models.py) defines `report.json`.
+The core [Report model](../../packages/core/src/metis/core/report.py) defines `report.json`.
 The report writer validates data through this model. Saved reports contain `"schema_version": 1`.
 The model defaults a missing version to `1` and rejects other explicit values.
 
@@ -141,7 +141,7 @@ columns, and unmapped entries use `grader_fqn` for the full grader path and `gra
 for its display label. The display label never identifies a criterion or a recorded
 result. Scores retain Task, Trial, Session, Criterion, Grader FQN, and arguments.
 IDs join Features, Behaviours, Criteria, Personas, Scenarios, Tasks, and
-grader records. The insights [Report model](../../packages/insights/src/metis/insights/_models.py)
+grader records. The core [Report model](../../packages/core/src/metis/core/report.py)
 defines these fields.
 
 A record joins to a criterion through its task and criterion IDs. The recorded scenario must

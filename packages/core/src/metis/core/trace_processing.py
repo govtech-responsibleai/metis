@@ -16,6 +16,7 @@ The recorded turns: messages, calls, reply    ``turns(input.traces)``
 The files the target produced                 ``find_artifacts(input, name)``
 The files the user gave the target            ``find_fixtures(input)``
 The tools each agent had                      ``tools_offered(input.traces)``
+The tokens and cost of the turns, per model   ``usage_of(turns)``
 **2. Select what to judge**
 Each recorded turn on its own (trace scope)   ``select_by_turn(turns, last_only=...)``
 A recorded turn and those before it           ``select_by_window(turns, size, last_only=...)``
@@ -88,8 +89,10 @@ import json
 import re
 from datetime import datetime  # noqa: TC003
 from pathlib import Path
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal
 
+import pydantic
 from pydantic import BaseModel
 
 from metis.core.artifacts import media_type
@@ -316,6 +319,223 @@ def tools_offered(traces: Sequence[Trace]) -> tuple[OfferedTool, ...]:
             for rank, tool in _tools_recorded(observation, by_id):
                 found.setdefault((tool.agent, tool.name), []).append((rank, tool))
     return tuple(_merged(entries) for entries in found.values())
+
+
+class Tokens(BaseModel, frozen=True):
+    """Token counts, summed as Langfuse reported them."""
+
+    input: int = 0
+    output: int = 0
+    total: int = 0
+    """Langfuse's ``total``; ``input + output`` for a call that recorded none."""
+    other: dict[str, int] = pydantic.Field(default_factory=dict)
+    """Provider-specific ``usageDetails`` keys, e.g. ``input_cached_tokens``, summed as sent."""
+
+
+class ModelUsage(BaseModel, frozen=True):
+    """The tokens and cost of every counted call to one model."""
+
+    model: str | None
+    """Langfuse's ``model``, e.g. ``"gpt-5.6-luna"``; ``None`` for calls that recorded none."""
+    calls: int
+    tokens: Tokens
+    cost: float | None
+    """Sum of ``totalCost`` in USD; ``None`` when any of these calls has tokens but no cost."""
+
+
+class Usage(BaseModel, frozen=True):
+    """The tokens and cost of a set of recorded turns, in total and per model."""
+
+    tokens: Tokens
+    cost: float | None
+    """``None`` when any counted call has tokens but no cost, so a partial sum is never
+    shown as the total."""
+    by_model: tuple[ModelUsage, ...]
+    """One entry per model, in the order first seen."""
+
+
+def usage_of(turns: tuple[Turn, ...]) -> Usage | Problem:
+    """The tokens and cost of these recorded turns.
+
+    Read from each observation's ``model``, ``usageDetails`` and ``totalCost`` as Langfuse
+    returned them. An observation counts when it records usage and none of its descendants in
+    the same trace also does, because some instrumentations write a rolled-up count onto a
+    parent span as well as onto each model call. A ``missing`` problem when no observation
+    records usage, since unknown usage is not zero usage.
+    """
+    calls = [call for turn in turns for call in _counted_calls(turn.trace)]
+    if not calls:
+        return Problem(kind="missing", detail="no observation records token usage")
+    by_model: dict[str | None, list[_Call]] = {}
+    for call in calls:
+        by_model.setdefault(call.model, []).append(call)
+    return Usage(
+        tokens=_sum_tokens(calls),
+        cost=_sum_cost(calls),
+        by_model=tuple(
+            ModelUsage(
+                model=model,
+                calls=len(group),
+                tokens=_sum_tokens(group),
+                cost=_sum_cost(group),
+            )
+            for model, group in by_model.items()
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# 1b. Resource-use measurements
+# ---------------------------------------------------------------------------
+
+_STEP_TYPES = frozenset({"GENERATION", "TOOL", "AGENT"})
+_NON_TARGET_TYPES = frozenset({"EVALUATOR"})
+
+
+def session_elapsed_seconds(traces: Sequence[Trace]) -> float | Problem:
+    """Wall-clock seconds from the earliest observation start to the latest observation end.
+
+    Scans every observation in every trace for the earliest ``start_time`` and the latest
+    ``end_time``.  Observations of type ``EVALUATOR`` are excluded because they belong to the
+    evaluation phase, not the target's session.  Returns a ``Problem`` when either timestamp
+    is missing from every remaining observation.
+    """
+    earliest: datetime | None = None
+    latest: datetime | None = None
+    for trace in traces:
+        for obs in trace.observations:
+            if obs.type in _NON_TARGET_TYPES:
+                continue
+            if obs.start_time is not None and (
+                earliest is None or obs.start_time < earliest
+            ):
+                earliest = obs.start_time
+            if obs.end_time is not None and (latest is None or obs.end_time > latest):
+                latest = obs.end_time
+    if earliest is None or latest is None:
+        return Problem(
+            kind="missing",
+            detail="No observation has both a start time and an end time.",
+        )
+    return (latest - earliest).total_seconds()
+
+
+def execution_step_count(traces: Sequence[Trace]) -> int:
+    """Non-root observations of type GENERATION, TOOL or AGENT across all traces.
+
+    SPAN observations are structural grouping and excluded.  The root observation of each trace
+    is excluded because it represents the trace itself, not an execution step.
+    """
+    count = 0
+    for trace in traces:
+        root_id = trace.root.id
+        for obs in trace.observations:
+            if obs.id != root_id and obs.type in _STEP_TYPES:
+                count += 1
+    return count
+
+
+def generation_count(traces: Sequence[Trace]) -> int:
+    """GENERATION observations across all traces, including the root if it is a GENERATION.
+
+    Unlike ``execution_step_count``, which excludes each trace's root, this counts every
+    GENERATION observation because a root-level model call is still a model call.
+    """
+    return sum(
+        1 for trace in traces for obs in trace.observations if obs.type == "GENERATION"
+    )
+
+
+def tool_call_count(traces: Sequence[Trace]) -> int:
+    """TOOL observations across all traces."""
+    return sum(
+        1 for trace in traces for obs in trace.observations if obs.type == "TOOL"
+    )
+
+
+def session_cost(traces: Sequence[Trace]) -> float | Problem:
+    """Total monetary cost from GENERATION observations, assumed to be in USD.
+
+    Reads ``calculatedTotalCost`` or ``costDetails.total`` from each GENERATION observation's
+    ``raw`` dict, falling back to the legacy ``totalPrice``.  Langfuse cost fields carry no
+    currency tag, so values are summed as-is.  Returns a ``Problem`` when no GENERATION
+    observation has cost data.
+    """
+    total = 0.0
+    found_any = False
+    for trace in traces:
+        for obs in trace.observations:
+            if obs.type != "GENERATION":
+                continue
+            raw = obs.raw
+            calc = raw.get("calculatedTotalCost")
+            if calc is not None:
+                total += float(calc)
+                found_any = True
+                continue
+            details = raw.get("costDetails")
+            if isinstance(details, dict):
+                detail_total = details.get("total")
+                if detail_total is not None:
+                    total += float(detail_total)
+                    found_any = True
+                    continue
+            price = raw.get("totalPrice")
+            if price is not None:
+                total += float(price)
+                found_any = True
+    if not found_any:
+        return Problem(
+            kind="missing",
+            detail="No GENERATION observation has cost data "
+            "(calculatedTotalCost, costDetails, or totalPrice).",
+        )
+    return total
+
+
+def token_usage(traces: Sequence[Trace]) -> MappingProxyType[str, int] | Problem:
+    """Aggregate token counts from GENERATION observations.
+
+    Returns a frozen ``{"input": N, "output": N, "total": N}`` summed across every GENERATION
+    observation that has usage data.  Reads from the ``usage`` dict, or falls back to the
+    legacy ``promptTokens``/``completionTokens``/``totalTokens`` fields, in each observation's
+    ``raw``.  Returns a ``Problem`` when no GENERATION observation has token data.
+    """
+    totals: dict[str, int] = {"input": 0, "output": 0, "total": 0}
+    found_any = False
+    for trace in traces:
+        for obs in trace.observations:
+            if obs.type != "GENERATION":
+                continue
+            raw = obs.raw
+            usage_dict = raw.get("usage")
+            if isinstance(usage_dict, dict) and any(
+                usage_dict.get(k) is not None for k in ("input", "output", "total")
+            ):
+                for key in ("input", "output", "total"):
+                    val = usage_dict.get(key)
+                    if val is not None:
+                        totals[key] += int(val)
+                found_any = True
+                continue
+            pt = raw.get("promptTokens")
+            ct = raw.get("completionTokens")
+            tt = raw.get("totalTokens")
+            if any(v is not None for v in (pt, ct, tt)):
+                if pt is not None:
+                    totals["input"] += int(pt)
+                if ct is not None:
+                    totals["output"] += int(ct)
+                if tt is not None:
+                    totals["total"] += int(tt)
+                found_any = True
+    if not found_any:
+        return Problem(
+            kind="missing",
+            detail="No GENERATION observation has token usage data "
+            "(usage, promptTokens, completionTokens, or totalTokens).",
+        )
+    return MappingProxyType(totals)
 
 
 # ---------------------------------------------------------------------------
@@ -601,6 +821,97 @@ _ERROR_LEVELS = ("ERROR", "WARNING")
 _MEDIA_REFERENCE = re.compile(
     r"@@@langfuseMedia:type=([^|@]*)\|id=([^|@]*)\|source=[^@]*@@@"
 )
+
+
+class _Call(BaseModel, frozen=True):
+    """One counted observation's model, tokens and cost."""
+
+    model: str | None
+    tokens: Tokens
+    cost: float | None
+
+
+def _counted_calls(trace: Trace) -> list[_Call]:
+    """The observations in ``trace`` that record usage and have no descendant that does."""
+    recorded = {
+        observation.id: (observation, details)
+        for observation in trace.observations
+        if (details := _usage_details(observation))
+    }
+    by_id = {observation.id: observation for observation in trace.observations}
+    ancestors: set[str] = set()
+    for observation, _ in recorded.values():
+        parent_id = observation.parent_observation_id
+        while parent_id and parent_id in by_id and parent_id not in ancestors:
+            ancestors.add(parent_id)
+            parent_id = by_id[parent_id].parent_observation_id
+    return [
+        _Call(
+            model=_model_of(observation),
+            tokens=_tokens(details),
+            cost=_number(observation.raw.get("totalCost")),
+        )
+        for observation_id, (observation, details) in recorded.items()
+        if observation_id not in ancestors
+    ]
+
+
+def _usage_details(observation: Observation) -> dict[str, int]:
+    """The numeric entries of the observation's ``usageDetails``; ``{}`` when it has none."""
+    details = observation.raw.get("usageDetails")
+    if not isinstance(details, dict):
+        return {}
+    return {
+        str(key): int(number)
+        for key, raw in details.items()
+        if (number := _number(raw)) is not None
+    }
+
+
+def _model_of(observation: Observation) -> str | None:
+    model = observation.raw.get("model")
+    return model if isinstance(model, str) and model else None
+
+
+def _number(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return value
+
+
+def _tokens(details: dict[str, int]) -> Tokens:
+    input = details.get("input", 0)
+    output = details.get("output", 0)
+    return Tokens(
+        input=input,
+        output=output,
+        total=details.get("total", input + output),
+        other={
+            key: value
+            for key, value in details.items()
+            if key not in ("input", "output", "total")
+        },
+    )
+
+
+def _sum_tokens(calls: Sequence[_Call]) -> Tokens:
+    other: dict[str, int] = {}
+    for call in calls:
+        for key, value in call.tokens.other.items():
+            other[key] = other.get(key, 0) + value
+    return Tokens(
+        input=sum(call.tokens.input for call in calls),
+        output=sum(call.tokens.output for call in calls),
+        total=sum(call.tokens.total for call in calls),
+        other=other,
+    )
+
+
+def _sum_cost(calls: Sequence[_Call]) -> float | None:
+    """The summed cost; ``None`` when any call has tokens but no cost."""
+    if any(call.cost is None and call.tokens.total for call in calls):
+        return None
+    return sum(call.cost or 0.0 for call in calls)
 
 
 def _turn(index: int, trace: Trace) -> Turn:
