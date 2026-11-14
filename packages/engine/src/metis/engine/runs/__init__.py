@@ -9,6 +9,11 @@ Only one run at a time is safe in one process. Logging, the Langfuse clients, an
 ``LANGFUSE_HOST`` in ``os.environ`` are shared by the whole process.
 """
 
+from metis.engine.runs._evaluation import (
+    EvaluationOutcome,
+    evaluate,
+    resume_evaluation,
+)
 from metis.engine.runs._inputs import (
     prepare_experiment,
     resolve_experiment_dir,
@@ -25,12 +30,15 @@ from metis.engine.runs.errors import (
 
 __all__ = [
     "EvaluationInputError",
+    "EvaluationOutcome",
     "ExperimentExistsError",
     "InvalidInputsError",
     "RunError",
     "RunStopped",
+    "evaluate",
     "prepare_experiment",
     "resolve_experiment_dir",
+    "resume_evaluation",
     "resume_simulation",
     "simulate",
     "validate_inputs",
