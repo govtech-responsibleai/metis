@@ -17,6 +17,8 @@ import {
   emptyRecord,
   removeUnreferencedFixtures,
 } from "../storage/repository.ts";
+import { fakeStore } from "../storage/fake-store.test-helper.ts";
+import { admitFiles } from "../fixture-policy.ts";
 import { InterviewOperations } from "./operations.ts";
 import {
   applyEnd,
@@ -232,8 +234,7 @@ test("runs a document interview through skip, review, reload and package", async
     confirmed: true,
   };
 
-  globalThis.fetch = async (input, init) => {
-    const path = String(input);
+  globalThis.fetch = fakeStore(async (path, init) => {
     if (path.endsWith("/documents/extract"))
       return new Response(
         JSON.stringify({
@@ -289,7 +290,7 @@ test("runs a document interview through skip, review, reload and package", async
       );
     }
     throw new Error(`Unexpected API path: ${path}`);
-  };
+  }).fetch;
 
   const repository = new InterviewRepository();
   const policy = new File(["policy original"], "policy.md", {
@@ -312,7 +313,7 @@ test("runs a document interview through skip, review, reload and package", async
     started.stage,
     startTranscript("A support assistant", started.state),
   );
-  record = addFixtures(record, [policy, notes]);
+  record = addFixtures(record, admitFiles([policy, notes], []));
   await repository.put(record);
   record = removeUnreferencedFixtures(record, ["policy.md", "notes.txt"]);
   assert.deepEqual(
@@ -358,11 +359,17 @@ test("runs a document interview through skip, review, reload and package", async
   const confirm: UserResponse = { type: "choice", selected: ["continue"] };
   await operations.send(ended, confirm);
   assert.equal(toPresentation(ended).done, true);
-  const withFixture = addFixtures(ended, [
-    new File(["unused later file"], "unused.json", {
-      type: "application/json",
-    }),
-  ]);
+  const withFixture = addFixtures(
+    ended,
+    admitFiles(
+      [
+        new File(["unused later file"], "unused.json", {
+          type: "application/json",
+        }),
+      ],
+      ended.fixtures,
+    ),
+  );
   await repository.put(withFixture);
   const archive = await api.package(
     { state: withFixture.state },
@@ -404,8 +411,7 @@ test("runs an offline start, chat, choice, form, reload, end and package flow", 
     },
   };
 
-  globalThis.fetch = async (input, init) => {
-    const path = String(input);
+  globalThis.fetch = fakeStore(async (path, init) => {
     if (path.endsWith("/start"))
       return new Response(
         JSON.stringify(success(startState, "awaiting_response")),
@@ -452,7 +458,7 @@ test("runs an offline start, chat, choice, form, reload, end and package flow", 
       );
     }
     throw new Error(`Unexpected API path: ${path}`);
-  };
+  }).fetch;
 
   const repository = new InterviewRepository();
   const started = await api.start("A support assistant", {
@@ -497,12 +503,18 @@ test("runs an offline start, chat, choice, form, reload, end and package flow", 
   const reloaded = await new InterviewRepository().read("offline-plain-flow");
   assert.equal(reloaded?.transcript.length, 4);
   const ended = applyEnd(reloaded!, await api.end(reloaded!.state));
-  const withFixture = addFixtures(ended, [
-    new File(["fixture bytes"], "policy.pdf", { type: "application/pdf" }),
-    new File(["unused later file"], "unused.json", {
-      type: "application/json",
-    }),
-  ]);
+  const withFixture = addFixtures(
+    ended,
+    admitFiles(
+      [
+        new File(["fixture bytes"], "policy.pdf", { type: "application/pdf" }),
+        new File(["unused later file"], "unused.json", {
+          type: "application/json",
+        }),
+      ],
+      ended.fixtures,
+    ),
+  );
   await repository.put(withFixture);
   assert.deepEqual(
     withFixture.fixtures.map((file) => file.name),
@@ -532,4 +544,101 @@ test("runs an offline start, chat, choice, form, reload, end and package flow", 
   assert.equal(withFixture.state.confirmed, true);
   assert.equal(withFixture.transcript.at(-1)?.kind, "interaction");
   await repository.delete("offline-plain-flow");
+});
+
+test("a file added to a task row is a fixture of the Interview after the turn", async () => {
+  const startState = baseState();
+  const review = { ...choiceRequest(), request_id: "review-1" };
+  const reviewState: InterviewState = { ...startState, pending: review };
+  const afterState: InterviewState = {
+    ...reviewState,
+    pending: { ...review, request_id: "review-2" },
+    specification: {
+      ...startState.specification,
+      tasks: [policyTask(["policy.pdf"])],
+    },
+  };
+  const server = fakeStore(async (path) => {
+    if (path.endsWith("/turn"))
+      return new Response(
+        JSON.stringify(success(afterState, "awaiting_response")),
+        { status: 200 },
+      );
+    throw new Error(`Unexpected API path: ${path}`);
+  });
+  globalThis.fetch = server.fetch;
+  const repository = new InterviewRepository();
+  let current = emptyRecord(
+    "task-row-file",
+    reviewState,
+    "behaviours",
+    startTranscript("A support assistant", reviewState),
+  );
+  await repository.put(current);
+  const operations = new InterviewOperations(repository, (saved) => {
+    current = saved;
+  });
+
+  await operations.send(
+    current,
+    { type: "choice", selected: ["continue"] },
+    admitFiles(
+      [new File(["policy bytes"], "policy.pdf", { type: "application/pdf" })],
+      current.fixtures,
+    ),
+  );
+
+  const reply = current.transcript.at(-2);
+  assert.equal(reply?.kind === "interaction" && reply.status, "answered");
+  assert.deepEqual(server.targets.get("task-row-file")?.record.fixtures, [
+    { name: "policy.pdf", type: "application/pdf", size: 12 },
+  ]);
+  const reloaded = (await new InterviewRepository().read("task-row-file"))!;
+  assert.equal(await reloaded.fixtures[0]?.blob.text(), "policy bytes");
+});
+
+test("an answer file with the name of a fixture never changes the fixture bytes", async () => {
+  const startState = baseState();
+  const review = { ...choiceRequest(), request_id: "review-1" };
+  const reviewState: InterviewState = { ...startState, pending: review };
+  const server = fakeStore(async (path) => {
+    if (path.endsWith("/turn"))
+      return new Response(
+        JSON.stringify({
+          type: "failure",
+          code: "model_unavailable",
+          message: "The model is not available.",
+          retryable: true,
+        }),
+        { status: 503 },
+      );
+    throw new Error(`Unexpected API path: ${path}`);
+  });
+  globalThis.fetch = server.fetch;
+  const repository = new InterviewRepository();
+  let current = addFixtures(
+    emptyRecord(
+      "answer-name-conflict",
+      reviewState,
+      "behaviours",
+      startTranscript("A support assistant", reviewState),
+    ),
+    admitFiles([new File(["original"], "policy.pdf")], []),
+  );
+  await repository.put(current);
+  const operations = new InterviewOperations(repository, (saved) => {
+    current = saved;
+  });
+  const stored = () => server.targets.get("answer-name-conflict")!.files;
+
+  await operations.send(
+    current,
+    { type: "choice", selected: ["continue"] },
+    admitFiles([new File(["answer"], "policy.pdf")], current.fixtures),
+  );
+  assert.deepEqual([...stored().keys()], ["policy.pdf", "policy (2).pdf"]);
+  await operations.edit(current);
+
+  assert.deepEqual([...stored().keys()], ["policy.pdf"]);
+  assert.equal(await stored().get("policy.pdf")?.blob.text(), "original");
 });

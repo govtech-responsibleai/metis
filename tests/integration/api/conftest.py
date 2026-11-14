@@ -3,4 +3,10 @@
 from tests.fixtures.api._shared import (  # noqa: F401  (re-exported as fixtures)
     client,
     make_client,
+    project_cwd,
+    project_dir,
+    store,
+)
+from tests.fixtures.api.experiments import (  # noqa: F401  (re-exported as a fixture)
+    make_experiment,
 )

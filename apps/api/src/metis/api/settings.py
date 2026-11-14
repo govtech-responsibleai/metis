@@ -1,10 +1,12 @@
 """Process-wide settings and the production composition of the wizard dependencies.
 
-The app keeps immutable settings and model clients for the lifetime of the process. It keeps no
-user Specification, pending request, or Interview state — every lifecycle request carries the required
-state in its body. `build_dependencies` is the one place that constructs the real gateway-backed
-interviewer and matcher; tests inject a scripted pair instead through the router's dependency
-override.
+The app keeps immutable settings, model clients, and the store for the lifetime of the process.
+The wizard routes keep no Interview state. Each lifecycle request carries the required state in
+its body. The store routes keep the records of each Target in the database that
+``METIS_DATABASE_URL`` names, and their files in `experiments/design/` of the project folder.
+`metis-api --project-dir` names the project folder. `build_dependencies` is the one place that
+constructs the real gateway-backed interviewer and matcher; tests inject a scripted pair instead
+through the router's dependency override.
 
 The API starts when model settings are missing. Then `GET /api/v1/models` reports the missing
 roles, and each Interview route returns 503 `model_unavailable`.
@@ -17,6 +19,8 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, TypeAlias
 
+from metis.api.store import DATABASE
+from metis.core.execution_layout import find_project_root
 from metis.core.model_settings import (
     ModelRole,
     RoleSettings,
@@ -42,7 +46,14 @@ CONNECTION_CHECK_ENV = "METIS_API_CONNECTION_CHECK"
 """`1` lets the connection-check route reach the target, and `0` stops it. When it is unset,
 the check is on only for an API that listens on this computer."""
 
+DEFAULT_HOST = "127.0.0.1"
+"""The API listens for its own computer only, unless ``HOST`` names another address."""
+
 _LOCAL_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+DATABASE_URL_ENV = "METIS_DATABASE_URL"
+"""The SQLAlchemy URL of the store database. The default is
+`sqlite:///<project>/experiments/metis.db`."""
 
 
 def connection_check_from_env() -> bool:
@@ -60,7 +71,7 @@ def connection_check_from_env() -> bool:
     flag = os.environ.get(CONNECTION_CHECK_ENV, "").strip()
     if flag in ("0", "1"):
         return flag == "1"
-    return os.environ.get("HOST", "0.0.0.0").strip() in _LOCAL_HOSTS  # noqa: S104
+    return os.environ.get("HOST", DEFAULT_HOST).strip() in _LOCAL_HOSTS
 
 
 @dataclass(frozen=True)
@@ -71,19 +82,35 @@ class Settings:
     listens on this computer. See ``connection_check_from_env``.
 
     ``env`` is a copy of the process environment, so it holds keys. ``repr`` leaves it out.
+    ``database_url`` can hold a password, so ``repr`` leaves it out too.
     """
 
     env: Mapping[str, str] = field(repr=False)
     env_file: Path | None = None
     connection_check: bool = False
+    project_dir: Path = field(default_factory=find_project_root)
+    database_url: str = field(default="", repr=False)
 
     @classmethod
-    def from_env(cls, env_file: Path | None = None) -> Settings:
-        """Take a copy of the process environment."""
+    def from_env(
+        cls, env_file: Path | None = None, project_dir: Path | None = None
+    ) -> Settings:
+        """Take a copy of the process environment.
+
+        ``project_dir`` comes from `metis-api --project-dir`. Without it, the project folder is
+        the one that ``find_project_root`` finds.
+        """
+        project_dir = (project_dir or find_project_root()).resolve()
+        database_url = (
+            os.environ.get(DATABASE_URL_ENV, "").strip()
+            or f"sqlite:///{project_dir / DATABASE}"
+        )
         return cls(
             env=dict(os.environ),
             env_file=env_file or find_env_file(),
             connection_check=connection_check_from_env(),
+            project_dir=project_dir,
+            database_url=database_url,
         )
 
     def role(self, role: ModelRole) -> RoleSettings:
@@ -133,8 +160,10 @@ def build_dependencies(settings: Settings) -> WizardDependencies:
 
 
 __all__ = [
+    "DEFAULT_HOST",
     "API_ROLES",
     "CONNECTION_CHECK_ENV",
+    "DATABASE_URL_ENV",
     "InterviewHandler",
     "Settings",
     "SettingsError",

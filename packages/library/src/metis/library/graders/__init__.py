@@ -11,6 +11,7 @@ semantic weight.
 The example graders are in ``metis.library.graders.demo`` and are not re-exported here.
 """
 
+from ._criterion_decision import CriterionDecisionGrader as CriterionDecisionGrader
 from ._criterion_judge import CriterionJudgeGrader as CriterionJudgeGrader
 from .execution_and_decision_quality import (
     ActionChoiceAppropriatenessGrader as ActionChoiceAppropriatenessGrader,
@@ -93,6 +94,12 @@ from .reliability_and_robustness import (
 from .reliability_and_robustness import (
     RobustnessToToolFailuresGrader as RobustnessToToolFailuresGrader,
 )
+from .resource_use import ElapsedTimeGrader as ElapsedTimeGrader
+from .resource_use import ExecutionStepCountGrader as ExecutionStepCountGrader
+from .resource_use import ModelCallCountGrader as ModelCallCountGrader
+from .resource_use import MonetaryCostGrader as MonetaryCostGrader
+from .resource_use import TokenUsageGrader as TokenUsageGrader
+from .resource_use import ToolCallCountGrader as ToolCallCountGrader
 from .task_and_output_quality import (
     AttributionAccuracyGrader as AttributionAccuracyGrader,
 )

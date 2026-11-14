@@ -7,14 +7,16 @@ See root [AGENTS.md](../../AGENTS.md) for monorepo-wide instructions.
 Report generation for evaluation outputs. `metis insights report --results-file <path>`
 reads core `EvaluationResults` from `outputs/reports/results.json` and produces the
 terminal passed/failed/skipped/errored summary plus `outputs/reports/report.json` and
-`outputs/reports/report.html`.
+`outputs/reports/report.html`. The API calls `ensure_report` for
+the same files. The API holds no report rules.
 
 ## Dependency rule
 
 Depends on `metis-core` only. Never import `metis.engine`, `metis.library`, or
 `metis.wizard`; `tests/unit/insights/test_dependency_boundary.py` checks this.
 The core `EvaluationResults`, `GraderRecord`, `RecordedResult`, and `TrialRecord`
-models own the saved input contracts. Insights owns the private output `Report` model.
+models own the saved input contracts. The core `metis.core.report.Report` model owns the
+`report.json` output contract.
 Preserve recorded Criterion IDs, grader settings, and Task and Trial identity. Keep grader
 errors separate from target failures and skips.
 
@@ -22,7 +24,8 @@ errors separate from target failures and skips.
 
 - `cli.py` — the Typer app (`metis insights …`)
 - `report.py` — `format_terminal_summary`, `save_report`
-- `_models.py` — `Report`, the `report.json` contract
+- `report.py` also holds `ensure_report`, which builds the report of an experiment folder on
+  request.
 - `_report.py` — `build_report`, `load_report_sources` (the behaviour/criterion rollup)
 - `_aggregation.py` — summary counts and the mean of children
 - `_report_page.py`, `_report_styles.py` — the HTML page. `RENDER_SCRIPT` holds pure
@@ -40,10 +43,9 @@ report fields. See the [report contract](../../docs/guide/report.md).
 
 ## Report contract
 
-`_models.Report` defines and validates `report.json`. `metis.insights` re-exports it. Reports contain
-`schema_version: 1`. The model defaults a missing version to `1` and rejects other
-explicit versions. There is no published JSON Schema file for reports. `Report` stays in
-insights while no other package reads `report.json`. Move it to core when a second package
-needs it.
+`metis.core.report.Report` defines and validates `report.json`. Insights writes the file and
+apps/api reads it. Reports contain `schema_version: 1`. The model defaults a missing version
+to `1` and rejects other explicit versions. There is no published JSON Schema file for
+reports. Import `Report` from `metis.core.report` only.
 
 The report's content rules live in [docs/guide/report.md](../../docs/guide/report.md).

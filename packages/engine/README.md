@@ -43,6 +43,9 @@ metis engine evaluate --experiment-dir experiments/execute/toyapp-http-simple-20
 metis engine simulate --resume --experiment-dir experiments/execute/toyapp-http-simple-20260820-143000/
 metis engine run --resume --experiment-dir experiments/execute/toyapp-http-simple-20260820-143000/
 
+# Resume an interrupted evaluation. Trials that already have a file in outputs/evaluation/ are skipped.
+metis engine evaluate --resume --experiment-dir experiments/execute/toyapp-http-simple-20260820-143000/
+
 # With the browser runner selected and its credentials set:
 HEADED=true metis engine simulate --input-dir packages/engine/examples/http-agentic_eval_toyapp-1/
 
@@ -70,7 +73,7 @@ metis engine evaluate --experiment-dir experiments/execute/toyapp-http-simple-20
 | Command | Reads | Writes |
 |---------|-------|--------|
 | `simulate` | `specification.yaml` and `fixtures/` from `--input-dir` | `experiments/execute/<id>-<timestamp>/outputs/trials/` |
-| `evaluate` | `outputs/trials/` from the `--experiment-dir` output directory,  the Langfuse traces it points to, and `inputs/specification.yaml` from that output | `outputs/reports/` in that same output directory |
+| `evaluate` | `outputs/trials/` from the `--experiment-dir` output directory,  the Langfuse traces it points to, and `inputs/specification.yaml` from that output | `outputs/evaluation/`, `outputs/traces/` and `outputs/reports/` in that same output directory |
 
 > **Important:** `evaluate` must only be run after `simulate`. It scores an existing simulation output rather than producing one, so if the directory holds no `inputs/` snapshot it exits 1 and tells you to run `simulate` first.
 
@@ -80,7 +83,9 @@ The two commands take different paths. `simulate` takes the source experiment as
 
 Evaluation has no TUI option. It uses a normal progress bar in a terminal and linear per-record progress in a non-interactive environment.
 
-Resume continues the output directory named by `--experiment-dir`. It reads the experiment and fixtures from that directory's frozen `inputs/` snapshot, retries only missing, invalid, or `system_error` records, and appends to `logs/simulate.log`. `simulate` and `run` print the exact resume command. Passing `--resume` with `--input-dir` is an error; the message lists the outputs that exist for the experiment `id`.
+Resume continues the output directory named by `--experiment-dir`. It reads the experiment and fixtures from that directory's frozen `inputs/` snapshot, retries only missing, invalid, or `system_error` records, and appends to `logs/simulate.log`. `simulate` and `run` print the exact resume command. Passing `--resume` with `--input-dir` is an error; the message lists the outputs that exist for the experiment `id`. A resumed simulation that re-runs at least one trial deletes `outputs/evaluation/`, `outputs/traces/` and `results.json`, because the old grades no longer match. With nothing to redo, it keeps them.
+
+`evaluate --resume --experiment-dir <dir>` skips every trial that already has a file in `outputs/evaluation/`, grades the rest, and prints `resuming: K of N trials already evaluated`. A trial counts as evaluated once it has that file, whether it was graded, had errored criteria, or failed before grading. Resume does not retry failed trials or errored criteria; to grade every trial again, run a fresh `evaluate`. A fresh `evaluate` deletes `outputs/evaluation/`, `outputs/traces/` and `results.json` once its setup checks pass, then grades every trial. If `results.json` exists, `--resume` prints `nothing to resume` and changes nothing; `run --resume` still adds the `evaluating` `started` and `completed` lines to `logs/events.jsonl`. It appends to `logs/evaluate.log`. Ctrl-C keeps the files of the trials that finished, writes no `results.json`, and prints the resume command; trials in flight are lost, at most `--concurrency` of them. `run --resume` resumes the simulation, then the grading.
 
 ### Concurrency
 
@@ -101,7 +106,7 @@ my-experiment/
 
 See [`examples/http-agentic_eval_toyapp-1/`](examples/http-agentic_eval_toyapp-1/) for a working reference.
 
-Each execution produces output in `experiments/execute/<id>-<timestamp>/`. Reports appear after `evaluate` or `run`:
+Each execution produces output in `experiments/execute/<id>-<timestamp>/`, under the project folder. Reports appear after `evaluate` or `run`. The project folder is the working directory or the nearest folder above it that has a `pyproject.toml`. `simulate` and `run` take `--project-dir <folder>` for an existing folder to set it from any working directory.
 
 ```text
 experiments/execute/toyapp-http-simple-20260730-143022/
@@ -119,16 +124,28 @@ experiments/execute/toyapp-http-simple-20260730-143022/
 │   │       └── artifacts/
 │   │           ├── run-manifest.json
 │   │           └── ...
+│   ├── evaluation/
+│   │   └── TC-001-cooperative-delegator-1.json  # One file per trial evaluated; private to the engine
+│   ├── traces/                    # Raw Langfuse rows saved by evaluate
 │   └── reports/
-│       ├── results.json           # Engine evaluation
+│       ├── results.json           # Engine evaluation, written last
 │       ├── report.json            # Insights
 │       └── report.html            # Insights
 └── logs/
+    ├── events.jsonl               # One PhaseEvent per line, for simulate and evaluate
     ├── simulate.log
     ├── simulate-TC-001_cooperative-delegator-01.log
     ├── llm_calls.jsonl            # LLM requests made once per experiment
     └── evaluate.log
 ```
+
+`logs/events.jsonl` is the experiment's progress for other programs. Each line is one
+`PhaseEvent` from `metis.core.phase_events`, validated by
+`packages/core/schemas/phase-event.schema.json`. Every line has `seq`, `at`, `phase`
+(`simulating` or `evaluating`), `trial` and `status`. Each phase starts and ends with a line
+that has no `trial`. `seq` numbers the lines from 1 and continues when a resume or a later
+`evaluate` appends. The file always stays in the
+experiment folder, also when `--log-dir` moves the other logs.
 
 ## Programmatic usage
 
@@ -136,6 +153,9 @@ experiments/execute/toyapp-http-simple-20260730-143022/
 from metis.engine import build_grader, fetch_session, grade_session
 from metis.engine.extractor import get_langfuse_client
 ```
+
+`fetch_session(session_id, langfuse, experiment_root=...)` is a coroutine: `await` it
+from async code, or run it with `asyncio.run`.
 
 `build_grader(criterion, default_judge_model=..., env=...)` returns a validated
 `Grader` instance. Keep one instance per Criterion ID. Pass the selected Criteria

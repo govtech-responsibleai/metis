@@ -241,7 +241,7 @@ const relevanceGrader: GraderSpec = {
       name: "threshold",
       kind: "number",
       required: false,
-      default: 0.5,
+      default: 0.8,
       base: true,
     },
     {
@@ -265,7 +265,7 @@ test("a selected grader starts with its description and the default of each sett
         ground_truth: "",
         turn: "last",
         purpose: "",
-        threshold: "0.5",
+        threshold: "0.8",
         scope: "",
       },
     },

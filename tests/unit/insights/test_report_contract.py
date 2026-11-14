@@ -9,9 +9,9 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
+from metis.core.report import Report
 from metis.core.reporting import EvaluationResults, GraderRecord
 from metis.insights._aggregation import summarize_run
-from metis.insights._models import Report
 from metis.insights._report import build_report, load_report_sources
 from metis.insights.cli import app
 from metis.insights.report import format_terminal_summary
@@ -163,6 +163,19 @@ def test_grader_error_is_separate_from_failure(experiment: Path) -> None:
     assert (criterion["fail"], criterion["error"], criterion["rate"]) == (0, 1, None)
 
 
+def test_an_all_skipped_criterion_is_skipped(experiment: Path) -> None:
+    records = [
+        grader_record("T-1", 1, "C-3", "skipped"),
+        grader_record("T-2", 1, "C-3", "skipped"),
+    ]
+    criterion = _build(experiment, records)["criteria"]["C-3"]
+    assert criterion["status"] == "skip"
+    assert criterion["blank"] == {
+        "cause": "all skipped",
+        "note": "2 grader runs skipped.",
+    }
+
+
 def test_evidence_keeps_recorded_facts_and_settings(experiment: Path) -> None:
     records = grader_records()
     records[0].grader_args["threshold"] = 0.4
@@ -182,6 +195,17 @@ def test_evidence_keeps_recorded_facts_and_settings(experiment: Path) -> None:
         0.4,
         "passed",
     )
+    assert first["measurements"] is None
+
+
+def test_evidence_keeps_the_numbers_a_grader_measured(experiment: Path) -> None:
+    records = [
+        grader_record(
+            "T-1", 1, "C-1", 0.73, measurements={"applicable": 0.89, "satisfied": 0.73}
+        )
+    ]
+    (item,) = _build(experiment, records)["criteria"]["C-1"]["evidence"]
+    assert item["measurements"] == {"applicable": 0.89, "satisfied": 0.73}
 
 
 def test_partial_error_stays_in_raw_evidence(experiment: Path) -> None:
@@ -309,3 +333,11 @@ def test_cli_rejects_results_without_grader_records(experiment: Path) -> None:
     assert result.exit_code == 1
     assert "turn_results" in result.output
     assert not (experiment.parent / "report.json").exists()
+
+
+def test_report_reads_results_with_no_records(tmp_path: Path) -> None:
+    path = write_experiment(tmp_path / "experiment", [])
+    EvaluationResults(run_id="report", records=[]).save(path)
+    result = CliRunner().invoke(app, ["report", "--results-file", str(path)])
+    assert result.exit_code == 0, result.output
+    assert Report.model_validate_json((path.parent / "report.json").read_text())

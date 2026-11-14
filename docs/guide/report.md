@@ -7,7 +7,7 @@ evidence. It does not make release decisions or set target priorities.
 
 ## File contract and current input support
 
-The insights [Report model](../../packages/insights/src/metis/insights/_models.py) defines `report.json`.
+The core [Report model](../../packages/core/src/metis/core/report.py) defines `report.json`.
 The report writer validates data through this model. Saved reports contain `"schema_version": 1`.
 The model defaults a missing version to `1` and rejects other explicit values.
 
@@ -35,10 +35,13 @@ The page opens with these facts:
 
 1. The average pass rate, which is the headline result of the
    [hierarchy roll-up](#hierarchy-roll-up). Its tip explains how it is calculated and names
-   the pass-rate target.
+   the pass-rate target. When grader runs errored, a warning line under it says how many
+   of all the grader runs errored.
 2. Behaviours below the target, as a count of the behaviours that have a rate.
-3. Trials that reached their goal, from `trials.successful` of `trials.attempted`.
-4. The number of test cases.
+3. Grader runs completed, as the count of grader runs that passed, failed, or skipped, of all
+   the grader runs. A grader run that errored did not complete.
+4. Trials that reached their goal, from `trials.successful` of `trials.attempted`.
+5. The number of test cases.
 
 The header shows the target name and the report date. Generate all values from report data.
 The page does not show a run start time or a run duration, because the run does not record
@@ -74,6 +77,11 @@ decided yet. Until then, the report uses this contract:
 Partial skipped or errored results stay visible as raw evidence when a run has scored
 results. They do not add extra run verdicts. Original result outcomes and scores stay
 unchanged.
+
+A result can also record measurements: the named numbers that the grader computed, such as a
+decision model's probability for each question it was asked. The page shows each one as a
+bar, and shows the score and the pass mark above the bars. The pass mark applies to the score
+only. The measurements are evidence for the reader. No rate or mean score includes them.
 
 The page uses these result words: Passed, Failed, Skipped, and Errored. Errored means that a
 grader run failed. This says something about the grader, not the target. A behaviour that
@@ -121,7 +129,13 @@ Its last row is the mean of the criterion rows.
 These rules apply to every item:
 
 - An evaluated run passed or failed. Skipped and errored runs are left out of rates and mean
-  scores.
+  scores. A warning icon beside a score means that some grader runs behind it errored. Its
+  label says how many of the node's grader runs errored. An errored run means that the grader
+  could not score it, and it says nothing about the target. A criterion with no rate because
+  its runs errored shows Not graded and no icon. The page marks errored runs once, at the
+  lowest level that is visible: a feature or behaviour shows the icon only while its children
+  are hidden, and the target node of the tree shows it only while every feature with errored
+  runs is closed.
 - A child counts only when it has at least one scored run. A node with no usable evidence
   is Not evaluated.
 - A grader setup or mapping problem is Data error.
@@ -136,7 +150,7 @@ columns, and unmapped entries use `grader_fqn` for the full grader path and `gra
 for its display label. The display label never identifies a criterion or a recorded
 result. Scores retain Task, Trial, Session, Criterion, Grader FQN, and arguments.
 IDs join Features, Behaviours, Criteria, Personas, Scenarios, Tasks, and
-grader records. The insights [Report model](../../packages/insights/src/metis/insights/_models.py)
+grader records. The core [Report model](../../packages/core/src/metis/core/report.py)
 defines these fields.
 
 A record joins to a criterion through its task and criterion IDs. The recorded scenario must
@@ -242,8 +256,9 @@ The page is one page, with no tabs. Explanations are in tips. Run facts are in a
   each criterion. The first trial is selected when the panel opens.
 - For the selected trial, show the conversation with user messages on the right and target
   replies on the left. Beside it, show what each grader returned, in one tab for each result:
-  Failed, Passed, Errored, and Skipped. Trial data carries the engine's count of simulated
-  turns as `simulated_turns_completed`.
+  Failed, Passed, Errored, and Skipped. Each tab names every criterion in it with the reason
+  that its grader returned. Trial data carries the engine's count of simulated turns as
+  `simulated_turns_completed`.
 - The page counts only recorded turns, as defined in the [glossary](../../GLOSSARY.md). Each
   conversation row is one recorded turn, numbered as the graders number it (`Turn N` is
   `turn:N`), and the trial's ending gives the number of rows. The page does not show

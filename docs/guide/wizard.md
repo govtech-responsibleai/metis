@@ -8,7 +8,7 @@ The METIS Engine runs that specification.
 | Interface | Best for | Who saves Interview state? | Finished output |
 |---|---|---|---|
 | [CLI](wizard/cli.md) | A person working in a terminal | The CLI saves a local JSON file | Files in an output directory |
-| [Web](wizard/web.md) | A person who wants a guided browser flow | The browser saves data in IndexedDB | `YYYYMMDD-HHMMSS-interview.zip` download |
+| [Web](wizard/web.md) | A person who wants a guided browser flow | The API saves data in its store | `YYYYMMDD-HHMMSS-interview.zip` download |
 | [API](wizard/api.md) | A service or custom client | Your client saves the returned JSON state | YAML strings or `YYYYMMDD-HHMMSS-interview.zip` |
 
 - The CLI runs the Wizard logic on your computer. It does not need the API server.
@@ -150,6 +150,8 @@ file. It does not guess submissions during a run.
 
 The CLI writes files to `experiments/design/YYYYMMDD-HHMMSS-interview/` by default. The timestamp uses the machine's local date and 24-hour time, including seconds.
 Extract browser or API downloads into `experiments/design/`.
+The API store uses the same layout. It writes each done web Interview to
+`experiments/design/<target-id>/outputs/`, and you can give that folder to `--input-dir`.
 Each ZIP contains its dated experiment folder. For an Interview created on 2026-10-16 at 22:30:45, run the specification with the
 Engine:
 

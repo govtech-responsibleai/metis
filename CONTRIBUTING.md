@@ -34,6 +34,13 @@ make check      # verify everything passes (lint + format + typecheck)
 
 If you use direnv, the `.envrc` will activate the virtualenv automatically. Otherwise, prefix commands with `uv run` or activate `.venv` manually.
 
+Shared agent skills are in `.agents/skills/`, which Codex reads. To use them in Claude Code, copy
+them to `.claude/skills/`, and run the command again after a pull that changes a skill:
+
+```bash
+mkdir -p .claude/skills && cp -R .agents/skills/. .claude/skills/
+```
+
 ## Monorepo Orientation
 
 ```
@@ -108,6 +115,31 @@ When you change a wizard HTTP request or response, update the Pydantic contract 
 `packages/wizard` first. Then regenerate the committed web types with
 `npm --prefix apps/web run generate:api` and run `npm --prefix apps/web run check:api`. Do not edit
 `apps/web/src/generated/api.ts` by hand.
+
+### Running the Landing Page and Docs
+
+The public site has two parts, each with its own Node project: the landing page in
+`landing-page/` and the docs in `website/`. The docs need Node.js 22 or later and use npm, which
+comes with Node. The landing page uses [pnpm](https://pnpm.io/), which Node does not include, so
+install it first with `corepack enable pnpm` or `brew install pnpm`. CI uses pnpm 11. If pnpm is
+missing, the landing page targets stop and say so.
+
+```bash
+make install-landing    # once: install landing-page dependencies (needs pnpm)
+make run-landing        # landing page dev server on port 8443
+make build-landing      # production build into landing-page/dist
+
+make install-docs       # once: install docs dependencies
+make run-docs           # docs dev server on port 3000
+make build-docs         # production build into website/build
+make check-docs         # build the docs and check links
+
+make run-site           # both dev servers together
+make build-site         # both builds, laid out into _site/ as GitHub Pages serves them
+```
+
+`make install-extras` installs both sets of dependencies, along with Playwright. See
+[`website/README.md`](website/README.md) for more on previewing the docs.
 
 ### Commit Messages
 

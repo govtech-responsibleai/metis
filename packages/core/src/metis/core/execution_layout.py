@@ -2,12 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import PurePosixPath
-from typing import TYPE_CHECKING
+from pathlib import Path, PurePosixPath
 from urllib.parse import quote
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 EXECUTIONS = PurePosixPath("experiments/execute")
 INPUTS = PurePosixPath("inputs")
@@ -18,14 +14,38 @@ TRIAL_RECORD = "record.json"
 """File name of a trial's ``TrialRecord``, inside its folder under ``TRIALS``."""
 REPORTS = PurePosixPath("outputs/reports")
 RESULTS = REPORTS / "results.json"
+REPORT_JSON = REPORTS / "report.json"
+REPORT_HTML = REPORTS / "report.html"
 TRACES = PurePosixPath("outputs/traces")
 """Folder of the traces `evaluate` saved, one file per session, named by `trace_file_name`."""
+EVALUATION = PurePosixPath("outputs/evaluation")
+"""Folder of each trial's evaluation outcome, private to the engine; one file per trial, named by `evaluation_file_name`."""
 LOGS = PurePosixPath("logs")
+EVENTS_FILE = "events.jsonl"
+"""File name of the event log inside ``LOGS``: one ``PhaseEvent`` per line."""
+
+
+def find_project_root(cwd: Path | None = None) -> Path:
+    """Find the default project folder, which holds ``experiments/``.
+
+    It is the nearest folder at or above ``cwd`` that has a `pyproject.toml`, else ``cwd``.
+    ``cwd`` defaults to the working directory.
+    """
+    current = cwd or Path.cwd()
+    for parent in [current, *current.parents]:
+        if (parent / "pyproject.toml").exists():
+            return parent
+    return current
 
 
 def trace_file_name(session_id: str) -> str:
     """The file name of a session's saved traces. Percent-encoded, so no id can name a path."""
     return quote(session_id, safe="") + ".json"
+
+
+def evaluation_file_name(trial: str) -> str:
+    """The file name of a trial's evaluation outcome. Percent-encoded, so no id can name a path."""
+    return quote(trial, safe="") + ".json"
 
 
 def experiment_root_from_results(results_file: Path) -> Path:

@@ -7,20 +7,26 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --test src/reveal.test.ts src/relative-time.test.ts src/graders.test.ts src/download.test.ts src/manual.test.ts src/fixture-policy.test.ts src/storage/repository.test.ts src/wizard/transcript.test.ts src/wizard/operations.test.ts src/wizard/navigation.test.ts src/wizard/offline-flow.test.ts src/transport/api.test.ts src/connection.test.ts && mkdir -p \"${METIS_WEB_TEST_CACHE_DIR:-node_modules/.cache}\" && esbuild src/SpecificationView.test.tsx src/App.test.tsx src/ManualForm.test.tsx src/RunSettings.test.tsx --bundle --platform=node --format=esm --packages=external --outdir=\"${METIS_WEB_TEST_CACHE_DIR:-node_modules/.cache}\" --out-extension:.js=.mjs && node \"${METIS_WEB_TEST_CACHE_DIR:-node_modules/.cache}/SpecificationView.test.mjs\" && node \"${METIS_WEB_TEST_CACHE_DIR:-node_modules/.cache}/App.test.mjs\" && node \"${METIS_WEB_TEST_CACHE_DIR:-node_modules/.cache}/ManualForm.test.mjs\" && node \"${METIS_WEB_TEST_CACHE_DIR:-node_modules/.cache}/RunSettings.test.mjs\"",
+    "test": "node --experimental-strip-types --test src/reveal.test.ts src/relative-time.test.ts src/theme.test.ts src/graders.test.ts src/download.test.ts src/manual.test.ts src/fixture-policy.test.ts src/storage/repository.test.ts src/wizard/transcript.test.ts src/wizard/operations.test.ts src/routes.test.ts src/export.test.ts src/wizard/offline-flow.test.ts src/transport/api.test.ts src/connection.test.ts && mkdir -p \"${METIS_WEB_TEST_CACHE_DIR:-node_modules/.cache}\" && esbuild src/SpecificationView.test.tsx src/App.test.tsx src/ManualForm.test.tsx src/RunSettings.test.tsx src/TargetShell.test.tsx --bundle --platform=node --format=esm --packages=external --outdir=\"${METIS_WEB_TEST_CACHE_DIR:-node_modules/.cache}\" --out-extension:.js=.mjs && node \"${METIS_WEB_TEST_CACHE_DIR:-node_modules/.cache}/SpecificationView.test.mjs\" && node \"${METIS_WEB_TEST_CACHE_DIR:-node_modules/.cache}/App.test.mjs\" && node \"${METIS_WEB_TEST_CACHE_DIR:-node_modules/.cache}/ManualForm.test.mjs\" && node \"${METIS_WEB_TEST_CACHE_DIR:-node_modules/.cache}/RunSettings.test.mjs\" && node \"${METIS_WEB_TEST_CACHE_DIR:-node_modules/.cache}/TargetShell.test.mjs\"",
     "typecheck": "tsc --noEmit",
     "format:check": "prettier --check \"src/*.{ts,tsx}\" \"src/transport/**/*.{ts,tsx}\" \"src/storage/**/*.{ts,tsx}\" \"src/wizard/**/*.{ts,tsx}\" \"scripts/**/*.mjs\" \"vite.config.ts\"",
     "generate:api": "node scripts/generate-api-types.mjs",
     "check:api": "node scripts/generate-api-types.mjs --check"
   },
   "dependencies": {
+    "@codemirror/lang-yaml": "^6.1.3",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
     "@fontsource/dm-sans": "^5.3.0",
     "@fontsource/figtree": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.0.0",
     "@fontsource/lato": "^5.0.0",
+    "@lezer/highlight": "^1.2.5",
     "lucide-react": "^1.28.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "wouter": "^3.13.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
@@ -28,7 +34,6 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",
-    "fake-indexeddb": "^6.2.5",
     "openapi-typescript": "^7.9.1",
     "prettier": "^3.9.6",
     "tailwindcss": "^4.0.0",

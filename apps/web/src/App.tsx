@@ -10,8 +10,7 @@ import {
 } from "react";
 import { PanelLeft, PanelRight, Puzzle, X } from "lucide-react";
 import type {
-  InterviewSummary,
-  LocalInterviewRecord,
+  LoadedInterviewRecord,
   CapabilityConfidence,
   CapabilityEvidence,
   InterviewDocument,
@@ -21,7 +20,7 @@ import type {
   ConnectionCheckResult,
   TargetConnection,
 } from "./transport/api";
-import { api, TransportError, toSummary } from "./transport/api";
+import { api, TransportError } from "./transport/api";
 import {
   ActiveReview,
   Composer,
@@ -29,6 +28,8 @@ import {
   reviewParts,
   ReviewSectionActions,
   Transcript,
+  UploadContext,
+  type AdmitUploads,
 } from "./Conversation";
 import { ConnectionForm, ModePicker } from "./ConnectionStep";
 import {
@@ -48,10 +49,23 @@ import {
   stateForDownload,
   type RunModels,
 } from "./RunSettings";
-import { SpecificationView, stepPosition } from "./SpecificationView";
-import { InterviewRail } from "./InterviewRail";
+import {
+  ProfileHeading,
+  SpecificationView,
+  stepPosition,
+} from "./SpecificationView";
+import { ProfileToolbar, YamlView, type ProfileMode } from "./ProfileToolbar";
+import { TargetRail } from "./TargetRail";
+import { ExperimentsTab, TargetTabs } from "./TargetPage";
+import { ExperimentDialog } from "./ExperimentDialog";
+import { exportedSpecification } from "./export";
+import {
+  AllExperimentsPage,
+  ComparePage,
+  ExperimentPage,
+} from "./ExperimentPages";
 import { PaneDivider, useChatWidth } from "./pane-divider";
-import { Button, cn } from "./ui";
+import { Button, buttonClass, cn } from "./ui";
 import {
   CapabilityConfidencePicker,
   CapabilityPicker,
@@ -62,16 +76,30 @@ import {
   UnderBoxSurface,
 } from "./OpeningControls";
 import {
-  InterviewRepository,
   emptyRecord,
   addFixtures,
   fixturesForSpecification,
-  type LocalStorageProblem,
+  interviewId,
+  putNew,
+  recordFiles,
+  type StorageProblem,
 } from "./storage/repository";
 import {
-  normalizeFixtureName,
-  validateFixtureSelection,
-} from "./fixture-policy";
+  deleteTarget,
+  interviewRepository,
+  listTargets,
+  readTarget,
+  type TargetSummary,
+} from "./targets";
+import { Link, useLocation } from "wouter";
+import {
+  NEW_EXPERIMENT,
+  paths,
+  placeOf,
+  targetOf,
+  targetRedirect,
+} from "./routes";
+import { admitFiles, type AdmittedFile } from "./fixture-policy";
 import { specificationHasCriteria } from "./graders";
 import { downloadArchive } from "./download";
 import { ManualAuthoringEntry, ManualForm } from "./ManualForm";
@@ -81,11 +109,8 @@ import {
   startTranscript,
   toPresentation,
 } from "./wizard/transcript";
-
-import { TabNavigation, type TabEntry } from "./wizard/navigation";
 import { InterviewOperations, pendingEntry } from "./wizard/operations";
 
-const repository = new InterviewRepository();
 type WizardConfig = Awaited<ReturnType<typeof api.config>>;
 export type OpeningControl = "perspective" | "capabilities";
 type OpeningDocumentRead =
@@ -148,30 +173,44 @@ export function conversationScrollRevision(
   return `${interviewId ?? "opening"}:${requestCount}:${done ? "complete" : "active"}:${submission}`;
 }
 
+// The path to open when the first save of a new Interview finishes. A user who left that opening
+// stays where they went.
+export function openedPath(
+  currentPath: string,
+  currentOpening: number,
+  origin: number,
+  id: string,
+): string | null {
+  return placeOf(currentPath).page === "new-target" && currentOpening === origin
+    ? paths.target(id, "specification")
+    : null;
+}
+
 export function App() {
-  const [interviews, setInterviews] = useState<InterviewSummary[]>([]);
+  const [location, navigate] = useLocation();
+  const place = placeOf(location);
+  const targetId = targetOf(place);
+  const locationRef = useRef(location);
+  locationRef.current = location;
+  const targetRef = useRef(targetId);
+  targetRef.current = targetId;
+  const [targets, setTargets] = useState<TargetSummary[]>([]);
   const [storageProblems, setStorageProblems] = useState<
-    readonly LocalStorageProblem[]
+    readonly StorageProblem[]
   >([]);
-  const [record, setRecord] = useState<LocalInterviewRecord | null>(null);
-  const [destination, setDestination] = useState<TabEntry | null>(null);
-  const destinationRef = useRef<TabEntry | null>(null);
-  const navigation = useRef<TabNavigation | null>(null);
+  const [record, setRecord] = useState<LoadedInterviewRecord | null>(null);
   const refreshListRef = useRef<() => Promise<void>>(async () => {});
   const [operations] = useState(
     () =>
-      new InterviewOperations(repository, (next) => {
-        const current = destinationRef.current?.destination;
-        if (current?.kind === "interview" && current.id === next.id)
-          setRecord(next);
+      new InterviewOperations(interviewRepository, (next) => {
+        if (targetRef.current === next.id) setRecord(next);
         void refreshListRef.current().catch(() => {});
       }),
   );
   useSyncExternalStore(operations.subscribe, operations.snapshot);
-  const operationKey =
-    destination?.destination.kind === "interview"
-      ? destination.destination.id
-      : `opening:${destination?.entry ?? "loading"}`;
+  // An opening is one visit to the opening screen. "New target" starts the next one.
+  const [opening, setOpening] = useState(0);
+  const operationKey = targetId ?? `opening:${opening}`;
   const busy = operations.active.has(operationKey);
   const feedback = operations.feedback.get(operationKey);
   const error = feedback?.message ?? null;
@@ -198,7 +237,7 @@ export function App() {
   // The default Perspective stays marked until the user first opens the Perspective control.
   const [perspectiveSeen, setPerspectiveSeen] = useState(false);
   const [openingDescription, setOpeningDescription] = useState("");
-  const [openingDocuments, setOpeningDocuments] = useState<File[]>([]);
+  const [openingDocuments, setOpeningDocuments] = useState<AdmittedFile[]>([]);
   // An extraction response belongs only to the opening session that requested it.
   const openingGeneration = useRef(0);
   const [documentTrayOpen, setDocumentTrayOpen] = useState(false);
@@ -215,7 +254,6 @@ export function App() {
     useState<ConnectionCheckResult | null>(null);
 
   const [loadingRecord, setLoadingRecord] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const [railOpen, setRailOpen] = useState(true);
   const [chatWidth, setChatWidth] = useChatWidth();
   const panesRef = useRef<HTMLDivElement>(null);
@@ -231,7 +269,6 @@ export function App() {
     return () => narrow.removeEventListener("change", closePanels);
   }, []);
   const [manualOpen, setManualOpen] = useState(false);
-  const [showGraders, setShowGraders] = useState(false);
   const [graderCatalogue, setGraderCatalogue] = useState<Awaited<
     ReturnType<typeof api.graders>
   > | null>(null);
@@ -247,7 +284,14 @@ export function App() {
   // user continues from that step.
   const [runSettingsFor, setRunSettingsFor] = useState<string | null>(null);
 
-  const view = useMemo(() => record && toPresentation(record), [record]);
+  const loadedView = useMemo(() => record && toPresentation(record), [record]);
+  // Only the record of the Target in the URL shows. For one render after a change of Target,
+  // the record of the Target before is still loaded.
+  const view = loadedView?.id === targetId ? loadedView : null;
+  const redirect = view ? targetRedirect(place, view.done) : null;
+  useEffect(() => {
+    if (redirect) navigate(redirect, { replace: true });
+  }, [redirect, navigate]);
   const review = view && !view.done ? activeReview(view.requests) : null;
   const conversationScrollRef = useRef<HTMLDivElement | null>(null);
   const conversationRevision = conversationScrollRevision(
@@ -300,9 +344,11 @@ export function App() {
     ? specificationHasCriteria(view.specification)
     : false;
 
+  const [profileMode, setProfileMode] = useState<ProfileMode>("document");
+  const [experimentDialogOpen, setExperimentDialogOpen] = useState(false);
   useEffect(() => {
-    setShowGraders(false);
     setRunModelDrafts(null);
+    setProfileMode("document");
   }, [record?.id]);
 
   useEffect(() => {
@@ -338,53 +384,44 @@ export function App() {
   }, [loadWizardConfig]);
 
   const refreshList = useCallback(async () => {
-    const rows = await repository.list();
-    setInterviews(rows.map(toSummary));
-    setStorageProblems([...repository.problems]);
+    const listed = await listTargets();
+    setTargets(listed.targets);
+    setStorageProblems(listed.problems);
   }, []);
 
   refreshListRef.current = refreshList;
   useEffect(() => {
-    let disposed = false;
-    const nav = new TabNavigation(window, (entry) => {
-      if (disposed) return;
-      destinationRef.current = entry;
-      setDestination(entry);
-      setManualOpen(false);
-      setConnectionStep(null);
-      setRecord(null);
-      setLoadingRecord(entry.destination.kind === "interview");
-      void (async () => {
-        try {
-          if (entry.destination.kind === "interview") {
-            const stored = await repository.read(entry.destination.id);
-            const next = stored
-              ? await operations.recover(
-                  operations.latest.get(stored.id) ?? stored,
-                )
-              : null;
-            if (!disposed && destinationRef.current?.entry === entry.entry)
-              setRecord(next);
-          }
-        } catch (cause) {
-          if (entry.destination.kind === "interview")
-            operations.report(entry.destination.id, errorMessage(cause));
-        } finally {
-          if (!disposed && destinationRef.current?.entry === entry.entry) {
-            setLoaded(true);
-            setLoadingRecord(false);
-          }
-        }
-      })();
-    });
-    navigation.current = nav;
     void refreshList().catch(() => {});
-    void nav.initialize();
+  }, [refreshList]);
+
+  // The record follows the Target of the URL. A change of tab inside one Target keeps it.
+  useEffect(() => {
+    setManualOpen(false);
+    setConnectionStep(null);
+    setExperimentDialogOpen(false);
+    setRecord(null);
+    setLoadingRecord(targetId !== null);
+    if (targetId === null) return;
+    let current = true;
+    void (async () => {
+      try {
+        const target = await readTarget(targetId);
+        const next = target
+          ? await operations.recover(
+              operations.latest.get(target.id) ?? target.interview,
+            )
+          : null;
+        if (current) setRecord(next);
+      } catch (cause) {
+        operations.report(targetId, errorMessage(cause));
+      } finally {
+        if (current) setLoadingRecord(false);
+      }
+    })();
     return () => {
-      disposed = true;
-      nav.dispose();
+      current = false;
     };
-  }, [operations, refreshList]);
+  }, [targetId, operations]);
   useEffect(() => {
     if (!hasCriteria || graderRequest.current) return;
     setGraderState("loading");
@@ -399,12 +436,10 @@ export function App() {
     );
   }, [hasCriteria]);
 
-  const open = useCallback((id: string) => {
-    navigation.current?.go({ kind: "interview", id });
-  }, []);
   const startNew = useCallback(() => {
     openingGeneration.current += 1;
-    navigation.current?.go({ kind: "new" });
+    setOpening(openingGeneration.current);
+    setManualOpen(false);
     setOpeningControl(null);
     setPerspectiveSeen(false);
     setOpeningDescription("");
@@ -426,16 +461,7 @@ export function App() {
         )
           throw new Error("Document limits are not available yet.");
         const limits = wizardConfig.config.document_limits;
-        const names = validateFixtureSelection(files, openingDocuments, limits);
-        const normalized = files.map((file, index) => {
-          const name = names[index] ?? normalizeFixtureName(file.name);
-          return name === file.name
-            ? file
-            : new File([file], name, {
-                type: file.type,
-                lastModified: file.lastModified,
-              });
-        });
+        const normalized = admitFiles(files, openingDocuments, limits);
         const reads: Record<string, OpeningDocumentRead> = {};
         for (const file of normalized) {
           const canRead = limits.extraction_extensions?.includes(
@@ -520,8 +546,8 @@ export function App() {
       connection: TargetConnection | null = null,
     ) => {
       if (busy) return;
-      const origin = destinationRef.current?.entry;
-      const localId = crypto.randomUUID();
+      const origin = openingGeneration.current;
+      const sent = new Date();
       await operations.run(operationKey, async () => {
         const limits =
           wizardConfig.status === "ready"
@@ -529,7 +555,6 @@ export function App() {
             : undefined;
         if (openingDocuments.length > 0 && !limits)
           throw new Error("Document limits are not available yet.");
-        if (limits) validateFixtureSelection(openingDocuments, [], limits);
         const unresolved = openingDocuments.filter((file) => {
           const status = openingDocumentReads[file.name]?.status;
           return status === "reading" || status === "failed";
@@ -573,33 +598,42 @@ export function App() {
           connection,
         );
         const started = emptyRecord(
-          localId,
+          interviewId(sent),
           result.state,
           result.stage,
           startTranscript(description, result.state),
         );
-        const next = addFixtures(started, openingDocuments);
+        const record = addFixtures(started, openingDocuments);
+        const opened = async (saved: LoadedInterviewRecord) => {
+          const path = openedPath(
+            locationRef.current,
+            openingGeneration.current,
+            origin,
+            saved.id,
+          );
+          if (path) navigate(path, { replace: true });
+          await refreshList();
+        };
+        let saved: LoadedInterviewRecord;
         try {
-          await repository.put(next);
+          saved = await putNew(interviewRepository, record, sent);
         } catch (cause) {
           operations.report(
             operationKey,
             `The new Interview was not saved. ${errorMessage(cause)}`,
             () =>
               operations.run(operationKey, async () => {
-                await repository.put(next);
-                if (origin) navigation.current?.started(origin, next.id);
-                await refreshList();
+                await opened(await putNew(interviewRepository, record, sent));
               }),
           );
           return;
         }
-        if (origin) navigation.current?.started(origin, next.id);
-        await refreshList();
+        await opened(saved);
       });
     },
     [
       busy,
+      navigate,
       operations,
       operationKey,
       openingDocuments,
@@ -611,10 +645,10 @@ export function App() {
   );
 
   const packageAndDownload = useCallback(
-    async (localRecord: LocalInterviewRecord) => {
+    async (loadedRecord: LoadedInterviewRecord) => {
       const archive = await api.package(
-        { state: localRecord.state },
-        fixturesForSpecification(localRecord),
+        { state: loadedRecord.state },
+        fixturesForSpecification(loadedRecord),
       );
       downloadArchive(archive);
     },
@@ -622,13 +656,13 @@ export function App() {
   );
 
   const downloadCurrent = useCallback(
-    async (localRecord: LocalInterviewRecord) => {
-      await operations.run(localRecord.id, async () => {
+    async (loadedRecord: LoadedInterviewRecord) => {
+      await operations.run(loadedRecord.id, async () => {
         try {
-          await packageAndDownload(localRecord);
+          await packageAndDownload(loadedRecord);
         } catch (cause) {
-          operations.report(localRecord.id, errorMessage(cause), () =>
-            downloadCurrent(localRecord),
+          operations.report(loadedRecord.id, errorMessage(cause), () =>
+            downloadCurrent(loadedRecord),
           );
         }
       });
@@ -639,7 +673,7 @@ export function App() {
   const send = useCallback(
     async (
       response: UserResponse,
-      files: readonly File[] = [],
+      files: readonly AdmittedFile[] = [],
       removedFixtures: readonly string[] = [],
     ) => {
       if (!record) return;
@@ -653,6 +687,27 @@ export function App() {
       });
     },
     [operations, record, draftKey, composerKey],
+  );
+
+  // An answer file gets a name that no file of the Interview has, and no file that waits in the
+  // same input. The files of an answer that failed count too, because the store holds them. A
+  // refused file shows its reason and adds nothing.
+  const admitUploads = useCallback<AdmitUploads>(
+    (files, queued) => {
+      try {
+        return admitFiles(
+          files,
+          [...(record ? recordFiles(record) : []), ...queued],
+          wizardConfig.status === "ready"
+            ? wizardConfig.config.document_limits
+            : undefined,
+        );
+      } catch (cause) {
+        setError(errorMessage(cause));
+        return [];
+      }
+    },
+    [record, wizardConfig, setError],
   );
 
   // Typed text goes to the pending request. A review takes it as feedback. The package accepts only
@@ -771,19 +826,16 @@ export function App() {
     async (id: string) => {
       if (operations.active.has(id) || operations.pendingSaves.has(id)) return;
       try {
-        await repository.delete(id);
+        await deleteTarget(id);
         operations.latest.delete(id);
-        if (
-          destinationRef.current?.destination.kind === "interview" &&
-          destinationRef.current.destination.id === id
-        )
-          setRecord(null);
+        if (targetRef.current === id)
+          navigate(paths.newTarget(), { replace: true });
         await refreshList();
       } catch (cause) {
         operations.report(id, errorMessage(cause));
       }
     },
-    [operations, refreshList],
+    [navigate, operations, refreshList],
   );
 
   // Save the model names, if the user changed any, then start the download. With no change,
@@ -809,19 +861,39 @@ export function App() {
     });
   }, [record, runModelDrafts, operations, packageAndDownload, downloadCurrent]);
 
-  if (!loaded) return null;
+  const profileToolbar = view && (
+    <ProfileToolbar
+      mode={view.done ? profileMode : "document"}
+      onMode={setProfileMode}
+      done={view.done}
+      busy={busy || operations.pendingSaves.has(view.id)}
+      onDownload={() => {
+        if (record) void downloadCurrent(record);
+      }}
+    />
+  );
 
   return (
     <div className="flex h-full w-full overflow-hidden">
+      {experimentDialogOpen && record && view?.done && (
+        <ExperimentDialog
+          title={record.title}
+          specification={exportedSpecification(record.state)}
+          onCancel={() => setExperimentDialogOpen(false)}
+          onStart={() => {
+            setExperimentDialogOpen(false);
+            navigate(paths.experiment(record.id, NEW_EXPERIMENT));
+          }}
+        />
+      )}
       {railOpen ? (
-        <InterviewRail
-          interviews={interviews}
+        <TargetRail
+          targets={targets}
           problems={storageProblems}
-          currentId={record?.id ?? null}
+          selectedId={targetId}
           activeIds={
             new Set([...operations.active, ...operations.pendingSaves.keys()])
           }
-          onOpen={open}
           onNew={startNew}
           onDelete={remove}
           onCollapse={() => setRailOpen(false)}
@@ -829,7 +901,7 @@ export function App() {
       ) : (
         <EdgeStrip
           side="left"
-          label="Show interviews"
+          label="Show targets"
           onClick={() => setRailOpen(true)}
         />
       )}
@@ -843,7 +915,20 @@ export function App() {
             }
           />
         )}
-        {manualOpen ? (
+        {(place.page === "new-target" ||
+          (place.page === "target" && view && !redirect)) && (
+          <TargetTabs
+            targetId={place.page === "target" ? place.targetId : null}
+            tab={
+              place.page === "target"
+                ? (place.tab ?? "specification")
+                : "specification"
+            }
+            done={view?.done ?? false}
+            onStartExperiment={() => setExperimentDialogOpen(true)}
+          />
+        )}
+        {manualOpen && place.page === "new-target" ? (
           <ManualForm
             onBack={() => setManualOpen(false)}
             connectionDraft={connectionDraft}
@@ -859,7 +944,10 @@ export function App() {
             }
             checkConnection={checkDraft}
           />
-        ) : connectionStep === "add" && view !== null ? (
+        ) : connectionStep === "add" &&
+          view !== null &&
+          place.page === "target" &&
+          place.tab === "specification" ? (
           <AddConnection
             draft={connectionDraft}
             onDraft={(next) => {
@@ -876,15 +964,31 @@ export function App() {
             onSave={() => void saveConnection()}
             onCancel={() => setConnectionStep(null)}
           />
-        ) : view === null && destination?.destination.kind === "interview" ? (
+        ) : place.page === "not-found" ? (
+          <NotFound onNew={startNew} />
+        ) : place.page === "experiments" ? (
+          <AllExperimentsPage />
+        ) : view === null && targetId !== null ? (
           <div className="m-auto flex flex-col gap-4 p-8" role="status">
             <p>
               {loadingRecord
-                ? "Loading Interview…"
-                : "This local Interview is unavailable. Choose an Interview from History or start a new evaluation."}
+                ? "Loading target…"
+                : "This Target is unavailable. Choose a Target from the list or make a new one."}
             </p>
-            <Button onClick={startNew}>New evaluation</Button>
+            <NewTargetLink onClick={startNew} />
           </div>
+        ) : redirect ? null : place.page === "target" &&
+          place.tab === "experiments" ? (
+          <ExperimentsTab targetId={place.targetId} />
+        ) : place.page === "experiment" && record ? (
+          <ExperimentPage
+            targetId={place.targetId}
+            targetTitle={record.title}
+            experimentId={place.experimentId}
+            tab={place.tab}
+          />
+        ) : place.page === "compare" && record ? (
+          <ComparePage targetId={place.targetId} targetTitle={record.title} />
         ) : view === null ? (
           <OpeningRoute
             configState={wizardConfig}
@@ -931,149 +1035,159 @@ export function App() {
             perspectiveSeen={perspectiveSeen}
           />
         ) : (
-          <div
-            ref={panesRef}
-            className="flex min-h-0 flex-1 flex-col md:flex-row"
-            style={{ "--chat-width": `${chatWidth}%` } as CSSProperties}
-          >
-            <div className="flex h-[35vh] min-h-40 min-w-0 shrink-0 flex-col md:h-auto md:min-h-0 md:w-[var(--chat-width)]">
-              <div
-                key={view.id}
-                ref={conversationScrollRef}
-                onScroll={(event) => {
-                  const element = event.currentTarget;
-                  nearFoot.current =
-                    element.scrollHeight -
-                      element.scrollTop -
-                      element.clientHeight <
-                    100;
-                }}
-                className="quiet-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-8"
-              >
-                <Transcript
-                  requests={view.requests}
-                  entries={record?.transcript}
-                  formDrafts={formDrafts.current}
-                  draftPrefix={view.id}
-                  onRetry={() => {
-                    if (record) void operations.retry(record);
+          <UploadContext.Provider value={admitUploads}>
+            <div
+              ref={panesRef}
+              className="flex min-h-0 flex-1 flex-col md:flex-row"
+              style={{ "--chat-width": `${chatWidth}%` } as CSSProperties}
+            >
+              <div className="flex h-[35vh] min-h-40 min-w-0 shrink-0 flex-col md:h-auto md:min-h-0 md:w-[var(--chat-width)]">
+                <div
+                  key={view.id}
+                  ref={conversationScrollRef}
+                  onScroll={(event) => {
+                    const element = event.currentTarget;
+                    nearFoot.current =
+                      element.scrollHeight -
+                        element.scrollTop -
+                        element.clientHeight <
+                      100;
                   }}
-                  onEdit={() => {
-                    if (!record) return;
-                    const response = pendingEntry(record)?.response;
-                    if (response?.type === "chat")
-                      drafts.current.set(draftKey, response.text);
-                    if (response?.type === "choice" && response.feedback)
-                      drafts.current.set(composerKey, response.feedback);
-                    if (response?.type === "form")
-                      formDrafts.current.set(draftKey, response.values ?? {});
-                    void operations.edit(record);
-                  }}
-                  busy={busy}
-                  onRespond={send}
-                  profileForm={profileForm?.request_id ?? null}
-                />
-                {busy && <ThinkingLine message={workingStatus} />}
-                {view.done && runSettingsFor === view.id ? (
-                  <RunSettings
-                    roles={runRoles(view.specification)}
-                    statuses={modelStatuses}
-                    values={runModelDrafts ?? runModels(view.specification)}
-                    busy={busy || operations.pendingSaves.has(view.id)}
-                    onChange={(role, value) => {
-                      setRunModelDrafts((current) => ({
-                        ...(current ?? runModels(view.specification)),
-                        [role]: value,
-                      }));
+                  className="quiet-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-8"
+                >
+                  <Transcript
+                    requests={view.requests}
+                    entries={record?.transcript}
+                    formDrafts={formDrafts.current}
+                    draftPrefix={view.id}
+                    onRetry={() => {
+                      if (record) void operations.retry(record);
                     }}
-                    onContinue={() => void continueToDownload()}
-                    onBack={() => void backFromDone()}
+                    onEdit={() => {
+                      if (!record) return;
+                      const response = pendingEntry(record)?.response;
+                      if (response?.type === "chat")
+                        drafts.current.set(draftKey, response.text);
+                      if (response?.type === "choice" && response.feedback)
+                        drafts.current.set(composerKey, response.feedback);
+                      if (response?.type === "form")
+                        formDrafts.current.set(draftKey, response.values ?? {});
+                      void operations.edit(record);
+                    }}
+                    busy={busy}
+                    onRespond={send}
+                    profileForm={profileForm?.request_id ?? null}
                   />
-                ) : (
-                  view.done && (
-                    <Done
-                      connection={record?.state.context.connection ?? null}
-                      onConnect={openAddConnection}
-                      busy={replyBusy}
+                  {busy && <ThinkingLine message={workingStatus} />}
+                  {/* The end of the Interview stands clear of the last message. */}
+                  {view.done && <div aria-hidden className="h-4 shrink-0" />}
+                  {view.done && runSettingsFor === view.id ? (
+                    <RunSettings
+                      roles={runRoles(view.specification)}
+                      statuses={modelStatuses}
+                      values={runModelDrafts ?? runModels(view.specification)}
+                      busy={busy || operations.pendingSaves.has(view.id)}
+                      onChange={(role, value) => {
+                        setRunModelDrafts((current) => ({
+                          ...(current ?? runModels(view.specification)),
+                          [role]: value,
+                        }));
+                      }}
+                      onContinue={() => void continueToDownload()}
                       onBack={() => void backFromDone()}
                     />
-                  )
-                )}
+                  ) : (
+                    view.done && (
+                      <Done
+                        connection={record?.state.context.connection ?? null}
+                        onConnect={openAddConnection}
+                        busy={replyBusy}
+                        onBack={() => void backFromDone()}
+                      />
+                    )
+                  )}
+                </div>
+                <Composer
+                  key={composerKey}
+                  request={review ?? pending}
+                  value={drafts.current.get(composerKey) ?? ""}
+                  onValueChange={(value) => {
+                    drafts.current.set(composerKey, value);
+                    setDraftRevision((revision) => revision + 1);
+                  }}
+                  busy={replyBusy}
+                  sendBlockedReason={
+                    review && pending?.type === "form" && !pending.cancellable
+                      ? "Save the form first"
+                      : undefined
+                  }
+                  onSend={(text) => void sendText(text)}
+                />
               </div>
-              <Composer
-                key={composerKey}
-                request={review ?? pending}
-                value={drafts.current.get(composerKey) ?? ""}
-                onValueChange={(value) => {
-                  drafts.current.set(composerKey, value);
-                  setDraftRevision((revision) => revision + 1);
-                }}
-                busy={replyBusy}
-                sendBlockedReason={
-                  review && pending?.type === "form" && !pending.cancellable
-                    ? "Save the form first"
-                    : undefined
-                }
-                onSend={(text) => void sendText(text)}
+              <PaneDivider
+                rowRef={panesRef}
+                width={chatWidth}
+                onWidth={setChatWidth}
               />
+              <aside
+                className="min-h-0 min-w-0 flex-1 bg-muted"
+                aria-label="Profile"
+              >
+                {view.done && profileMode === "yaml" && record ? (
+                  <div className="flex h-full min-h-0 flex-col p-4">
+                    <ProfileHeading toolbar={profileToolbar} />
+                    <div className="min-h-0 flex-1">
+                      <YamlView state={record.state} />
+                    </div>
+                  </div>
+                ) : (
+                  <SpecificationView
+                    toolbar={profileToolbar}
+                    footDownload={false}
+                    key={view.id}
+                    specification={view.specification}
+                    excludedTasks={record?.state.excluded_tasks}
+                    position={stepPosition(view.requests)}
+                    interviewStep={view.stage}
+                    busy={busy || operations.pendingSaves.has(view.id)}
+                    graderByFqn={graderByFqn}
+                    gradersError={graderState === "error"}
+                    done={view.done}
+                    onFinish={() => void finish()}
+                    onDownload={() => {
+                      if (record) void downloadCurrent(record);
+                    }}
+                    activeSections={review ? reviewParts(review) : []}
+                    renderReview={(part) =>
+                      review && (
+                        <ActiveReview
+                          key={`${view.id}:${part}`}
+                          request={review}
+                          part={part}
+                          busy={replyBusy}
+                          onRespond={send}
+                          form={profileForm}
+                          formFailure={profileFailure}
+                          formDrafts={formDrafts.current}
+                          draftPrefix={view.id}
+                        />
+                      )
+                    }
+                    renderSectionActions={(part) =>
+                      review && (
+                        <ReviewSectionActions
+                          request={review}
+                          part={part}
+                          busy={replyBusy}
+                          onRespond={send}
+                        />
+                      )
+                    }
+                  />
+                )}
+              </aside>
             </div>
-            <PaneDivider
-              rowRef={panesRef}
-              width={chatWidth}
-              onWidth={setChatWidth}
-            />
-            <aside
-              className="min-h-0 min-w-0 flex-1 bg-muted"
-              aria-label="Profile"
-            >
-              <SpecificationView
-                key={view.id}
-                specification={view.specification}
-                excludedTasks={record?.state.excluded_tasks}
-                position={stepPosition(view.requests)}
-                interviewStep={view.stage}
-                busy={busy || operations.pendingSaves.has(view.id)}
-                showGraders={showGraders}
-                onShowGradersChange={setShowGraders}
-                graderByFqn={graderByFqn}
-                gradersLoading={
-                  graderState === "idle" || graderState === "loading"
-                }
-                gradersError={graderState === "error"}
-                done={view.done}
-                onFinish={() => void finish()}
-                onDownload={() => {
-                  if (record) void downloadCurrent(record);
-                }}
-                activeSections={review ? reviewParts(review) : []}
-                renderReview={(part) =>
-                  review && (
-                    <ActiveReview
-                      key={`${view.id}:${part}`}
-                      request={review}
-                      part={part}
-                      busy={replyBusy}
-                      onRespond={send}
-                      form={profileForm}
-                      formFailure={profileFailure}
-                      formDrafts={formDrafts.current}
-                      draftPrefix={view.id}
-                    />
-                  )
-                }
-                renderSectionActions={(part) =>
-                  review && (
-                    <ReviewSectionActions
-                      request={review}
-                      part={part}
-                      busy={replyBusy}
-                      onRespond={send}
-                    />
-                  )
-                }
-              />
-            </aside>
-          </div>
+          </UploadContext.Provider>
         )}
       </main>
     </div>
@@ -1551,6 +1665,27 @@ export function InitialDocumentPicker({
         <p>Accepted file types: {fixtureExtensions.join(", ")}.</p>
         <p>File size: {limits.max_initial_bytes / 1_000_000} MB total.</p>
       </div>
+    </div>
+  );
+}
+
+function NewTargetLink({ onClick }: { onClick: () => void }) {
+  return (
+    <Link
+      href={paths.newTarget()}
+      onClick={onClick}
+      className={cn(buttonClass("primary"), "w-fit")}
+    >
+      New target
+    </Link>
+  );
+}
+
+function NotFound({ onNew }: { onNew: () => void }) {
+  return (
+    <div className="m-auto flex flex-col gap-4 p-8" role="status">
+      <p>This page does not exist.</p>
+      <NewTargetLink onClick={onNew} />
     </div>
   );
 }

@@ -266,6 +266,9 @@ def _write_outputs(
     )
 
     _save(state, out_dir)
+    # The Specification is the last file that this export writes. Remove the last one first, so
+    # an export that stops early leaves a folder that `resume` writes again.
+    (out_dir / export_layout.SPECIFICATION).unlink(missing_ok=True)
     from metis.wizard.adapters.cli.documents import publish_task_fixtures
 
     missing_fixtures = publish_task_fixtures(
@@ -325,7 +328,6 @@ def _state_path(out_dir: Path) -> Path:
 def _save(state: InterviewState, out_dir: Path) -> None:
     """Persist the client-held state so an interrupted interview can resume from it."""
     _state_path(out_dir).parent.mkdir(parents=True, exist_ok=True)
-    (out_dir / export_layout.SPECIFICATION).unlink(missing_ok=True)
     _state_path(out_dir).write_text(state.model_dump_json(), encoding="utf-8")
 
 
@@ -333,6 +335,24 @@ def _load(out_dir: Path) -> InterviewState:
     return InterviewState.model_validate_json(
         _state_path(out_dir).read_text(encoding="utf-8")
     )
+
+
+def _complete(out_dir: Path) -> bool:
+    """Whether the folder holds the Specification of a done Interview.
+
+    An Interview that the user opens again after it is done keeps its last Specification. Thus
+    the Specification file shows a complete export only when the saved state is also done. A
+    folder with a Specification and no saved state that the CLI can read is a complete export.
+    """
+    if not (out_dir / export_layout.SPECIFICATION).is_file():
+        return False
+    if not _state_path(out_dir).is_file():
+        return True
+    try:
+        state = _load(out_dir)
+    except ValueError:
+        return True
+    return state.pending is None and derive_stage(state) == InterviewStep.DONE
 
 
 def _load_env() -> Path | None:
@@ -440,7 +460,7 @@ def init(
             "interview"
         )
     state_path = _state_path(out_dir)
-    if (out_dir / export_layout.SPECIFICATION).is_file() and not restart:
+    if not restart and _complete(out_dir):
         typer.echo(
             "Error: this export is complete. Use --restart to start a new Interview.",
             err=True,
@@ -680,7 +700,7 @@ def resume(
     """Pick up an interview where it left off."""
     from metis.wizard.adapters.cli.render import render
 
-    if (out_dir / export_layout.SPECIFICATION).is_file():
+    if _complete(out_dir):
         typer.echo("This export is complete.")
         return
     path = _state_path(out_dir)
@@ -747,7 +767,7 @@ def connect(
     if not path.is_file():
         typer.echo(f"Error: no interview at {path}.", err=True)
         raise typer.Exit(1)
-    complete = (out_dir / export_layout.SPECIFICATION).is_file()
+    complete = _complete(out_dir)
     state = _load(out_dir)
 
     env_file = _load_env()

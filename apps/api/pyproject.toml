@@ -12,10 +12,14 @@ dependencies = [
     # The API is a thin HTTP door over the wizard's public Interview interface. All wizard rules stay
     # inside metis-wizard; this app translates only HTTP data and status codes.
     "metis-wizard",
+    # The run report routes call metis-insights, which builds the reports. The API
+    # holds no report rules.
+    "metis-insights",
     "fastapi>=0.110",
     "uvicorn>=0.27",
     "pydantic>=2.0",
     "python-multipart>=0.0.9",
+    "sqlalchemy>=2.0",
 ]
 
 [project.optional-dependencies]
@@ -31,6 +35,7 @@ metis-api = "metis.api.cli:main"
 [tool.uv.sources]
 metis-core = { workspace = true }
 metis-engine = { workspace = true }
+metis-insights = { workspace = true }
 metis-wizard = { workspace = true }
 
 [tool.hatch.build.targets.wheel]

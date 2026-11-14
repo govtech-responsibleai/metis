@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from metis.core import Artifact
+    from metis.core.phase_events import PhaseEventLog
     from metis.core.trials import TrialConfig, TrialRecord
     from metis.engine.tui import SimulationState, TUIContext
 
@@ -53,6 +54,8 @@ def create_trial(
     state: SimulationState | None,
     tui_ctx: TUIContext | None,
     shutdown_event: threading.Event | None,
+    events: PhaseEventLog | None = None,
+    attempt: int = 1,
 ) -> Trial:
     """Build the user agent and the orchestrator that drive ``runner`` for one attempt."""
     agent = UserAgent(
@@ -73,6 +76,8 @@ def create_trial(
         state=state,
         tui_ctx=tui_ctx,
         shutdown_event=shutdown_event,
+        events=events,
+        attempt=attempt,
     )
 
 

@@ -63,7 +63,7 @@ def test_catalogue_params_come_from_args_model(a_catalogued_grader: type) -> Non
         if spec.fqn == "metis.library.graders.DemoTraceBudgetGrader"
     )
     assert [(p.name, p.type, p.default, p.required) for p in spec.params] == [
-        ("threshold", "float", 0.5, False),
+        ("threshold", "float", 0.8, False),
         ("max_traces", "int", 10, False),
     ]
 

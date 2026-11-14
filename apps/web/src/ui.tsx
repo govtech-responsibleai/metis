@@ -1,5 +1,5 @@
 // The house style, in as few primitives as the three panes need. Every rule the style
-// checklist enforces lives here once — near-black primary (never teal), borders not shadows,
+// checklist enforces lives here once — near-black primary (never the accent), borders not shadows,
 // the two radius tiers from the token file — `rounded-md` for small controls, `rounded-lg` for
 // surfaces — sentence case left to the package's own strings.
 
@@ -49,6 +49,18 @@ const VARIANTS: Record<Variant, string> = {
     "bg-transparent text-foreground border border-border hover:bg-muted active:bg-border",
 };
 
+// The look of a Button, for a link that must look like one.
+export function buttonClass(variant: Variant = "secondary", active = false) {
+  return cn(
+    "inline-flex items-center justify-center gap-2 rounded-md px-3 py-1.5",
+    "text-sm font-medium transition-colors duration-150",
+    "disabled:cursor-not-allowed disabled:opacity-45",
+    active
+      ? "border border-accent bg-accent/12 text-foreground"
+      : VARIANTS[variant],
+  );
+}
+
 export function Button({
   variant = "secondary",
   active = false,
@@ -57,18 +69,7 @@ export function Button({
   ...rest
 }: ButtonProps) {
   return (
-    <button
-      className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-md px-3 py-1.5",
-        "text-sm font-medium transition-colors duration-150",
-        "disabled:cursor-not-allowed disabled:opacity-45",
-        active
-          ? "border border-accent bg-accent/12 text-foreground"
-          : VARIANTS[variant],
-        className,
-      )}
-      {...rest}
-    >
+    <button className={cn(buttonClass(variant, active), className)} {...rest}>
       {children}
     </button>
   );
@@ -203,7 +204,7 @@ export function Chevron({
 // Neutral is the default and covers almost every chip, because most of them mark *what a thing
 // refers to* — a behaviour, a persona, a file — and a reference is not a state. The accent tone is
 // for the few that report one: a count that has become non-zero, something live. It is drawn as
-// teal text and a teal edge rather than a teal fill, so a row of chips still reads as one family
+// accent text and an accent edge rather than an accent fill, so a row of chips still reads as one family
 // and the coloured one stands out by tone instead of by mass.
 //
 // This does not wrap `Mono`. Both would set a text colour, and two competing `text-*` utilities
@@ -453,26 +454,28 @@ export function DisclosureButton({
   );
 }
 
-// A modal question before a destructive action. The text is the package's own, and it names
-// what else the action removes. Cancel has the focus at first, so Enter alone does not delete.
-// The page behind is inert while it is open, Tab stays inside it, Escape closes it from anywhere,
-// and the focus goes back to the control that opened it.
-export function ConfirmDialog({
-  text,
-  confirmLabel,
-  onConfirm,
+// A surface that floats above the page and holds the focus. The page behind is inert while it
+// is open, Tab stays inside it, Escape closes it from anywhere, and the focus goes back to the
+// control that opened it. The control with `autoFocus` has the focus at first.
+export function Modal({
+  role = "dialog",
+  labelledBy,
+  describedBy,
+  className,
   onCancel,
+  children,
 }: {
-  text: string;
-  confirmLabel: string;
-  onConfirm: () => void;
+  role?: "dialog" | "alertdialog";
+  labelledBy: string;
+  describedBy?: string;
+  className?: string;
   onCancel: () => void;
+  children: ReactNode;
 }) {
-  const id = useId();
   const dialog = useRef<HTMLDivElement | null>(null);
   const cancel = useRef(onCancel);
   cancel.current = onCancel;
-  // Read during the first render, before Cancel takes the focus.
+  // Read during the first render, before a control of the dialog takes the focus.
   const [trigger] = useState(() =>
     typeof document === "undefined"
       ? null
@@ -508,17 +511,19 @@ export function ConfirmDialog({
     >
       <div
         ref={dialog}
-        role="alertdialog"
+        role={role}
         aria-modal="true"
-        aria-labelledby={`${id}-title`}
-        aria-describedby={id}
+        aria-labelledby={labelledBy}
+        aria-describedby={describedBy}
         onKeyDown={(event) => {
           if (event.key !== "Tab") return;
-          const buttons = [
-            ...(dialog.current?.querySelectorAll("button") ?? []),
+          const controls = [
+            ...(dialog.current?.querySelectorAll(
+              "button:not(:disabled), input:not(:disabled)",
+            ) ?? []),
           ] as HTMLElement[];
-          const first = buttons[0];
-          const last = buttons.at(-1);
+          const first = controls[0];
+          const last = controls.at(-1);
           if (event.shiftKey && document.activeElement === first) {
             event.preventDefault();
             last?.focus();
@@ -527,24 +532,54 @@ export function ConfirmDialog({
             first?.focus();
           }
         }}
-        className="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-border bg-card p-5 text-card-foreground shadow-lg"
+        className={cn(
+          "flex w-full flex-col rounded-lg border border-border bg-card text-card-foreground shadow-lg",
+          className,
+        )}
       >
-        <h2 id={`${id}-title`} className="sr-only">
-          {confirmLabel}
-        </h2>
-        <p id={id} className="text-sm">
-          {text}
-        </p>
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" autoFocus onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button type="button" variant="primary" onClick={onConfirm}>
-            {confirmLabel}
-          </Button>
-        </div>
+        {children}
       </div>
     </div>,
     document.body,
+  );
+}
+
+// A modal question before a destructive action. The text is the package's own, and it names
+// what else the action removes. Cancel has the focus at first, so Enter alone does not delete.
+export function ConfirmDialog({
+  text,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+}: {
+  text: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const id = useId();
+  return (
+    <Modal
+      role="alertdialog"
+      labelledBy={`${id}-title`}
+      describedBy={id}
+      className="max-w-sm gap-4 p-5"
+      onCancel={onCancel}
+    >
+      <h2 id={`${id}-title`} className="sr-only">
+        {confirmLabel}
+      </h2>
+      <p id={id} className="text-sm">
+        {text}
+      </p>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" autoFocus onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="button" variant="primary" onClick={onConfirm}>
+          {confirmLabel}
+        </Button>
+      </div>
+    </Modal>
   );
 }

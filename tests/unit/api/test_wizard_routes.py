@@ -494,6 +494,7 @@ def test_a_422_names_the_field_and_never_repeats_the_input(
 @pytest.mark.parametrize(
     ("host", "flag", "expected"),
     [
+        (None, None, True),
         ("127.0.0.1", None, True),
         ("0.0.0.0", None, False),
         ("0.0.0.0", "1", True),
@@ -501,11 +502,14 @@ def test_a_422_names_the_field_and_never_repeats_the_input(
     ],
 )
 def test_the_live_check_is_on_for_a_local_api_unless_the_operator_says_otherwise(
-    monkeypatch: pytest.MonkeyPatch, host: str, flag: str | None, expected: bool
+    monkeypatch: pytest.MonkeyPatch, host: str | None, flag: str | None, expected: bool
 ) -> None:
     from metis.api.settings import CONNECTION_CHECK_ENV, connection_check_from_env
 
-    monkeypatch.setenv("HOST", host)
+    if host is None:
+        monkeypatch.delenv("HOST", raising=False)
+    else:
+        monkeypatch.setenv("HOST", host)
     if flag is None:
         monkeypatch.delenv(CONNECTION_CHECK_ENV, raising=False)
     else:

@@ -56,8 +56,8 @@ class CoordinationQualityGrader(Grader[CoordinationQualityArgs]):
     """Assess whether agents appropriately delegate, share information, and reconcile.
 
     Evaluates inter-agent coordination behaviour. Agent configuration describes the
-    setting only. A session with no recorded agent delegation is errored. A session
-    the judge finds has no coordination is errored, with the judge's reason.
+    setting only. A session with no recorded agent delegation is skipped. A session
+    the judge finds has no coordination is skipped, with the judge's reason.
     """
 
     args_model = CoordinationQualityArgs
@@ -94,9 +94,9 @@ class CoordinationQualityGrader(Grader[CoordinationQualityArgs]):
         if not any(
             call.agent for turn in turns(input.traces) for call in turn.tool_calls
         ):
-            return GradingOutput.errored(
-                "The session records no agent delegation, so coordination quality "
-                "cannot be assessed."
+            return GradingOutput.skipped(
+                "The session records no agent delegation, so there is no coordination "
+                "to judge."
             )
         return GradingOutput(
             results=[

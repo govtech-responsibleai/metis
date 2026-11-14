@@ -58,13 +58,34 @@ import {
   Tooltip,
 } from "./ui";
 import { groupTranscript } from "./wizard/transcript";
+import type { AdmittedFile, FixtureFileLike } from "./fixture-policy";
 
 // What a block can send up. `null` from a resolved or read-only block.
 type Emit = (
   response: UserResponse,
-  files?: readonly File[],
+  files?: readonly AdmittedFile[],
   removedFixtures?: readonly string[],
 ) => void;
+
+// Admits the files that the user adds to an answer, against the files of the Interview and the
+// `queued` files that the same input has not sent yet. It returns no file when it refuses them.
+export type AdmitUploads = (
+  files: readonly File[],
+  queued: readonly FixtureFileLike[],
+) => AdmittedFile[];
+
+// The page that owns the Interview gives the upload controls its admission rule.
+export const UploadContext = createContext<AdmitUploads | null>(null);
+
+function useAdmitUploads(): AdmitUploads {
+  const admit = useContext(UploadContext);
+  return (
+    admit ??
+    (() => {
+      throw new Error("This view cannot add files.");
+    })
+  );
+}
 type CardFieldValue = number | string[];
 
 const FormDraftContext = createContext<{
@@ -263,7 +284,7 @@ function ChoiceBlock({
   const sendField = (
     key: string,
     value: CardFieldValue,
-    files?: readonly File[],
+    files?: readonly AdmittedFile[],
     removedFixtures?: readonly string[],
   ) =>
     onRespond(
@@ -531,7 +552,7 @@ export function ActiveReview({
     (
       key: string,
       value: CardFieldValue,
-      files?: readonly File[],
+      files?: readonly AdmittedFile[],
       removed?: readonly string[],
     ) =>
       respondFrom(anchor)(
@@ -1009,7 +1030,8 @@ function RowEditor({
   const formId = `row-edit-${card.id}`;
   // Files the user uploads while the row is open. Each one becomes a selected choice of the
   // multi-choice field in the upload column, and the files go with the Save.
-  const [uploads, setUploads] = useState<File[]>([]);
+  const [uploads, setUploads] = useState<AdmittedFile[]>([]);
+  const admit = useAdmitUploads();
   const uploadColumn = columns.find((_, i) => kinds[i] === "upload")?.title;
   const fields = edit.request.fields.map((field) =>
     field.multiple && uploadColumn != null && field.column === uploadColumn
@@ -1035,16 +1057,14 @@ function RowEditor({
   );
   const addUploads = (files: File[]) => {
     if (!uploadField || files.length === 0) return;
-    setUploads((current) => [
-      ...current.filter(
-        (item) => !files.some((file) => file.name === item.name),
-      ),
-      ...files,
-    ]);
+    const admitted = admit(files, uploads);
+    if (admitted.length === 0) return;
+    setUploads([...uploads, ...admitted]);
     const chosen = (values[uploadField.id] ?? "").split(",").filter(Boolean);
-    for (const file of files)
-      if (!chosen.includes(file.name)) chosen.push(file.name);
-    setValue(uploadField.id, chosen.join(","));
+    setValue(
+      uploadField.id,
+      [...chosen, ...admitted.map((file) => file.name)].join(","),
+    );
   };
   const used = edit.request.used_combinations ?? [];
   const cellOf = (field: FormFieldSpec) => {
@@ -1473,7 +1493,7 @@ export function ColumnCell({ column }: { column: CardColumn }) {
           <span
             key={optionKey(option.id)}
             title={option.hint ?? option.label}
-            className="rounded border border-accent bg-accent/12 px-1 py-px font-mono text-[10px] leading-tight tracking-tight"
+            className="rounded border border-accent bg-accent/12 px-1 py-px font-mono text-xs leading-tight tracking-tight"
           >
             {option.label}
           </span>
@@ -1605,7 +1625,7 @@ interface RowEdit {
 type FieldChange = (
   key: string,
   value: CardFieldValue,
-  files?: readonly File[],
+  files?: readonly AdmittedFile[],
   removedFixtures?: readonly string[],
 ) => void;
 
@@ -1748,6 +1768,7 @@ function ComponentBlock({
   onPick: (key: string) => void;
   onFieldChange: FieldChange;
 }) {
+  const admit = useAdmitUploads();
   // The value alone, unlabelled. `FormRow` decides where the label goes: a labelled component
   // reads as a form field (label in a left column, value at the right), an unlabelled one runs
   // full-width. This is a *shape* choice — "does this component carry a label" — not a domain
@@ -1894,6 +1915,7 @@ function ComponentBlock({
           <FixtureField
             component={component}
             disabled={disabled}
+            admit={admit}
             onChange={(names, files, removedFixtures) =>
               onFieldChange(
                 optionKey(component.id),
@@ -1923,13 +1945,15 @@ function ComponentBlock({
 export function FixtureField({
   component,
   disabled,
+  admit,
   onChange,
 }: {
   component: Extract<CardComponent, { type: "upload" }>;
   disabled: boolean;
+  admit: AdmitUploads;
   onChange: (
     names: string[],
-    files: readonly File[],
+    files: readonly AdmittedFile[],
     removedFixtures: readonly string[],
   ) => void;
 }) {
@@ -1950,11 +1974,13 @@ export function FixtureField({
 
   const upload = (files: File[]) => {
     if (files.length === 0) return;
-    const next = [...component.value];
-    for (const file of files) {
-      if (!next.includes(file.name)) next.push(file.name);
-    }
-    onChange(next, files, []);
+    const admitted = admit(files, []);
+    if (admitted.length === 0) return;
+    onChange(
+      [...component.value, ...admitted.map((file) => file.name)],
+      admitted,
+      [],
+    );
   };
 
   return (
@@ -2100,7 +2126,7 @@ function WarningBlock({
         "rounded-lg border p-2.5 text-sm",
         runtime
           ? "border-destructive/50 bg-destructive/8 text-foreground"
-          : "border-gold/50 bg-gold/10 text-foreground",
+          : "border-warning/50 bg-warning/10 text-foreground",
       )}
     >
       <p>{warning.text}</p>

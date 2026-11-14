@@ -5,8 +5,9 @@ the Engine.
 
 - The web client uses the Wizard API to process answers and build the download. The
   [API guide](api.md) shows how to use the same features in your own client.
-- The browser stores Interview records, original documents, fixture files, and the display
-  transcript in its IndexedDB database.
+- The API saves Interview records, original documents, fixture files, and the display
+  transcript in its store. Another browser that uses the same API opens the same Interviews.
+  See [Where the API saves your work](#where-the-api-saves-your-work).
 
 See the [Wizard overview](../wizard.md) for the shared Interview flow and output concepts.
 
@@ -48,11 +49,64 @@ The API runs at `http://localhost:8001` by default. If the API uses another addr
 `METIS_API_ORIGIN` before you start the web development server. The web development server
 forwards `/api` requests to that address.
 
+### Where the API saves your work
+
+The API saves each Interview in its project folder. The project folder is the nearest folder at
+or above the folder where you start the API that has a `pyproject.toml`. For `make run-web`, it is
+the repository folder. To use another folder, start the API with
+`metis-api --project-dir PATH`.
+
+- The database is `experiments/metis.db` in the project folder. To use another database, set
+  `METIS_DATABASE_URL` to a SQLAlchemy URL.
+- The files of each Interview are in `experiments/design/<id>/`, the same layout as the CLI
+  wizard. `inputs/documents/` holds the files that you upload, and
+  `inputs/interview_state.json` holds the state of the Interview. An Interview that you start
+  with `metis wizard init` in this folder also shows in the web app, without a conversation.
+- The `<id>` is `YYYYMMDD-HHMMSS-interview`, in the local time when you send the first message.
+  For example, `20261112-101500-interview`. A `metis wizard init` folder has the same name. When
+  another Interview already has the id, the web app adds `-2`, `-3`, and so on.
+- When an Interview is done, the API also writes its Specification to
+  `experiments/design/<id>/outputs/`. Give that folder to `metis engine simulate --input-dir`.
+
+The repository ignores `experiments/`, so Git does not save it.
+
+## Targets and their pages
+
+Each Interview makes one Target. The rail on the left lists the Targets, newest first. Select
+**New target** at the top of the rail to start a new Interview. At the foot of the rail, the
+theme switch sets the colour theme.
+
+A Target page has two tabs:
+
+- **Specification** holds the Interview and its Profile. A new Target opens this tab with the
+  opening screen.
+- **Experiments** lists the experiments of the Target. It is off until the Interview is done.
+
+**Start an experiment**, on the right of the tab row, opens a dialog with the experiment options: the number
+of trials at a time and the trace wait. **Start** in the dialog opens the experiment view. The
+button is also off until the Interview is done. When you open a Target, the app shows Experiments for a done Interview and Specification
+for one that is not done.
+
+Each page has its own address, so you can bookmark a Target or open it in another browser
+that uses the same API:
+
+| Page | Address |
+|---|---|
+| New target | `/targets/new` |
+| Specification tab | `/targets/<id>/specification` |
+| Experiments tab | `/targets/<id>/experiments` |
+| An experiment | `/targets/<id>/experiments/<experiment>` |
+| The report of an experiment | `/targets/<id>/experiments/<experiment>/report` |
+| Compare experiments | `/targets/<id>/compare` |
+| All experiments | `/experiments` |
+
+The experiment pages do not show experiments yet. Each one says what it will show.
+
 ## Start a guided Interview
 
-The chat is on the left and the Profile is on the right. To change the chat width, drag the line
-between them. You can also focus the line and use the arrow keys. Double-click the line to
-return to the default width. The browser keeps the width for your next visit.
+On the Specification tab, the chat is on the left and the Profile is on the right. To change the
+chat width, drag the line between them. You can also focus the line and use the arrow keys.
+Double-click the line to return to the default width. The browser keeps the width for your next visit.
 
 Above the opening box, choose the mode: **Build Spec only**, or **Build Spec and connect
 target**. The bottom row of the box has the documents button, the Perspective control, and
@@ -101,7 +155,7 @@ content.
 
 Clarify has no Back, because it is the first step. To correct the description, say so in your
 answer, for example "The target is for staff only." To change the Perspective, capabilities, or
-documents, select **New evaluation**. The earlier Interview stays in History.
+documents, select **New target**. The earlier Interview stays in the rail.
 
 ## Connect the target
 
@@ -200,6 +254,10 @@ Document facts:
 - The API does not run OCR. Scanned PDFs give no text.
 - A Test Case has no files at first. Select its pen to add an opening document or upload a file
   in its **Files** cell.
+- The browser never replaces a file. When you add a file with the name of a file that the
+  Interview already has, the new file gets a number before its extension, for example
+  `policy (2).pdf`. Names that differ only by case are the same name, so `POLICY.pdf` also gets a
+  number when the Interview has `policy.pdf`. The manual form uses the same rule.
 - The final package contains only files that a Test Case uses.
 
 ## Finish and download
@@ -214,7 +272,11 @@ Document facts:
 5. Select **Continue and download**. The browser downloads `YYYYMMDD-HHMMSS-interview.zip`, with
    the models that you set. If you change no field, the download is the same as without the step.
 
-To download the specification again later, select **Download specification** in the document pane.
+To download the specification again later, select **Download** in the toolbar of the Profile.
+
+The toolbar also has the views **Document** and **YAML**. Document is the Profile. YAML shows the
+`specification.yaml` of the download, with a **Copy** button. Download and YAML are off until the
+Interview is done.
 
 To finish early, select **Skip interview and download specification**. The Wizard checks whether
 the specification is ready. It can ask for more information or a document review before it
@@ -234,7 +296,7 @@ YYYYMMDD-HHMMSS-interview/
 
 The API compiles the Specification from the same final Interview state that it saves in the
 archive. This state keeps document names, extracted text, and limited recent history. The full
-display transcript stays in browser storage.
+display transcript stays in the API store.
 
 Extract the archive into `experiments/design/`. For an Interview exported on 2026-10-16 at 22:30:45, run:
 
@@ -317,15 +379,16 @@ selected files under `outputs/fixtures/`. It contains no Interview state. In run
 contains `outputs/target-binding.yaml`, and `outputs/specification.yaml` names the generic runner
 and the binding file. This is the same export as an Interview with the same binding.
 
-## Browser storage and current limits
+## Storage and current limits
 
 - Unsent drafts are lost on refresh or page closure.
 - Edit each Interview in one tab at a time.
 - Failed or interrupted replies require a manual retry. Use **Edit reply** to correct the input.
-- Browser data belongs to the exact web origin. For example, `http://localhost:5173` and
-  `http://127.0.0.1:5173` have separate Interview lists.
+- The list of Targets belongs to the API store. Each browser that uses the same API shows the same
+  list. For example, `http://localhost:5173` and `http://127.0.0.1:5173` show the same Targets.
+  An API with a different project folder or database has a different list.
 - The web client does not provide:
-  - hosted or cross-device Interview storage;
+  - hosted Interview storage, because the store is on the computer that runs the API;
   - authentication or multi-user access;
   - source-code or trace analysis; or
   - evaluation execution.

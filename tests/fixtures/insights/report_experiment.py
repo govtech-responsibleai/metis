@@ -13,7 +13,7 @@ from metis.core.traces import Observation, Trace
 from metis.core.trials import TrialConfig, TrialOutcome, TrialRecord
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
     from pathlib import Path
 
 
@@ -22,12 +22,14 @@ TASKS = {"T-1": "S-1", "T-2": "S-2"}
 GRADERS = {"C-1": "g.one.Grader", "C-2": "g.two.Grader", "C-3": "g.three.Grader"}
 
 
-def specification() -> dict[str, Any]:
+def specification(extra_criteria: Sequence[str] = ()) -> dict[str, Any]:
+    """The specification. Each of ``extra_criteria`` is one more criterion of B-2."""
+
     def criterion(cid: str) -> dict[str, Any]:
         return {
             "id": cid,
             "description": f"The response meets check {cid}.",
-            "grader_fqn": GRADERS[cid],
+            "grader_fqn": grader_fqn(cid),
             "grader_args": {"threshold": 0.5},
         }
 
@@ -48,7 +50,7 @@ def specification() -> dict[str, Any]:
                 "name": "Feature one",
                 "behaviours": [
                     behaviour("B-1", ["C-1", "C-2"]),
-                    behaviour("B-2", ["C-3"]),
+                    behaviour("B-2", ["C-3", *extra_criteria]),
                 ],
             }
         ],
@@ -70,6 +72,10 @@ def specification() -> dict[str, Any]:
     }
 
 
+def grader_fqn(cid: str) -> str:
+    return GRADERS.get(cid, f"g.{cid.lower()}.Grader")
+
+
 def grader_record(
     task_id: str,
     trial: int,
@@ -77,18 +83,36 @@ def grader_record(
     *results: float | str,
     threshold: object = 0.5,
     model: str = "judge-a",
+    measurements: dict[str, float] | None = None,
+    reason: str | None = None,
 ) -> GraderRecord:
-    """Build one grader run. A float is a scored result; a string is an unscored outcome."""
+    """Build one grader run. A float is a scored result; a string is an unscored outcome,
+    with ``reason`` as its reason, or the outcome when ``reason`` is not set.
+
+    ``measurements`` goes on every result of the run, as a decision grader records the
+    same questions for each.
+    """
     recorded = []
     for value in results:
         if isinstance(value, str):
             recorded.append(
-                RecordedResult.model_validate({"outcome": value, "reason": value})
+                RecordedResult.model_validate(
+                    {
+                        "outcome": value,
+                        "reason": reason or value,
+                        "measurements": measurements,
+                    }
+                )
             )
         else:
             outcome = "passed" if value >= 0.5 else "failed"
             recorded.append(
-                RecordedResult(outcome=outcome, score=value, reason="scored")
+                RecordedResult(
+                    outcome=outcome,
+                    score=value,
+                    reason="scored",
+                    measurements=measurements,
+                )
             )
     return GraderRecord(
         session_id=f"{task_id}-{trial}",
@@ -96,7 +120,7 @@ def grader_record(
         task_id=task_id,
         trial_index=trial,
         criterion_id=cid,
-        grader_fqn=GRADERS[cid],
+        grader_fqn=grader_fqn(cid),
         grader_args={"threshold": threshold, "model": model},
         results=recorded,
     )
@@ -129,15 +153,27 @@ def trial_record(
     )
 
 
-def write_experiment(root: Path, records: list[GraderRecord]) -> Path:
+def write_experiment(
+    root: Path,
+    records: list[GraderRecord],
+    *,
+    extra_criteria: Sequence[str] = (),
+    stop_reasons: Mapping[str, str] | None = None,
+) -> Path:
+    """Write the experiment. ``stop_reasons`` maps a session id such as ``"T-1-1"`` to its
+    trial's stop reason. Every other trial reaches its goal."""
     (root / "inputs").mkdir(parents=True)
-    (root / "inputs/specification.yaml").write_text(yaml.safe_dump(specification()))
+    (root / "inputs/specification.yaml").write_text(
+        yaml.safe_dump(specification(extra_criteria))
+    )
     for task_id in TASKS:
         for trial in (1, 2):
-            trial_dir = root / "outputs/trials" / f"{task_id}-{trial}"
+            session = f"{task_id}-{trial}"
+            stop = (stop_reasons or {}).get(session, "goal_achieved")
+            trial_dir = root / "outputs/trials" / session
             trial_dir.mkdir(parents=True)
             (trial_dir / "record.json").write_text(
-                trial_record(task_id, trial).model_dump_json()
+                trial_record(task_id, trial, stop).model_dump_json()
             )
     results_path = root / "outputs/reports/results.json"
     EvaluationResults(run_id="run-1", records=records).save(results_path)

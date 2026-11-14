@@ -51,9 +51,11 @@ experiments/execute/<your-run>/
 ├── inputs/                 # A frozen copy of your specification and fixtures
 ├── outputs/
 │   ├── trials/             # One folder per trial, with its record and artifacts
+│   ├── evaluation/         # One file per trial evaluated; private to the engine
+│   ├── traces/             # Raw Langfuse rows saved by evaluate
 │   └── reports/
 │       └── results.json    # Written by evaluate
-└── logs/                   # simulate.log, evaluate.log, and more
+└── logs/                   # events.jsonl, simulate.log, evaluate.log, and more
 ```
 
 The folder name comes from the experiment `id` and the start time. A run that only simulated

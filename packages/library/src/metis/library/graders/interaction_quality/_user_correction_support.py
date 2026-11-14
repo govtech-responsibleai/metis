@@ -78,7 +78,7 @@ class UserCorrectionSupportGrader(Grader[UserCorrectionSupportArgs]):
 
     Session scope, because a correction is applied, or undone, in the recorded turns after it. The
     judge first finds the corrections, then checks the assistant's replies and tool calls
-    after each one. The result is errored for a session with fewer than two recorded turns, or when
+    after each one. The result is skipped for a session with fewer than two recorded turns, or when
     the judge finds no correction. The method draws on the resolved and unresolved outcomes
     of MLflow UserFrustration, but it judges what the assistant did, not how the user felt.
     """
@@ -107,7 +107,7 @@ class UserCorrectionSupportGrader(Grader[UserCorrectionSupportArgs]):
         if isinstance(selected, Problem):
             return GradingOutput.errored(selected.detail)
         if len(turns(input.traces)) < 2:
-            return GradingOutput.errored(
+            return GradingOutput.skipped(
                 "A correction needs a later turn to apply it in."
             )
         return GradingOutput(

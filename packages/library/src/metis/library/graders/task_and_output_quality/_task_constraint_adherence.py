@@ -113,8 +113,10 @@ class TaskConstraintAdherenceGrader(Grader[TaskConstraintAdherenceArgs]):
             "resources. Do not treat a request to include something as a constraint "
             "(that is a required component, not a restriction). "
             + self._evidence_rule()
-            + "If the evidence is genuinely insufficient to decide the constraint, the "
-            "criterion does not apply."
+            + "Decide the constraint from the evidence that you have. When part of the "
+            "evidence does not let you check the constraint, say so in your reason and "
+            "still decide. The criterion does not apply only when the evidence contains "
+            "nothing that the constraint restricts."
             "\n</assessment_boundaries>"
         )
 

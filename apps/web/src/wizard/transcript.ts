@@ -2,7 +2,7 @@ import type {
   ChoiceRequest,
   InterviewResult,
   InterviewState,
-  LocalInterviewRecord,
+  LoadedInterviewRecord,
   Option,
   PresentationView,
   TranscriptEntry,
@@ -21,24 +21,40 @@ function localId(): string {
   );
 }
 
+// The transcript with an entry for the pending request of the state. The wizard CLI can move
+// an Interview on and it keeps no transcript, so a stored transcript can lack that entry.
+export function withPendingEntry(
+  transcript: TranscriptEntry[],
+  state: InterviewState,
+): TranscriptEntry[] {
+  const pending = state.pending;
+  if (
+    !pending ||
+    transcript.some(
+      (entry) =>
+        entry.kind === "interaction" && entry.request_id === pending.request_id,
+    )
+  )
+    return transcript;
+  return [
+    ...transcript,
+    {
+      kind: "interaction",
+      request_id: pending.request_id ?? "",
+      request: clone(pending),
+      status: "pending",
+    },
+  ];
+}
+
 export function startTranscript(
   description: string,
   state: InterviewState,
 ): TranscriptEntry[] {
-  const pending = state.pending;
-  return [
-    { kind: "initial_description", id: localId(), description },
-    ...(pending
-      ? [
-          {
-            kind: "interaction" as const,
-            request_id: pending.request_id ?? "",
-            request: clone(pending),
-            status: "pending" as const,
-          },
-        ]
-      : []),
-  ];
+  return withPendingEntry(
+    [{ kind: "initial_description", id: localId(), description }],
+    state,
+  );
 }
 
 function resolvedRequest(
@@ -126,10 +142,10 @@ function refreshesCurrentChoice(
 }
 
 export function applyTurn(
-  record: LocalInterviewRecord,
+  record: LoadedInterviewRecord,
   result: InterviewResult,
   response: UserResponse,
-): LocalInterviewRecord {
+): LoadedInterviewRecord {
   if (result.type === "failure" || !result.state) return record;
   const nextState = result.state;
   const transcript = clone(record.transcript);
@@ -192,9 +208,9 @@ export function applyTurn(
 }
 
 export function applyEnd(
-  record: LocalInterviewRecord,
+  record: LoadedInterviewRecord,
   result: InterviewResult,
-): LocalInterviewRecord {
+): LoadedInterviewRecord {
   if (result.type === "failure" || !result.state) return record;
   const transcript = clone(record.transcript);
   const pending = transcript.find(
@@ -221,7 +237,9 @@ export function applyEnd(
   };
 }
 
-export function toPresentation(record: LocalInterviewRecord): PresentationView {
+export function toPresentation(
+  record: LoadedInterviewRecord,
+): PresentationView {
   const requests: WizardRequest[] = record.transcript.map((entry) => {
     if (entry.kind === "interaction") {
       if (

@@ -1,5 +1,5 @@
-/* Inter is the Singapore Government Design System typeface; JetBrains Mono matches the Insights report */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+/* Lato is the font that GovTech commonly uses; JetBrains Mono matches the Insights report */
+@import url('https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;0,900;1,400&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 
 :root {
@@ -8,7 +8,7 @@
   --gold: #E5AE4F; --gold-dark: #9B7520;
   --periwinkle: #3C468B; --rose: #AB596A; --peach: #F6D6CB; --green: #5E9B6D;
   --line: #E0D9CB; --muted: #5C6569;
-  --sans: 'Inter', system-ui, sans-serif; --mono: 'JetBrains Mono', ui-monospace, monospace;
+  --sans: 'Lato', system-ui, sans-serif; --mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 * { box-sizing: border-box }
 /* `clip`, not `hidden`: hidden makes a scroll container and stops the header sticking */

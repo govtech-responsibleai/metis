@@ -672,6 +672,161 @@
       ]
     },
     {
+      "title": "Resource Use",
+      "graders": [
+        {
+          "name": "TokenUsageGrader",
+          "fqn": "metis.library.graders.TokenUsageGrader",
+          "slug": "token-usage",
+          "source_file": "packages/library/src/metis/library/graders/resource_use/_token_usage.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "token_usage",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "deterministic"
+            ],
+            "reference_types": [
+              "policy_rule"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "ElapsedTimeGrader",
+          "fqn": "metis.library.graders.ElapsedTimeGrader",
+          "slug": "elapsed-time",
+          "source_file": "packages/library/src/metis/library/graders/resource_use/_elapsed_time.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "elapsed_time",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "deterministic"
+            ],
+            "reference_types": [
+              "policy_rule"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "ModelCallCountGrader",
+          "fqn": "metis.library.graders.ModelCallCountGrader",
+          "slug": "model-call-count",
+          "source_file": "packages/library/src/metis/library/graders/resource_use/_model_call_count.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "model_call_count",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "deterministic"
+            ],
+            "reference_types": [
+              "policy_rule"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "ToolCallCountGrader",
+          "fqn": "metis.library.graders.ToolCallCountGrader",
+          "slug": "tool-call-count",
+          "source_file": "packages/library/src/metis/library/graders/resource_use/_tool_call_count.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "tool_call_count",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "deterministic"
+            ],
+            "reference_types": [
+              "policy_rule"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "MonetaryCostGrader",
+          "fqn": "metis.library.graders.MonetaryCostGrader",
+          "slug": "monetary-cost",
+          "source_file": "packages/library/src/metis/library/graders/resource_use/_monetary_cost.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "monetary_cost",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "deterministic"
+            ],
+            "reference_types": [
+              "policy_rule"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
+        {
+          "name": "ExecutionStepCountGrader",
+          "fqn": "metis.library.graders.ExecutionStepCountGrader",
+          "slug": "execution-step-count",
+          "source_file": "packages/library/src/metis/library/graders/resource_use/_execution_step_count.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": "execution_step_count",
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "deterministic"
+            ],
+            "reference_types": [
+              "policy_rule"
+            ],
+            "judgment_forms": [
+              "binary"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "title": "Reliability and Robustness",
       "graders": [
         {
@@ -991,6 +1146,31 @@
     {
       "title": "Fallback judge",
       "graders": [
+        {
+          "name": "CriterionDecisionGrader",
+          "fqn": "metis.library.graders.CriterionDecisionGrader",
+          "slug": "criterion-decision",
+          "source_file": "packages/library/src/metis/library/graders/_criterion_decision.py",
+          "adapted_from": "METIS",
+          "taxonomy": {
+            "measure": null,
+            "scopes": [
+              "session"
+            ],
+            "grader_types": [
+              "decision_model"
+            ],
+            "reference_types": [
+              "rubric_based"
+            ],
+            "judgment_forms": [
+              "scalar"
+            ],
+            "aggregations": [
+              "none_single_score"
+            ]
+          }
+        },
         {
           "name": "CriterionJudgeGrader",
           "fqn": "metis.library.graders.CriterionJudgeGrader",

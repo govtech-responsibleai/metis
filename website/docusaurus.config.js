@@ -84,7 +84,7 @@ const config = {
       indexName: 'metis_docs',
       contextualSearch: false,
     },
-    colorMode: {defaultMode: 'light', respectPrefersColorScheme: false},
+    colorMode: {defaultMode: 'light', respectPrefersColorScheme: true},
     prism: {
       theme: jettwaveTealLight,
       darkTheme: jettwaveTealDark,

@@ -113,13 +113,20 @@ def load_report_sources(
     specification_path = run_dir / execution_layout.SPECIFICATION
     if not specification_path.is_file():
         return None
-    try:
-        import yaml
+    import yaml
 
+    try:
         specification = yaml.safe_load(specification_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, yaml.YAMLError) as exc:
         logger.warning(
             "specification_unreadable", path=str(specification_path), error=str(exc)
+        )
+        return None
+    if not isinstance(specification, dict):
+        logger.warning(
+            "specification_unreadable",
+            path=str(specification_path),
+            error="the document is not a mapping",
         )
         return None
 
@@ -270,6 +277,8 @@ def _state(counts: OutcomeCounts) -> str | None:
         return "pass"
     if counts.errored:
         return "error"
+    if counts.skipped:
+        return "skip"
     return None
 
 
@@ -433,6 +442,7 @@ def _aggregate_runs(
                     "outcome": result.outcome,
                     "score": result.score,
                     "message": result.reason,
+                    "measurements": result.measurements,
                     "persona": persona,
                     "scenario": scenario,
                 }

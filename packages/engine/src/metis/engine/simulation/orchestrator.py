@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from metis.core import Artifact
+    from metis.core.phase_events import PhaseEventLog
     from metis.engine.tui import SimulationState, TUIContext
 
     from .runner import Runner
@@ -88,6 +89,8 @@ class Orchestrator:
         state: SimulationState | None = None,
         tui_ctx: TUIContext | None = None,
         shutdown_event: threading.Event | None = None,
+        events: PhaseEventLog | None = None,
+        attempt: int = 1,
     ) -> None:
         self._runner = runner
         self._agent = agent
@@ -97,6 +100,9 @@ class Orchestrator:
         self._state = state
         self._tui_ctx = tui_ctx
         self._shutdown_event = shutdown_event
+        self._events = events
+        self._trial = run_dir.name
+        self._attempt = attempt
         self._ledger = ArtifactLedger(experiment_root, run_dir, fixture_artifacts)
         runner.use_ledger(self._ledger)
 
@@ -214,6 +220,14 @@ class Orchestrator:
             else:
                 empty_actions = 0
                 self._turns += 1
+                if self._events:
+                    self._events.emit(
+                        "simulating",
+                        "running",
+                        trial=self._trial,
+                        attempt=self._attempt,
+                        turn=self._turns,
+                    )
             self._note_promises(observation, turn)
             self._agent.remember(output, observation)
             logger.info(

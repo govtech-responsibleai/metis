@@ -7,7 +7,11 @@ from fastapi.testclient import TestClient
 
 from metis.api.main import create_app
 from metis.api.routes.models import model_statuses
-from metis.api.settings import Settings, SettingsError, build_dependencies
+from metis.api.settings import (
+    Settings,
+    SettingsError,
+    build_dependencies,
+)
 from metis.core.model_settings import ModelRole
 
 _ROLE_KEYS = (
@@ -111,3 +115,16 @@ def test_the_runner_agent_follows_the_user_agent_model_as_in_the_engine() -> Non
     assert rows[ModelRole.RUNNER_AGENT].source == "user agent model"
     explicit = Settings(env={"USER_AGENT_MODEL": "ua", "RUNNER_AGENT_MODEL": "ra"})
     assert explicit.role(ModelRole.RUNNER_AGENT).model == "ra"
+
+
+def test_the_project_folder_is_the_argument_else_the_nearest_pyproject_folder(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    monkeypatch.chdir(nested)
+    assert create_app().state.project_dir == tmp_path.resolve()
+
+    project = tmp_path / "project"
+    assert create_app(project_dir=project).state.project_dir == project.resolve()

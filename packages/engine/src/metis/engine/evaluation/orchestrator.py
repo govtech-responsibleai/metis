@@ -7,6 +7,12 @@ Grader runs on one session execute concurrently, each on its own deep copy of th
 Nothing here caps them: the cap on grader LLM
 calls lives in the shared client's connection pool (see ``judge.py``).
 
+Three separate limits are easy to confuse, so each is named by what it counts:
+
+* ``--concurrency N`` counts sessions in flight. It lives in ``cli._evaluate_records``.
+* ``grade_session`` runs the criteria of one session together. It has no limit of its own.
+* The judge client's connection pool counts LLM calls in flight, across all sessions.
+
 The grader scores; this module decides the outcome. Each scored ``GraderResult`` becomes
 ``passed`` when ``score >= threshold`` and ``failed`` otherwise, using the criterion's
 ``threshold``. Skipped and errored results pass through. Two rules make every grader run leave a
@@ -157,11 +163,13 @@ def _record(result: GraderResult, threshold: float) -> RecordedResult:
             score=result.score,
             reason=result.reason,
             scope=result.scope,
+            measurements=result.measurements,
         )
     return RecordedResult(
         outcome=result.status,
         reason=result.reason,
         scope=result.scope,
+        measurements=result.measurements,
     )
 
 
@@ -175,7 +183,7 @@ def _trace_output(output: object) -> object:
     ]
 
 
-async def _run_one(
+async def _grade_criterion(
     criterion: Criterion,
     grader: Grader[Any],
     grading_input: GradingInput,
@@ -252,11 +260,20 @@ async def grade_session(
     llm: LLMSettings,
     facts: SessionFacts,
 ) -> list[GraderRecord]:
-    """Run every grader once on one session, concurrently, one record each, in input order."""
+    """Run every criterion's grader once on one session, one record each, in input order.
+
+    This is the inner level of concurrency: the graders of ONE session run together under
+    ``asyncio.gather``. It is separate from ``--concurrency``, which counts sessions and is
+    applied by the caller, ``_evaluate_one``, one level up. Nothing here bounds the graders;
+    the judge client's connection pool bounds the LLM calls they make (see the module
+    docstring).
+    """
     return list(
         await asyncio.gather(
             *(
-                _run_one(criterion, graders[criterion.id], grading_input, llm, facts)
+                _grade_criterion(
+                    criterion, graders[criterion.id], grading_input, llm, facts
+                )
                 for criterion in criteria
             )
         )

@@ -63,7 +63,7 @@ class GraderArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    threshold: float = Field(default=0.5, ge=0, le=1, strict=True)
+    threshold: float = Field(default=0.8, ge=0, le=1, strict=True)
     """A scored result passes when ``score >= threshold``. The default also separates the
     ``0.0``/``1.0`` scores of a binary grader, so only graders with graded scores need it set."""
     scope: Scope | None = Field(default=None, exclude_if=lambda value: value is None)
@@ -295,8 +295,10 @@ class Grader(abc.ABC, Generic[ArgsT]):
         A model-based grader calls ``input_budget_error`` before each model call.
 
         Before any judge call, check that the session has the evidence the measure needs. When
-        it does not, or the event the measure looks for did not happen, return one errored
-        result that says what is missing, never an empty list. When a grader LLM call fails or
+        METIS cannot read or find it, return one errored result that says what is missing.
+        When the session can be read but the event the measure looks for did not happen,
+        return one skipped result that says what the session does not contain. Never return
+        an empty list. When a grader LLM call fails or
         its reply can't be parsed for one part of the session, record that part as errored and
         carry on. An exception that escapes ``grade()`` is recorded as
         one errored result for the whole grader run.
