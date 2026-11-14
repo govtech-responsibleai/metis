@@ -296,8 +296,9 @@ The CLI removes a file from `outputs/fixtures/` when the file is a copy of a doc
 document. Other files in `outputs/fixtures/` stay there.
 
 The CLI publishes `outputs/specification.yaml` after the other export files are saved.
-Its presence marks a completed export. `resume` reports completion even though the final state
-is retained. Use `--restart` to start again in the same directory. If export fails before the
+An export is complete when this file is present and the saved state is done. `resume` reports
+completion even though the final state is retained. An Interview that the web app opened again
+keeps its last `outputs/specification.yaml`, and `resume` continues that Interview. Use `--restart` to start again in the same directory. If export fails before the
 Specification is published, `resume` can retry from the saved final state.
 
 The CLI also shows the total trial count. For an Interview started on 2026-10-16 at 22:30:45, run the result with:

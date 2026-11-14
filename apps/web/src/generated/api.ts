@@ -301,7 +301,9 @@ export interface paths {
         post?: never;
         /**
          * Delete a Target
-         * @description Delete the saved Interview and its uploaded files.
+         * @description Delete the Target, its Interview, its Specification, and its Experiment rows.
+         *
+         *     The Experiment folders under `experiments/execute/` stay on disk.
          */
         delete: operations["delete_target_api_v1_targets__target_id__delete"];
         options?: never;
@@ -333,7 +335,8 @@ export interface paths {
          *     in this request nor in the store gives 400. The store deletes the files of the Target that
          *     the record no longer refers to.
          *
-         *     The save keeps the complete Interview state. Compile and package are separate requests.
+         *     When the Interview is done, the save also writes the Specification and its input folder. A
+         *     Specification that does not compile gives 400 `compilation_failed` and changes nothing.
          */
         put: operations["put_interview_api_v1_targets__target_id__interview_put"];
         post?: never;
@@ -362,6 +365,79 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/targets/{target_id}/specification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the Specification of a Target
+         * @description Return the Specification and the input folder for `metis engine simulate --input-dir`.
+         *
+         *     A Target has a Specification after its Interview is done. Before that, the route gives 404.
+         */
+        get: operations["read_specification_api_v1_targets__target_id__specification_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/targets/{target_id}/experiments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the Experiments of a Target
+         * @description Return the Experiment rows of the Target, newest first.
+         */
+        get: operations["list_target_experiments_api_v1_targets__target_id__experiments_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read an Experiment
+         * @description Return the row of the Experiment.
+         */
+        get: operations["read_experiment_api_v1_experiments__experiment_id__get"];
+        /**
+         * Save an Experiment
+         * @description Save the last engine step that the web app started for the Experiment.
+         *
+         *     The Experiment folder must exist under `experiments/execute/`, else the route gives 400. The
+         *     first save keeps the start time.
+         */
+        put: operations["put_experiment_api_v1_experiments__experiment_id__put"];
+        post?: never;
+        /**
+         * Delete an Experiment
+         * @description Delete the row of the Experiment. The Experiment folder stays on disk.
+         */
+        delete: operations["delete_experiment_api_v1_experiments__experiment_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1310,6 +1386,45 @@ export interface components {
             /** Runner Agent Model */
             runner_agent_model?: string | null;
         };
+        /**
+         * ExperimentList
+         * @description The Experiments of one Target, newest first.
+         */
+        ExperimentList: {
+            /** Experiments */
+            experiments: components["schemas"]["ExperimentRecord"][];
+        };
+        /**
+         * ExperimentRecord
+         * @description One Experiment of a Target. The phase and the progress come from the Experiment folder.
+         */
+        ExperimentRecord: {
+            /** Experiment Id */
+            experiment_id: string;
+            /** Target Id */
+            target_id: string;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            step: components["schemas"]["ExperimentStep"];
+        };
+        /**
+         * ExperimentSave
+         * @description The body of an Experiment save.
+         */
+        ExperimentSave: {
+            /** Target Id */
+            target_id: string;
+            step: components["schemas"]["ExperimentStep"];
+        };
+        /**
+         * ExperimentStep
+         * @description The last engine step that the web app started for an Experiment.
+         * @enum {string}
+         */
+        ExperimentStep: "simulate" | "evaluate";
         /**
          * ExtractedDocument
          * @description One extracted file returned to the caller that owns the original bytes.
@@ -2690,6 +2805,25 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /**
+         * SpecificationRecord
+         * @description The Specification of a Target, and the input folder that the store writes for it.
+         */
+        SpecificationRecord: {
+            /** Target Id */
+            target_id: string;
+            /** Specification Yaml */
+            specification_yaml: string;
+            /** Sha256 */
+            sha256: string;
+            /** Input Dir */
+            input_dir: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** Target */
         Target: {
             /** Name */
@@ -3870,6 +4004,298 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    read_specification_api_v1_targets__target_id__specification_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecificationRecord"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    list_target_experiments_api_v1_targets__target_id__experiments_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentList"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    read_experiment_api_v1_experiments__experiment_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentRecord"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    put_experiment_api_v1_experiments__experiment_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExperimentSave"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentRecord"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    delete_experiment_api_v1_experiments__experiment_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

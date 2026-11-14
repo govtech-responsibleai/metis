@@ -1,9 +1,9 @@
 """metis.api — REST API service.
 
-A thin HTTP door over the wizard's public Interview interface, plus saved Interview records and
-their files. The wizard routes translate request and response JSON and status codes and keep no
-state. The store routes save the complete Interview state and transcript. Every wizard rule stays
-inside metis-wizard.
+A thin HTTP door over the wizard's public Interview interface, and the store of each Target. The
+wizard routes translate request and response JSON and status codes and keep no state. The store
+routes keep the Interview, the Specification, and the Experiments of each Target. Every wizard rule
+stays inside metis-wizard.
 """
 
 from importlib.metadata import PackageNotFoundError, version

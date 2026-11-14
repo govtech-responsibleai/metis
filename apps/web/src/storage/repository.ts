@@ -10,6 +10,7 @@ import type {
 } from "../transport/api.ts";
 import { store, TransportError } from "../transport/api.ts";
 import { fixtureNameIdentity, type AdmittedFile } from "../fixture-policy.ts";
+import { withPendingEntry } from "../wizard/transcript.ts";
 
 export type { StorageProblem };
 
@@ -84,7 +85,11 @@ async function loadedRecord(
       return { ...interaction, outbound: { ...outbound, files } };
     }),
   );
-  return { ...record, transcript, fixtures };
+  return {
+    ...record,
+    transcript: withPendingEntry(transcript, record.state),
+    fixtures,
+  };
 }
 
 // The Interviews of every Target in the API store.

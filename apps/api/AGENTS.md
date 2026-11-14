@@ -6,8 +6,8 @@ IMPORTANT: Always talk in ASD-STE100 Simplified Technical English.
 
 ## Package Purpose
 
-A thin HTTP door over the wizard's public Interview interface, plus a store of Interview
-records and their files. The wizard routes translate request and response JSON
+A thin HTTP door over the wizard's public Interview interface, plus a store of Targets,
+Interview records, Specifications, and Experiments. The wizard routes translate request and response JSON
 and status codes and hold no user state. Every interview rule stays inside metis-wizard; this
 package must not learn any of them.
 
@@ -25,22 +25,23 @@ returned `InterviewState`, not on the app.
 
 ## The store
 
-The database has one `interviews` table. Each row holds the existing Interview record as JSON,
-with its id and save time. The state contains the Target details and Specification.
-The `targets` route name identifies these saved Interviews. It does not require a separate Target
-table. Saving an Interview does not compile its Specification or prepare an engine input folder.
-The compile and package routes keep their existing roles.
+The store adds missing Target rows for existing saved Interviews when it opens. It keeps their
+save times and file paths. It prepares a missing completed Specification on its first read.
+An Interview that cannot compile gives a per-record error and remains available for editing.
 
 The store routes save what a client wants to keep. They do not call the wizard routes, and the
 wizard routes do not use the store.
 
 | Route | Purpose |
 |---|---|
-| `GET /api/v1/targets` | List saved Interview summaries, newest first, and unreadable rows. |
-| `DELETE /api/v1/targets/{target_id}` | Delete the Interview record and its files. |
+| `GET /api/v1/targets` | List the Targets, newest first, and the rows that cannot be read. |
+| `DELETE /api/v1/targets/{target_id}` | Delete the rows and the store folder of a Target. |
 | `GET /api/v1/targets/{target_id}/interview` | Read the Interview record. |
 | `PUT /api/v1/targets/{target_id}/interview` | Save the record and its new files. |
 | `GET /api/v1/targets/{target_id}/interview/files/{name}` | Read one file of the record. |
+| `GET /api/v1/targets/{target_id}/specification` | Read the last Specification and its input folder. |
+| `GET /api/v1/targets/{target_id}/experiments` | List the Experiments of a Target. |
+| `GET`, `PUT`, `DELETE /api/v1/experiments/{experiment_id}` | Read, save, or delete one Experiment row. |
 
 The PUT of an Interview is a multipart form. The `record` part is a file that contains the
 record JSON. Each new file is a part named `files`, and its file name is the name in the record.
@@ -53,8 +54,8 @@ so keep the two rules the same. A file that the store already has needs no part.
 the store keeps only the files that the record refers to.
 
 `put_interview` does three steps in a fixed order. It writes the new files into the fixture
-folder, saves the row, and then deletes the files that the record no longer refers to. Thus a
-saved record always has all its files. The store has no recovery step. A save that stops before
+folder, saves the rows, and then deletes the files that the record no longer refers to. Thus a
+saved record always has all its files. The fixture folder has no recovery step. A save that stops before
 its last step can leave a file that no record refers to, and the next save of that Interview
 deletes it. The store writes each upload under a temporary name first. A new file with the name
 of a file in the folder moves that file to a backup name, then takes the name. A save that fails
@@ -66,8 +67,13 @@ media type is the type in the record when a header can hold it, else `applicatio
 Each Store holds a thread lock for the full time of a save or a delete, so the owner check and
 the write stay together. The store has no lock between processes.
 
-Before a first save, the store checks both the row and the Target folder. A folder with no row is
-already owned by another tool, so PUT returns 409 `target_exists` and leaves it unchanged. When a
+A folder in `experiments/design/` with a state file that validates is an Interview of the wizard
+CLI. The store adds its rows when it opens and at each Target list. Such a row has no transcript,
+and its file references are the files in `inputs/documents/`.
+
+Before a first save, the store checks both the row and the Target folder. A folder with no row
+has no Interview state that the store can read, so PUT returns 409 `target_exists` and leaves it
+unchanged. When a
 first save fails, the store removes the folder that it made. DELETE requires a row. When no row
 exists, it returns 404 `not_found` and leaves any folder unchanged. A delete removes the row and
 then the Target folder.
@@ -90,7 +96,13 @@ The files of a Target are in the layout that `metis wizard init` writes, under
 `YYYYMMDD-HHMMSS-interview`, which is the name of a `metis wizard init` folder. When the id is
 taken, the web app adds `-2`, `-3`, and so on. The `created_at` of the record tells one Interview
 from another. A save with the id of another Interview gets 409 `target_exists` and changes
-nothing. `inputs/fixtures/` holds the files that the user uploads. A missing row or file gets 404
+nothing. `inputs/interview_state.json` holds the state of the Interview, in the file that the
+wizard CLI uses. The Interview row holds the other parts of the record, and each read takes the
+state from the file. `inputs/documents/` holds the files that the user uploads, in the folder of the CLI opening documents. `outputs/` is the folder for `metis engine simulate --input-dir`.
+Each save of a done Interview compiles the Specification, then writes the Specification row and
+`outputs/` again. `outputs/` comes from the `outputs/` files of the package archive, and a new
+folder replaces the old one in two renames. A save is all or nothing: a
+compile failure gets 400 `compilation_failed` and changes nothing. A missing row or file gets 404
 `not_found`. A row that this version cannot read gets 409 `unreadable_record` and shows in the
 `problems` list of `GET /api/v1/targets`.
 
@@ -103,10 +115,12 @@ src/metis/api/
 ├── routes/models.py   read-only model role status route
 ├── routes/reports.py  experiment report routes, as JSON and as the HTML page
 ├── routes/wizard.py   client config, Interview lifecycle, compile, and package routes
-├── routes/targets.py  store routes for Interview records and files
+├── routes/targets.py  store routes for Targets, Interview records, files, and Specifications
+├── routes/experiments.py  store routes for Experiment rows
 ├── records.py         the wire models of the store routes
 ├── store.py           the store: rows through SQLAlchemy, files in experiments/design/
 ├── tables.py          the portable tables of the store
+├── input_folder.py    builds, stages, and swaps the input folder of a Specification
 ├── settings.py        environment-backed settings and the production dependency composition
 ├── cli.py             the `metis-api` executable and its --project-dir option
 └── __init__.py        version and the re-exported core version
@@ -153,7 +167,8 @@ injects the scripted dependency pair, so no test builds the real gateway or reac
 It also gives each test a store in its own project folder under `tmp_path`.
 
 Cover the door contract with representative cases: status mapping, the stable failure body,
-a wizard Interview across two app instances that writes no file, the store routes, shared Interview saves across two app instances, the generated OpenAPI discriminators, package archive
+a wizard Interview across two app instances that writes no file, the store routes, the input
+folder through the engine gate, the generated OpenAPI discriminators, package archive
 contents and validation, and one offline Interview start/turn/end-to-`/compile` end-to-end validated
 through the engine gate. Do not repeat every driver example.
 

@@ -1,12 +1,12 @@
 """The app composition root.
 
-`main.py` creates the FastAPI app, keeps `/health`, includes the wizard, store, and report
-routers, and installs the handlers that give every failure one stable JSON shape. The wizard
-routes keep no state: each request carries the whole Interview state in its body. The store
-routes keep the Interview records and their files in the `Store` that the app composes at
-startup. The report routes read the experiment folders. The store and the experiment folders
-are in the project folder that `create_app` gets, or the default project folder that
-`find_project_root` finds.
+`main.py` creates the FastAPI app, keeps `/health`, includes the wizard, store, experiment, and
+report routers, and installs the handlers that give every failure one stable JSON shape. The
+wizard routes keep no state: each request carries the whole Interview state in its body. The
+store routes keep the Targets, Interviews, Specifications, and Experiments in the `Store` that
+the app composes at startup. The report routes read the experiment folders. The store and the
+experiment folders are in the project folder that `create_app` gets, or the default project
+folder that `find_project_root` finds.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from metis.api import __version__, core_version
+from metis.api.routes.experiments import router as experiments_router
 from metis.api.routes.graders import router as graders_router
 from metis.api.routes.models import router as models_router
 from metis.api.routes.reports import router as reports_router
@@ -57,8 +58,15 @@ _OPENAPI_TAGS = [
     {
         "name": "targets",
         "description": (
-            "Keep complete Interview records and their uploaded files on the server. "
-            "The Specification and Target details stay inside the Interview state."
+            "Keep the Interview of each Target, its files, and its Specification in the store. "
+            "A save of a done Interview writes the Specification and its input folder."
+        ),
+    },
+    {
+        "name": "experiments",
+        "description": (
+            "Keep one row for each Experiment folder under experiments/execute/. "
+            "A delete removes the row. The Experiment folder stays on disk."
         ),
     },
     {
@@ -138,6 +146,7 @@ def create_app(
     app.include_router(graders_router)
     app.include_router(models_router)
     app.include_router(targets_router)
+    app.include_router(experiments_router)
     app.include_router(reports_router)
 
     @app.exception_handler(StoreError)
