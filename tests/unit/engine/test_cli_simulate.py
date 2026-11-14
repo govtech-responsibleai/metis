@@ -733,3 +733,37 @@ def test_simulate_rejects_a_concurrency_below_one(
 
     assert result.exit_code == 2
     assert isinstance(result.exception, SystemExit)
+
+
+@pytest.mark.parametrize("flags", [["--no-tui", "-v"], ["--no-tui", "-vv"]])
+def test_after_simulate_the_cli_logs_only_warnings(
+    monkeypatch, tmp_path: Path, flags: list[str]
+) -> None:
+    """The run logs at its own level. What the process logs after the run is only warnings."""
+    import logging
+
+    import structlog
+
+    from metis.core.logging import get_logger
+
+    input_dir = _write_source(tmp_path)
+    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "project")
+    monkeypatch.setattr(
+        experiment_module,
+        "execute_experiment",
+        lambda *_a, **kwargs: _write_record_marker(kwargs["output_dir"]),
+    )
+    try:
+        result = runner.invoke(app, ["simulate", "--input-dir", str(input_dir), *flags])
+        assert result.exit_code == 0, result.output
+        dropped = False
+        try:
+            structlog.get_config()["processors"][2](None, "info", {"level": "info"})
+        except structlog.DropEvent:
+            dropped = True
+        assert dropped
+        assert logging.getLogger().level == logging.WARNING
+        get_logger("after.simulate")  # a logger made after the run still works
+    finally:
+        structlog.reset_defaults()
+        logging.getLogger().handlers.clear()

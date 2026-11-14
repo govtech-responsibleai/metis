@@ -62,7 +62,7 @@ def simulate(
     ``metis.engine.tracing.tracing_key()``, and sets up process logging. Only one run at a
     time is safe in one process.
 
-    :raises RunStopped: When ``stop`` was set.
+    :raises RunStopped: When ``stop`` was set. A stop before the trials start runs none.
     :raises RunError: When the runner cannot be built, or no trial record was written.
     """
     return _simulate(
@@ -94,6 +94,7 @@ def resume_simulation(
     A trial runs again only when its record is missing, cannot be read, or has stop reason
     ``interrupted``. When it runs any trial, it removes the evaluation outputs first, so a
     trial is never graded from the evaluation of its old run. The logs are appended to.
+    A stop before the trials start leaves the folder as it is.
 
     The caller sets up the process first, and only one run at a time is safe in one
     process, as for ``simulate``.
@@ -264,6 +265,10 @@ def _simulate_in(
         if not redo_plan:
             console.print("nothing to resume")
             return experiment_dir
+    if stop.is_set():
+        # A stop before any trial starts changes nothing: no output is cleared and no
+        # trial runs.
+        raise RunStopped("stopped")
 
     from metis.engine.simulation.binding import TargetBindingError
     from metis.engine.simulation.runner_resolver import resolve_runner_factory

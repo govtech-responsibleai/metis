@@ -511,16 +511,22 @@ def _run_simulation(
     run_simulation = resume_simulation if resume else simulate
     try:
         with _stop_on_sigint(use_tui) as stop:
-            run_simulation(
-                experiment_dir,
-                concurrency=concurrency,
-                stop=stop,
-                console=console,
-                use_tui=use_tui,
-                log_level=log_level,
-                log_format=log_format,
-                log_dir=log_dir,
-            )
+            try:
+                run_simulation(
+                    experiment_dir,
+                    concurrency=concurrency,
+                    stop=stop,
+                    console=console,
+                    use_tui=use_tui,
+                    log_level=log_level,
+                    log_format=log_format,
+                    log_dir=log_dir,
+                )
+            finally:
+                # The run puts back the logging it found, which logs at the run's level.
+                # What this process logs after the run, such as the Langfuse flush at exit,
+                # shows only warnings.
+                _configure_process_logging("WARNING")
     except BaseException as exc:
         if command == "run":
             PhaseEventLog.for_experiment_dir(experiment_dir).emit(
