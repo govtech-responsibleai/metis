@@ -2,61 +2,34 @@
 
 from __future__ import annotations
 
-import json
-import logging
 import os
 import re
 import shlex
-import shutil
 import signal
 import sys
 import threading
-from contextlib import nullcontext
-from dataclasses import dataclass
-from datetime import UTC, datetime
+from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Literal
 
 import typer
-from rich.progress import BarColumn, MofNCompleteColumn, Progress, TaskID, TextColumn
 
 from metis.core import execution_layout
 from metis.core.console import console
 from metis.core.execution_layout import find_project_root
-from metis.core.phase_events import INTERRUPTED_REASON, Phase, PhaseEventLog
+from metis.core.phase_events import PhaseEventLog
 from metis.engine import __version__
-from metis.engine.logging import (
-    EvaluationLogger,
-    OrchestrationLogger,
-    setup_engine_logging,
-    teardown_engine_logging,
-)
-from metis.engine.tracing import tracing_key, trial_session_id
-from metis.engine.tui import (
-    SimulationScenarioState,
-    SimulationState,
-    SimulationTrialState,
-    TailBuffer,
-    TUIContext,
-)
+from metis.engine.runs import EvaluationInputError, EvaluationOutcome
+from metis.engine.runs._evaluation import evaluation_is_complete
+from metis.engine.tracing import tracing_key
 
 if TYPE_CHECKING:
-    import asyncio
     import types as _types
-    from collections.abc import Callable
-
-    from langfuse import Langfuse
+    from collections.abc import Iterator
 
     from metis.core.model_settings import ModelRole
-    from metis.core.profile import Criterion
-    from metis.core.reporting import GraderRecord
-    from metis.core.traces import Trace
-    from metis.core.trials import TrialRecord
-    from metis.engine.evaluation.trial_files import TrialEvaluation
-    from metis.engine.extractor import TraceWait, TraceWaitSettings
-    from metis.engine.simulation.experiment import TrialPlanItem
+    from metis.engine.extractor import TraceWaitSettings
     from metis.engine.simulation.types import Specification
-    from metis.library.grader import Grader, LLMSettings
 
 app = typer.Typer(help="Run METIS evaluations against traces.")
 
@@ -189,165 +162,13 @@ def _needs_judge(specification: Specification) -> bool:
 
 
 def _validate_inputs(input_dir: Path) -> None:
-    """Validate all experiment inputs upfront before simulation.
-
-    Fails fast on the first error with a clear message and sys.exit(1).
-    """
-    from pydantic import ValidationError
-
-    from metis.engine.simulation.types import Specification
-
-    if not input_dir.is_dir():
-        console.print(
-            f"Error: input directory '{input_dir}' does not exist", style="bold red"
-        )
-        sys.exit(1)
-
-    experiment_path = input_dir / "specification.yaml"
-    if not experiment_path.exists():
-        console.print(
-            f"Error: missing required file 'specification.yaml' in {input_dir}",
-            style="bold red",
-        )
-        sys.exit(1)
+    """Check every input of a new run, or print the error and exit with code 1."""
+    from metis.engine.runs import InvalidInputsError, validate_inputs
 
     try:
-        specification = Specification.load_file(experiment_path)
-    except ValidationError as e:
-        first = e.errors()[0]
-        loc = " → ".join(str(part) for part in first["loc"]) if first["loc"] else "root"
-        console.print(
-            f"Error: specification.yaml validation failed: {loc} — {first['msg']}",
-            style="bold red",
-        )
+        validate_inputs(input_dir, console=console)
+    except InvalidInputsError:
         sys.exit(1)
-    except Exception as e:
-        console.print(
-            f"Error: failed to parse specification.yaml: {e}", style="bold red"
-        )
-        sys.exit(1)
-
-    seen_personas: set[str] = set()
-    for persona in specification.personas:
-        if persona.id in seen_personas:
-            console.print(
-                f"Error: duplicate persona id '{persona.id}' in specification.yaml",
-                style="bold red",
-            )
-            sys.exit(1)
-        seen_personas.add(persona.id)
-
-    fixtures_dir = input_dir / "fixtures"
-    for task in specification.resolved_tasks():
-        for fixture in task.fixtures:
-            if not (fixtures_dir / fixture).exists():
-                console.print(
-                    f"Error: Task '{task.task_id}' references fixture '{fixture}' which does not exist in {fixtures_dir}",
-                    style="bold red",
-                )
-                sys.exit(1)
-
-    # Print every bad criterion before exiting, so one run lists everything to fix.
-    errors = _grader_setup_errors(specification)
-    for message in errors:
-        # markup=False: pydantic messages contain "[...]"; soft_wrap: keep each error on one
-        # line so it can be grepped from logs.
-        console.print(
-            f"Error: {message}", style="bold red", markup=False, soft_wrap=True
-        )
-    if errors:
-        sys.exit(1)
-
-
-def _grader_setup_errors(specification: Specification) -> list[str]:
-    """Every criterion whose grader can't be built from the spec alone, as messages.
-
-    Each criterion is checked once, however many tasks reference it. The judge model is
-    resolved exactly as the run will resolve it, so a JudgeArgs grader validates with a model
-    in place. ``check_setup`` runs after its args validate. No client or credentials are
-    needed: the gateway is checked separately, at the start of ``evaluate``.
-    """
-    from metis.engine.evaluation import GraderSetupError, build_grader
-
-    errors: list[str] = []
-    criteria_by_id = {c.id: c for b in specification.behaviours() for c in b.criteria}
-    checked: set[str] = set()
-    default_judge_model = specification.experiment.defaults.judge_model
-    for scenario in specification.resolved_tasks():
-        for ref in scenario.grader_refs:
-            if ref.criterion_id in checked:
-                continue
-            checked.add(ref.criterion_id)
-            try:
-                built = build_grader(
-                    criteria_by_id[ref.criterion_id],
-                    default_judge_model=default_judge_model,
-                    env=os.environ,
-                )
-            except GraderSetupError as exc:
-                errors.append(str(exc))
-                continue
-            try:
-                problems = type(built).check_setup(built.args, specification)
-            except Exception as exc:  # a grader bug must not crash validation
-                problems = [f"check_setup raised {type(exc).__name__}: {exc}"]
-            errors.extend(f"Criterion '{ref.criterion_id}': {p}" for p in problems)
-    return errors
-
-
-def _format_final_summary(
-    state: SimulationState, experiment_dir: str, log_dir: str
-) -> str:
-    """Build the static final summary printed after TUI exits."""
-    total = state.total_trials
-    completed = state.completed_trials
-    reasons = [t.stop_reason for sc in state.scenarios for t in sc.trials]
-    achieved = sum(1 for r in reasons if r == "goal_achieved")
-    abandoned = sum(1 for r in reasons if r == "user_abandoned")
-    timed_out = sum(1 for r in reasons if r == "timeout")
-    # Remaining completed trials (e.g. system_error, max_turns) count as errors.
-    errored = completed - achieved - abandoned - timed_out
-
-    elapsed = state.elapsed_seconds
-    h = int(elapsed) // 3600
-    m = (int(elapsed) % 3600) // 60
-
-    elapsed_str = f"{h}h {m:02d}m" if h > 0 else f"{m}m"
-
-    lines = [
-        f"METIS {state.experiment_id} — completed in {elapsed_str}",
-        f"Simulation: {completed}/{total} trials "
-        f"({achieved} goal achieved, {abandoned} abandoned, "
-        f"{timed_out} timeout, {errored} error)",
-        f"Logs:   {log_dir}/",
-    ]
-    return "\n".join(lines)
-
-
-@dataclass(frozen=True)
-class EvaluationOutcome:
-    """Summary returned by the evaluation phase.
-
-    ``results_file`` is set for every evaluation that ran, even one in which every trial
-    failed. It is ``None`` only when there was nothing to evaluate.
-    """
-
-    total_records: int
-    successful_records: int
-    failed_records: int
-    results_file: Path | None
-
-
-class EvaluationInputError(RuntimeError):
-    """Raised when an experiment snapshot or run record is invalid."""
-
-
-class CommandFailed(typer.Exit):
-    """Exit code 1 for a command that printed its error. The phase's ``failed`` line records ``reason``."""
-
-    def __init__(self, reason: str) -> None:
-        super().__init__(code=1)
-        self.reason = reason
 
 
 def _resolve_log_level(verbose: int, quiet: bool) -> str:
@@ -376,12 +197,9 @@ def _configure_process_logging(log_level: str, *, use_tui: bool = False) -> None
 
 def _trial_record_files(experiment_dir: Path) -> list[Path]:
     """Return trial records in the same order used by the old CLI."""
-    return sorted(
-        (experiment_dir / execution_layout.TRIALS).glob(
-            f"*/{execution_layout.TRIAL_RECORD}"
-        ),
-        key=lambda path: path.stat().st_mtime,
-    )
+    from metis.engine.runs._common import trial_record_files
+
+    return trial_record_files(experiment_dir)
 
 
 def _experiment_id(input_dir: Path) -> str | None:
@@ -494,49 +312,23 @@ def _resolve_simulation_target(
 
 def _resolve_experiment_dir(experiment_dir: Path) -> Path:
     """Validate an explicit simulation output directory."""
-    resolved = experiment_dir.resolve()
-    if not resolved.is_dir():
-        console.print(
-            f"Error: experiment directory '{resolved}' does not exist",
-            style="bold red",
-        )
-        raise EvaluationInputError("invalid experiment directory")
-    if not (resolved / execution_layout.INPUTS).is_dir():
-        console.print(
-            f"Error: '{resolved}' is not a simulation output directory "
-            "(no 'inputs/' snapshot). Run 'metis engine simulate' first.",
-            style="bold red",
-        )
-        raise EvaluationInputError("invalid experiment directory")
-    if (resolved / "trials").is_dir() or (resolved / "reports").is_dir():
-        console.print(
-            "Error: this execution uses an earlier folder layout. "
-            "Move it to outputs/trials/ and outputs/reports/ before use.",
-            style="bold red",
-        )
-        raise EvaluationInputError("unsupported execution layout")
-    return resolved
+    from metis.engine.runs import resolve_experiment_dir
+
+    return resolve_experiment_dir(experiment_dir, console=console)
 
 
 def _evaluate_command(experiment_dir: Path) -> str:
     """Build the shell-safe command for evaluating a simulation output."""
-    return shlex.join(
-        ["metis", "engine", "evaluate", "--experiment-dir", str(experiment_dir)]
-    )
+    from metis.engine.runs._common import evaluate_command
+
+    return evaluate_command(experiment_dir)
 
 
 def _resume_command(experiment_dir: Path, command: str) -> str:
     """Build the shell-safe command for resuming a simulation output."""
-    return shlex.join(
-        [
-            "metis",
-            "engine",
-            command,
-            "--resume",
-            "--experiment-dir",
-            str(experiment_dir),
-        ]
-    )
+    from metis.engine.runs._common import resume_command
+
+    return resume_command(experiment_dir, command)
 
 
 def _report_command(results_file: Path) -> str:
@@ -598,37 +390,6 @@ def _print_evaluation_summary(
             soft_wrap=True,
         )
     console.print(f"{'=' * 60}")
-
-
-def _classify_resume_trials(
-    experiment_dir: Path,
-    trial_plan: list[TrialPlanItem],
-) -> tuple[list[TrialPlanItem], dict[tuple[str, str, int], TrialRecord]]:
-    """Return redo items and valid existing records keyed by plan identity."""
-    from metis.core.trials import TrialRecord
-    from metis.engine.simulation.experiment import trial_folder_name
-
-    redo: list[TrialPlanItem] = []
-    completed: dict[tuple[str, str, int], TrialRecord] = {}
-    for item in trial_plan:
-        scenario, persona, trial_index = item
-        record_path = (
-            experiment_dir
-            / execution_layout.TRIALS
-            / trial_folder_name(scenario, persona, trial_index)
-            / execution_layout.TRIAL_RECORD
-        )
-        try:
-            record = TrialRecord.load_file(record_path)
-        except Exception:
-            redo.append(item)
-            continue
-        key = (scenario.task_id or scenario.id, persona.id, trial_index)
-        if record.outcome.stop_reason == "system_error":
-            redo.append(item)
-        else:
-            completed[key] = record
-    return redo, completed
 
 
 def _check_simulation_settings(
@@ -731,200 +492,60 @@ def _run_simulation(
             experiment_dir / execution_layout.SPECIFICATION
         )
         _check_simulation_settings(command, specification, env_file)
-        fixtures_dir = experiment_dir / execution_layout.FIXTURES
     else:
-        _validate_inputs(target)
-        specification = Specification.load_file(target / "specification.yaml")
-        _check_simulation_settings(command, specification, env_file)
-        suffix = datetime.now().strftime("%Y%m%d-%H%M%S")
-        experiment_dir = (
-            project_root / execution_layout.EXECUTIONS / f"{specification.id}-{suffix}"
-        )
-        experiment_dir.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            experiment_dir.mkdir()
-        except FileExistsError:
-            # Two runs of one Specification that start in the same second get
-            # the same name. The second run stops and leaves the folder as is.
-            console.print(
-                f"Error: the run folder '{experiment_dir}' already exists. "
-                "A run of this Specification started in the same second. "
-                "Start the run again.",
-                style="bold red",
-                markup=False,
-            )
-            raise typer.Exit(code=1) from None
-        shutil.copytree(target, experiment_dir / execution_layout.INPUTS)
-        fixtures_dir = experiment_dir / execution_layout.FIXTURES
+        from metis.engine.runs import RunError, prepare_experiment, validate_inputs
 
-    events = PhaseEventLog.for_experiment_dir(experiment_dir)
-    later_phases: tuple[Phase, ...] = ("evaluating",) if command == "run" else ()
+        try:
+            # The inputs are checked before the model settings, so that a bad input is the
+            # first error. prepare_experiment checks them again and prints nothing.
+            specification = validate_inputs(target, console=console)
+            _check_simulation_settings(command, specification, env_file)
+            experiment_dir = prepare_experiment(
+                target, project_dir=project_root, console=console
+            )
+        except RunError:
+            raise typer.Exit(code=1) from None
+
+    from metis.engine.runs import RunError, RunStopped, resume_simulation, simulate
+
+    run_simulation = resume_simulation if resume else simulate
     try:
-        _simulate_in(
-            experiment_dir,
-            specification,
-            fixtures_dir,
-            events,
-            resume=resume,
-            use_tui=use_tui,
-            log_level=log_level,
-            log_format=log_format,
-            log_dir=log_dir,
-            concurrency=concurrency,
-        )
-        if not _trial_record_files(experiment_dir):
-            console.print("No trial records found.", style="bold red")
-            raise CommandFailed("No trial records found.")
+        with _stop_on_sigint(use_tui) as stop:
+            try:
+                run_simulation(
+                    experiment_dir,
+                    concurrency=concurrency,
+                    stop=stop,
+                    console=console,
+                    use_tui=use_tui,
+                    log_level=log_level,
+                    log_format=log_format,
+                    log_dir=log_dir,
+                )
+            finally:
+                # The run puts back the logging it found, which logs at the run's level.
+                # What this process logs after the run, such as the Langfuse flush at exit,
+                # shows only warnings.
+                _configure_process_logging("WARNING")
     except BaseException as exc:
-        _end_phase_on_error(events, "simulating", exc, later_phases=later_phases)
+        if command == "run":
+            PhaseEventLog.for_experiment_dir(experiment_dir).emit(
+                "evaluating", "skipped"
+            )
+        if isinstance(exc, RunStopped):
+            raise typer.Exit(code=130) from None
+        if isinstance(exc, RunError):
+            raise typer.Exit(code=1) from None
         raise
-    events.emit("simulating", "completed")
     return experiment_dir
 
 
-def _simulate_in(
-    experiment_dir: Path,
-    specification: Specification,
-    fixtures_dir: Path,
-    events: PhaseEventLog,
-    *,
-    resume: bool,
-    use_tui: bool,
-    log_level: str,
-    log_format: Literal["text", "json"],
-    log_dir: Path | None,
-    concurrency: int,
-) -> Path:
-    """Simulate the trials in ``experiment_dir`` that still need a record."""
-    from metis.engine.simulation.experiment import (
-        execute_experiment,
-        expand_trial_plan,
-    )
-
-    personas_by_id = {persona.id: persona for persona in specification.personas}
-    trial_plan = expand_trial_plan(specification, personas_by_id)
-    if resume:
-        redo_plan, completed_records = _classify_resume_trials(
-            experiment_dir, trial_plan
-        )
-    else:
-        redo_plan = trial_plan
-        completed_records = {}
-    events.emit(
-        "simulating", "started", total=len(trial_plan), done=len(completed_records)
-    )
-    if resume:
-        console.print(
-            f"Resume plan: {experiment_dir} — {len(redo_plan)} trials to redo, "
-            f"{len(completed_records)} already complete"
-        )
-        if not redo_plan:
-            console.print("nothing to resume")
-            return experiment_dir
-
-    from metis.engine.simulation.binding import TargetBindingError
-    from metis.engine.simulation.runner_resolver import resolve_runner_factory
-
-    factory_cls = resolve_runner_factory(specification.runner_factory_ref)
-
-    # a factory that needs the specification asks for it; any other is built bare
-    from_specification = getattr(factory_cls, "from_specification", None)
-    try:
-        runner_factory = (
-            from_specification(specification, experiment_dir / execution_layout.INPUTS)
-            if from_specification is not None
-            else factory_cls()
-        )
-    except TargetBindingError as exc:
-        # the message holds text the user wrote, so it must not be read as markup
-        console.print(f"Error: {exc}", style="bold red", markup=False)
-        raise CommandFailed(str(exc)) from None
-
-    trial_max_retries, trial_retry_delay_seconds = runner_factory.retry_defaults
-
-    if resume:
-        # a re-simulated trial must never be graded from the evaluation of its old run;
-        # this waits for the runner factory so a setup error leaves the evaluation intact
-        _clear_evaluation_outputs(experiment_dir)
-
-    console.print(f"\n{'=' * 60}")
-    console.print("  SIMULATION")
-    console.print(f"{'=' * 60}")
-    console.print(f"  Specification: {experiment_dir}")
-    console.print(f"  Input: {fixtures_dir.parent}\n")
-
-    resolved_log_dir = log_dir or (experiment_dir / execution_layout.LOGS)
-    resolved_log_dir.mkdir(parents=True, exist_ok=True)
-
-    scenarios_state: list[SimulationScenarioState] = []
-    total_trial_count = 0
-    for scenario in specification.resolved_tasks():
-        trial_states: list[SimulationTrialState] = []
-        for persona_ref in scenario.persona_refs:
-            for trial_index in range(1, scenario.num_trials + 1):
-                total_trial_count += 1
-                trial_states.append(
-                    SimulationTrialState(
-                        scenario_id=scenario.task_id or scenario.id,
-                        persona_id=persona_ref,
-                        trial_index=trial_index,
-                        num_trials=scenario.num_trials,
-                        phase="pending",
-                        current_turn=None,
-                        max_turns=scenario.max_turns,
-                        turn_detail="",
-                        duration_seconds=None,
-                        stop_reason=None,
-                    )
-                )
-        scenarios_state.append(
-            SimulationScenarioState(
-                scenario_id=scenario.task_id or scenario.id,
-                trials=trial_states,
-                phase="pending",
-            )
-        )
-
-    sim_state = SimulationState(
-        experiment_id=specification.id,
-        scenarios=scenarios_state,
-        total_trials=total_trial_count,
-    )
-
-    for (scenario_id, persona_id, trial_index), record in completed_records.items():
-        sim_state.mark_trial_completed(
-            scenario_id,
-            persona_id,
-            trial_index=trial_index,
-            stop_reason=record.outcome.stop_reason,
-            duration_seconds=record.outcome.duration_seconds,
-        )
-
-    display_level = getattr(logging, log_level)
-    tail_buffers = {
-        f"w{i}": TailBuffer(max_lines=15, min_level=display_level)
-        for i in range(concurrency)
-    }
-    log_router = setup_engine_logging(
-        log_dir=resolved_log_dir,
-        log_format=log_format,
-        tail_buffers=tail_buffers,
-        use_tui=use_tui,
-        append=resume,
-    )
-    orchestration_logger = OrchestrationLogger(
-        log_dir=resolved_log_dir, log_format=log_format, append=resume
-    )
-    if resume:
-        orchestration_logger.resume_started(len(redo_plan), len(completed_records))
-
-    tui_ctx: TUIContext | None = None
-    if use_tui:
-        tui_ctx = TUIContext(state=sim_state, tail_buffers=tail_buffers)
-
+@contextmanager
+def _stop_on_sigint(use_tui: bool) -> Iterator[threading.Event]:
+    """Give a stop flag that the first Ctrl-C sets. The second Ctrl-C exits with 130."""
     interrupt_count = 0
     interrupt_lock = threading.Lock()
-    shutdown_event = threading.Event()
+    stop = threading.Event()
 
     def _handle_sigint(_signum: int, _frame: _types.FrameType | None) -> None:
         nonlocal interrupt_count
@@ -934,7 +555,7 @@ def _simulate_in(
                 if not use_tui:
                     console.print("\nForce abort.", style="bold red")
                 sys.exit(130)
-            shutdown_event.set()
+            stop.set()
             if not use_tui:
                 console.print(
                     "\nInterrupt received — finishing current trial. "
@@ -944,209 +565,9 @@ def _simulate_in(
 
     prev_handler = signal.signal(signal.SIGINT, _handle_sigint)
     try:
-        with tui_ctx if tui_ctx else nullcontext():
-            execute_experiment(
-                runner_factory=runner_factory,
-                specification=specification,
-                personas_by_id=personas_by_id,
-                output_dir=experiment_dir,
-                fixtures_dir=fixtures_dir,
-                concurrency=concurrency,
-                trial_plan=redo_plan,
-                trial_max_retries=trial_max_retries,
-                trial_retry_delay_seconds=trial_retry_delay_seconds,
-                state=sim_state,
-                orchestration_logger=orchestration_logger,
-                log_router=log_router,
-                tui_ctx=tui_ctx,
-                shutdown_event=shutdown_event,
-                events=events,
-            )
+        yield stop
     finally:
         signal.signal(signal.SIGINT, prev_handler)
-        teardown_engine_logging(log_router)
-        orchestration_logger.close()
-
-    console.print(
-        _format_final_summary(
-            sim_state,
-            str(experiment_dir),
-            str(resolved_log_dir),
-        )
-    )
-    if shutdown_event.is_set():
-        raise typer.Exit(code=130)
-    return experiment_dir
-
-
-def _end_phase_on_error(
-    events: PhaseEventLog,
-    phase: Phase,
-    exc: BaseException,
-    *,
-    later_phases: tuple[Phase, ...] = (),
-) -> None:
-    """Write the last line of a phase that stopped with ``exc``, and end the command.
-
-    This is the one writer of a phase line that is ``failed`` or ``interrupted``. Exit
-    code 130 is an interrupt. Any other exit or error is a failure. The reason of a
-    ``CommandFailed`` is the error that the command printed, and the reason of an error
-    is its text. Each phase in ``later_phases`` did not start, so it ends as ``skipped``.
-    """
-    code = getattr(exc, "exit_code", getattr(exc, "code", None))
-    if isinstance(exc, KeyboardInterrupt) or code == 130:
-        events.emit(phase, "interrupted", reason=INTERRUPTED_REASON)
-    elif isinstance(exc, CommandFailed):
-        events.emit(phase, "failed", reason=exc.reason)
-    elif isinstance(exc, typer.Exit | SystemExit):
-        events.emit(phase, "failed")
-    else:
-        events.emit(phase, "failed", reason=f"{type(exc).__name__}: {exc}")
-    for later in later_phases:
-        events.emit(later, "skipped")
-
-
-def _load_evaluation_specification(experiment_dir: Path) -> Specification:
-    """Validate and load the frozen experiment snapshot."""
-    from metis.engine.simulation.types import Specification
-
-    inputs_dir = experiment_dir / execution_layout.INPUTS
-    if not inputs_dir.is_dir():
-        console.print(
-            f"Error: missing required file 'specification.yaml' in {inputs_dir}",
-            style="bold red",
-        )
-        raise EvaluationInputError("missing experiment snapshot")
-
-    try:
-        _validate_inputs(inputs_dir)
-    except SystemExit as exc:
-        raise EvaluationInputError(
-            f"invalid experiment snapshot in {inputs_dir}"
-        ) from exc
-
-    try:
-        return Specification.load_file(inputs_dir / "specification.yaml")
-    except Exception as exc:
-        console.print(
-            f"Error: failed to load experiment snapshot: {exc}", style="bold red"
-        )
-        raise EvaluationInputError("failed to load experiment snapshot") from exc
-
-
-def _create_evaluation_progress() -> Progress:
-    """Create the standard, non-full-screen evaluation progress bar."""
-    return Progress(
-        TextColumn("{task.description}"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        console=console,
-    )
-
-
-def _update_evaluation_progress(
-    progress: Progress | None,
-    task_id: TaskID | None,
-    *,
-    record_number: int,
-    total_records: int,
-    label: str,
-    phase: str,
-    advance: int = 0,
-    bar_description: str | None = None,
-) -> None:
-    """Update the progress bar or print one linear progress message.
-
-    ``bar_description`` replaces the bar's text only; the linear message keeps the phase.
-    """
-    description = f"{label} — {phase}"
-    if progress and task_id is not None:
-        progress.update(
-            task_id,
-            description=bar_description if bar_description is not None else description,
-            advance=advance,
-        )
-    else:
-        console.print(f"Evaluation {record_number}/{total_records}: {description}")
-
-
-def _log_grader_records(
-    evaluation_log: EvaluationLogger,
-    records: list[GraderRecord],
-    *,
-    record_label: str,
-) -> None:
-    """Write every recorded result of one trial's grader runs to the evaluation log."""
-    count = 0
-    for record in records:
-        for index, result in enumerate(record.results):
-            evaluation_log.write(
-                "GRADER RESULT — "
-                + json.dumps(
-                    {
-                        "record": record_label,
-                        "criterion_id": record.criterion_id,
-                        "grader": record.grader_fqn,
-                        "result": index,
-                        "outcome": result.outcome,
-                        "score": result.score,
-                        "reason": result.reason,
-                    },
-                    ensure_ascii=False,
-                    default=str,
-                )
-            )
-            count += 1
-    evaluation_log.write(f"GRADER RESULTS — record={record_label} count={count}")
-
-
-def _log_trace_wait(
-    evaluation_log: EvaluationLogger, wait: TraceWait, *, record_label: str
-) -> None:
-    """Write how long one trial waited for its traces, and warn about open observations."""
-    evaluation_log.write(
-        f"TRACE WAIT: record={record_label} status={wait.status} "
-        f"checks={wait.checks} waited={wait.waited_seconds:.1f}s"
-    )
-    if not wait.open_observations:
-        return
-    names = ", ".join(f"{o.name or 'unnamed'} ({o.id})" for o in wait.open_observations)
-    console.print(
-        f"  WARNING: {len(wait.open_observations)} observation(s) never ended, "
-        f"graded as stored: {names}",
-        style="yellow",
-        markup=False,
-    )
-    evaluation_log.write(f"OPEN OBSERVATIONS: record={record_label} ids={names}")
-
-
-def _save_session_traces(
-    experiment_dir: Path,
-    session_id: str,
-    traces: tuple[Trace, ...],
-    evaluation_log: EvaluationLogger,
-) -> None:
-    """Save one session's traces for `metis insights report`; a failed write only warns.
-
-    The file is display data, so grading must never depend on it. A payload JSON cannot
-    encode (a lone surrogate, say) raises ``ValueError``, so that is caught as well as ``OSError``.
-    """
-    from metis.core import SessionTraces
-
-    path = (
-        experiment_dir
-        / execution_layout.TRACES
-        / execution_layout.trace_file_name(session_id)
-    )
-    try:
-        SessionTraces.from_traces(session_id, traces).save(path)
-    except (OSError, ValueError) as exc:
-        console.print(
-            f"  WARNING: traces for session {session_id} were not saved: {exc}",
-            style="yellow",
-            markup=False,
-        )
-        evaluation_log.write(f"TRACES NOT SAVED — session={session_id} — {exc}")
 
 
 def _run_evaluation(
@@ -1159,577 +580,27 @@ def _run_evaluation(
     command: Literal["evaluate", "run"] = "evaluate",
     resume: bool = False,
 ) -> EvaluationOutcome:
-    """Evaluate records in an existing experiment directory.
+    """Set up the process, then evaluate the records in ``experiment_dir``.
 
-    A resume appends to ``evaluate.log``; a fresh evaluation starts it again.
+    Ctrl-C stops the evaluation as it always has: ``asyncio.run`` cancels it and raises
+    ``KeyboardInterrupt``. The stop flag is never set here.
     """
-    env_file = _load_env()
+    from metis.engine.runs import evaluate, resume_evaluation
+
+    _load_env()
     # Registered before the target's Langfuse client, so judge calls always have their own.
     tracing_key()
-    log_level = _resolve_log_level(verbose, quiet)
-    _configure_process_logging(log_level)
-    evaluation_log = EvaluationLogger(
-        experiment_dir / execution_layout.LOGS, reset=not resume
+    _configure_process_logging(_resolve_log_level(verbose, quiet))
+    run_evaluation = resume_evaluation if resume else evaluate
+    return run_evaluation(
+        experiment_dir,
+        trace_wait=trace_wait,
+        concurrency=concurrency,
+        stop=threading.Event(),
+        console=console,
+        show_progress=sys.stderr.isatty(),
+        command=command,
     )
-    evaluation_log.write(
-        f"EVALUATION STARTED — {experiment_dir} (concurrency {concurrency})"
-    )
-
-    import asyncio
-
-    from metis.core.trials import TrialRecord
-
-    specification = _load_evaluation_specification(experiment_dir)
-    files = _trial_record_files(experiment_dir)
-    if not files:
-        evaluation_log.write("EVALUATION COMPLETED — 0 records")
-        return EvaluationOutcome(0, 0, 0, None)
-
-    try:
-        trial_records = [
-            (path.parent.name, TrialRecord.load_file(path)) for path in files
-        ]
-    except Exception as exc:
-        console.print(f"Error: failed to load trial record: {exc}", style="bold red")
-        raise EvaluationInputError("failed to load trial record") from exc
-
-    console.print(f"  Loaded {len(trial_records)} trial record(s)")
-    evaluation_log.write(f"LOADED {len(trial_records)} trial record(s)")
-    events = PhaseEventLog.for_experiment_dir(experiment_dir)
-    return asyncio.run(
-        _evaluate_records(
-            experiment_dir,
-            specification,
-            trial_records,
-            evaluation_log=evaluation_log,
-            trace_wait=trace_wait,
-            concurrency=concurrency,
-            env_file=env_file,
-            events=events,
-            command=command,
-            resume=resume,
-        )
-    )
-
-
-class _RunningCount:
-    """How many sessions hold a semaphore slot right now.
-
-    It goes up when a session takes a slot and down in a ``finally``, with no ``await``
-    between a read and its write, so one event loop cannot interleave two changes.
-    """
-
-    def __init__(self) -> None:
-        self.value = 0
-
-
-def _record_label(record: TrialRecord) -> str:
-    """How a record is named in the log, the warnings and the progress bar."""
-    return f"{record.config.persona} x {record.config.scenario}"
-
-
-@dataclass(frozen=True)
-class _EvaluationContext:
-    """What every record of one evaluation shares. Built once, read by ``_evaluate_one``."""
-
-    experiment_dir: Path
-    criteria_by_id: dict[str, Criterion]
-    graders: dict[str, Grader[Any]]
-    llm: LLMSettings
-    langfuse: Langfuse
-    trace_wait: TraceWaitSettings
-    evaluation_log: EvaluationLogger
-    total_records: int
-    concurrency: int
-    semaphore: asyncio.Semaphore
-    running: _RunningCount
-    events: PhaseEventLog | None = None
-
-
-@dataclass(frozen=True)
-class _RecordResult:
-    """One record's outcome: its grader records, or why it failed."""
-
-    records: list[GraderRecord]
-    failure_reason: str | None
-    warning: str | None = None
-
-
-async def _evaluate_one(
-    record: TrialRecord,
-    *,
-    number: int,
-    context: _EvaluationContext,
-    phase: Callable[..., None],
-    trial: str,
-) -> TrialEvaluation:
-    """Fetch and grade one trial record's session, once it holds one of the N slots.
-
-    A record that is still waiting for a slot is a bare coroutine: it holds no connection
-    and no traces. An error in the fetch, the trace save or the grading is caught inside
-    (in ``_fetch_and_grade``) and returned as a failure, so the caller never sees it.
-    The caller combines the returned values; this function changes no shared counter
-    except the running count, which a ``finally`` restores.
-
-    ``started_at`` and ``finished_at`` bound the time the trial held its slot. Once the
-    slot is released, the trial's evaluation file is written. That is the file's only
-    write, so the file exists only for a trial whose evaluation has ended; a cancelled
-    trial writes none.
-
-    The file save and the reporting calls (``console.print``, ``log.write`` and
-    ``phase``) are not guarded. If one raises, for example because the disk is full, the
-    error leaves this function, the ``TaskGroup`` cancels every other session, and
-    ``_evaluate_records`` reports it. That is deliberate: a file, log or display that no
-    longer works is a problem to surface, not one to hide.
-    """
-    from metis.engine.evaluation import trial_files
-
-    label = _record_label(record)
-    record_name = f"RECORD {number}/{context.total_records} {label}"
-    log = context.evaluation_log
-
-    async with context.semaphore:
-        started_at = datetime.now(UTC)
-        context.running.value += 1
-        try:
-            if context.events:
-                context.events.emit("evaluating", "started", trial=trial)
-            result = await _fetch_and_grade(
-                record,
-                number=number,
-                label=label,
-                record_name=record_name,
-                context=context,
-                phase=phase,
-            )
-            finished_at = datetime.now(UTC)
-        finally:
-            context.running.value -= 1
-
-    evaluation = trial_files.TrialEvaluation(
-        trial=trial,
-        records=result.records,
-        failure_reason=result.failure_reason,
-        started_at=started_at,
-        finished_at=finished_at,
-    )
-    trial_files.save_trial_evaluation(context.experiment_dir, evaluation)
-
-    if context.events:
-        context.events.emit(
-            "evaluating",
-            "completed" if result.failure_reason is None else "failed",
-            trial=trial,
-            reason=result.failure_reason,
-        )
-    if result.failure_reason is None:
-        log.write(f"{record_name} — DONE")
-        phase("done", advance=1)
-        return evaluation
-    console.print(
-        f"  WARNING: {record_name} — {result.warning or result.failure_reason}",
-        style="yellow",
-        markup=False,
-    )
-    log.write(f"{record_name} — FAILED — {result.failure_reason}")
-    phase("failed", advance=1)
-    return evaluation
-
-
-async def _fetch_and_grade(
-    record: TrialRecord,
-    *,
-    number: int,
-    label: str,
-    record_name: str,
-    context: _EvaluationContext,
-    phase: Callable[..., None],
-) -> _RecordResult:
-    """The work of one record while it holds a slot: fetch, save traces, grade."""
-    from metis.engine import extractor
-    from metis.engine.evaluation import SessionFacts, grade_session
-
-    log = context.evaluation_log
-    experiment_dir = context.experiment_dir
-    graders = context.graders
-
-    log.write(f"{record_name} — EXTRACTING")
-    phase("extracting")
-    if context.concurrency == 1:
-        # The banner says "a new session starts here", which is false when sessions overlap.
-        console.print(f"\n\n{'#' * 60}")
-        console.print(f"  SESSION {number}/{context.total_records}: {label}")
-        console.print(f"{'#' * 60}")
-
-    session_id = record.target_session_id
-    criteria = [
-        context.criteria_by_id[ref.criterion_id]
-        for ref in record.config.grader_refs
-        if ref.criterion_id in graders
-    ]
-    unknown = sorted(
-        ref.criterion_id
-        for ref in record.config.grader_refs
-        if ref.criterion_id not in graders
-    )
-    if unknown:
-        # The record was written against a spec whose criteria differ from the
-        # snapshot (e.g. inputs/specification.yaml was edited). Say so rather
-        # than silently grading fewer criteria than the trial ran for.
-        console.print(
-            f"  WARNING: {record_name} — criteria {', '.join(unknown)} are not in the "
-            "specification snapshot and were not graded",
-            style="yellow",
-            markup=False,
-        )
-        log.write(f"{record_name} — UNKNOWN CRITERIA — {', '.join(unknown)}")
-    try:
-        if not session_id:
-            return _RecordResult([], "No target_session_id")
-        if not criteria:
-            return _RecordResult([], "No grader_refs in run config")
-        waits: list[TraceWait] = []
-        try:
-            grading_input = await extractor.fetch_session(
-                session_id,
-                context.langfuse,
-                experiment_root=experiment_dir,
-                artifacts=record.artifacts,
-                settings=context.trace_wait,
-                on_wait=waits.append,
-            )
-        finally:
-            if waits:
-                _log_trace_wait(log, waits[-1], record_label=label)
-        _save_session_traces(experiment_dir, session_id, grading_input.traces, log)
-        log.write(f"{record_name} — EVALUATING")
-        for criterion in criteria:
-            log.write(
-                "GRADER CONFIG — "
-                + json.dumps(
-                    {
-                        "record": label,
-                        "criterion_id": criterion.id,
-                        "fqn": criterion.grader_fqn,
-                        "args": graders[criterion.id].args.model_dump(mode="json"),
-                    },
-                    ensure_ascii=False,
-                    sort_keys=True,
-                )
-            )
-        phase("evaluating")
-        session_records = await grade_session(
-            criteria,
-            graders,
-            grading_input,
-            context.llm,
-            SessionFacts(
-                session_id=session_id,
-                scenario_id=record.config.scenario,
-                task_id=record.config.task_id,
-                trial_index=record.config.trial_index,
-                trace_session_id=trial_session_id(
-                    experiment_dir.resolve().name, record.config
-                ),
-            ),
-        )
-        _log_grader_records(log, session_records, record_label=label)
-        return _RecordResult(session_records, None)
-    except extractor.TracesNotReadyError as exc:
-        return _RecordResult([], str(exc))
-    except Exception as exc:
-        return _RecordResult([], str(exc), warning=f"Evaluation failed: {exc}")
-
-
-async def _evaluate_records(
-    experiment_dir: Path,
-    specification: Specification,
-    trial_records: list[tuple[str, TrialRecord]],
-    *,
-    evaluation_log: EvaluationLogger,
-    trace_wait: TraceWaitSettings,
-    concurrency: int = 1,
-    env_file: Path | None = None,
-    events: PhaseEventLog | None = None,
-    command: Literal["evaluate", "run"] = "evaluate",
-    resume: bool = False,
-) -> EvaluationOutcome:
-    """Grade every trial record's session and write one GraderRecord per grader per session.
-
-    Graders are built once per criterion from the specification snapshot.
-    A criterion graded in many trials shares one grader. One judge client
-    is opened for the whole evaluation, and only when some criterion's grader needs one.
-
-    Each record comes with the name of its trial folder, and the trial files and the
-    events name the trial by that folder. Once the graders are built and the judge key is checked, a fresh evaluation removes the
-    previous evaluation's outputs. A resume removes only ``results.json`` and keeps
-    every trial that already has an evaluation file, whether it succeeded or failed;
-    only the other trials are graded. Each graded trial writes its evaluation file as
-    it ends, and ``results.json`` is assembled from the files of every trial, in record
-    order, as the run's last write.
-
-    On Ctrl-C, the message says how many trials are saved and names the ``--resume``
-    form of ``command``.
-
-    With ``events``, each graded trial writes a ``started`` line and a ``completed`` or
-    ``failed`` line to the event log.
-    """
-    import asyncio
-
-    from metis.engine import extractor
-    from metis.engine.evaluation import JudgeGateway, build_grader, build_llm_settings
-    from metis.library.grader import JudgeArgs, LLMSettings
-
-    default_judge_model = specification.experiment.defaults.judge_model
-    criteria_by_id = {c.id: c for b in specification.behaviours() for c in b.criteria}
-    graders: dict[str, Grader[Any]] = {}
-    for scenario in specification.resolved_tasks():
-        for ref in scenario.grader_refs:
-            if ref.criterion_id not in graders:
-                graders[ref.criterion_id] = build_grader(
-                    criteria_by_id[ref.criterion_id],
-                    default_judge_model=default_judge_model,
-                    env=os.environ,
-                )
-
-    gateway = JudgeGateway.from_env(os.environ)
-    needs_llm = sorted(
-        cid for cid, g in graders.items() if isinstance(g.args, JudgeArgs)
-    )
-    if needs_llm and gateway is None:
-        from metis.core.model_settings import (
-            ModelRole,
-            format_missing_settings,
-            missing_settings,
-        )
-
-        console.print(
-            "Error: criteria "
-            + ", ".join(needs_llm)
-            + " use a model-based grader.\n"
-            + format_missing_settings(
-                "metis engine evaluate",
-                missing_settings([ModelRole.JUDGE], os.environ),
-                env_file,
-            ),
-            style="bold red",
-            markup=False,
-        )
-        raise EvaluationInputError("no judge API key for model-based graders")
-    if needs_llm:
-        # The graders hold their resolved model, so this names exactly what will run.
-        judge_models = sorted(
-            {g.args.model for g in graders.values() if isinstance(g.args, JudgeArgs)}
-        )
-        console.print(f"Models: Judge {', '.join(judge_models)}", markup=False)
-    llm = (
-        build_llm_settings(gateway)
-        if gateway is not None and needs_llm
-        else LLMSettings(client=_NoJudgeClient())  # type: ignore[arg-type]
-    )
-
-    from metis.engine.evaluation.trial_files import load_trial_evaluations
-
-    trials = [trial for trial, _ in trial_records]
-    results_path = experiment_dir / execution_layout.RESULTS
-    if resume:
-        results_path.unlink(missing_ok=True)
-        attempted = load_trial_evaluations(experiment_dir, trials)
-        message = (
-            f"resuming: {len(attempted)} of {len(trials)} trials already evaluated"
-        )
-        console.print(message)
-        evaluation_log.write(message)
-    else:
-        _clear_evaluation_outputs(experiment_dir)
-        attempted = {}
-    langfuse = extractor.get_langfuse_client()
-    evaluations: list[TrialEvaluation] = []
-    interactive_progress = sys.stderr.isatty()
-    progress = _create_evaluation_progress() if interactive_progress else None
-
-    try:
-        with progress if progress else nullcontext():
-            task_id = (
-                progress.add_task(
-                    "Evaluation", total=len(trial_records), completed=len(attempted)
-                )
-                if progress
-                else None
-            )
-            context = _EvaluationContext(
-                experiment_dir=experiment_dir,
-                criteria_by_id=criteria_by_id,
-                graders=graders,
-                llm=llm,
-                langfuse=langfuse,
-                trace_wait=trace_wait,
-                evaluation_log=evaluation_log,
-                total_records=len(trial_records),
-                concurrency=concurrency,
-                semaphore=asyncio.Semaphore(concurrency),
-                running=_RunningCount(),
-                events=events,
-            )
-
-            def phase_for(number: int, label: str) -> Callable[..., None]:
-                def phase(name: str, *, advance: int = 0) -> None:
-                    # One text slot cannot show several sessions' phases, so with
-                    # overlapping sessions the bar says how many are running instead.
-                    # The phases remain in the evaluation log.
-                    _update_evaluation_progress(
-                        progress,
-                        task_id,
-                        record_number=number,
-                        total_records=len(trial_records),
-                        label=label,
-                        phase=name,
-                        advance=advance,
-                        bar_description=(
-                            f"Evaluation — {context.running.value} running"
-                            if concurrency > 1
-                            else None
-                        ),
-                    )
-
-                return phase
-
-            # Every record starts at once; the semaphore inside _evaluate_one lets N of
-            # them work. The tasks stay in record order, so results do not depend on the
-            # order sessions finish in.
-            async with asyncio.TaskGroup() as group:
-                tasks = [
-                    group.create_task(
-                        _evaluate_one(
-                            record,
-                            number=index + 1,
-                            trial=trial,
-                            context=context,
-                            phase=phase_for(index + 1, _record_label(record)),
-                        )
-                    )
-                    for index, (trial, record) in enumerate(trial_records)
-                    if trial not in attempted
-                ]
-            evaluations = [task.result() for task in tasks]
-
-            if progress and task_id is not None:
-                progress.update(task_id, description="Evaluation complete")
-    except ExceptionGroup as group_error:
-        # An error that escaped _evaluate_one. The TaskGroup wraps it, and the wrapper's
-        # text ("unhandled errors in a TaskGroup (1 sub-exception)") hides the cause, so
-        # a lone error is raised as itself, with the group kept as its cause for anyone
-        # reading the traceback. Several errors keep the group.
-        if len(group_error.exceptions) == 1:
-            raise group_error.exceptions[0] from group_error
-        raise
-    except asyncio.CancelledError:
-        # Ctrl-C. The TaskGroup has already cancelled every session and waited for it to
-        # stop. A cancellation is a BaseException, so the command's `except Exception`
-        # never sees it: log it here and let it go on. No results file is written; the
-        # trials that ended keep their files, so a resume grades only the rest.
-        results_path.unlink(missing_ok=True)
-        evaluation_log.write("EVALUATION INTERRUPTED")
-        saved = len(load_trial_evaluations(experiment_dir, trials))
-        console.print(
-            f"\nInterrupted. {saved} of {len(trials)} trials are saved. "
-            "To continue, run: "
-            f"{_resume_command(experiment_dir.resolve(), command)}",
-            style="yellow",
-            markup=False,
-            soft_wrap=True,
-        )
-        raise
-    finally:
-        # Runs only after every session has stopped, so no grader call is still using it.
-        if gateway is not None and needs_llm:
-            await llm.client.close()
-
-    saved = attempted | {evaluation.trial: evaluation for evaluation in evaluations}
-    every_trial = [saved[trial] for trial in trials]
-    results_file = _write_results(experiment_dir, every_trial)
-    evaluation_log.write(f"RESULTS WRITTEN — {results_file}")
-    outcome = _evaluation_outcome(every_trial, results_file)
-    evaluation_log.write(
-        "EVALUATION COMPLETED — "
-        f"{outcome.successful_records}/{outcome.total_records} records succeeded, "
-        f"{outcome.failed_records} failed"
-    )
-    return outcome
-
-
-def _clear_evaluation_outputs(experiment_dir: Path) -> None:
-    """Remove the previous evaluation's trial files, saved traces and ``results.json``.
-
-    None of them may outlive the evaluation that made them: the report would show grades
-    or a conversation that the new evaluation did not produce. ``logs/`` is kept.
-    """
-    shutil.rmtree(experiment_dir / execution_layout.EVALUATION, ignore_errors=True)
-    shutil.rmtree(experiment_dir / execution_layout.TRACES, ignore_errors=True)
-    (experiment_dir / execution_layout.RESULTS).unlink(missing_ok=True)
-
-
-def _write_results(experiment_dir: Path, evaluations: list[TrialEvaluation]) -> Path:
-    """Write ``results.json`` from the trial evaluations, their records in the order given.
-
-    It is written even when no record was graded. The time is the wall-clock span in
-    which any trial was being evaluated.
-    """
-    from metis.core.reporting import EvaluationResults
-    from metis.engine.evaluation.trial_files import grading_seconds
-
-    seconds = round(grading_seconds(evaluations), 1)
-    path = experiment_dir / execution_layout.RESULTS
-    EvaluationResults(
-        run_id="report",
-        records=[record for evaluation in evaluations for record in evaluation.records],
-        timings={"evaluation_seconds": seconds},
-        latency_seconds=seconds or None,
-    ).save(path)
-    return path
-
-
-def _evaluation_outcome(
-    evaluations: list[TrialEvaluation], results_file: Path | None
-) -> EvaluationOutcome:
-    """Count the trials whose evaluation succeeded and those that failed."""
-    successful = sum(1 for e in evaluations if e.failure_reason is None)
-    return EvaluationOutcome(
-        total_records=len(evaluations),
-        successful_records=successful,
-        failed_records=len(evaluations) - successful,
-        results_file=results_file,
-    )
-
-
-class _NoJudgeClient:
-    """Stands in for the judge client when no criterion's grader makes grader LLM calls.
-
-    Code-based graders never touch ``llm.client``, so building a real client would demand
-    credentials the run doesn't need. Any attribute access fails loudly, which turns a grader
-    that wrongly calls the client without extending ``JudgeArgs`` into an errored result.
-    """
-
-    def __getattr__(self, name: str) -> object:
-        raise RuntimeError(
-            "this grader made a grader LLM call, but its args do not extend JudgeArgs, "
-            "so no judge client was configured"
-        )
-
-
-def _evaluation_is_complete(experiment_dir: Path) -> bool:
-    """Whether the evaluation in ``experiment_dir`` wrote a ``results.json`` that loads.
-
-    ``results.json`` is an evaluation's last write, so a readable one means every trial
-    was attempted. A missing or unparsable file means the evaluation did not finish.
-    """
-    from metis.core.reporting import EvaluationResults
-
-    try:
-        EvaluationResults.load_file(experiment_dir / execution_layout.RESULTS)
-    except (OSError, ValueError):
-        return False
-    return True
 
 
 def _run_evaluation_command(
@@ -1742,34 +613,14 @@ def _run_evaluation_command(
     command: Literal["evaluate", "run"] = "evaluate",
     resume: bool = False,
 ) -> EvaluationOutcome:
-    """Run evaluation between its phase lines ``started`` and ``completed``, and convert
-    expected input errors to a CLI exit.
+    """Run the evaluation, and turn its errors into the exit codes of the CLI.
 
-    A resume of an evaluation whose ``results.json`` is readable has nothing to do: it
-    prints ``nothing to resume`` and returns the outcome of the saved trial files
-    without writing any file, the logs included. Under ``run``, whose simulating lines
-    are already in ``logs/events.jsonl``, it still writes the ``evaluating`` ``started``
-    and ``completed`` lines there and nothing else. Otherwise the ``started`` line counts
-    the trials already evaluated as done.
+    The evaluation has already printed each error and written its phase line.
     """
-    from metis.engine.evaluation.trial_files import load_trial_evaluations
+    from metis.engine.runs import EvaluationInputError, RunStopped
 
-    trials = [path.parent.name for path in _trial_record_files(experiment_dir)]
-    results_path = experiment_dir / execution_layout.RESULTS
-    if resume and _evaluation_is_complete(experiment_dir):
-        console.print("nothing to resume")
-        saved = load_trial_evaluations(experiment_dir, trials)
-        if command == "run":
-            # the run's simulating lines are already logged, so close its evaluating phase
-            events = PhaseEventLog.for_experiment_dir(experiment_dir)
-            events.emit("evaluating", "started", total=len(trials), done=len(saved))
-            events.emit("evaluating", "completed")
-        return _evaluation_outcome(list(saved.values()), results_path)
-    events = PhaseEventLog.for_experiment_dir(experiment_dir)
-    done = len(load_trial_evaluations(experiment_dir, trials)) if resume else 0
-    events.emit("evaluating", "started", total=len(trials), done=done)
     try:
-        outcome = _run_evaluation(
+        return _run_evaluation(
             experiment_dir,
             trace_wait=trace_wait,
             verbose=verbose,
@@ -1778,25 +629,12 @@ def _run_evaluation_command(
             command=command,
             resume=resume,
         )
-    except EvaluationInputError as exc:
-        EvaluationLogger(experiment_dir / execution_layout.LOGS, reset=False).write(
-            f"EVALUATION FAILED — {exc}"
-        )
-        failed = CommandFailed(str(exc))
-        _end_phase_on_error(events, "evaluating", failed)
-        raise failed from None
+    except RunStopped:
+        raise typer.Exit(code=130) from None
+    except EvaluationInputError:
+        raise typer.Exit(code=1) from None
     except Exception as exc:
-        EvaluationLogger(experiment_dir / execution_layout.LOGS, reset=False).write(
-            f"EVALUATION FAILED — {exc}"
-        )
-        console.print(f"Error: evaluation failed: {exc}", style="bold red")
-        _end_phase_on_error(events, "evaluating", exc)
         raise typer.Exit(code=1) from exc
-    except BaseException as exc:
-        _end_phase_on_error(events, "evaluating", exc)
-        raise
-    events.emit("evaluating", "completed")
-    return outcome
 
 
 @app.command()
@@ -1892,7 +730,7 @@ def evaluate(
         raise typer.Exit(code=1) from None
     console.print(f"Selected experiment: {resolved_experiment_dir}")
     # A resume of a finished evaluation says "nothing to resume", which already covers it.
-    nothing_to_resume = resume and _evaluation_is_complete(resolved_experiment_dir)
+    nothing_to_resume = resume and evaluation_is_complete(resolved_experiment_dir)
     trace_wait = _trace_wait_settings(langfuse_timeout)
     outcome = _run_evaluation_command(
         resolved_experiment_dir,

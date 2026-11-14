@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
+from metis.core.console import console
 from metis.core.reporting import EvaluationResults
 from metis.core.traces import GradingInput, Observation, SessionTraces, Trace
 from metis.core.trials import GraderRef, TrialConfig, TrialOutcome, TrialRecord
@@ -29,6 +30,8 @@ from metis.engine.extractor.langfuse import (
     TraceWaitSettings,
     UnsupportedTraceError,
 )
+from metis.engine.runs import _evaluation
+from metis.engine.runs._common import trial_record_files as _trial_record_files
 
 runner = CliRunner()
 
@@ -435,7 +438,9 @@ def test_evaluation_progress_advances_for_success_and_soft_failure(
             events.append(("update", kwargs))
 
     monkeypatch.setattr(cli.sys.stderr, "isatty", lambda: True)
-    monkeypatch.setattr(cli, "_create_evaluation_progress", FakeProgress)
+    monkeypatch.setattr(
+        _evaluation, "_create_evaluation_progress", lambda _console: FakeProgress()
+    )
     monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
 
     async def fetch(session_id: str, *_args: object, **_kwargs: object) -> GradingInput:
@@ -485,13 +490,14 @@ def test_evaluation_progress_advances_for_success_and_soft_failure(
     assert '"reason": "1 trace(s)"' in evaluation_log
     assert "GRADER RESULTS — record=alice x task-1 count=1" in evaluation_log
 
-    cli._update_evaluation_progress(
+    _evaluation._update_evaluation_progress(
         None,
         None,
         record_number=1,
         total_records=2,
         label="alice x task-1",
         phase="extracting",
+        console=console,
     )
     assert "Evaluation 1/2: alice x task-1 — extracting" in capsys.readouterr().out
 
@@ -953,7 +959,9 @@ def _evaluation_context(tmp_path: Path, fetch: Any) -> tuple[Any, Path]:
     from metis.library.grader import LLMSettings
 
     experiment_dir = _write_experiment_dir(tmp_path)
-    specification = cli._load_evaluation_specification(experiment_dir)
+    specification = _evaluation._load_evaluation_specification(
+        experiment_dir, console=console
+    )
     criteria_by_id = {c.id: c for b in specification.behaviours() for c in b.criteria}
     graders = {
         cid: build_grader(c, default_judge_model="unused", env={})
@@ -963,18 +971,19 @@ def _evaluation_context(tmp_path: Path, fetch: Any) -> tuple[Any, Path]:
     class FakeLangfuse:
         pass
 
-    context = cli._EvaluationContext(
+    context = _evaluation._EvaluationContext(
         experiment_dir=experiment_dir,
         criteria_by_id=criteria_by_id,
         graders=graders,
-        llm=LLMSettings(client=cli._NoJudgeClient()),  # type: ignore[arg-type]
+        llm=LLMSettings(client=_evaluation._NoJudgeClient()),  # type: ignore[arg-type]
         langfuse=FakeLangfuse(),  # type: ignore[arg-type]
         trace_wait=TraceWaitSettings(timeout_seconds=90),
         evaluation_log=EvaluationLogger(experiment_dir / "logs"),
         total_records=1,
         concurrency=1,
         semaphore=asyncio.Semaphore(1),
-        running=cli._RunningCount(),
+        running=_evaluation._RunningCount(),
+        console=console,
     )
     return context, experiment_dir
 
@@ -997,7 +1006,7 @@ async def test_evaluate_one_returns_the_graded_records(
     record = _trial_record(experiment_dir, session_id="session-1")
     phases: list[str] = []
 
-    result = await cli._evaluate_one(
+    result = await _evaluation._evaluate_one(
         record,
         number=1,
         context=context,
@@ -1023,7 +1032,7 @@ async def test_evaluate_one_returns_a_failure_instead_of_raising(
     record = _trial_record(experiment_dir, session_id="session-1")
     phases: list[str] = []
 
-    result = await cli._evaluate_one(
+    result = await _evaluation._evaluate_one(
         record,
         number=1,
         context=context,
@@ -1048,7 +1057,7 @@ async def test_evaluate_one_fails_a_record_without_a_session_id(
     context, experiment_dir = _evaluation_context(tmp_path, fetch)
     record = _trial_record(experiment_dir, session_id=None)
 
-    result = await cli._evaluate_one(
+    result = await _evaluation._evaluate_one(
         record,
         number=1,
         context=context,
@@ -1231,7 +1240,7 @@ async def test_records_that_cannot_be_graded_leave_the_running_count_at_zero(
     )
 
     for number, record in enumerate([no_session, no_criteria], start=1):
-        result = await cli._evaluate_one(
+        result = await _evaluation._evaluate_one(
             record,
             number=number,
             context=context,
@@ -1270,7 +1279,9 @@ class _RecordingProgress:
 def _use_recording_progress(monkeypatch) -> _RecordingProgress:
     bar = _RecordingProgress()
     monkeypatch.setattr(cli.sys.stderr, "isatty", lambda: True)
-    monkeypatch.setattr(cli, "_create_evaluation_progress", lambda: bar)
+    monkeypatch.setattr(
+        _evaluation, "_create_evaluation_progress", lambda _console: bar
+    )
     return bar
 
 
@@ -1434,18 +1445,19 @@ async def test_cancellation_stops_every_session_then_closes_the_judge_client(
         lambda _gateway: LLMSettings(client=FakeJudgeClient()),  # type: ignore[arg-type]
     )
     log = EvaluationLogger(output / "logs")
-    specification = cli._load_evaluation_specification(output)
+    specification = _evaluation._load_evaluation_specification(output, console=console)
     trial_records = [
-        (p.parent.name, Record.load_file(p)) for p in cli._trial_record_files(output)
+        (p.parent.name, Record.load_file(p)) for p in _trial_record_files(output)
     ]
 
     task = asyncio.create_task(
-        cli._evaluate_records(
+        _evaluation._evaluate_records(
             output,
             specification,
             trial_records,
             evaluation_log=log,
             trace_wait=TraceWaitSettings(timeout_seconds=90),
+            console=console,
             concurrency=2,
         )
     )
@@ -1485,7 +1497,7 @@ async def test_cancelling_a_session_returns_the_running_count_to_zero(
     record = _trial_record(experiment_dir, session_id="session-1")
 
     task = asyncio.create_task(
-        cli._evaluate_one(
+        _evaluation._evaluate_one(
             record,
             number=1,
             context=context,
@@ -1528,14 +1540,14 @@ def test_an_unexpected_error_in_one_session_is_reported_as_itself(
     output = _write_experiment_dir(tmp_path)
     _write_records(output, 3)
     _patch_evaluation(monkeypatch)
-    real_update = cli._update_evaluation_progress
+    real_update = _evaluation._update_evaluation_progress
 
     def failing_update(*args: Any, **kwargs: Any) -> None:
         if kwargs.get("record_number") == 2 and kwargs.get("phase") == "done":
             raise OSError("No space left on device")
         real_update(*args, **kwargs)
 
-    monkeypatch.setattr(cli, "_update_evaluation_progress", failing_update)
+    monkeypatch.setattr(_evaluation, "_update_evaluation_progress", failing_update)
 
     result = runner.invoke(
         app, ["evaluate", "--experiment-dir", str(output), "--concurrency", "3"]
@@ -1572,14 +1584,14 @@ def test_the_unwrapped_error_keeps_the_task_group_in_its_chain(
     output = _write_experiment_dir(tmp_path)
     _write_records(output, 3)
     _patch_evaluation(monkeypatch)
-    real_update = cli._update_evaluation_progress
+    real_update = _evaluation._update_evaluation_progress
 
     def failing_update(*args: Any, **kwargs: Any) -> None:
         if kwargs.get("record_number") == 2 and kwargs.get("phase") == "done":
             raise OSError("No space left on device")
         real_update(*args, **kwargs)
 
-    monkeypatch.setattr(cli, "_update_evaluation_progress", failing_update)
+    monkeypatch.setattr(_evaluation, "_update_evaluation_progress", failing_update)
 
     with pytest.raises(OSError, match="No space left on device") as raised:
         _evaluate_directly(output, concurrency=3)
@@ -1592,7 +1604,7 @@ def test_an_empty_bar_description_is_used_as_given() -> None:
     """Only None means 'not set'. An empty string is still a description."""
     bar = _RecordingProgress()
 
-    cli._update_evaluation_progress(
+    _evaluation._update_evaluation_progress(
         bar,  # type: ignore[arg-type]
         1,
         record_number=1,
@@ -1600,6 +1612,7 @@ def test_an_empty_bar_description_is_used_as_given() -> None:
         label="alice x task-1",
         phase="extracting",
         bar_description="",
+        console=console,
     )
 
     assert bar.descriptions == [""]

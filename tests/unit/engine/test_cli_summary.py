@@ -11,14 +11,14 @@ def _print_final_summary(
     state: SimulationState, experiment_dir: str, log_dir: str
 ) -> str:
     """Replicate the summary logic for testing."""
-    from metis.engine.cli import _format_final_summary
+    from metis.engine.runs._simulation import _format_final_summary
 
     return _format_final_summary(state, experiment_dir, log_dir)
 
 
 class TestFinalSummary:
     def test_summary_contains_experiment_id(self) -> None:
-        from metis.engine.cli import _format_final_summary
+        from metis.engine.runs._simulation import _format_final_summary
 
         scenarios = [
             SimulationScenarioState(
@@ -49,7 +49,7 @@ class TestFinalSummary:
         assert "/path/to/exp/logs" in summary
 
     def test_summary_counts_outcome_categories(self) -> None:
-        from metis.engine.cli import _format_final_summary
+        from metis.engine.runs._simulation import _format_final_summary
 
         def _run(persona: str, phase: str, stop_reason: str) -> SimulationTrialState:
             return SimulationTrialState(
@@ -88,7 +88,7 @@ class TestFinalSummary:
         assert "1 error" in summary
 
     def test_summary_elapsed_time_minutes(self) -> None:
-        from metis.engine.cli import _format_final_summary
+        from metis.engine.runs._simulation import _format_final_summary
 
         scenarios = [
             SimulationScenarioState(
@@ -118,7 +118,7 @@ class TestFinalSummary:
         assert "m" in summary
 
     def test_summary_log_dir_path(self) -> None:
-        from metis.engine.cli import _format_final_summary
+        from metis.engine.runs._simulation import _format_final_summary
 
         scenarios = [
             SimulationScenarioState(

@@ -98,6 +98,9 @@ class LogRouter:
         self._handles: dict[str, IO[str]] = {}
         self._start_time = time.monotonic()
         self._append = append
+        # What setup_engine_logging changed, so teardown_engine_logging can put it back.
+        self.previous_config: dict[str, Any] = {}
+        self.previous_handler_levels: dict[logging.Handler, int] = {}
         log_dir.mkdir(parents=True, exist_ok=True)
 
     def _trial_key(self, scenario_id: str, persona_id: str, trial_index: int) -> str:
@@ -262,6 +265,9 @@ def setup_engine_logging(
 
     ``append`` keeps an existing per-trial log rather than truncating it; pass
     the resume flag so a resumed run does not erase the earlier process's log.
+
+    The router records the structlog configuration and the handler levels that this
+    changes, so ``teardown_engine_logging`` can put them back.
     """
     config = structlog.get_config()
     current_processors = list(config.get("processors", []))
@@ -278,6 +284,7 @@ def setup_engine_logging(
         fallback_renderer=fallback,
         append=append,
     )
+    router.previous_config = dict(config)
 
     # Replace the last processor (the renderer) with our router
     if current_processors:
@@ -301,16 +308,19 @@ def setup_engine_logging(
         root = logging.getLogger()
         for handler in root.handlers:
             if isinstance(handler, logging.StreamHandler):
+                router.previous_handler_levels[handler] = handler.level
                 handler.setLevel(logging.CRITICAL + 1)
 
     return router
 
 
 def teardown_engine_logging(router: LogRouter) -> None:
-    """Close all file handles and restore the default structlog renderer."""
-    from metis.core.logging import configure_logging
+    """Close all file handles and put back the logging from before ``setup_engine_logging``.
 
+    It restores the structlog configuration and the level of each stderr handler that TUI
+    mode silenced, so a caller whose process outlives the run keeps its own logging.
+    """
     router.close_all()
-
-    # Re-run core's configure_logging to restore the original renderer
-    configure_logging(level="WARNING")
+    structlog.configure(**router.previous_config)
+    for handler, level in router.previous_handler_levels.items():
+        handler.setLevel(level)

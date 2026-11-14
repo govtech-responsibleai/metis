@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Literal, NamedTuple
 import structlog
 
 from metis.core import execution_layout
-from metis.core.console import console
 from metis.core.logging import get_logger
 from metis.core.phase_events import INTERRUPTED_REASON
 from metis.core.trials import TrialConfig, TrialFailure, TrialOutcome, TrialRecord
@@ -31,6 +30,8 @@ from .trial import create_trial, resolve_fixture_descriptions
 
 if TYPE_CHECKING:
     import threading
+
+    from rich.console import Console
 
     from metis.core.phase_events import PhaseEventLog
     from metis.engine.logging import LogRouter, OrchestrationLogger
@@ -118,13 +119,15 @@ def execute_experiment(
     orchestration_logger: OrchestrationLogger | None = None,
     log_router: LogRouter | None = None,
     tui_ctx: TUIContext | None = None,
-    shutdown_event: threading.Event | None = None,
+    stop: threading.Event | None = None,
     events: PhaseEventLog | None = None,
+    console: Console,
 ) -> None:
     """Run a full experiment (all scenario x persona pairs).
 
     Sync entry point — delegates to the async orchestrator via asyncio.run(). With
     ``events``, each trial writes its start, turns, retries and end to the event log.
+    Progress lines and the summary go to ``console``.
     """
     asyncio.run(
         _execute_experiment_async(
@@ -141,8 +144,9 @@ def execute_experiment(
             orchestration_logger=orchestration_logger,
             log_router=log_router,
             tui_ctx=tui_ctx,
-            shutdown_event=shutdown_event,
+            stop=stop,
             events=events,
+            console=console,
         )
     )
 
@@ -161,10 +165,15 @@ async def _execute_experiment_async(
     orchestration_logger: OrchestrationLogger | None = None,
     log_router: LogRouter | None = None,
     tui_ctx: TUIContext | None = None,
-    shutdown_event: threading.Event | None = None,
+    stop: threading.Event | None = None,
     events: PhaseEventLog | None = None,
+    *,
+    console: Console | None = None,
 ) -> None:
-    """Async experiment orchestrator with concurrent runner contexts."""
+    """Async experiment orchestrator with concurrent runner contexts.
+
+    Without the TUI, it writes the summary to ``console``. With no ``console``, it writes none.
+    """
     total_trials = len(trial_plan)
 
     logger.info("=" * 60)
@@ -230,8 +239,9 @@ async def _execute_experiment_async(
                         orchestration_logger=orchestration_logger,
                         log_router=log_router,
                         tui_ctx=tui_ctx,
-                        shutdown_event=shutdown_event,
+                        stop=stop,
                         events=events,
+                        console=console,
                     )
                 )
 
@@ -248,6 +258,8 @@ async def _execute_experiment_async(
         await runner_factory.close()
 
     # Print summary (only in non-TUI mode; TUI mode prints via CLI after exiting)
+    if console is None:
+        return
     if not tui_ctx:
         console.print("\n\n========== SIMULATION SUMMARY ==========\n")
         for r in all_records:
@@ -281,13 +293,17 @@ async def _worker(
     orchestration_logger: OrchestrationLogger | None = None,
     log_router: LogRouter | None = None,
     tui_ctx: TUIContext | None = None,
-    shutdown_event: threading.Event | None = None,
+    stop: threading.Event | None = None,
     default_user_agent_model: str | None = None,
     runner_agent_model: str | None = None,
     experiment_id: str | None = None,
     events: PhaseEventLog | None = None,
+    console: Console | None = None,
 ) -> list[TrialRecord]:
     """One concurrent worker: creates a fresh runner per trial for isolation.
+
+    Without the TUI, each trial writes a start line and an end line to ``console``. With no
+    ``console``, the worker writes none.
 
     Each trial's ``TrialConfig`` records the models that produce it: the user agent model
     (Task, then experiment default, then environment, then ``DEFAULT_MODEL``) and, for a
@@ -309,7 +325,7 @@ async def _worker(
         records: list[TrialRecord] = []
         for scenario, persona, trial_index in worker_trials:
             task_id = scenario.task_id or scenario.id
-            if shutdown_event and shutdown_event.is_set():
+            if stop and stop.is_set():
                 logger.info(
                     "[experiment] Worker w%d stopping (shutdown requested)", worker_id
                 )
@@ -371,7 +387,7 @@ async def _worker(
             async with console_lock:
                 if tui_ctx:
                     tui_ctx.refresh()
-                else:
+                elif console is not None:
                     console.print(f"  [w{worker_id}] {scenario.id} × {persona.id} ...")
 
             run_start = time.time()
@@ -380,15 +396,16 @@ async def _worker(
             # budget and an empty prior_failures, so attempt_number means
             # "attempts in this process", never a lifetime total.
             #
-            # The earlier process's history is dropped rather than merged, for a
-            # different reason in each of the two resume cases. An interrupted
-            # run never wrote a record.json, so its attempts are genuinely
-            # unrecoverable. A system_error run did write one, and
-            # _classify_resume_trials in cli.py reads it to decide the trial needs
-            # redoing at all — so that record's attempt_number and prior_failures
-            # are in hand at that moment, and are deliberately discarded when the
-            # redone run overwrites the file. Carrying them forward is deferred,
-            # not impossible.
+            # A resume redoes only a trial that did not end: its record is
+            # missing or unreadable, or its stop reason is interrupted. A trial
+            # stopped by Ctrl-C does write a record.json with stop reason
+            # interrupted, and _classify_resume_trials in cli.py reads it to
+            # decide that the trial needs redoing. The earlier process's history
+            # is dropped rather than merged: that record's attempt_number and
+            # prior_failures are discarded when the redone run writes over the
+            # file. Carrying them forward is deferred, not impossible. A
+            # system_error trial ended after its retry limit, so a resume never
+            # runs it again.
             #
             # Consequence worth knowing: a run that spent attempts, was
             # interrupted, then succeeded after a --resume reports attempt 1, so
@@ -478,7 +495,7 @@ async def _worker(
                         trial_index=trial_index,
                         state=state,
                         tui_ctx=tui_ctx,
-                        shutdown_event=shutdown_event,
+                        stop=stop,
                         events=events,
                         attempt=attempt,
                     )
@@ -674,7 +691,7 @@ async def _worker(
                     reason=trial_end_reason(record),
                 )
 
-            if not tui_ctx:
+            if not tui_ctx and console is not None:
                 async with console_lock:
                     console.print(
                         f"  [w{worker_id}] {scenario.id} × {persona.id} — "
