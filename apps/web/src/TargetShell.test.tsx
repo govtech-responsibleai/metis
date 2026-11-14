@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
+import { Router } from "wouter";
 import { ComparePage } from "./ExperimentPages";
-import { at, control, tab } from "./markup.test-helper";
+import { LoginPage, LoginSessionProvider } from "./LoginGate";
+import { at, control, tab, text } from "./markup.test-helper";
 import { ProfileToolbar } from "./ProfileToolbar";
 import { ExperimentsTab, TargetTabs } from "./TargetPage";
 import { TargetRail } from "./TargetRail";
@@ -33,6 +35,70 @@ test("the rail links New target and each Target", () => {
   assert.match(control(markup, "Shop bot"), /^<a[^>]*href="\/targets\/b"/);
   assert.match(markup, /role="radiogroup" aria-label="Colour theme"/);
   assert.doesNotMatch(markup, /aria-current/);
+});
+
+test("the rail has no user and no logout control when login is off", () => {
+  const markup = rail(null);
+
+  assert.doesNotMatch(markup, /Log out/);
+});
+
+test("the rail names the current user and offers logout in a login session", () => {
+  const user = {
+    id: "3f6c2a9d5b7e4c1e8a0f2d4b6c8e0a1c",
+    username: "curious-otter",
+    created_at: "2026-11-14T08:30:00Z",
+  };
+
+  const markup = renderToStaticMarkup(
+    <LoginSessionProvider value={{ user, logout: () => {} }}>
+      {
+        <Router ssrPath="/">
+          <TargetRail
+            targets={[]}
+            problems={[]}
+            selectedId={null}
+            activeIds={new Set()}
+            onNew={() => {}}
+            onDelete={() => {}}
+          />
+        </Router>
+      }
+    </LoginSessionProvider>,
+  );
+
+  assert.match(text(markup), /curious-otter/);
+  assert.match(markup, /<button[^>]*aria-label="Log out"/);
+});
+
+test("the login page asks for a username and a password", () => {
+  const markup = renderToStaticMarkup(<LoginPage onLogin={() => {}} />);
+  const inputs = [...markup.matchAll(/<input[^>]*>/g)].map(([input]) => input);
+
+  assert.match(markup, /<h1[^>]*>Log in<\/h1>/);
+  assert.equal(inputs.length, 2);
+  assert.match(inputs[0] ?? "", /type="text"/);
+  assert.match(inputs[0] ?? "", /autoComplete="username"/);
+  assert.match(inputs[0] ?? "", /name="username"/);
+  assert.match(inputs[1] ?? "", /type="password"/);
+  assert.match(inputs[1] ?? "", /autoComplete="current-password"/);
+  assert.match(markup, /<button[^>]*type="submit"[^>]*>Log in<\/button>/);
+  assert.doesNotMatch(markup, /role="alert"/);
+});
+
+test("the login page shows why a login failed", () => {
+  const markup = renderToStaticMarkup(
+    <LoginPage
+      onLogin={() => {}}
+      error="The username or the password is not correct."
+    />,
+  );
+
+  assert.match(
+    markup,
+    /<p role="alert"[^>]*>The username or the password is not correct.<\/p>/,
+  );
+  assert.match(markup, /aria-invalid="true"/);
 });
 
 test("the rail marks the selected Target", () => {
