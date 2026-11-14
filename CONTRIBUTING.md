@@ -87,7 +87,7 @@ During the beta, open your pull request against `next`, except for the documenta
 described below, which branch off `main` and target it.
 
 While v1 is in beta, `main` is the branch we present to users, and the published site is built from
-`main` alone. A change under `website/` or `landing-page/` that corrects or clarifies something
+`main` alone. A change under `website/` that corrects or clarifies something
 already in the latest beta therefore goes to `main`, so it does not have to wait for the next
 release. Documentation for anything that exists only on `next` stays on `next` with its code, and
 all other work goes to `next`.
@@ -119,15 +119,15 @@ When you change a wizard HTTP request or response, update the Pydantic contract 
 ### Running the Landing Page and Docs
 
 The public site has two parts, each with its own Node project: the landing page in
-`landing-page/` and the docs in `website/`. The docs need Node.js 22 or later and use npm, which
+`website/landing-page/` and the docs in `website/`. The docs need Node.js 22 or later and use npm, which
 comes with Node. The landing page uses [pnpm](https://pnpm.io/), which Node does not include, so
 install it first with `corepack enable pnpm` or `brew install pnpm`. CI uses pnpm 11. If pnpm is
 missing, the landing page targets stop and say so.
 
 ```bash
-make install-landing    # once: install landing-page dependencies (needs pnpm)
+make install-landing    # once: install website/landing-page dependencies (needs pnpm)
 make run-landing        # landing page dev server on port 8443
-make build-landing      # production build into landing-page/dist
+make build-landing      # production build into website/landing-page/dist
 
 make install-docs       # once: install docs dependencies
 make run-docs           # docs dev server on port 3000

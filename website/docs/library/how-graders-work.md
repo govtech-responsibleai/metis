@@ -3,7 +3,7 @@ title: How graders work
 description: How the Wizard uses the Grader library, the settings a grader takes, and how a grader turns a session into scores.
 ---
 
-import FlowSteps, {FlowStep} from '@site/src/components/FlowSteps';
+import FlowSteps, {FlowStep} from '@site/docs/src/components/FlowSteps';
 
 The guided Interview is built on the Grader library. When the Interview writes a criterion, the Wizard uses the library as its reference to
 assign a grader that measures that criterion, and then fills in that grader's settings. When no

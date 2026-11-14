@@ -1,4 +1,4 @@
-import {parseGlossary} from '@site/src/glossary/parse';
+import {parseGlossary} from '@site/docs/src/glossary/parse';
 
 // `docusaurus.config.js` defines this constant from the text of `GLOSSARY.md`.
 /* global __GLOSSARY_MARKDOWN__ */

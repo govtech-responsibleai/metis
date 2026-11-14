@@ -1,5 +1,5 @@
-import {glossary} from '@site/src/components/Glossary/data';
-import Inline from '@site/src/components/Glossary/Inline';
+import {glossary} from '@site/docs/src/components/Glossary/data';
+import Inline from '@site/docs/src/components/Glossary/Inline';
 
 import TermHover from './TermHover';
 

@@ -1,7 +1,7 @@
 import Link from '@docusaurus/Link';
 import {useDocById} from '@docusaurus/plugin-content-docs/client';
-import Table from '@site/src/components/Table';
-import data from '@site/src/data/graders.json';
+import Table from '@site/docs/src/components/Table';
+import data from '@site/docs/src/data/graders.json';
 import styles from './styles.module.css';
 
 const GRADERS = new Map(

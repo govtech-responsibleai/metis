@@ -3,9 +3,9 @@ name: Pages
 on:
   push:
     branches: [main]
-    paths: ['website/**', 'landing-page/**', 'GLOSSARY.md', 'Makefile', '.github/workflows/pages.yml']
+    paths: ['website/**', 'GLOSSARY.md', 'Makefile', '.github/workflows/pages.yml']
   pull_request:
-    paths: ['website/**', 'landing-page/**', 'GLOSSARY.md', 'Makefile', '.github/workflows/pages.yml']
+    paths: ['website/**', 'GLOSSARY.md', 'Makefile', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 permissions:

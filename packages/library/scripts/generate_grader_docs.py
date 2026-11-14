@@ -3,7 +3,7 @@
 Each grader page, ``website/docs/library/<slug>.mdx``, shows the grader's taxonomy tags, the
 first paragraph of its class docstring, the open-source prompt that it adapts, and the source
 of its arguments and its ``criteria()`` prompt. The grader table and the sidebar render from
-``website/src/data/graders.json``. The "Adapted from" links come from the grader catalogue,
+``website/docs/src/data/graders.json``. The "Adapted from" links come from the grader catalogue,
 ``metis/library/graders/README.md``. Run this script after any change to a grader or to its
 catalogue row.
 """
@@ -28,7 +28,7 @@ from metis.library.grader import Grader, GraderArgs, JudgeArgs
 from metis.library.taxonomy import Measure
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-DATA = REPO_ROOT / "website" / "src" / "data" / "graders.json"
+DATA = REPO_ROOT / "website" / "docs" / "src" / "data" / "graders.json"
 PAGES = REPO_ROOT / "website" / "docs" / "library"
 CATALOGUE = Path(catalogue.__file__).parent / "README.md"
 
@@ -171,7 +171,7 @@ def _page(grader: type[Grader[Any]], adapted_from: str) -> str:
         "",
         f"{{/* Generated from {source} by make generate-grader-docs. Do not edit. */}}",
         "",
-        "import {GraderCode, GraderTags} from '@site/src/components/Graders';",
+        "import {GraderCode, GraderTags} from '@site/docs/src/components/Graders';",
         "",
         f'<GraderTags name="{grader.__name__}" />',
         "",
