@@ -261,7 +261,7 @@ lifecycle routes; they MUST NOT embed the wizard.
 **The store.** The store routes under `/api/v1/targets` and `/api/v1/experiments` keep
 Targets, Interview records, Specifications, and Experiments. They do not change the wizard routes. The rows are in
 a database that SQLAlchemy opens from `METIS_DATABASE_URL`. The default is a SQLite file at
-`<project>/experiments/metis.db`. `metis-api --project-dir` names the project folder. Without it,
+`<project>/metis.db`. `metis-api --project-dir` names the project folder. Without it,
 the API finds the project folder with the rule of `metis engine simulate`: the nearest folder at
 or above the working directory that has a `pyproject.toml`, else the working directory. The
 tables use portable SQL types. PostgreSQL support is later work.

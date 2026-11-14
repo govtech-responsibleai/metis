@@ -39,8 +39,7 @@ def test_saved_interviews_keep_their_records_files_and_save_times(
     broken = {"id": "broken", "state": {}}
     records = [complete, draft, unrunnable, broken]
     saved_at = datetime(2026, 11, 1, tzinfo=UTC)
-    database = project_dir / "experiments" / "metis.db"
-    database.parent.mkdir()
+    database = project_dir / "metis.db"
     with sqlite3.connect(database) as connection:
         connection.execute(
             "CREATE TABLE interviews (target_id VARCHAR(64) PRIMARY KEY, "

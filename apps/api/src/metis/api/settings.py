@@ -53,7 +53,7 @@ _LOCAL_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 
 DATABASE_URL_ENV = "METIS_DATABASE_URL"
 """The SQLAlchemy URL of the store database. The default is
-`sqlite:///<project>/experiments/metis.db`."""
+`sqlite:///<project>/metis.db`."""
 
 
 def connection_check_from_env() -> bool:
