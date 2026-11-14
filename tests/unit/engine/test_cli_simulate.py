@@ -525,7 +525,7 @@ def test_each_new_run_is_listed_in_the_project_folder(
     project = tmp_path / "project"
     project.mkdir()
     monkeypatch.setattr(_TickingClock, "ticks", 0)
-    monkeypatch.setattr(cli, "datetime", _TickingClock)
+    monkeypatch.setattr("metis.engine.runs._inputs.datetime", _TickingClock)
     input_dir = _write_source(tmp_path)
     _capture_factory(monkeypatch)
     command = [
@@ -551,7 +551,7 @@ def test_a_second_run_in_the_same_second_stops_and_leaves_the_first(
 ) -> None:
     project = tmp_path / "project"
     project.mkdir()
-    monkeypatch.setattr(cli, "datetime", _FixedClock)
+    monkeypatch.setattr("metis.engine.runs._inputs.datetime", _FixedClock)
     input_dir = _write_source(tmp_path)
     _capture_factory(monkeypatch)
     command = [
