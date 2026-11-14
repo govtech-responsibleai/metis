@@ -80,7 +80,7 @@ if TYPE_CHECKING:
     from typing import BinaryIO
 
     from sqlalchemy import Table
-    from sqlalchemy.engine import Connection, RowMapping
+    from sqlalchemy.engine import Connection, Engine, RowMapping
 
 EXPERIMENTS = execution_layout.EXECUTIONS.parent
 """The folder in the project that holds the Target folders and the Experiment folders."""
@@ -212,6 +212,11 @@ class Store:
 
     def files_dir(self, target_id: str) -> Path:
         return self.target_dir(target_id) / FILES
+
+    @property
+    def engine(self) -> Engine:
+        """The database engine. The user accounts use the same database as the records."""
+        return self._engine
 
     def state_path(self, target_id: str) -> Path:
         return self.target_dir(target_id) / STATE

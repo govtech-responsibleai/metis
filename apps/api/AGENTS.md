@@ -106,6 +106,39 @@ compile failure gets 400 `compilation_failed` and changes nothing. A missing row
 `not_found`. A row that this version cannot read gets 409 `unreadable_record` and shows in the
 `problems` list of `GET /api/v1/targets`.
 
+## User accounts and login
+
+Login is off by default, and then the API has no user accounts. `METIS_LOGIN=1` turns login on.
+Use the glossary terms "user account" and "login session".
+
+| Route | Purpose |
+|---|---|
+| `POST /api/v1/users` | Make a user account and return its credentials. Needs the admin token. |
+| `GET /api/v1/users` | List the user accounts. Needs the admin token. |
+| `POST /api/v1/auth/login` | Check the credentials and set the login cookie. |
+| `POST /api/v1/auth/logout` | End the login session. |
+| `GET /api/v1/auth/me` | Tell if login is on, and name the current user account. |
+
+`routes/accounts.py` holds `login_guard`, the one place that decides if a request can reach a
+route. When login is on, each `/api` route needs a login session, except the paths in
+`_OPEN_PATHS`. A new router gets this rule with no code of its own. Do not add a login check to
+a route. Add a path to `_OPEN_PATHS` only when another secret protects it, or when the route
+changes only the login session of its own cookie, as logout does. The guard also
+refuses a request that changes data from a page of another origin. It reads `Sec-Fetch-Site`,
+and `Origin` for a browser that does not send it. Do not compare with `Host` when
+`Sec-Fetch-Site` is present, because a proxy can change `Host`.
+
+`accounts.py` makes the credentials. A username is an adjective and an animal. A password is
+ten characters from an alphabet with no characters that look alike. A person cannot choose or
+change them, so each password is random and login needs no rate limit. Keep that rule, or add
+a rate limit. The `users` table keeps a scrypt hash. The `password_hash` column can be empty, for
+a user account of a later login method. The `login_sessions` table keeps the SHA-256 of the
+cookie value, never the value. Records link to the id of a user account, never to its username.
+
+The admin token in `METIS_ADMIN_TOKEN` can only make and list user accounts. Do not give it
+another power, because a website outside this repository holds it. The user routes return 404
+when the token is unset. The API does not start with an admin token and login off.
+
 ## Module layout
 
 ```
@@ -117,6 +150,8 @@ src/metis/api/
 ├── routes/wizard.py   client config, Interview lifecycle, compile, and package routes
 ├── routes/targets.py  store routes for Targets, Interview records, files, and Specifications
 ├── routes/experiments.py  store routes for Experiment rows
+├── routes/accounts.py user and auth routes, and the login guard of all /api routes
+├── accounts.py        user accounts and login sessions: credentials, hashes, and rows
 ├── records.py         the wire models of the store routes
 ├── store.py           the store: rows through SQLAlchemy, files in experiments/design/
 ├── tables.py          the portable tables of the store

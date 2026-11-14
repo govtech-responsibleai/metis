@@ -320,6 +320,12 @@ gets 404 `not_found`, and its folder stays in place. A delete removes the rows o
 then its folder in `experiments/design/`. Experiment folders in `experiments/execute/` stay on
 disk.
 
+**Login.** Login is off by default. `METIS_LOGIN=1` turns it on for a server that many people
+use. The `users` table holds the user accounts, with a hash of each password. The
+`login_sessions` table holds a hash of the cookie value of each login session. One guard in the
+app lets a request reach an `/api` route only with a login session. The routes under
+`/api/v1/users` make and list user accounts, and need the token in `METIS_ADMIN_TOKEN`.
+
 ---
 
 ### 5.9. `apps/web`
