@@ -52,7 +52,7 @@ name: Cite sources
 description: For a question that needs evidence, each factual claim has a source citation.
 grader_fqn: metis.library.graders.CriterionJudgeGrader
 grader_args:
-  threshold: 0.5
+  threshold: 0.8
 ```
 
 The description must contain text. At run time, the engine gives the complete description
@@ -70,7 +70,7 @@ the previous result file first.
 
 | Setting | Default | Description |
 |---|---|---|
-| `threshold` | `0.5` | A score passes when it is at least this value. Keep `0.5` for the binary score. A threshold of `0` also passes a score of `0`. |
+| `threshold` | `0.8` | A score passes when it is at least this value. The score is `0` or `1`, so any threshold above `0` gives the same result. A threshold of `0` also passes a score of `0`. |
 | `model` | See the next paragraph. | The judge model for this criterion. |
 | `max_input_tokens` | `128000` | The largest estimated request that the judge sends. |
 

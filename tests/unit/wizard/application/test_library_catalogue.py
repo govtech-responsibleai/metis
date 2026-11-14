@@ -25,7 +25,7 @@ def test_a_grader_lists_the_base_settings_then_its_own_settings() -> None:
     assert ground_truth["description"]
     assert settings["turn"]["kind"] == GraderSettingKind.CHOICE
     assert settings["turn"]["choices"] == ["each", "last"]
-    assert settings["threshold"]["default"] == 0.5
+    assert settings["threshold"]["default"] == 0.8
     assert settings["threshold"]["kind"] == GraderSettingKind.NUMBER
     assert all(
         settings[name]["base"]

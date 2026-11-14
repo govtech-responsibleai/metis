@@ -51,7 +51,7 @@ def _grader(**args: object) -> DemoTraceBudgetGrader:
 class TestArgs:
     def test_defaults(self) -> None:
         assert DemoTraceBudgetArgs.model_validate({}).model_dump() == {
-            "threshold": 0.5,
+            "threshold": 0.8,
             "max_traces": 10,
         }
 
