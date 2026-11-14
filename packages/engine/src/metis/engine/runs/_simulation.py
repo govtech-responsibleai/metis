@@ -381,7 +381,7 @@ def _simulate_in(
                 orchestration_logger=orchestration_logger,
                 log_router=log_router,
                 tui_ctx=tui_ctx,
-                shutdown_event=stop,
+                stop=stop,
                 events=events,
                 console=console,
             )

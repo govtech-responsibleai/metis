@@ -150,7 +150,7 @@ def _build(
     timeout_minutes: int = 15,
     state: Any = None,
     tui_ctx: Any = None,
-    shutdown_event: threading.Event | None = None,
+    stop: threading.Event | None = None,
 ) -> Orchestrator:
     fixtures = fixtures or []
     fixtures_dir = tmp_path / "fixtures"
@@ -178,7 +178,7 @@ def _build(
         trial_index=1,
         state=state,
         tui_ctx=tui_ctx,
-        shutdown_event=shutdown_event,
+        stop=stop,
     )
 
 
@@ -298,11 +298,11 @@ async def test_timeout_stops_before_the_first_turn(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_set_shutdown_event_ends_the_trial_cleanly(tmp_path: Path) -> None:
+async def test_set_stop_ends_the_trial_cleanly(tmp_path: Path) -> None:
     event = threading.Event()
     event.set()
     runner = FakeRunner([])
-    orch = _build(tmp_path, runner, ScriptedAgent([_go()]), shutdown_event=event)
+    orch = _build(tmp_path, runner, ScriptedAgent([_go()]), stop=event)
 
     record = await orch.execute()
 
@@ -316,7 +316,7 @@ async def test_shutdown_during_a_turn_keeps_that_turn_and_skips_the_closing_call
 ) -> None:
     event = threading.Event()
     runner = FakeRunner([Step(_observation(), set_event=event)])
-    orch = _build(tmp_path, runner, ScriptedAgent([_go()]), shutdown_event=event)
+    orch = _build(tmp_path, runner, ScriptedAgent([_go()]), stop=event)
 
     record = await orch.execute()
 
@@ -603,7 +603,7 @@ async def test_no_fixture_check_on_an_interrupted_or_zero_turn_trial(
         FakeRunner([Step(_observation(), set_event=event)]),
         ScriptedAgent([_go(), _go()]),
         fixtures=["q3_sales.csv"],
-        shutdown_event=event,
+        stop=event,
     )
     empty = _build(
         tmp_path / "b",

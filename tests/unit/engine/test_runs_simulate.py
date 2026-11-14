@@ -67,7 +67,7 @@ def _fake_trials(monkeypatch, *, stop: bool = False, error: Exception | None = N
         assert isinstance(output_dir, Path)
         _write_record(output_dir, "TC-001-alice-1")
         if stop:
-            kwargs["shutdown_event"].set()  # type: ignore[union-attr]
+            kwargs["stop"].set()  # type: ignore[union-attr]
         if error is not None:
             raise error
 

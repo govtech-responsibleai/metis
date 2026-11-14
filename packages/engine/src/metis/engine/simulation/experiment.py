@@ -119,7 +119,7 @@ def execute_experiment(
     orchestration_logger: OrchestrationLogger | None = None,
     log_router: LogRouter | None = None,
     tui_ctx: TUIContext | None = None,
-    shutdown_event: threading.Event | None = None,
+    stop: threading.Event | None = None,
     events: PhaseEventLog | None = None,
     console: Console,
 ) -> None:
@@ -144,7 +144,7 @@ def execute_experiment(
             orchestration_logger=orchestration_logger,
             log_router=log_router,
             tui_ctx=tui_ctx,
-            shutdown_event=shutdown_event,
+            stop=stop,
             events=events,
             console=console,
         )
@@ -165,7 +165,7 @@ async def _execute_experiment_async(
     orchestration_logger: OrchestrationLogger | None = None,
     log_router: LogRouter | None = None,
     tui_ctx: TUIContext | None = None,
-    shutdown_event: threading.Event | None = None,
+    stop: threading.Event | None = None,
     events: PhaseEventLog | None = None,
     *,
     console: Console | None = None,
@@ -239,7 +239,7 @@ async def _execute_experiment_async(
                         orchestration_logger=orchestration_logger,
                         log_router=log_router,
                         tui_ctx=tui_ctx,
-                        shutdown_event=shutdown_event,
+                        stop=stop,
                         events=events,
                         console=console,
                     )
@@ -293,7 +293,7 @@ async def _worker(
     orchestration_logger: OrchestrationLogger | None = None,
     log_router: LogRouter | None = None,
     tui_ctx: TUIContext | None = None,
-    shutdown_event: threading.Event | None = None,
+    stop: threading.Event | None = None,
     default_user_agent_model: str | None = None,
     runner_agent_model: str | None = None,
     experiment_id: str | None = None,
@@ -325,7 +325,7 @@ async def _worker(
         records: list[TrialRecord] = []
         for scenario, persona, trial_index in worker_trials:
             task_id = scenario.task_id or scenario.id
-            if shutdown_event and shutdown_event.is_set():
+            if stop and stop.is_set():
                 logger.info(
                     "[experiment] Worker w%d stopping (shutdown requested)", worker_id
                 )
@@ -495,7 +495,7 @@ async def _worker(
                         trial_index=trial_index,
                         state=state,
                         tui_ctx=tui_ctx,
-                        shutdown_event=shutdown_event,
+                        stop=stop,
                         events=events,
                         attempt=attempt,
                     )

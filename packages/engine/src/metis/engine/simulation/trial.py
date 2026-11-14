@@ -53,7 +53,7 @@ def create_trial(
     trial_index: int,
     state: SimulationState | None,
     tui_ctx: TUIContext | None,
-    shutdown_event: threading.Event | None,
+    stop: threading.Event | None,
     events: PhaseEventLog | None = None,
     attempt: int = 1,
 ) -> Trial:
@@ -75,7 +75,7 @@ def create_trial(
         trial_index=trial_index,
         state=state,
         tui_ctx=tui_ctx,
-        shutdown_event=shutdown_event,
+        stop=stop,
         events=events,
         attempt=attempt,
     )
