@@ -31,6 +31,7 @@ from metis.engine.logging import (
     setup_engine_logging,
     teardown_engine_logging,
 )
+from metis.engine.runs import EvaluationInputError
 from metis.engine.tracing import tracing_key, trial_session_id
 from metis.engine.tui import (
     SimulationScenarioState,
@@ -189,110 +190,13 @@ def _needs_judge(specification: Specification) -> bool:
 
 
 def _validate_inputs(input_dir: Path) -> None:
-    """Validate all experiment inputs upfront before simulation.
-
-    Fails fast on the first error with a clear message and sys.exit(1).
-    """
-    from pydantic import ValidationError
-
-    from metis.engine.simulation.types import Specification
-
-    if not input_dir.is_dir():
-        console.print(
-            f"Error: input directory '{input_dir}' does not exist", style="bold red"
-        )
-        sys.exit(1)
-
-    experiment_path = input_dir / "specification.yaml"
-    if not experiment_path.exists():
-        console.print(
-            f"Error: missing required file 'specification.yaml' in {input_dir}",
-            style="bold red",
-        )
-        sys.exit(1)
+    """Check every input of a new run, or print the error and exit with code 1."""
+    from metis.engine.runs import InvalidInputsError, validate_inputs
 
     try:
-        specification = Specification.load_file(experiment_path)
-    except ValidationError as e:
-        first = e.errors()[0]
-        loc = " → ".join(str(part) for part in first["loc"]) if first["loc"] else "root"
-        console.print(
-            f"Error: specification.yaml validation failed: {loc} — {first['msg']}",
-            style="bold red",
-        )
+        validate_inputs(input_dir, console=console)
+    except InvalidInputsError:
         sys.exit(1)
-    except Exception as e:
-        console.print(
-            f"Error: failed to parse specification.yaml: {e}", style="bold red"
-        )
-        sys.exit(1)
-
-    seen_personas: set[str] = set()
-    for persona in specification.personas:
-        if persona.id in seen_personas:
-            console.print(
-                f"Error: duplicate persona id '{persona.id}' in specification.yaml",
-                style="bold red",
-            )
-            sys.exit(1)
-        seen_personas.add(persona.id)
-
-    fixtures_dir = input_dir / "fixtures"
-    for task in specification.resolved_tasks():
-        for fixture in task.fixtures:
-            if not (fixtures_dir / fixture).exists():
-                console.print(
-                    f"Error: Task '{task.task_id}' references fixture '{fixture}' which does not exist in {fixtures_dir}",
-                    style="bold red",
-                )
-                sys.exit(1)
-
-    # Print every bad criterion before exiting, so one run lists everything to fix.
-    errors = _grader_setup_errors(specification)
-    for message in errors:
-        # markup=False: pydantic messages contain "[...]"; soft_wrap: keep each error on one
-        # line so it can be grepped from logs.
-        console.print(
-            f"Error: {message}", style="bold red", markup=False, soft_wrap=True
-        )
-    if errors:
-        sys.exit(1)
-
-
-def _grader_setup_errors(specification: Specification) -> list[str]:
-    """Every criterion whose grader can't be built from the spec alone, as messages.
-
-    Each criterion is checked once, however many tasks reference it. The judge model is
-    resolved exactly as the run will resolve it, so a JudgeArgs grader validates with a model
-    in place. ``check_setup`` runs after its args validate. No client or credentials are
-    needed: the gateway is checked separately, at the start of ``evaluate``.
-    """
-    from metis.engine.evaluation import GraderSetupError, build_grader
-
-    errors: list[str] = []
-    criteria_by_id = {c.id: c for b in specification.behaviours() for c in b.criteria}
-    checked: set[str] = set()
-    default_judge_model = specification.experiment.defaults.judge_model
-    for scenario in specification.resolved_tasks():
-        for ref in scenario.grader_refs:
-            if ref.criterion_id in checked:
-                continue
-            checked.add(ref.criterion_id)
-            try:
-                built = build_grader(
-                    criteria_by_id[ref.criterion_id],
-                    default_judge_model=default_judge_model,
-                    env=os.environ,
-                )
-            except GraderSetupError as exc:
-                errors.append(str(exc))
-                continue
-            try:
-                problems = type(built).check_setup(built.args, specification)
-            except Exception as exc:  # a grader bug must not crash validation
-                problems = [f"check_setup raised {type(exc).__name__}: {exc}"]
-            errors.extend(f"Criterion '{ref.criterion_id}': {p}" for p in problems)
-    return errors
 
 
 def _format_final_summary(
@@ -336,10 +240,6 @@ class EvaluationOutcome:
     successful_records: int
     failed_records: int
     results_file: Path | None
-
-
-class EvaluationInputError(RuntimeError):
-    """Raised when an experiment snapshot or run record is invalid."""
 
 
 class CommandFailed(typer.Exit):
@@ -494,28 +394,9 @@ def _resolve_simulation_target(
 
 def _resolve_experiment_dir(experiment_dir: Path) -> Path:
     """Validate an explicit simulation output directory."""
-    resolved = experiment_dir.resolve()
-    if not resolved.is_dir():
-        console.print(
-            f"Error: experiment directory '{resolved}' does not exist",
-            style="bold red",
-        )
-        raise EvaluationInputError("invalid experiment directory")
-    if not (resolved / execution_layout.INPUTS).is_dir():
-        console.print(
-            f"Error: '{resolved}' is not a simulation output directory "
-            "(no 'inputs/' snapshot). Run 'metis engine simulate' first.",
-            style="bold red",
-        )
-        raise EvaluationInputError("invalid experiment directory")
-    if (resolved / "trials").is_dir() or (resolved / "reports").is_dir():
-        console.print(
-            "Error: this execution uses an earlier folder layout. "
-            "Move it to outputs/trials/ and outputs/reports/ before use.",
-            style="bold red",
-        )
-        raise EvaluationInputError("unsupported execution layout")
-    return resolved
+    from metis.engine.runs import resolve_experiment_dir
+
+    return resolve_experiment_dir(experiment_dir, console=console)
 
 
 def _evaluate_command(experiment_dir: Path) -> str:
@@ -739,28 +620,18 @@ def _run_simulation(
         _check_simulation_settings(command, specification, env_file)
         fixtures_dir = experiment_dir / execution_layout.FIXTURES
     else:
-        _validate_inputs(target)
-        specification = Specification.load_file(target / "specification.yaml")
-        _check_simulation_settings(command, specification, env_file)
-        suffix = datetime.now().strftime("%Y%m%d-%H%M%S")
-        experiment_dir = (
-            project_root / execution_layout.EXECUTIONS / f"{specification.id}-{suffix}"
-        )
-        experiment_dir.parent.mkdir(parents=True, exist_ok=True)
+        from metis.engine.runs import RunError, prepare_experiment, validate_inputs
+
         try:
-            experiment_dir.mkdir()
-        except FileExistsError:
-            # Two runs of one Specification that start in the same second get
-            # the same name. The second run stops and leaves the folder as is.
-            console.print(
-                f"Error: the run folder '{experiment_dir}' already exists. "
-                "A run of this Specification started in the same second. "
-                "Start the run again.",
-                style="bold red",
-                markup=False,
+            # The inputs are checked before the model settings, so that a bad input is the
+            # first error. prepare_experiment checks them again and prints nothing.
+            specification = validate_inputs(target, console=console)
+            _check_simulation_settings(command, specification, env_file)
+            experiment_dir = prepare_experiment(
+                target, project_dir=project_root, console=console
             )
+        except RunError:
             raise typer.Exit(code=1) from None
-        shutil.copytree(target, experiment_dir / execution_layout.INPUTS)
         fixtures_dir = experiment_dir / execution_layout.FIXTURES
 
     events = PhaseEventLog.for_experiment_dir(experiment_dir)
