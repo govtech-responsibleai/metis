@@ -456,9 +456,11 @@ export function DisclosureButton({
 
 // A surface that floats above the page and holds the focus. The page behind is inert while it
 // is open, Tab stays inside it, Escape closes it from anywhere, and the focus goes back to the
-// control that opened it. The control with `autoFocus` has the focus at first.
+// control that opened it. The control with `autoFocus` has the focus at first. With `side`, the
+// surface is a drawer with the full height of the window at its right edge.
 export function Modal({
   role = "dialog",
+  side = false,
   labelledBy,
   describedBy,
   className,
@@ -466,6 +468,7 @@ export function Modal({
   children,
 }: {
   role?: "dialog" | "alertdialog";
+  side?: boolean;
   labelledBy: string;
   describedBy?: string;
   className?: string;
@@ -504,7 +507,10 @@ export function Modal({
   if (typeof document === "undefined") return null;
   return createPortal(
     <div
-      className="fixed inset-0 z-[90] flex items-center justify-center bg-foreground/20 p-4"
+      className={cn(
+        "fixed inset-0 z-[90] flex bg-foreground/20",
+        side ? "justify-end" : "items-center justify-center p-4",
+      )}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onCancel();
       }}
@@ -519,7 +525,7 @@ export function Modal({
           if (event.key !== "Tab") return;
           const controls = [
             ...(dialog.current?.querySelectorAll(
-              "button:not(:disabled), input:not(:disabled)",
+              "button:not(:disabled), input:not(:disabled), a[href]",
             ) ?? []),
           ] as HTMLElement[];
           const first = controls[0];
@@ -533,7 +539,8 @@ export function Modal({
           }
         }}
         className={cn(
-          "flex w-full flex-col rounded-lg border border-border bg-card text-card-foreground shadow-lg",
+          "flex flex-col border-border bg-card text-card-foreground shadow-lg",
+          side ? "h-full border-l" : "w-full rounded-lg border",
           className,
         )}
       >

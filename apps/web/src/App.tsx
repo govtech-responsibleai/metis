@@ -101,7 +101,7 @@ import {
 } from "./routes";
 import { admitFiles, type AdmittedFile } from "./fixture-policy";
 import { specificationHasCriteria } from "./graders";
-import { downloadArchive } from "./download";
+import { saveFile } from "./download";
 import { ManualAuthoringEntry, ManualForm } from "./ManualForm";
 import {
   activeReview,
@@ -650,7 +650,7 @@ export function App() {
         { state: loadedRecord.state },
         fixturesForSpecification(loadedRecord),
       );
-      downloadArchive(archive);
+      saveFile(archive);
     },
     [],
   );

@@ -51,6 +51,8 @@ type TargetsOperation = operations["list_targets_api_v1_targets_get"];
 type InterviewReadOperation =
   operations["read_interview_api_v1_targets__target_id__interview_get"];
 type InterviewWireRecord = JsonResponse<InterviewReadOperation>;
+type ReportOperation =
+  operations["experiment_report_api_v1_experiments__experiment_id__report_get"];
 
 export type InterviewStep = Schema["InterviewStep"];
 export type Perspective = Schema["Perspective"];
@@ -393,6 +395,8 @@ export interface InterviewSummary {
 export type FileRef = Schema["FileRef"];
 export type StorageProblem = Schema["TargetProblem"];
 export type TargetList = JsonResponse<TargetsOperation>;
+// report.json as the route gives it. Only `src/report.ts` reads it.
+export type Report = JsonResponse<ReportOperation>;
 // The record as the store keeps it: each file is a reference to bytes in the store.
 export type StoredInterviewRecord = Omit<
   LoadedInterviewRecord,
@@ -494,15 +498,50 @@ async function call<T>(
   )) as T;
 }
 
-async function callBlob(
-  path: keyof ApiPaths,
+// A file from the API with the name that the server gave it.
+export interface NamedFile {
+  blob: Blob;
+  filename: string;
+}
+
+// The file name of a `Content-Disposition` header (RFC 6266), or null when it has none.
+// `filename*` holds the exact name, so it comes before the ASCII fallback in `filename`.
+export function dispositionFilename(header: string | null): string | null {
+  if (!header) return null;
+  const exact = header.match(/filename\*\s*=\s*UTF-8''([^;\s]+)/iu)?.[1];
+  if (exact !== undefined) {
+    try {
+      return decodeURIComponent(exact);
+    } catch {
+      /* the fallback is enough */
+    }
+  }
+  const fallback = header.match(/filename\s*=\s*"((?:[^"\\]|\\.)*)"/iu)?.[1];
+  return fallback === undefined ? null : fallback.replace(/\\(.)/gu, "$1");
+}
+
+type FileExtension = ".zip" | ".html";
+
+// The name goes to the `download` attribute of a link, so it must be a plain file name.
+function safeFilename(filename: string, extension: FileExtension): boolean {
+  return (
+    filename.length > extension.length &&
+    filename.endsWith(extension) &&
+    !/[/\\\p{Cc}]/u.test(filename)
+  );
+}
+
+async function callFile(
+  path: keyof ApiPaths | RoutedPath,
+  extension: FileExtension,
   init?: RequestInit,
-): Promise<{ blob: Blob; filename: string }> {
+): Promise<NamedFile> {
   const response = await responseFor(path, init);
-  const filename = response.headers
-    .get("Content-Disposition")
-    ?.match(/^attachment; filename="([a-z0-9-]+\.zip)"$/)?.[1];
-  if (!filename) throw new Error("The export response has no valid filename.");
+  const filename = dispositionFilename(
+    response.headers.get("Content-Disposition"),
+  );
+  if (!filename || !safeFilename(filename, extension))
+    throw new Error("The response has no valid file name.");
   return { blob: await response.blob(), filename };
 }
 
@@ -620,11 +659,26 @@ export const api = {
         form.append("connection", JSON.stringify(source.connection));
     }
     for (const file of files) form.append("files", file.blob, file.name);
-    return callBlob("/api/v1/wizard/package", {
+    return callFile("/api/v1/wizard/package", ".zip", {
       method: "POST",
       body: form,
     });
   },
+  // report.json of the experiment. The API builds the report when it is missing or old.
+  report: (experimentId: string) =>
+    call<Report>(
+      route("/api/v1/experiments/{experiment_id}/report", {
+        experiment_id: experimentId,
+      }),
+    ),
+  // report.html of the experiment, the same page as `metis insights report` writes.
+  reportPage: (experimentId: string) =>
+    callFile(
+      route("/api/v1/experiments/{experiment_id}/report.html", {
+        experiment_id: experimentId,
+      }),
+      ".html",
+    ),
 };
 
 // The store routes keep each Target: its Interview record, the record files, and the

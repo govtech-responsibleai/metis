@@ -11,6 +11,24 @@ the current place with `placeOf`. Do not write a path string in a component. The
 `wouter` with the browser location. Render a routed component in a test inside
 `<Router ssrPath="...">`. The shell reads Targets through `src/targets.ts` only.
 
+The Report tab of an experiment (`ReportTab.tsx`) shows the results of `report.html`. Only
+`src/report.ts` reads report.json. `reportPage` changes it into the `ReportPage` view model, and a
+component shows that model and never the wire `Report` type. Do not compute an average or a rate
+in the browser: `report.ts` copies each number and does only the arithmetic of `report.html`.
+`loadReport` changes the answer of the report route into one `ReportLoad` state, which is the only
+signal for "evaluate is done" until the app has an experiment store. `experimentScreen` gives the
+tab that an experiment opens on and the state of the Report tab control. `ExperimentPage` owns the
+load, and `ExperimentView` draws one load state, so a test can render each state.
+
+The Report tab has the layout of `report.html`. `src/report.css` follows `REPORT_CSS` in
+`packages/insights/src/metis/insights/_report_styles.py` with the same class names, and makes each
+colour from a token of `globals.css`. When the layout of `report.html` changes, change
+`ReportTab.tsx` and `report.css` to match. A test case of the Criterion panel moves the page to its
+row in the table. A test case of the table opens the trial drawer (`CaseDrawer.tsx`), which is
+the drawer of `report.html` inside the `Modal` of `ui.tsx`. `CaseDrawerView` draws one state of
+the drawer. `ReportSections` draws one state of the list, the tree and the Criterion panel, so a
+test can render each state.
+
 The YAML view of the Profile pane sends `exportedSpecification(state)` (`src/export.ts`) to the
 compile route. That function mirrors the export steps of the package route, so the YAML matches
 the download. Change it when those steps change.
