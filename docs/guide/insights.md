@@ -52,6 +52,14 @@ It also prints a terminal passed/failed/skipped/errored table per Criterion and 
   a different version of metis-engine (`Unsupported schema_version …`) exits 1 and
   writes nothing. Re-run `metis engine evaluate` to produce a current file.
 
+## Reports on request
+
+The METIS API builds the same report when a client asks for it. It calls `ensure_report`,
+which writes `report.json` and `report.html` when they are missing or older than
+`results.json`. Otherwise it keeps the files as they are. An experiment with no
+`results.json` has no report, so `ensure_report` raises `ResultsMissing`. Run
+`metis engine evaluate` on the experiment first.
+
 The report's content — scoring, statuses, and failure evidence — is defined in the
 [report contract](report.md), and its JSON shape in the
-insights [Report model](../../packages/insights/src/metis/insights/_models.py).
+core [Report model](../../packages/core/src/metis/core/report.py).

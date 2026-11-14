@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 
 from metis.core.console import console
+from metis.core.phase_events import _PHASE_EVENT_VERSION, PhaseEvent
 from metis.core.specification import _SPECIFICATION_VERSION, Specification
 from metis.core.target_binding import _TARGET_BINDING_VERSION, TargetBinding
 
@@ -17,6 +18,7 @@ REPO_ROOT = SCHEMA_DIR.parents[2]
 _MODELS = [
     (Specification, "specification.schema.json", _SPECIFICATION_VERSION, False),
     (TargetBinding, "target-binding.schema.json", _TARGET_BINDING_VERSION, False),
+    (PhaseEvent, "phase-event.schema.json", _PHASE_EVENT_VERSION, False),
 ]
 
 

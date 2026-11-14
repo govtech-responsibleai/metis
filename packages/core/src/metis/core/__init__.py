@@ -6,7 +6,6 @@ from metis.core.artifacts import Artifact, resolve_artifact_path
 from metis.core.console import console
 from metis.core.logging import configure_logging, get_logger
 from metis.core.model_settings import ModelRole, load_env, resolve_role
-from metis.core.models import Status
 from metis.core.traces import GradingInput, Observation, SessionTraces, Trace
 
 try:
@@ -20,7 +19,6 @@ __all__ = [
     "ModelRole",
     "Observation",
     "SessionTraces",
-    "Status",
     "Trace",
     "__version__",
     "configure_logging",

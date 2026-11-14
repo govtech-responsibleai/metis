@@ -204,8 +204,7 @@ def test_a_targeted_follow_up_keeps_its_target_across_the_wire() -> None:
 
 
 def test_a_saved_review_with_an_older_component_shape_still_loads() -> None:
-    """A `disclosure` component from an older saved Interview loads as `details`, the same as
-    the browser storage upgrade does."""
+    """A `disclosure` component from an older saved Interview loads as `details`."""
     data = json.loads(
         InterviewState(
             specification=research_assistant(), context=interview_context()

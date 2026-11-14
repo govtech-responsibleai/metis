@@ -1,0 +1,658 @@
+{
+  "description": "One line of ``logs/events.jsonl``. Validate a line with ``PhaseEvent.parse_line``.",
+  "oneOf": [
+    {
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "attempt"
+            ]
+          },
+          {
+            "required": [
+              "turn"
+            ]
+          },
+          {
+            "required": [
+              "reason"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "status": {
+          "const": "started"
+        },
+        "trial": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "done",
+        "total"
+      ]
+    },
+    {
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "total"
+            ]
+          },
+          {
+            "required": [
+              "done"
+            ]
+          },
+          {
+            "required": [
+              "attempt"
+            ]
+          },
+          {
+            "required": [
+              "turn"
+            ]
+          },
+          {
+            "required": [
+              "reason"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "status": {
+          "const": "completed"
+        },
+        "trial": {
+          "type": "null"
+        }
+      },
+      "required": []
+    },
+    {
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "total"
+            ]
+          },
+          {
+            "required": [
+              "done"
+            ]
+          },
+          {
+            "required": [
+              "attempt"
+            ]
+          },
+          {
+            "required": [
+              "turn"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "status": {
+          "const": "failed"
+        },
+        "trial": {
+          "type": "null"
+        }
+      },
+      "required": []
+    },
+    {
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "total"
+            ]
+          },
+          {
+            "required": [
+              "done"
+            ]
+          },
+          {
+            "required": [
+              "attempt"
+            ]
+          },
+          {
+            "required": [
+              "turn"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "status": {
+          "const": "interrupted"
+        },
+        "trial": {
+          "type": "null"
+        }
+      },
+      "required": []
+    },
+    {
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "total"
+            ]
+          },
+          {
+            "required": [
+              "done"
+            ]
+          },
+          {
+            "required": [
+              "attempt"
+            ]
+          },
+          {
+            "required": [
+              "turn"
+            ]
+          },
+          {
+            "required": [
+              "reason"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "status": {
+          "const": "skipped"
+        },
+        "trial": {
+          "type": "null"
+        }
+      },
+      "required": []
+    },
+    {
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "total"
+            ]
+          },
+          {
+            "required": [
+              "done"
+            ]
+          },
+          {
+            "required": [
+              "turn"
+            ]
+          },
+          {
+            "required": [
+              "reason"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "status": {
+          "const": "started"
+        },
+        "trial": {
+          "type": "string"
+        },
+        "phase": {
+          "const": "simulating"
+        }
+      },
+      "required": [
+        "attempt"
+      ]
+    },
+    {
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "total"
+            ]
+          },
+          {
+            "required": [
+              "done"
+            ]
+          },
+          {
+            "required": [
+              "reason"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "status": {
+          "const": "running"
+        },
+        "trial": {
+          "type": "string"
+        },
+        "phase": {
+          "const": "simulating"
+        }
+      },
+      "required": [
+        "attempt",
+        "turn"
+      ]
+    },
+    {
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "total"
+            ]
+          },
+          {
+            "required": [
+              "done"
+            ]
+          },
+          {
+            "required": [
+              "turn"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "status": {
+          "const": "retrying"
+        },
+        "trial": {
+          "type": "string"
+        },
+        "phase": {
+          "const": "simulating"
+        }
+      },
+      "required": [
+        "attempt"
+      ]
+    },
+    {
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "total"
+            ]
+          },
+          {
+            "required": [
+              "done"
+            ]
+          },
+          {
+            "required": [
+              "turn"
+            ]
+          },
+          {
+            "required": [
+              "reason"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "status": {
+          "const": "completed"
+        },
+        "trial": {
+          "type": "string"
+        },
+        "phase": {
+          "const": "simulating"
+        }
+      },
+      "required": [
+        "attempt"
+      ]
+    },
+    {
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "total"
+            ]
+          },
+          {
+            "required": [
+              "done"
+            ]
+          },
+          {
+            "required": [
+              "turn"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "status": {
+          "const": "failed"
+        },
+        "trial": {
+          "type": "string"
+        },
+        "phase": {
+          "const": "simulating"
+        }
+      },
+      "required": [
+        "attempt"
+      ]
+    },
+    {
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "total"
+            ]
+          },
+          {
+            "required": [
+              "done"
+            ]
+          },
+          {
+            "required": [
+              "turn"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "status": {
+          "const": "interrupted"
+        },
+        "trial": {
+          "type": "string"
+        },
+        "phase": {
+          "const": "simulating"
+        }
+      },
+      "required": [
+        "attempt"
+      ]
+    },
+    {
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "total"
+            ]
+          },
+          {
+            "required": [
+              "done"
+            ]
+          },
+          {
+            "required": [
+              "attempt"
+            ]
+          },
+          {
+            "required": [
+              "turn"
+            ]
+          },
+          {
+            "required": [
+              "reason"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "status": {
+          "const": "started"
+        },
+        "trial": {
+          "type": "string"
+        },
+        "phase": {
+          "const": "evaluating"
+        }
+      },
+      "required": []
+    },
+    {
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "total"
+            ]
+          },
+          {
+            "required": [
+              "done"
+            ]
+          },
+          {
+            "required": [
+              "attempt"
+            ]
+          },
+          {
+            "required": [
+              "turn"
+            ]
+          },
+          {
+            "required": [
+              "reason"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "status": {
+          "const": "completed"
+        },
+        "trial": {
+          "type": "string"
+        },
+        "phase": {
+          "const": "evaluating"
+        }
+      },
+      "required": []
+    },
+    {
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "total"
+            ]
+          },
+          {
+            "required": [
+              "done"
+            ]
+          },
+          {
+            "required": [
+              "attempt"
+            ]
+          },
+          {
+            "required": [
+              "turn"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "status": {
+          "const": "failed"
+        },
+        "trial": {
+          "type": "string"
+        },
+        "phase": {
+          "const": "evaluating"
+        }
+      },
+      "required": []
+    }
+  ],
+  "properties": {
+    "seq": {
+      "description": "Line number of the event in the file, from 1.",
+      "minimum": 1,
+      "title": "Seq",
+      "type": "integer"
+    },
+    "at": {
+      "description": "UTC time at which the engine wrote the event.",
+      "format": "date-time",
+      "title": "At",
+      "type": "string"
+    },
+    "phase": {
+      "enum": [
+        "simulating",
+        "evaluating"
+      ],
+      "title": "Phase",
+      "type": "string"
+    },
+    "trial": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The trial's folder name under outputs/trials/, or null for the phase.",
+      "title": "Trial"
+    },
+    "status": {
+      "enum": [
+        "started",
+        "running",
+        "retrying",
+        "completed",
+        "failed",
+        "interrupted",
+        "skipped"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "total": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Trials in the phase, done ones included.",
+      "title": "Total"
+    },
+    "done": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Trials that an earlier command already finished in this phase.",
+      "title": "Done"
+    },
+    "attempt": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The attempt of the trial, from 1. On retrying, the one that failed.",
+      "title": "Attempt"
+    },
+    "turn": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Turns of the attempt that are done.",
+      "title": "Turn"
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "maxLength": 300,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reason"
+    }
+  },
+  "required": [
+    "seq",
+    "at",
+    "phase",
+    "trial",
+    "status"
+  ],
+  "title": "PhaseEvent v1",
+  "type": "object"
+}

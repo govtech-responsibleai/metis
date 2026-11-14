@@ -93,7 +93,7 @@ def test_a_command_stops_before_any_client_and_names_only_its_own_roles(
 ) -> None:
     monkeypatch.delenv("OPENAI_API_KEY")
     built = _no_clients(monkeypatch)
-    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "project")
+    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "project")
 
     simulate = runner.invoke(
         app,

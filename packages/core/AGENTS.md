@@ -4,7 +4,7 @@ See root [AGENTS.md](../../AGENTS.md) for monorepo-wide instructions.
 
 ## Package Purpose
 
-Core data models and abstractions for the METIS suite. Zero workspace dependencies — only Pydantic v2, python-dotenv, and stdlib.
+Core data models and abstractions for the METIS suite. Zero workspace dependencies — only Pydantic v2, httpx, python-dotenv, and stdlib.
 
 ## Shared schemas
 
@@ -17,7 +17,7 @@ Private runtime models and API models stay in their owning packages. See the
 
 ## Package-Specific Notes
 
-- Dependencies: Pydantic v2, structlog, Rich, python-dotenv (plus stdlib). Zero workspace dependencies.
+- Dependencies: Pydantic v2, httpx, structlog, Rich, python-dotenv (plus stdlib). Zero workspace dependencies.
 - Public logging API: `from metis.core.logging import get_logger, configure_logging`
 - Public console API: `from metis.core.console import console`
 
@@ -48,6 +48,9 @@ Private runtime models and API models stay in their owning packages. See the
 - `reporting.py`: `EvaluationResults` (`outputs/reports/results.json`), one `GraderRecord`
   per grader per session. It is version-guarded like `TrialRecord` and has no published
   schema file.
+- `report.py`: `Report` (`outputs/reports/report.json`), the target evaluation report.
+  metis-insights writes it and apps/api reads it. Version-guarded by `_REPORT_VERSION`, no
+  published schema file.
 - `model_settings.py`: the model and gateway of each LLM role (`ModelRole`, `ROLES`,
   `resolve_role`, `missing_settings`, `check_roles`) and the one `.env` search (`load_env`).
   Every command uses it. Keys and URLs come only from the environment; `RoleSettings` hides
@@ -56,3 +59,9 @@ Private runtime models and API models stay in their owning packages. See the
   (`TrialConfig`, `TrialOutcome`, `TrialFailure`, `GraderRef`). The engine writes and resumes
   from it; the report reads it. Version-guarded by `_TRIAL_RECORD_VERSION`, no published
   schema file.
+- `phase_events.py`: `PhaseEvent` (one line of `logs/events.jsonl`: `seq`, `at`, `phase`,
+  `trial` and `status`, plus the extra fields that `_SHAPES` gives each status) and
+  `PhaseEventLog`, the one writer. It numbers lines with `seq`, continues from the last line
+  of the file, and writes one flushed line per event under a lock. Source of
+  `schemas/phase-event.schema.json`, versioned by `_PHASE_EVENT_VERSION`. Keep events small:
+  IDs, counts, statuses and `short_reason` text, never a key, a prompt or a model reply.

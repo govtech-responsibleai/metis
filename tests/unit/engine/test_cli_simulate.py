@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from metis.core import execution_layout
 from metis.core.trials import TrialConfig, TrialOutcome, TrialRecord
 from metis.engine import cli
 from metis.engine.cli import app
@@ -95,7 +96,7 @@ def _simulate_fresh(monkeypatch, tmp_path: Path, factory_ref: str):
     input_dir = tmp_path / "input"
     input_dir.mkdir()
     (input_dir / "specification.yaml").write_text(_with_factory(factory_ref))
-    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "project")
+    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "project")
     return runner.invoke(app, ["simulate", "--input-dir", str(input_dir), "--no-tui"])
 
 
@@ -162,12 +163,10 @@ def test_simulate_prints_evaluate_and_resume_handoff(
 
 
 def test_simulate_zero_records_exits_one(monkeypatch, tmp_path: Path) -> None:
-    input_dir = _write_source(tmp_path)
-    experiment_dir = tmp_path / "output"
-    experiment_dir.mkdir()
-    monkeypatch.setattr(cli, "_run_simulation", lambda *_a, **_k: experiment_dir)
+    monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
+    monkeypatch.setattr(experiment_module, "execute_experiment", lambda *_a, **_k: None)
 
-    result = runner.invoke(app, ["simulate", "--input-dir", str(input_dir)])
+    result = _simulate_fresh(monkeypatch, tmp_path, _STUB_REF)
 
     assert result.exit_code == 1
     assert "No trial records found." in result.output
@@ -253,6 +252,90 @@ def test_resume_all_complete_is_noop(monkeypatch, tmp_path: Path) -> None:
     assert "nothing to resume" in result.output
 
 
+def _write_evaluation_outputs(output_dir: Path) -> list[Path]:
+    paths = [
+        output_dir / execution_layout.RESULTS,
+        output_dir / execution_layout.EVALUATION / "x.json",
+        output_dir / execution_layout.TRACES / "x.json",
+    ]
+    for path in paths:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{}")
+    return paths
+
+
+def test_a_resume_that_reruns_a_trial_clears_the_evaluation(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output_dir = _write_output(
+        tmp_path / "experiments" / "execute" / "test-exp-20260101-010101",
+        TWO_TRIAL_EXPERIMENT,
+    )
+    (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
+    _write_record(output_dir, "TC-001-alice-1", "goal_achieved")
+    _write_record(output_dir, "TC-001-alice-2", "system_error")
+    evaluation_paths = _write_evaluation_outputs(output_dir)
+    log_path = output_dir / execution_layout.LOGS / "engine.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text("log")
+    monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
+    monkeypatch.setattr(experiment_module, "execute_experiment", lambda *_a, **_k: None)
+
+    result = runner.invoke(
+        app,
+        ["simulate", "--resume", "--experiment-dir", str(output_dir), "--no-tui"],
+    )
+
+    assert result.exit_code == 0
+    assert [path.exists() for path in evaluation_paths] == [False, False, False]
+    assert log_path.read_text() == "log"
+
+
+def test_a_resume_whose_runner_cannot_be_built_keeps_the_evaluation(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output_dir = _write_output(
+        tmp_path / "experiments" / "execute" / "test-exp-20260101-010101",
+        _with_factory(
+            "tests.unit.engine.test_cli_simulate._FailingSpecFactory",
+            TWO_TRIAL_EXPERIMENT,
+        ),
+    )
+    (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
+    _write_record(output_dir, "TC-001-alice-1", "goal_achieved")
+    _write_record(output_dir, "TC-001-alice-2", "system_error")
+    evaluation_paths = _write_evaluation_outputs(output_dir)
+    monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
+
+    result = runner.invoke(
+        app,
+        ["simulate", "--resume", "--experiment-dir", str(output_dir), "--no-tui"],
+    )
+
+    assert result.exit_code == 1
+    assert [path.exists() for path in evaluation_paths] == [True, True, True]
+
+
+def test_a_resume_with_nothing_to_redo_keeps_the_evaluation(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output_dir = _write_output(
+        tmp_path / "experiments" / "execute" / "test-exp-20260101-010101"
+    )
+    (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
+    _write_record(output_dir, "TC-001-alice-1")
+    evaluation_paths = _write_evaluation_outputs(output_dir)
+    monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
+
+    result = runner.invoke(
+        app,
+        ["simulate", "--resume", "--experiment-dir", str(output_dir), "--no-tui"],
+    )
+
+    assert result.exit_code == 0
+    assert [path.exists() for path in evaluation_paths] == [True, True, True]
+
+
 def test_resume_directory_without_inputs_snapshot_exits_one(tmp_path: Path) -> None:
     output_dir = tmp_path / "experiments" / "execute" / "test-exp-20260101-010101"
     output_dir.mkdir(parents=True)
@@ -273,7 +356,7 @@ def test_resume_with_input_dir_lists_outputs_and_chooses_none(
     root = tmp_path / "project"
     older = _write_output(root / "experiments" / "execute" / "test-exp-20260101-010101")
     newer = _write_output(root / "experiments" / "execute" / "test-exp-20260102-020202")
-    monkeypatch.setattr(cli, "_find_project_root", lambda: root)
+    monkeypatch.setattr(cli, "find_project_root", lambda: root)
 
     result = runner.invoke(app, ["simulate", "--resume", "--input-dir", str(input_dir)])
 
@@ -326,7 +409,7 @@ def _start_run(
         "_run_evaluation_command",
         lambda *_a, **_k: cli.EvaluationOutcome(1, 1, 0, None),
     )
-    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "cwd-root")
+    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "cwd-root")
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
@@ -575,7 +658,7 @@ def test_simulate_rejects_a_concurrency_below_one(
     """Before this check, 0 raised ZeroDivisionError and -1 raised IndexError in
     ``_distribute_trials`` once the run had at least one trial."""
     input_dir = _write_source(tmp_path)
-    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "project")
+    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "project")
 
     result = runner.invoke(
         app, ["simulate", "--input-dir", str(input_dir), "--no-tui", "-c", value]

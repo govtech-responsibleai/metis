@@ -152,8 +152,8 @@ class InterviewState(BaseModel):
     def _load_older_review_shapes(cls, value: object) -> object:
         """Read a saved pending request from before the current component shapes.
 
-        A `disclosure` component (a label and text items) is now a `details` component. The
-        rule is the same as the browser storage upgrade, so a saved Interview resumes in both.
+        A `disclosure` component (a label and text items) is now a `details` component, so a
+        saved Interview with the older shape resumes.
         """
         return _review_shape(value)
 
