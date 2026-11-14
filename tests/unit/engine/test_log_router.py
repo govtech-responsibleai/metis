@@ -437,3 +437,52 @@ class TestAppendWiring:
             assert router._append is True
         finally:
             teardown_engine_logging(router)
+
+
+class TestTeardownRestoresLogging:
+    """A run leaves the process's logging as it found it, so a long-lived caller keeps its own."""
+
+    def setup_method(self) -> None:
+        structlog.reset_defaults()
+        logging.getLogger().handlers.clear()
+
+    def teardown_method(self) -> None:
+        structlog.reset_defaults()
+        logging.getLogger().handlers.clear()
+
+    def test_teardown_restores_the_structlog_config_from_before_setup(
+        self, tmp_path: Path
+    ) -> None:
+        configure_logging(level="INFO")
+        before = structlog.get_config()
+
+        router = setup_engine_logging(tmp_path, log_format="text", use_tui=False)
+        teardown_engine_logging(router)
+
+        assert structlog.get_config() == before
+
+    def test_teardown_restores_the_stream_handler_levels_that_tui_mode_silenced(
+        self, tmp_path: Path
+    ) -> None:
+        configure_logging(level="INFO")
+        handlers = list(logging.getLogger().handlers)
+        before = [handler.level for handler in handlers]
+
+        router = setup_engine_logging(tmp_path, log_format="text", use_tui=True)
+        assert all(handler.level > logging.CRITICAL for handler in handlers)
+        teardown_engine_logging(router)
+
+        assert logging.getLogger().handlers == handlers
+        assert [handler.level for handler in handlers] == before
+
+    def test_teardown_keeps_a_caller_that_never_configured_logging_on_the_defaults(
+        self, tmp_path: Path
+    ) -> None:
+        before = structlog.get_config()
+        handlers = list(logging.getLogger().handlers)
+
+        router = setup_engine_logging(tmp_path, log_format="text", use_tui=False)
+        teardown_engine_logging(router)
+
+        assert structlog.get_config() == before
+        assert logging.getLogger().handlers == handlers
