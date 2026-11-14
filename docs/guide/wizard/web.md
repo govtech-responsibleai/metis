@@ -56,7 +56,7 @@ or above the folder where you start the API that has a `pyproject.toml`. For `ma
 the repository folder. To use another folder, start the API with
 `metis-api --project-dir PATH`.
 
-- The database is `experiments/metis.db` in the project folder. To use another database, set
+- The database is `metis.db` in the project folder. To use another database, set
   `METIS_DATABASE_URL` to a SQLAlchemy URL.
 - The files of each Interview are in `experiments/design/<id>/`, the same layout as the CLI
   wizard. `inputs/documents/` holds the files that you upload, and
