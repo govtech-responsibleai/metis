@@ -29,6 +29,13 @@ the drawer of `report.html` inside the `Modal` of `ui.tsx`. `CaseDrawerView` dra
 the drawer. `ReportSections` draws one state of the list, the tree and the Criterion panel, so a
 test can render each state.
 
+`LoginGate.tsx` wraps the app in `main.tsx`. It reads `GET /api/v1/auth/me` first. With login
+off, it shows the app with no login UI. With login on, it shows the login page until the person
+has a login session. `responseFor` in `src/transport/api.ts` tells the gate when a request gets
+401 `login_required`, so do not handle that status in a component. A component reads the current
+user and the logout action with `useLoginSession`, which gives null when login is off. The
+browser never reads the login cookie.
+
 The YAML view of the Profile pane sends `exportedSpecification(state)` (`src/export.ts`) to the
 compile route. That function mirrors the export steps of the package route, so the YAML matches
 the download. Change it when those steps change.

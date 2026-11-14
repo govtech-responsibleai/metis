@@ -72,6 +72,19 @@ the repository folder. To use another folder, start the API with
 
 The repository ignores `experiments/`, so Git does not save it.
 
+### Log in to a shared server
+
+On your own computer, the web app has no login. A server that many people use can have login
+on. Then the web app opens on a login page. Type the username and the password that you got for
+that server, and select **Log in**.
+
+The foot of the left rail shows your username. Select the icon beside it to log out. A login
+lasts 30 days. After that, the login page shows again, and you log in with the same username
+and password.
+
+To turn login on and to make a user account, see
+[Turn on login for a shared server](api.md#turn-on-login-for-a-shared-server).
+
 ## Targets and their pages
 
 Each Interview makes one Target. The rail on the left lists the Targets, newest first. Select

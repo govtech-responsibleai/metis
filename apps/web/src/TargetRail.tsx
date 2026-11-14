@@ -166,9 +166,9 @@ export function TargetRail({
           </li>
         ))}
       </ul>
-      <div className="flex items-center justify-between gap-2 border-t border-border p-3">
-        <ThemeSwitch />
+      <div className="flex flex-col gap-2 border-t border-border p-3">
         <CurrentUser />
+        <ThemeSwitch />
       </div>
     </nav>
   );
@@ -180,9 +180,9 @@ function CurrentUser() {
   const session = useLoginSession();
   if (!session) return null;
   return (
-    <span className="flex min-w-0 items-center gap-1">
+    <span className="flex min-w-0 items-center justify-between gap-1">
       <span
-        className="min-w-0 truncate text-sm text-muted-foreground"
+        className="min-w-0 truncate text-sm text-foreground"
         title={session.user.username}
       >
         {session.user.username}
