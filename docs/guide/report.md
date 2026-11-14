@@ -35,10 +35,13 @@ The page opens with these facts:
 
 1. The average pass rate, which is the headline result of the
    [hierarchy roll-up](#hierarchy-roll-up). Its tip explains how it is calculated and names
-   the pass-rate target.
+   the pass-rate target. When grader runs errored, a warning line under it says how many
+   of all the grader runs errored.
 2. Behaviours below the target, as a count of the behaviours that have a rate.
-3. Trials that reached their goal, from `trials.successful` of `trials.attempted`.
-4. The number of test cases.
+3. Grader runs completed, as the count of grader runs that passed, failed, or skipped, of all
+   the grader runs. A grader run that errored did not complete.
+4. Trials that reached their goal, from `trials.successful` of `trials.attempted`.
+5. The number of test cases.
 
 The header shows the target name and the report date. Generate all values from report data.
 The page does not show a run start time or a run duration, because the run does not record
@@ -126,7 +129,13 @@ Its last row is the mean of the criterion rows.
 These rules apply to every item:
 
 - An evaluated run passed or failed. Skipped and errored runs are left out of rates and mean
-  scores.
+  scores. A warning icon beside a score means that some grader runs behind it errored. Its
+  label says how many of the node's grader runs errored. An errored run means that the grader
+  could not score it, and it says nothing about the target. A criterion with no rate because
+  its runs errored shows Not graded and no icon. The page marks errored runs once, at the
+  lowest level that is visible: a feature or behaviour shows the icon only while its children
+  are hidden, and the target node of the tree shows it only while every feature with errored
+  runs is closed.
 - A child counts only when it has at least one scored run. A node with no usable evidence
   is Not evaluated.
 - A grader setup or mapping problem is Data error.

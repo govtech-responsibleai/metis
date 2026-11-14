@@ -300,6 +300,7 @@ def test_evaluation_writes_results_file_and_prints_report_command(
     evaluation_log = (output / "logs" / "evaluate.log").read_text()
     assert evaluation_log.count("EVALUATION STARTED") == 1
     assert "RESULTS WRITTEN" in evaluation_log
+    assert "GRADER ERRORS" not in evaluation_log
 
 
 def test_report_command_is_shell_quoted_for_paths_with_spaces(
@@ -814,6 +815,29 @@ def test_a_grader_that_raises_does_not_fail_the_record(
     assert "boom" in record.results[0].reason
     log = (output / "logs" / "evaluate.log").read_text()
     assert '"outcome": "errored"' in log
+
+
+def test_the_log_names_the_grader_errors(monkeypatch, tmp_path: Path) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_record(output)
+    _patch_evaluation(monkeypatch)
+
+    async def explode(*_args: object) -> object:
+        raise RuntimeError("boom")
+
+    from tests.unit.engine.graders_for_tests import FixedScoreGrader
+
+    monkeypatch.setattr(FixedScoreGrader, "grade", explode)
+
+    result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
+
+    assert result.exit_code == 0, result.output
+    log = (output / "logs" / "evaluate.log").read_text()
+    completed, grader_errors = log.splitlines()[-2:]
+    assert completed.endswith("EVALUATION COMPLETED — 1/1 records succeeded, 0 failed")
+    assert grader_errors.endswith(
+        "GRADER ERRORS: 1 result errored in 1 record (AC-1-1)"
+    )
 
 
 def test_record_criteria_missing_from_the_snapshot_are_reported(
