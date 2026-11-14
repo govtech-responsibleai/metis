@@ -229,10 +229,9 @@ def test_evaluate_fails_for_a_malformed_trial_record(tmp_path: Path) -> None:
 
     assert result.exit_code != 0
     assert "trial record" in result.output
-    assert (
-        "EVALUATION FAILED — failed to load trial record"
-        in (experiment_dir / "logs" / "evaluate.log").read_text()
-    )
+    assert "EVALUATION FAILED — failed to load trial record" in (
+        experiment_dir / "logs" / "evaluate.log"
+    ).read_text(encoding="utf-8")
 
 
 def test_evaluate_with_no_run_records_is_a_noop(tmp_path: Path) -> None:
@@ -242,10 +241,9 @@ def test_evaluate_with_no_run_records_is_a_noop(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "nothing to evaluate" in result.output
-    assert (
-        "EVALUATION COMPLETED — 0 records"
-        in (experiment_dir / "logs" / "evaluate.log").read_text()
-    )
+    assert "EVALUATION COMPLETED — 0 records" in (
+        experiment_dir / "logs" / "evaluate.log"
+    ).read_text(encoding="utf-8")
 
 
 def _patch_evaluation(monkeypatch, *, traces: int = 1) -> list[dict[str, Any]]:
@@ -297,7 +295,7 @@ def test_evaluation_writes_results_file_and_prints_report_command(
         ["metis", "insights", "report", "--results-file", str(results_file)]
     )
     assert _compact(f"Report: {command}") in _compact(second.output)
-    evaluation_log = (output / "logs" / "evaluate.log").read_text()
+    evaluation_log = (output / "logs" / "evaluate.log").read_text(encoding="utf-8")
     assert evaluation_log.count("EVALUATION STARTED") == 1
     assert "RESULTS WRITTEN" in evaluation_log
 
@@ -338,7 +336,7 @@ def test_evaluation_logs_the_trace_wait_and_warns_about_open_observations(
 
     assert result.exit_code == 0
     assert "never ended, graded as stored: tool (c1)" in _compact_spaces(result.output)
-    log = (output / "logs" / "evaluate.log").read_text()
+    log = (output / "logs" / "evaluate.log").read_text(encoding="utf-8")
     assert (
         "TRACE WAIT: record=alice x task-1 status=settled checks=3 waited=31.0s" in log
     )
@@ -365,10 +363,9 @@ def test_an_evaluation_where_every_trial_fails_writes_empty_results(
     assert "WARNING: RECORD 1/1 alice x task-1 — no traces in Langfuse" in (
         _compact_spaces(result.output)
     )
-    assert (
-        "FAILED — no traces in Langfuse"
-        in (output / "logs" / "evaluate.log").read_text()
-    )
+    assert "FAILED — no traces in Langfuse" in (
+        output / "logs" / "evaluate.log"
+    ).read_text(encoding="utf-8")
     results_file = output.resolve() / "outputs" / "reports" / "results.json"
     assert EvaluationResults.load_file(results_file).records == []
     command = shlex.join(
@@ -470,7 +467,7 @@ def test_evaluation_progress_advances_for_success_and_soft_failure(
         "WARNING: RECORD 2/2 alice x task-1 — Evaluation failed: trace unavailable"
         in capsys.readouterr().out
     )
-    evaluation_log = (output / "logs" / "evaluate.log").read_text()
+    evaluation_log = (output / "logs" / "evaluate.log").read_text(encoding="utf-8")
     assert "alice x task-1 — EXTRACTING" in evaluation_log
     assert "alice x task-1 — EVALUATING" in evaluation_log
     assert "alice x task-1 — DONE" in evaluation_log
@@ -530,7 +527,7 @@ def test_an_unsupported_trace_fails_its_session_and_the_rest_are_graded(
     assert reason in _compact(result.output) or _compact(reason) in _compact(
         result.output
     )
-    evaluation_log = (output / "logs" / "evaluate.log").read_text()
+    evaluation_log = (output / "logs" / "evaluate.log").read_text(encoding="utf-8")
     assert f"FAILED — {reason}" in evaluation_log
 
 
@@ -812,7 +809,7 @@ def test_a_grader_that_raises_does_not_fail_the_record(
     ).records
     assert [r.outcome for r in record.results] == ["errored"]
     assert "boom" in record.results[0].reason
-    log = (output / "logs" / "evaluate.log").read_text()
+    log = (output / "logs" / "evaluate.log").read_text(encoding="utf-8")
     assert '"outcome": "errored"' in log
 
 
@@ -847,8 +844,8 @@ def test_record_criteria_missing_from_the_snapshot_are_reported(
 
     assert result.exit_code == 0, result.output
     assert "AC-GONE" in result.output
-    assert (
-        "UNKNOWN CRITERIA — AC-GONE" in (output / "logs" / "evaluate.log").read_text()
+    assert "UNKNOWN CRITERIA — AC-GONE" in (output / "logs" / "evaluate.log").read_text(
+        encoding="utf-8"
     )
     (graded,) = EvaluationResults.load_file(
         output / "outputs" / "reports" / "results.json"
@@ -914,7 +911,9 @@ def test_failed_trace_write_warns_and_still_grades(monkeypatch, tmp_path: Path) 
 
     assert result.exit_code == 0, result.output
     assert (output / "outputs" / "reports" / "results.json").exists()
-    assert "TRACES NOT SAVED" in (output / "logs" / "evaluate.log").read_text()
+    assert "TRACES NOT SAVED" in (output / "logs" / "evaluate.log").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_unserialisable_payload_does_not_fail_the_record(
@@ -940,7 +939,9 @@ def test_unserialisable_payload_does_not_fail_the_record(
         output / "outputs" / "reports" / "results.json"
     ).records
     assert graded.criterion_id == "AC-1-1"
-    assert "TRACES NOT SAVED" in (output / "logs" / "evaluate.log").read_text()
+    assert "TRACES NOT SAVED" in (output / "logs" / "evaluate.log").read_text(
+        encoding="utf-8"
+    )
 
 
 # --- _evaluate_one: the per-record unit that the evaluation loop calls ---------------------
@@ -981,7 +982,7 @@ def _evaluation_context(tmp_path: Path, fetch: Any) -> tuple[Any, Path]:
 
 def _trial_record(experiment_dir: Path, *, session_id: str | None) -> TrialRecord:
     path = _write_record(experiment_dir, session_id=session_id or "unused")
-    record = TrialRecord.model_validate_json(path.read_text())
+    record = TrialRecord.model_validate_json(path.read_text(encoding="utf-8"))
     return record.model_copy(update={"target_session_id": session_id})
 
 
@@ -1326,7 +1327,7 @@ def test_unknown_criteria_warning_names_its_record(
 ) -> None:
     output = _write_experiment_dir(tmp_path)
     path = _write_record(output)
-    record = TrialRecord.model_validate_json(path.read_text())
+    record = TrialRecord.model_validate_json(path.read_text(encoding="utf-8"))
     extra = GraderRef(criterion_id="AC-9-9", fqn="x.Y", args={})
     config = record.config.model_copy(
         update={"grader_refs": [*record.config.grader_refs, extra]}
@@ -1465,8 +1466,8 @@ async def test_cancellation_stops_every_session_then_closes_the_judge_client(
         "stopped session-2",
     ]
     assert not stale.exists()
-    assert "EVALUATION INTERRUPTED" in log.path.read_text()
-    assert "EVALUATION COMPLETED" not in log.path.read_text()
+    assert "EVALUATION INTERRUPTED" in log.path.read_text(encoding="utf-8")
+    assert "EVALUATION COMPLETED" not in log.path.read_text(encoding="utf-8")
 
 
 @pytest.mark.asyncio
@@ -1544,7 +1545,9 @@ def test_an_unexpected_error_in_one_session_is_reported_as_itself(
     assert result.exit_code == 1
     assert "Error: evaluation failed: No space left on device" in result.output
     assert "TaskGroup" not in result.output
-    log_lines = (output / "logs" / "evaluate.log").read_text().splitlines()
+    log_lines = (
+        (output / "logs" / "evaluate.log").read_text(encoding="utf-8").splitlines()
+    )
     assert log_lines[-1].endswith("EVALUATION FAILED — No space left on device")
     assert not (output / "outputs" / "reports" / "results.json").exists()
 
@@ -1559,7 +1562,9 @@ def test_the_log_records_the_concurrency_the_run_used(
 
     _evaluate_directly(output, concurrency=concurrency)
 
-    first_line = (output / "logs" / "evaluate.log").read_text().splitlines()[0]
+    first_line = (
+        (output / "logs" / "evaluate.log").read_text(encoding="utf-8").splitlines()[0]
+    )
     assert first_line.endswith(
         f"EVALUATION STARTED — {output} (concurrency {concurrency})"
     )
@@ -1719,7 +1724,7 @@ def test_a_fresh_evaluation_clears_old_outputs_before_its_first_trial(
 
     assert result.exit_code == 0, result.output
     assert present_at_first_fetch == [[False, False, False]]
-    assert events.read_text().startswith(earlier)
+    assert events.read_text(encoding="utf-8").startswith(earlier)
 
 
 @pytest.mark.parametrize("setup_error", ["no judge key", "unknown grader"])
@@ -1747,7 +1752,7 @@ def test_a_setup_error_leaves_the_previous_evaluation_in_place(
     result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
 
     assert result.exit_code == 1
-    assert {path: path.read_text() for path in previous} == previous
+    assert {path: path.read_text(encoding="utf-8") for path in previous} == previous
 
 
 def test_a_failed_trial_file_write_fails_the_evaluation(

@@ -433,7 +433,7 @@ def test_resume_says_how_many_trials_are_already_evaluated(
 
     assert result.exit_code == 0, result.output
     assert "resuming: 1 of 3 trials already evaluated" in _one_line(result.output)
-    log = (output / "logs" / "evaluate.log").read_text()
+    log = (output / "logs" / "evaluate.log").read_text(encoding="utf-8")
     assert "resuming: 1 of 3 trials already evaluated" in log
 
 
@@ -445,13 +445,13 @@ def test_resume_appends_to_the_evaluation_log(monkeypatch, tmp_path: Path) -> No
         runner.invoke(app, ["evaluate", "--experiment-dir", str(output)]).exit_code == 0
     )
     log_path = output / "logs" / "evaluate.log"
-    first_run = log_path.read_text()
+    first_run = log_path.read_text(encoding="utf-8")
     (output / "outputs" / "reports" / "results.json").unlink()
 
     result = _resume(output)
 
     assert result.exit_code == 0, result.output
-    log = log_path.read_text()
+    log = log_path.read_text(encoding="utf-8")
     assert log.startswith(first_run)
     assert log.count("EVALUATION STARTED") == 2
 
@@ -469,7 +469,9 @@ def test_resume_reports_the_attempted_trials_in_the_started_event(
     assert result.exit_code == 0, result.output
     lines = [
         json.loads(line)
-        for line in (output / "logs" / "events.jsonl").read_text().splitlines()
+        for line in (output / "logs" / "events.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
     ]
     started = [
         line
@@ -524,7 +526,7 @@ async def test_the_interrupt_message_names_the_resume_command(
     out = _one_line(capsys.readouterr().out)
     assert "Interrupted. 0 of 3 trials are saved." in out
     assert f"To continue, run: {cli._resume_command(output.resolve(), command)}" in out
-    assert "EVALUATION INTERRUPTED" in log.path.read_text()
+    assert "EVALUATION INTERRUPTED" in log.path.read_text(encoding="utf-8")
     assert not (output / "outputs" / "reports" / "results.json").exists()
 
 

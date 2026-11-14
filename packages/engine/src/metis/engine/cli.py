@@ -49,7 +49,7 @@ if TYPE_CHECKING:
 
     from metis.core.model_settings import ModelRole
     from metis.core.profile import Criterion
-    from metis.core.reporting import GraderRecord
+    from metis.core.reporting import EvaluationResults, GraderRecord
     from metis.core.traces import Trace
     from metis.core.trials import TrialRecord
     from metis.engine.evaluation.trial_files import TrialEvaluation
@@ -1149,12 +1149,62 @@ def _save_session_traces(
         evaluation_log.write(f"TRACES NOT SAVED — session={session_id} — {exc}")
 
 
+def _failed_only_trial_names(
+    trial_records: list[tuple[str, TrialRecord]],
+    previous: EvaluationResults | None,
+    specification: Specification,
+) -> set[str]:
+    """Return trial folders whose grader results are incomplete or errored."""
+    if previous is None:
+        return {name for name, _ in trial_records}
+    known_criteria = {
+        criterion.id
+        for behaviour in specification.behaviours()
+        for criterion in behaviour.criteria
+    }
+    expected: dict[tuple[str, str, str, int], set[str]] = {}
+    names: dict[tuple[str, str, str, int], str] = {}
+    for name, record in trial_records:
+        if not record.target_session_id:
+            continue
+        key = (
+            record.target_session_id,
+            record.config.scenario,
+            record.config.task_id,
+            record.config.trial_index,
+        )
+        names[key] = name
+        expected[key] = {
+            ref.criterion_id
+            for ref in record.config.grader_refs
+            if ref.criterion_id in known_criteria
+        }
+    completed: dict[tuple[str, str, str, int], set[str]] = {}
+    for record in previous.records:
+        key = (
+            record.session_id,
+            record.scenario_id,
+            record.task_id,
+            record.trial_index,
+        )
+        if key in expected and not any(
+            result.outcome == "errored" for result in record.results
+        ):
+            completed.setdefault(key, set()).add(record.criterion_id)
+    return {
+        names[key]
+        for key, criteria in expected.items()
+        if not criteria or not criteria <= completed.get(key, set())
+    }
+
+
 def _run_evaluation(
     experiment_dir: Path,
     *,
     trace_wait: TraceWaitSettings,
     verbose: int,
     quiet: bool,
+    failed_only: bool = False,
     concurrency: int = 1,
     command: Literal["evaluate", "run"] = "evaluate",
     resume: bool = False,
@@ -1168,8 +1218,9 @@ def _run_evaluation(
     tracing_key()
     log_level = _resolve_log_level(verbose, quiet)
     _configure_process_logging(log_level)
+    effective_resume = resume or failed_only
     evaluation_log = EvaluationLogger(
-        experiment_dir / execution_layout.LOGS, reset=not resume
+        experiment_dir / execution_layout.LOGS, reset=not effective_resume
     )
     evaluation_log.write(
         f"EVALUATION STARTED — {experiment_dir} (concurrency {concurrency})"
@@ -1193,6 +1244,34 @@ def _run_evaluation(
         console.print(f"Error: failed to load trial record: {exc}", style="bold red")
         raise EvaluationInputError("failed to load trial record") from exc
 
+    if failed_only:
+        from metis.core.reporting import EvaluationResults
+        from metis.engine.evaluation.trial_files import load_trial_evaluations
+
+        results_path = experiment_dir / execution_layout.RESULTS
+        previous = None
+        if results_path.is_file():
+            previous = EvaluationResults.load_file(results_path)
+        failed_names = _failed_only_trial_names(trial_records, previous, specification)
+        for name, record in trial_records:
+            if name not in failed_names:
+                continue
+            shutil.rmtree(
+                experiment_dir / execution_layout.EVALUATION / name,
+                ignore_errors=True,
+            )
+            if record.target_session_id:
+                (
+                    experiment_dir
+                    / execution_layout.TRACES
+                    / execution_layout.trace_file_name(record.target_session_id)
+                ).unlink(missing_ok=True)
+        if not failed_names:
+            saved = load_trial_evaluations(
+                experiment_dir, [name for name, _ in trial_records]
+            )
+            return _evaluation_outcome(list(saved.values()), results_path)
+
     console.print(f"  Loaded {len(trial_records)} trial record(s)")
     evaluation_log.write(f"LOADED {len(trial_records)} trial record(s)")
     events = PhaseEventLog.for_experiment_dir(experiment_dir)
@@ -1207,7 +1286,7 @@ def _run_evaluation(
             env_file=env_file,
             events=events,
             command=command,
-            resume=resume,
+            resume=effective_resume,
         )
     )
 
@@ -1738,6 +1817,7 @@ def _run_evaluation_command(
     trace_wait: TraceWaitSettings,
     verbose: int,
     quiet: bool,
+    failed_only: bool = False,
     concurrency: int = 1,
     command: Literal["evaluate", "run"] = "evaluate",
     resume: bool = False,
@@ -1756,7 +1836,7 @@ def _run_evaluation_command(
 
     trials = [path.parent.name for path in _trial_record_files(experiment_dir)]
     results_path = experiment_dir / execution_layout.RESULTS
-    if resume and _evaluation_is_complete(experiment_dir):
+    if resume and not failed_only and _evaluation_is_complete(experiment_dir):
         console.print("nothing to resume")
         saved = load_trial_evaluations(experiment_dir, trials)
         if command == "run":
@@ -1769,15 +1849,27 @@ def _run_evaluation_command(
     done = len(load_trial_evaluations(experiment_dir, trials)) if resume else 0
     events.emit("evaluating", "started", total=len(trials), done=done)
     try:
-        outcome = _run_evaluation(
-            experiment_dir,
-            trace_wait=trace_wait,
-            verbose=verbose,
-            quiet=quiet,
-            concurrency=concurrency,
-            command=command,
-            resume=resume,
-        )
+        if failed_only:
+            outcome = _run_evaluation(
+                experiment_dir,
+                trace_wait=trace_wait,
+                verbose=verbose,
+                quiet=quiet,
+                failed_only=True,
+                concurrency=concurrency,
+                command=command,
+                resume=resume,
+            )
+        else:
+            outcome = _run_evaluation(
+                experiment_dir,
+                trace_wait=trace_wait,
+                verbose=verbose,
+                quiet=quiet,
+                concurrency=concurrency,
+                command=command,
+                resume=resume,
+            )
     except EvaluationInputError as exc:
         EvaluationLogger(experiment_dir / execution_layout.LOGS, reset=False).write(
             f"EVALUATION FAILED — {exc}"
@@ -1876,6 +1968,11 @@ def evaluate(
     quiet: bool = typer.Option(
         False, "--quiet", help="Suppress output below ERROR level"
     ),
+    failed_only: bool = typer.Option(
+        False,
+        "--failed-only",
+        help="Retry trial records without completed grader results",
+    ),
     concurrency: int = typer.Option(
         1, "--concurrency", "-c", min=1, help="Max concurrent sessions"
     ),
@@ -1892,13 +1989,16 @@ def evaluate(
         raise typer.Exit(code=1) from None
     console.print(f"Selected experiment: {resolved_experiment_dir}")
     # A resume of a finished evaluation says "nothing to resume", which already covers it.
-    nothing_to_resume = resume and _evaluation_is_complete(resolved_experiment_dir)
+    nothing_to_resume = (
+        resume and not failed_only and _evaluation_is_complete(resolved_experiment_dir)
+    )
     trace_wait = _trace_wait_settings(langfuse_timeout)
     outcome = _run_evaluation_command(
         resolved_experiment_dir,
         trace_wait=trace_wait,
         verbose=verbose,
         quiet=quiet,
+        failed_only=failed_only,
         concurrency=concurrency,
         command="evaluate",
         resume=resume,

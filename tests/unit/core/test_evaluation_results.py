@@ -6,6 +6,7 @@ load; a missing key takes the default.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -98,6 +99,25 @@ class TestFile:
         assert text.endswith("\n")
         assert "→" in text
         assert EvaluationResults.load_file(path) == original
+
+    def test_failed_replace_preserves_previous_file_and_cleans_temp_file(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "results.json"
+        path.write_text('{"run_id":"previous"}\n', encoding="utf-8")
+
+        def fail_replace(
+            _source: str | os.PathLike[str], _target: str | os.PathLike[str]
+        ) -> None:
+            raise OSError("replace failed")
+
+        monkeypatch.setattr(os, "replace", fail_replace)
+
+        with pytest.raises(OSError, match="replace failed"):
+            _results().save(path)
+
+        assert path.read_text(encoding="utf-8") == '{"run_id":"previous"}\n'
+        assert list(tmp_path.glob(".results.json.*.tmp")) == []
 
     def test_malformed_json_raises_validation_error(self, tmp_path: Path) -> None:
         path = tmp_path / "results.json"
