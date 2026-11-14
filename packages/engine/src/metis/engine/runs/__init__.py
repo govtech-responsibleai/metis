@@ -14,6 +14,7 @@ from metis.engine.runs._inputs import (
     resolve_experiment_dir,
     validate_inputs,
 )
+from metis.engine.runs._simulation import resume_simulation, simulate
 from metis.engine.runs.errors import (
     EvaluationInputError,
     ExperimentExistsError,
@@ -30,5 +31,7 @@ __all__ = [
     "RunStopped",
     "prepare_experiment",
     "resolve_experiment_dir",
+    "resume_simulation",
+    "simulate",
     "validate_inputs",
 ]

@@ -283,13 +283,15 @@ def test_resume_passes_append_true_to_setup_engine_logging(
     monkeypatch.setattr(experiment_module, "execute_experiment", lambda *_a, **_k: None)
 
     captured_append: list[object] = []
-    _real_setup = cli.setup_engine_logging
+    from metis.engine.runs import _simulation
+
+    _real_setup = _simulation.setup_engine_logging
 
     def _capturing_setup(*args: object, **kwargs: object) -> object:
         captured_append.append(kwargs.get("append"))
         return _real_setup(*args, **kwargs)
 
-    monkeypatch.setattr(cli, "setup_engine_logging", _capturing_setup)
+    monkeypatch.setattr(_simulation, "setup_engine_logging", _capturing_setup)
 
     result = runner.invoke(
         app,
