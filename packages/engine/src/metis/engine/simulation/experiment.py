@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Literal, NamedTuple
 import structlog
 
 from metis.core import execution_layout
-from metis.core.console import console
 from metis.core.logging import get_logger
 from metis.core.phase_events import INTERRUPTED_REASON
 from metis.core.trials import TrialConfig, TrialFailure, TrialOutcome, TrialRecord
@@ -31,6 +30,8 @@ from .trial import create_trial, resolve_fixture_descriptions
 
 if TYPE_CHECKING:
     import threading
+
+    from rich.console import Console
 
     from metis.core.phase_events import PhaseEventLog
     from metis.engine.logging import LogRouter, OrchestrationLogger
@@ -120,11 +121,13 @@ def execute_experiment(
     tui_ctx: TUIContext | None = None,
     shutdown_event: threading.Event | None = None,
     events: PhaseEventLog | None = None,
+    console: Console,
 ) -> None:
     """Run a full experiment (all scenario x persona pairs).
 
     Sync entry point — delegates to the async orchestrator via asyncio.run(). With
     ``events``, each trial writes its start, turns, retries and end to the event log.
+    Progress lines and the summary go to ``console``.
     """
     asyncio.run(
         _execute_experiment_async(
@@ -143,6 +146,7 @@ def execute_experiment(
             tui_ctx=tui_ctx,
             shutdown_event=shutdown_event,
             events=events,
+            console=console,
         )
     )
 
@@ -163,8 +167,13 @@ async def _execute_experiment_async(
     tui_ctx: TUIContext | None = None,
     shutdown_event: threading.Event | None = None,
     events: PhaseEventLog | None = None,
+    *,
+    console: Console | None = None,
 ) -> None:
-    """Async experiment orchestrator with concurrent runner contexts."""
+    """Async experiment orchestrator with concurrent runner contexts.
+
+    Without the TUI, it writes the summary to ``console``. With no ``console``, it writes none.
+    """
     total_trials = len(trial_plan)
 
     logger.info("=" * 60)
@@ -232,6 +241,7 @@ async def _execute_experiment_async(
                         tui_ctx=tui_ctx,
                         shutdown_event=shutdown_event,
                         events=events,
+                        console=console,
                     )
                 )
 
@@ -248,6 +258,8 @@ async def _execute_experiment_async(
         await runner_factory.close()
 
     # Print summary (only in non-TUI mode; TUI mode prints via CLI after exiting)
+    if console is None:
+        return
     if not tui_ctx:
         console.print("\n\n========== SIMULATION SUMMARY ==========\n")
         for r in all_records:
@@ -286,8 +298,12 @@ async def _worker(
     runner_agent_model: str | None = None,
     experiment_id: str | None = None,
     events: PhaseEventLog | None = None,
+    console: Console | None = None,
 ) -> list[TrialRecord]:
     """One concurrent worker: creates a fresh runner per trial for isolation.
+
+    Without the TUI, each trial writes a start line and an end line to ``console``. With no
+    ``console``, the worker writes none.
 
     Each trial's ``TrialConfig`` records the models that produce it: the user agent model
     (Task, then experiment default, then environment, then ``DEFAULT_MODEL``) and, for a
@@ -371,7 +387,7 @@ async def _worker(
             async with console_lock:
                 if tui_ctx:
                     tui_ctx.refresh()
-                else:
+                elif console is not None:
                     console.print(f"  [w{worker_id}] {scenario.id} × {persona.id} ...")
 
             run_start = time.time()
@@ -675,7 +691,7 @@ async def _worker(
                     reason=trial_end_reason(record),
                 )
 
-            if not tui_ctx:
+            if not tui_ctx and console is not None:
                 async with console_lock:
                     console.print(
                         f"  [w{worker_id}] {scenario.id} × {persona.id} — "

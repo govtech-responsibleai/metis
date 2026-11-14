@@ -9,8 +9,8 @@ from pydantic import ValidationError
 
 from metis.core.traces import GradingInput, Observation, Trace
 from metis.core.trials import TrialConfig, TrialOutcome, TrialRecord
-from metis.engine.cli import _classify_resume_trials
 from metis.engine.evaluation import SessionFacts, build_grader, grade_session
+from metis.engine.runs._simulation import _classify_resume_trials
 from metis.engine.simulation.experiment import expand_trial_plan, trial_folder_name
 from metis.engine.simulation.types import Specification
 from metis.library.grader import LLMSettings
