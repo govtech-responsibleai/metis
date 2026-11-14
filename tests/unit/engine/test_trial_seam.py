@@ -75,7 +75,7 @@ def _trial_kwargs(
         "trial_index": 1,
         "state": None,
         "tui_ctx": None,
-        "shutdown_event": None,
+        "stop": None,
     }
 
 
@@ -140,7 +140,7 @@ def test_create_trial_builds_the_user_agent_and_the_orchestrator(
         "trial_index",
         "state",
         "tui_ctx",
-        "shutdown_event",
+        "stop",
         "events",
         "attempt",
     }
