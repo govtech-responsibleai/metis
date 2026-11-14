@@ -238,3 +238,63 @@ def test_simulate_writes_only_to_the_console_it_was_given(
     assert capsys.readouterr().out == ""
     assert "SIMULATION" in text.getvalue()
     assert "completed in" in text.getvalue()
+
+
+def test_a_stop_before_the_trials_start_changes_nothing(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from tests.unit.engine.test_cli_simulate import _write_evaluation_outputs
+
+    experiment_dir = _experiment(tmp_path, TWO_TRIAL_EXPERIMENT)
+    _write_record(experiment_dir, "TC-001-alice-1", "goal_achieved")
+    _write_record(experiment_dir, "TC-001-alice-2", "interrupted")
+    evaluation_outputs = _write_evaluation_outputs(experiment_dir)
+    plans = _fake_trials(monkeypatch)
+    stop = threading.Event()
+    stop.set()
+    console, text = _console()
+
+    with pytest.raises(RunStopped):
+        resume_simulation(experiment_dir, concurrency=1, stop=stop, console=console)
+
+    assert plans == []
+    assert all(path.exists() for path in evaluation_outputs)
+    assert "SIMULATION" not in text.getvalue()
+    assert _events(experiment_dir)[-1] == ("simulating", "interrupted")
+
+
+def test_the_trial_lines_and_the_summary_go_to_the_console_it_was_given(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    from metis.core.trials import TrialConfig, TrialOutcome, TrialRecord
+
+    experiment_dir = _experiment(tmp_path)
+
+    async def fake_worker(**kwargs: object) -> list[TrialRecord]:
+        console = kwargs["console"]
+        assert isinstance(console, Console)
+        console.print("  [w0] worker line")
+        _write_record(experiment_dir, "TC-001-alice-1")
+        return [
+            TrialRecord(
+                config=TrialConfig(persona="alice", scenario="task-1"),
+                outcome=TrialOutcome(
+                    stop_reason="goal_achieved",
+                    simulated_turns_completed=1,
+                    duration_seconds=1.0,
+                ),
+            )
+        ]
+
+    monkeypatch.setattr(experiment_module, "_worker", fake_worker)
+    console, text = _console()
+
+    simulate(experiment_dir, concurrency=1, stop=threading.Event(), console=console)
+
+    # structlog's defaults print log lines to stdout, so the check is on the console text
+    stdout = capsys.readouterr().out
+    assert "worker line" not in stdout
+    assert "SIMULATION SUMMARY" not in stdout
+    assert "worker line" in text.getvalue()
+    assert "SIMULATION SUMMARY" in text.getvalue()
+    assert "Goals achieved: 1/1" in text.getvalue()
