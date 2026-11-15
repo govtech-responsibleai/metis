@@ -3,7 +3,11 @@ import { test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Router } from "wouter";
 import { ComparePage } from "./ExperimentPages";
-import { LoginPage, LoginSessionProvider } from "./LoginGate";
+import {
+  LoginPage,
+  LoginSessionProvider,
+  startsAtFirstPage,
+} from "./LoginGate";
 import { at, control, tab, text } from "./markup.test-helper";
 import { ProfileToolbar } from "./ProfileToolbar";
 import { ExperimentsTab, TargetTabs } from "./TargetPage";
@@ -84,6 +88,12 @@ test("the login page asks for a username and a password", () => {
   assert.match(inputs[1] ?? "", /autoComplete="current-password"/);
   assert.match(markup, /<button[^>]*type="submit"[^>]*>Log in<\/button>/);
   assert.doesNotMatch(markup, /role="alert"/);
+});
+
+test("a login of a different user account starts at the first page", () => {
+  assert.equal(startsAtFirstPage("alice", "bob"), true);
+  assert.equal(startsAtFirstPage("alice", "alice"), false);
+  assert.equal(startsAtFirstPage(null, "alice"), false);
 });
 
 test("the login page shows why a login failed", () => {

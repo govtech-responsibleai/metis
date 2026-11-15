@@ -7,10 +7,12 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
 } from "react";
+import { navigate } from "wouter/use-browser-location";
 import { Field, TextInput } from "./fields";
 import {
   auth,
@@ -40,8 +42,23 @@ type Gate =
   | { kind: "login" }
   | { kind: "open"; user: UserAccount | null };
 
+// The page address can name a Target of the user account that had the last login session. A
+// different user account does not have that Target, so its login starts at the first page.
+export function startsAtFirstPage(
+  lastUserId: string | null,
+  userId: string,
+): boolean {
+  return lastUserId !== null && lastUserId !== userId;
+}
+
+const toFirstPage = () => navigate("/", { replace: true });
+
 export function LoginGate({ children }: { children: ReactNode }) {
   const [gate, setGate] = useState<Gate>({ kind: "loading" });
+  const lastUserId = useRef<string | null>(null);
+  useEffect(() => {
+    if (gate.kind === "open" && gate.user) lastUserId.current = gate.user.id;
+  }, [gate]);
 
   const check = useCallback(() => {
     setGate({ kind: "loading" });
@@ -67,18 +84,27 @@ export function LoginGate({ children }: { children: ReactNode }) {
   // A request of the app can find that the login session ended. Then the login page comes back.
   useEffect(() => onLoginRequired(() => setGate({ kind: "login" })), []);
 
+  // After a logout, the address does not keep the page of the user account that left.
   const logout = useCallback(() => {
-    auth.logout().then(
-      () => setGate({ kind: "login" }),
-      () => setGate({ kind: "login" }),
-    );
+    const leave = () => {
+      toFirstPage();
+      setGate({ kind: "login" });
+    };
+    auth.logout().then(leave, leave);
   }, []);
 
   if (gate.kind === "loading") return null;
   if (gate.kind === "unreachable")
     return <Unreachable message={gate.message} onRetry={check} />;
   if (gate.kind === "login")
-    return <LoginPage onLogin={(user) => setGate({ kind: "open", user })} />;
+    return (
+      <LoginPage
+        onLogin={(user) => {
+          if (startsAtFirstPage(lastUserId.current, user.id)) toFirstPage();
+          setGate({ kind: "open", user });
+        }}
+      />
+    );
   return (
     <LoginSessionProvider
       value={gate.user ? { user: gate.user, logout } : null}
