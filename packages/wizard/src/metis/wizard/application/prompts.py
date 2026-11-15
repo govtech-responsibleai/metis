@@ -34,6 +34,7 @@ from metis.wizard.domain.permissions import InterviewStep, PatchReason
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from metis.wizard.application.patch_review import PatchProblem
     from metis.wizard.contracts.grader_spec import GraderSpec
     from metis.wizard.contracts.interview_state import InterviewMessage
     from metis.wizard.domain.specification import Specification
@@ -75,6 +76,8 @@ _MODEL_CALL_PLACEHOLDERS: dict[str, frozenset[str]] = {
     "chat": frozenset({"specification", "step", "text", "scope"}),
 }
 _MATCH_GRADERS_PLACEHOLDERS = frozenset({"grader_library", "criteria"})
+_FEEDBACK_PROBLEM_PLACEHOLDERS = frozenset({"op", "path", "reason", "detail"})
+_FEEDBACK_FRAME_PLACEHOLDERS = frozenset({"problems"})
 _SYSTEM_PLACEHOLDERS = frozenset(
     {
         "patch_rules",
@@ -140,6 +143,8 @@ class PromptCatalog:
     match_graders_system: str
     match_graders_user: str
     patch_reasons: Mapping[str, str]
+    feedback_problem: str
+    feedback_frame: str
 
 
 def _error(key: str, detail: str) -> PromptCatalogError:
@@ -224,6 +229,16 @@ def load_prompt_catalog() -> PromptCatalog:
         for reason in PatchReason
     }
 
+    feedback = _mapping(_required(document, "model_feedback"), "model_feedback")
+    feedback_problem = _text(feedback, "model_feedback.problem")
+    _validate_template(
+        feedback_problem, "model_feedback.problem", _FEEDBACK_PROBLEM_PLACEHOLDERS
+    )
+    feedback_frame = _text(feedback, "model_feedback.frame")
+    _validate_template(
+        feedback_frame, "model_feedback.frame", _FEEDBACK_FRAME_PLACEHOLDERS
+    )
+
     return PromptCatalog(
         system_template=system_template,
         patch_rules=patch_rules,
@@ -231,6 +246,8 @@ def load_prompt_catalog() -> PromptCatalog:
         match_graders_system=match_system,
         match_graders_user=match_user,
         patch_reasons=patch_reasons,
+        feedback_problem=feedback_problem,
+        feedback_frame=feedback_frame,
     )
 
 
@@ -518,6 +535,31 @@ def patch_reason(reason: PatchReason) -> str:
     return load_prompt_catalog().patch_reasons[reason.value]
 
 
+def model_feedback(problems: Iterable[PatchProblem]) -> str:
+    """The correction for a model result whose patches the review did not all accept.
+
+    The frame is generic. Each problem adds one line with its operation, path, reason sentence
+    and detail.
+    """
+    catalog = load_prompt_catalog()
+    lines = [
+        _substitute(
+            catalog.feedback_problem,
+            "model_feedback.problem",
+            {
+                "op": problem.op.value,
+                "path": problem.path,
+                "reason": catalog.patch_reasons[problem.reason.value],
+                "detail": problem.detail,
+            },
+        ).strip()
+        for problem in problems
+    ]
+    return _substitute(
+        catalog.feedback_frame, "model_feedback.frame", {"problems": "\n".join(lines)}
+    )
+
+
 def match_graders(specs: Iterable[GraderSpec], criteria: str) -> ModelPrompt:
     """Ask which of ``specs`` fits each Criterion. ``criteria`` is the Criteria as JSON."""
     catalog = load_prompt_catalog()
@@ -554,6 +596,7 @@ __all__ = [
     "criteria",
     "load_prompt_catalog",
     "match_graders",
+    "model_feedback",
     "patch_reason",
     "personas",
     "primer",

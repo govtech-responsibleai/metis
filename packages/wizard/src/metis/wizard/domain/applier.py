@@ -25,7 +25,6 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError
 
 from metis.wizard.domain import materializer, paths
-from metis.wizard.domain.nodes import duplicate_test_cases
 from metis.wizard.domain.patch import Patch, PatchOp, PatchOrigin
 from metis.wizard.domain.permissions import PatchReason, refusal
 from metis.wizard.domain.specification import (
@@ -324,101 +323,3 @@ def sanitise(patches: Sequence[Any]) -> list[Patch]:
         else Patch(op=p.op, path=p.path, value=p.value, origin=PatchOrigin.MODEL)
         for p in patches
     ]
-
-
-def validate_model_patches(
-    specification: Specification,
-    patches: Sequence[Any],
-    *,
-    allowed_fixture_names: set[str] | None = None,
-) -> None:
-    """Validate model patch values without touching the real specification.
-
-    `Patch.value` is necessarily `Any`: its shape depends on the path. Structured output
-    therefore validates only the patch envelope. Applying to a deep copy closes that gap and
-    lets the gateway feed a domain validation error back through its normal retry loop.
-
-    Policy and path rejections remain the applier's concern. They describe something the
-    wizard refuses or cannot locate, not malformed structured output.
-    """
-    candidate = specification.model_copy(deep=True)
-    issued_ids = collect_specification_ids(candidate)
-    user_typed: set[str] = set()
-    previous_persona_counts = _persona_description_counts(specification)
-
-    for patch in sanitise(patches):
-        if check(patch) is not None:
-            continue
-        try:
-            apply_one(
-                candidate,
-                patch,
-                issued_ids=issued_ids,
-                user_typed=user_typed,
-                allowed_fixture_names=allowed_fixture_names,
-            )
-            # Assignment itself is not validated on Pydantic models. Rebuilding after every
-            # patch catches scalar SETs and list-shaped values as well as nested model errors.
-            candidate = Specification.model_validate(
-                candidate.model_dump(mode="python", warnings=False)
-            )
-        except paths.PathError:
-            continue
-        except (ValidationError, TypeError, AttributeError, ValueError) as exc:
-            raise PatchValueError(
-                f"The patch at {patch.path!r} has a value that does not fit there:\n{exc}"
-            ) from exc
-
-    # A model should update or remove an existing persona, not append the same prose under
-    # another id. Check after the whole patch set so a legitimate add-then-remove replacement
-    # is judged in its final state rather than halfway through.
-    duplicate = next(
-        (
-            (description, ids)
-            for description, ids in _persona_descriptions(candidate).items()
-            if len(ids) > max(1, previous_persona_counts.get(description, 0))
-        ),
-        None,
-    )
-    if duplicate:
-        _, ids = duplicate
-        raise PatchValueError(
-            "The proposed patches duplicate one persona description under "
-            f"{', '.join(ids)}. Update or remove the existing persona instead of adding "
-            "the same content again."
-        )
-
-    # A Test Case is unique by its Persona and Scenario pair. The check reads the whole
-    # candidate, so a model cannot pair the same two items twice under two Test Cases.
-    repeats = [
-        repeat
-        for repeat in duplicate_test_cases(candidate)
-        if repeat not in duplicate_test_cases(specification)
-    ]
-    if repeats:
-        later, earlier = repeats[0]
-        raise PatchValueError(
-            f"The proposed patches give {later} the same Persona and Scenario as {earlier}. "
-            "Each Test Case needs its own Persona and Scenario pair. Change the pair, or "
-            "update the existing Test Case."
-        )
-
-
-def _normalise_prose(value: str) -> str:
-    return " ".join(value.split()).casefold()
-
-
-def _persona_descriptions(specification: Specification) -> dict[str, list[str]]:
-    descriptions: dict[str, list[str]] = {}
-    for persona in specification.personas:
-        descriptions.setdefault(_normalise_prose(persona.description), []).append(
-            persona.id
-        )
-    return descriptions
-
-
-def _persona_description_counts(specification: Specification) -> dict[str, int]:
-    return {
-        description: len(ids)
-        for description, ids in _persona_descriptions(specification).items()
-    }

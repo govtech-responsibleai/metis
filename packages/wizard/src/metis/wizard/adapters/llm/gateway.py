@@ -20,12 +20,12 @@ Every call asks for structured output and retries twice on a validation failure,
 error back each time. Three attempts total, silent unless all three fail: a first-attempt
 schema miss is common and recoverable, and asking the user about it makes them the retry loop.
 
-Recovery is silent in a second sense: a retried turn's `message` — the intro the user reads —
-tends to narrate the correction itself ("I've corrected the criteria format"), which is
-implementation detail no user should see. So `_step` drops the intro whenever a retry was
-needed and lets the driver fall back to its neutral per-step default. The patches, which are
-the actual output, are kept regardless. The model cannot leak its own recovery because that
-text never leaves the gateway — a code guarantee, not a prompt instruction.
+A call that returns patches also goes through the patch review (`application.patch_review`),
+the same function that the driver uses for the real apply. When the review does not accept
+every patch, the model gets one correction that names each problem and its reason, and returns a
+new reply and new patches. The last attempt is returned as it is, and the result records the
+reasons of every problem that any attempt had. The driver uses them to tell the user what did
+not change.
 """
 
 from __future__ import annotations
@@ -58,6 +58,7 @@ from metis.wizard.application.interviewer import (
     InterviewerOutputError,
     InterviewerUnavailable,
 )
+from metis.wizard.application.patch_review import PatchScope, review_patches
 from metis.wizard.application.readiness import missing_criteria_paths
 from metis.wizard.contracts.output import (
     ClarifyResult,
@@ -65,17 +66,19 @@ from metis.wizard.contracts.output import (
     GraderChoices,
     StepResult,
 )
-from metis.wizard.domain.applier import PatchValueError, validate_model_patches
+from metis.wizard.domain.applier import PatchValueError
 from metis.wizard.domain.patch import PatchOp
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
     from pathlib import Path
 
+    from metis.wizard.application.patch_review import PatchProblem
     from metis.wizard.contracts.interview_state import (
         InterviewContext,
         InterviewMessage,
     )
+    from metis.wizard.domain.permissions import PatchReason
     from metis.wizard.domain.specification import Criterion, Specification
 
 ATTEMPTS = 3
@@ -83,6 +86,7 @@ ATTEMPTS = 3
 _TRACING_OFF_KEY = "metis-internal-tracing-off"
 
 T = TypeVar("T", bound=BaseModel)
+R = TypeVar("R", bound=StepResult)
 
 
 def _strict_schema(node: Any) -> Any:
@@ -249,15 +253,19 @@ class GatewayInterviewer:
         prompt: prompts.ModelPrompt,
         schema: type[T],
         validate: Callable[[T], None] | None = None,
+        review: Callable[[T], list[PatchProblem]] | None = None,
     ) -> tuple[T, bool]:
         """Ask once, validate, and retry twice with the error fed back.
 
         Silent unless all three fail. The caller then raises a RUNTIME warning and redraws
         the previous screen, so nothing already decided is lost.
 
-        Returns the result and whether a retry was needed — a first-attempt success is `False`,
-        anything that took a correction is `True`. `_step` uses the flag to decide whether the
-        model's intro can be trusted in front of the user.
+        `review` returns the problems that the patch review found in a valid result. A result
+        with problems gets one more attempt with the problems fed back, and the last attempt is
+        returned with its problems.
+
+        Returns the result and whether a retry was needed: a first-attempt success is `False`,
+        anything that took a correction is `True`.
 
         The observation opens the trace; each attempt's `create` call nests under it as a
         generation. The trace is named by the interview step and, where known, carries the
@@ -271,7 +279,7 @@ class GatewayInterviewer:
             # `session_id=` is the Langfuse SDK's trace-grouping parameter. It stays empty when
             # a stateless caller has no Interview ID; the call is still traced.
             tracer.update_current_trace(name=prompt.name, session_id=self.interview_id)
-            result, recovered = self._attempts(prompt, schema, validate)
+            result, recovered = self._attempts(prompt, schema, validate, review)
             observation.update(output=result.model_dump(mode="json"))
             return result, recovered
 
@@ -280,6 +288,7 @@ class GatewayInterviewer:
         prompt: prompts.ModelPrompt,
         schema: type[T],
         validate: Callable[[T], None] | None,
+        review: Callable[[T], list[PatchProblem]] | None,
     ) -> tuple[T, bool]:
         messages = [
             {"role": "system", "content": prompt.system},
@@ -339,25 +348,49 @@ class GatewayInterviewer:
                     validate(result)
             except (ValidationError, PatchValueError, json.JSONDecodeError) as exc:
                 last_error = exc
-                if attempt < ATTEMPTS - 1:
-                    # Feed the failure back rather than re-asking blind.
-                    messages += [
-                        {"role": "assistant", "content": text},
-                        {
-                            "role": "user",
-                            "content": (
-                                "That didn't validate against the schema:\n"
-                                f"{exc}\n\nReturn corrected JSON only."
-                            ),
-                        },
-                    ]
+                correction = (
+                    "That didn't validate against the schema:\n"
+                    f"{exc}\n\nReturn corrected JSON only."
+                )
             else:
-                return result, attempt > 0
+                problems = review(result) if review is not None else []
+                if not problems or attempt == ATTEMPTS - 1:
+                    return result, attempt > 0
+                correction = prompts.model_feedback(problems)
+            if attempt < ATTEMPTS - 1:
+                # Feed the failure back, so the next attempt is not a blind one.
+                messages += [
+                    {"role": "assistant", "content": text},
+                    {"role": "user", "content": correction},
+                ]
 
         raise ModelOutputError(
             f"The model returned output I couldn't read, {ATTEMPTS} times running. "
             f"Last error: {last_error}"
         )
+
+    def _reviewed(
+        self,
+        prompt: prompts.ModelPrompt,
+        schema: type[R],
+        specification: Specification,
+        context: InterviewContext | None,
+        scope: PatchScope | None,
+        validate: Callable[[R], None] | None = None,
+    ) -> R:
+        """Ask for a result with patches, and review them as the driver will apply them."""
+        scope = scope or PatchScope(
+            fixture_names=frozenset(context.document_names if context else [])
+        )
+        seen: set[PatchReason] = set()
+
+        def review(candidate: R) -> list[PatchProblem]:
+            problems = review_patches(specification, candidate.patches, scope).problems
+            seen.update(problem.reason for problem in problems)
+            return problems
+
+        result, _ = self._ask(prompt, schema, validate=validate, review=review)
+        return result.with_problem_reasons(seen)
 
     def _step(
         self,
@@ -365,14 +398,10 @@ class GatewayInterviewer:
         specification: Specification,
         context: InterviewContext | None = None,
         *,
+        scope: PatchScope | None = None,
         required_additions: frozenset[str] = frozenset(),
     ) -> StepResult:
         def validate(candidate: StepResult) -> None:
-            validate_model_patches(
-                specification,
-                candidate.patches,
-                allowed_fixture_names=set(context.document_names if context else []),
-            )
             missing = required_additions - {
                 patch.path for patch in candidate.patches if patch.op is PatchOp.ADD
             }
@@ -384,13 +413,9 @@ class GatewayInterviewer:
                     + ". Use IDs from the current Specification, not IDs in source documents."
                 )
 
-        result, recovered = self._ask(prompt, StepResult, validate=validate)
-        # A recovered turn's intro tends to narrate the correction it just made — detail the
-        # user should never see. Drop it and let the driver fall back to its neutral per-step
-        # default; the patches, which are the real output, are kept either way.
-        if recovered:
-            result.message = ""
-        return result
+        return self._reviewed(
+            prompt, StepResult, specification, context, scope, validate=validate
+        )
 
     # ── the interview ──────────────────────────────────────────────────────
 
@@ -504,39 +529,44 @@ class GatewayInterviewer:
         specification: Specification,
         history: list[InterviewMessage],
         context: InterviewContext | None = None,
+        *,
+        scope: PatchScope | None = None,
     ) -> ClarifyResult:
-        result, _ = self._ask(
+        return self._reviewed(
             prompts.clarify(specification, history, context),
             ClarifyResult,
-            validate=lambda candidate: validate_model_patches(
-                specification,
-                candidate.patches,
-                allowed_fixture_names=set(
-                    context.document_names if context is not None else []
-                ),
-            ),
+            specification,
+            context,
+            scope,
         )
-        return result
 
     def draft_behaviours(
         self,
         specification: Specification,
         history: list[InterviewMessage],
         context: InterviewContext | None = None,
+        *,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         return self._step(
-            prompts.behaviours(specification, history, context), specification, context
+            prompts.behaviours(specification, history, context),
+            specification,
+            context,
+            scope=scope,
         )
 
     def draft_criteria(
         self,
         specification: Specification,
         context: InterviewContext | None = None,
+        *,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         return self._step(
             prompts.criteria(specification, context),
             specification,
             context,
+            scope=scope,
             required_additions=missing_criteria_paths(specification),
         )
 
@@ -544,27 +574,42 @@ class GatewayInterviewer:
         self,
         specification: Specification,
         context: InterviewContext | None = None,
+        *,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         return self._step(
-            prompts.personas(specification, context), specification, context
+            prompts.personas(specification, context),
+            specification,
+            context,
+            scope=scope,
         )
 
     def draft_scenarios(
         self,
         specification: Specification,
         context: InterviewContext | None = None,
+        *,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         return self._step(
-            prompts.scenarios(specification, context), specification, context
+            prompts.scenarios(specification, context),
+            specification,
+            context,
+            scope=scope,
         )
 
     def draft_test_cases(
         self,
         specification: Specification,
         context: InterviewContext | None = None,
+        *,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         return self._step(
-            prompts.test_cases(specification, context), specification, context
+            prompts.test_cases(specification, context),
+            specification,
+            context,
+            scope=scope,
         )
 
     def chat(
@@ -574,11 +619,14 @@ class GatewayInterviewer:
         text: str,
         target: str | None,
         context: InterviewContext | None = None,
+        *,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         return self._step(
             prompts.chat(specification, step, text, target, context),
             specification,
             context,
+            scope=scope,
         )
 
     # ── grader matching ────────────────────────────────────────────────────

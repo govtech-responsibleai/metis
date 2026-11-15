@@ -27,6 +27,7 @@ from metis.wizard.contracts import (
     Target,
 )
 from metis.wizard.contracts.output import GraderChoice, GraderChoices
+from metis.wizard.domain.permissions import PatchReason
 from tests.fixtures.wizard.context import interview_context
 
 
@@ -215,44 +216,63 @@ def test_the_validation_error_is_fed_back() -> None:
     assert retry_messages[3]["content"]
 
 
-def test_a_recovered_step_drops_its_narrated_intro() -> None:
-    """A retried turn tends to narrate the fix ("I've corrected the format"). That intro is
-    implementation detail — it must never reach the user, so the gateway blanks it in code
-    rather than trusting the model not to write it. The patches, the real output, survive."""
-    from metis.wizard.contracts import StepResult
-    from tests.fixtures.wizard.specifications import research_assistant
-
-    bad = "{not json at all"
-    corrected = StepResult(
-        message="I've corrected the criteria format to use proper objects.",
-        patches=[],
-    ).model_dump_json()
-    model, completions = interviewer([bad, corrected])
-
-    result = model._step(simple_prompt("chat"), research_assistant())
-
-    assert (
-        result.message == ""
-    )  # the narration is gone; driver shows its neutral default
-    assert len(completions.calls) == 2
+GRADER_PATH = "features[F-1].behaviours[EB-1].criteria[AC-1-1].grader_fqn"
+NAME_PATH = "features[F-1].behaviours[EB-1].criteria[AC-1-1].name"
 
 
-def test_a_clean_step_keeps_the_model_intro() -> None:
-    """First-attempt output is trusted — the justification the model writes is worth showing."""
-    from metis.wizard.contracts import StepResult
-    from tests.fixtures.wizard.specifications import research_assistant
-
-    clean = StepResult(
-        message="These personas stress citation discipline and scope refusal.",
-        patches=[],
-    ).model_dump_json()
-    model, _ = interviewer([clean])
-
-    result = model._step(simple_prompt("chat"), research_assistant())
-
-    assert (
-        result.message == "These personas stress citation discipline and scope refusal."
+def _reply(message: str, *patches: tuple[str, object]) -> str:
+    return json.dumps(
+        {
+            "message": message,
+            "patches": [
+                {"op": "set", "path": path, "value": value} for path, value in patches
+            ],
+        }
     )
+
+
+@pytest.mark.parametrize(
+    ("replies", "calls", "reasons"),
+    [
+        # A clean first reply is used as it is.
+        ([_reply("Renamed it.", (NAME_PATH, "Cites"))], 1, set()),
+        # A refused patch, then a clean rewrite: the rewrite is returned, and the reason of
+        # the earlier problem stays on the result.
+        (
+            [
+                _reply("Changed the grader.", (GRADER_PATH, "x.Grader")),
+                _reply("Renamed it.", (NAME_PATH, "Cites")),
+            ],
+            2,
+            {"grader"},
+        ),
+        # A refused patch on every attempt: the last result is returned, not an error.
+        (
+            [_reply("Changed the grader.", (GRADER_PATH, "x.Grader"))],
+            ATTEMPTS,
+            {"grader"},
+        ),
+    ],
+    ids=["clean", "rewritten", "every attempt"],
+)
+def test_problems_are_fed_back_and_the_last_result_is_returned(
+    replies, calls, reasons
+) -> None:
+    from tests.fixtures.wizard.specifications import research_assistant
+
+    model, completions = interviewer(replies)
+
+    result = model.chat(research_assistant(), "criteria", "Use a stricter grader", None)
+
+    assert len(completions.calls) == calls
+    assert (
+        result.message == json.loads(replies[min(calls, len(replies)) - 1])["message"]
+    )
+    assert result.problem_reasons == reasons
+    for call in completions.calls[1:]:
+        correction = call["messages"][-1]["content"]
+        assert GRADER_PATH in correction
+        assert prompts.patch_reason(PatchReason.GRADER) in correction
 
 
 def test_three_failures_raise() -> None:

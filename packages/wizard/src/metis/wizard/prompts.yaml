@@ -558,3 +558,14 @@ patch_reasons:
   broken_reference: A Test Case named a Persona, Scenario or Behaviour that does not exist or is not measured.
   duplicate_persona: Two Personas cannot have the same description.
   duplicate_test_case: Two Test Cases cannot use the same Persona and Scenario.
+
+# The correction the model reads when the patch review did not accept every patch. One problem
+# line for each patch, inside the frame.
+model_feedback:
+  problem: "$op $path: $reason $detail"
+  frame: |-
+    The wizard did not accept every patch in your reply. Nothing is applied yet.
+    $problems
+    Return the full JSON again. Leave out each patch that was not accepted and keep the others.
+    Write `message` again for the user. Say what the remaining patches change and, in one
+    sentence, what could not change and why. Do not mention patches, JSON or this correction.

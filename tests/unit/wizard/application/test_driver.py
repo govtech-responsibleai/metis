@@ -1698,7 +1698,8 @@ def test_scenario_continue_matches_each_new_scenario_with_the_personas_the_model
 
 
 def test_duplicate_pairs_block_continue_and_model_patches() -> None:
-    from metis.wizard.domain.applier import PatchValueError, validate_model_patches
+    from metis.wizard.application.patch_review import PatchScope, review_patches
+    from metis.wizard.domain.permissions import PatchReason
 
     specification = research_assistant()
     specification.tasks[1].persona_ref = specification.tasks[0].persona_ref
@@ -1706,17 +1707,20 @@ def test_duplicate_pairs_block_continue_and_model_patches() -> None:
     assert not next(o for o in request.options if o.id.action == "continue").enabled
     assert any("same Persona and Scenario" in w.text for w in request.warnings)
 
-    with pytest.raises(PatchValueError):
-        validate_model_patches(
-            research_assistant(),
-            [
-                Patch(
-                    op=PatchOp.SET,
-                    path="tasks[TC-002].persona_ref",
-                    value="cooperative-delegator",
-                )
-            ],
-        )
+    review = review_patches(
+        research_assistant(),
+        [
+            Patch(
+                op=PatchOp.SET,
+                path="tasks[TC-002].persona_ref",
+                value="cooperative-delegator",
+            )
+        ],
+        PatchScope(user_message=True),
+    )
+    assert [problem.reason for problem in review.problems] == [
+        PatchReason.DUPLICATE_TEST_CASE
+    ]
 
 
 def test_criterion_edit_form_changes_the_selected_requirement() -> None:
