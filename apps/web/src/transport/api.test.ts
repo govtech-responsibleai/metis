@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { synthesizeManualSpecification } from "../manual.ts";
-import { api, TransportError, type InterviewState } from "./api.ts";
+import {
+  api,
+  dispositionFilename,
+  TransportError,
+  type InterviewState,
+  type Report,
+} from "./api.ts";
 
 const originalFetch = globalThis.fetch;
 
@@ -277,6 +283,77 @@ test("package failures preserve the API error shape", async () => {
       cause.code === "compilation_failed" &&
       !cause.retryable,
   );
+});
+
+const REPORT_NAME =
+  "inline; filename=\"run_1-report.html\"; filename*=UTF-8''run%201-report.html";
+
+test("report reads report.json of the experiment", async () => {
+  const report = { target: "Bank bot" } as Report;
+  let path = "";
+  globalThis.fetch = async (input) => {
+    path = String(input);
+    return new Response(JSON.stringify(report), {
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  assert.deepEqual(await api.report("run 1/a"), report);
+  assert.equal(path, "/api/v1/experiments/run%201%2Fa/report");
+});
+
+test("reportPage gives report.html with the name from the header", async () => {
+  let path = "";
+  globalThis.fetch = async (input) => {
+    path = String(input);
+    return new Response("<html></html>", {
+      headers: {
+        "content-type": "text/html",
+        "Content-Disposition": REPORT_NAME,
+      },
+    });
+  };
+
+  const page = await api.reportPage("run 1");
+
+  assert.equal(path, "/api/v1/experiments/run%201/report.html");
+  assert.equal(page.filename, "run 1-report.html");
+  assert.equal(await page.blob.text(), "<html></html>");
+});
+
+test("the exact file name comes before the ASCII fallback", () => {
+  assert.equal(dispositionFilename(REPORT_NAME), "run 1-report.html");
+  assert.equal(
+    dispositionFilename('attachment; filename="a \\"b\\".zip"'),
+    'a "b".zip',
+  );
+  assert.equal(
+    dispositionFilename(
+      "inline; filename=\"a.html\"; filename*=UTF-8''%E0%A4%A",
+    ),
+    "a.html",
+  );
+  assert.equal(dispositionFilename("inline"), null);
+  assert.equal(dispositionFilename(null), null);
+});
+
+test("a file with no safe name is refused", async () => {
+  for (const disposition of [
+    null,
+    'inline; filename="report.txt"',
+    'inline; filename=".html"',
+    "inline; filename*=UTF-8''..%2Freport.html",
+  ]) {
+    globalThis.fetch = async () =>
+      new Response("<html></html>", {
+        headers: disposition ? { "Content-Disposition": disposition } : {},
+      });
+    await assert.rejects(
+      api.reportPage("e1"),
+      /no valid file name/,
+      String(disposition),
+    );
+  }
 });
 
 for (const status of [400, 422, 500, 503]) {
