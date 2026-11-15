@@ -25,8 +25,12 @@ from metis.engine.evaluation.trial_files import (
 )
 from metis.engine.extractor import TraceWaitSettings
 from metis.engine.extractor.langfuse import NO_TRACES
-from metis.engine.run import _evaluation
-from metis.engine.run._common import trial_record_files as _trial_record_files
+from metis.engine.run import (
+    _evaluation,
+    evaluate_command,
+    resume_command,
+    trial_record_files,
+)
 from tests.unit.engine.test_cli_evaluate import (
     _patch_evaluation,
     _session,
@@ -144,7 +148,7 @@ async def test_an_interrupted_run_saves_finished_trials_and_resume_grades_only_t
             _evaluation._load_evaluation_specification(output, console=console),
             [
                 (p.parent.name, TrialRecord.load_file(p))
-                for p in _trial_record_files(output)
+                for p in trial_record_files(output)
             ],
             evaluation_log=EvaluationLogger(output / "logs"),
             trace_wait=TraceWaitSettings(timeout_seconds=90),
@@ -235,7 +239,7 @@ def test_resume_counts_failures_from_before_the_interrupt(
     assert _fetched(calls) == ["session-2"]
     out = _one_line(result.output)
     assert "2 run(s), 1 failed" in out
-    assert f"Grade every trial again: {cli._evaluate_command(output.resolve())}" in out
+    assert f"Grade every trial again: {evaluate_command(output.resolve())}" in out
 
 
 def test_resume_does_not_retry_failed_or_errored_trials(
@@ -511,7 +515,7 @@ async def test_the_interrupt_message_names_the_resume_command(
             _evaluation._load_evaluation_specification(output, console=console),
             [
                 (p.parent.name, TrialRecord.load_file(p))
-                for p in _trial_record_files(output)
+                for p in trial_record_files(output)
             ],
             evaluation_log=log,
             trace_wait=TraceWaitSettings(timeout_seconds=90),
@@ -528,7 +532,7 @@ async def test_the_interrupt_message_names_the_resume_command(
 
     out = _one_line(capsys.readouterr().out)
     assert "Interrupted. 0 of 3 trials are saved." in out
-    assert f"To continue, run: {cli._resume_command(output.resolve(), command)}" in out
+    assert f"To continue, run: {resume_command(output.resolve(), command)}" in out
     assert "EVALUATION INTERRUPTED" in log.path.read_text()
     assert not (output / "outputs" / "reports" / "results.json").exists()
 

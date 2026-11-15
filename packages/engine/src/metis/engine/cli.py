@@ -19,8 +19,14 @@ from metis.core.console import console
 from metis.core.execution_layout import find_project_root
 from metis.core.phase_events import PhaseEventLog
 from metis.engine import __version__
-from metis.engine.run import EvaluationInputError, EvaluationOutcome
-from metis.engine.run._evaluation import evaluation_is_complete
+from metis.engine.run import (
+    EvaluationInputError,
+    EvaluationOutcome,
+    evaluate_command,
+    evaluation_is_complete,
+    resolve_experiment_dir,
+    resume_command,
+)
 from metis.engine.tracing import tracing_key
 
 if TYPE_CHECKING:
@@ -161,16 +167,6 @@ def _needs_judge(specification: Specification) -> bool:
     return False
 
 
-def _validate_inputs(input_dir: Path) -> None:
-    """Check every input of a new run, or print the error and exit with code 1."""
-    from metis.engine.run import InvalidInputsError, validate_inputs
-
-    try:
-        validate_inputs(input_dir, console=console)
-    except InvalidInputsError:
-        sys.exit(1)
-
-
 def _resolve_log_level(verbose: int, quiet: bool) -> str:
     """Resolve the CLI log level."""
     if quiet:
@@ -193,13 +189,6 @@ def _configure_process_logging(log_level: str, *, use_tui: bool = False) -> None
     import structlog
 
     structlog.configure(cache_logger_on_first_use=False)
-
-
-def _trial_record_files(experiment_dir: Path) -> list[Path]:
-    """Return trial records in the same order used by the old CLI."""
-    from metis.engine.run._common import trial_record_files
-
-    return trial_record_files(experiment_dir)
 
 
 def _experiment_id(input_dir: Path) -> str | None:
@@ -290,7 +279,7 @@ def _resolve_simulation_target(
             console.print("Error: --resume needs --experiment-dir.", style="bold red")
             raise typer.Exit(code=1)
         try:
-            return _resolve_experiment_dir(experiment_dir)
+            return resolve_experiment_dir(experiment_dir, console=console)
         except EvaluationInputError:
             raise typer.Exit(code=1) from None
 
@@ -310,27 +299,6 @@ def _resolve_simulation_target(
     return input_dir.resolve()
 
 
-def _resolve_experiment_dir(experiment_dir: Path) -> Path:
-    """Validate an explicit simulation output directory."""
-    from metis.engine.run import resolve_experiment_dir
-
-    return resolve_experiment_dir(experiment_dir, console=console)
-
-
-def _evaluate_command(experiment_dir: Path) -> str:
-    """Build the shell-safe command for evaluating a simulation output."""
-    from metis.engine.run._common import evaluate_command
-
-    return evaluate_command(experiment_dir)
-
-
-def _resume_command(experiment_dir: Path, command: str) -> str:
-    """Build the shell-safe command for resuming a simulation output."""
-    from metis.engine.run._common import resume_command
-
-    return resume_command(experiment_dir, command)
-
-
 def _report_command(results_file: Path) -> str:
     """Build the shell-safe command for reporting on an evaluation's results."""
     return shlex.join(
@@ -343,14 +311,14 @@ def _print_handoff(experiment_dir: Path, *, command: str) -> None:
     resolved = experiment_dir.resolve()
     console.print(f"Specification: {resolved}")
     console.print(
-        f"Evaluate: {_evaluate_command(resolved)}",
+        f"Evaluate: {evaluate_command(resolved)}",
         no_wrap=True,
         overflow="ignore",
         crop=False,
         soft_wrap=True,
     )
     console.print(
-        f"Resume: {_resume_command(resolved, command)}",
+        f"Resume: {resume_command(resolved, command)}",
         no_wrap=True,
         overflow="ignore",
         crop=False,
@@ -382,7 +350,7 @@ def _print_evaluation_summary(
         )
     if outcome.failed_records:
         console.print(
-            f"  Grade every trial again: {_evaluate_command(experiment_dir.resolve())}",
+            f"  Grade every trial again: {evaluate_command(experiment_dir.resolve())}",
             markup=False,
             no_wrap=True,
             overflow="ignore",
@@ -725,7 +693,9 @@ def evaluate(
 ) -> None:
     """Evaluate one simulation output directory."""
     try:
-        resolved_experiment_dir = _resolve_experiment_dir(experiment_dir)
+        resolved_experiment_dir = resolve_experiment_dir(
+            experiment_dir, console=console
+        )
     except EvaluationInputError:
         raise typer.Exit(code=1) from None
     console.print(f"Selected experiment: {resolved_experiment_dir}")

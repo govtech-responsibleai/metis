@@ -30,8 +30,7 @@ from metis.engine.extractor.langfuse import (
     TraceWaitSettings,
     UnsupportedTraceError,
 )
-from metis.engine.run import _evaluation
-from metis.engine.run._common import trial_record_files as _trial_record_files
+from metis.engine.run import _evaluation, evaluate_command, trial_record_files
 
 runner = CliRunner()
 
@@ -380,7 +379,7 @@ def test_an_evaluation_where_every_trial_fails_writes_empty_results(
     )
     assert _compact(f"Report: {command}") in _compact(result.output)
     assert _compact(
-        f"Grade every trial again: {cli._evaluate_command(output.resolve())}"
+        f"Grade every trial again: {evaluate_command(output.resolve())}"
     ) in _compact(result.output)
 
 
@@ -1471,7 +1470,7 @@ async def test_cancellation_stops_every_session_then_closes_the_judge_client(
     log = EvaluationLogger(output / "logs")
     specification = _evaluation._load_evaluation_specification(output, console=console)
     trial_records = [
-        (p.parent.name, Record.load_file(p)) for p in _trial_record_files(output)
+        (p.parent.name, Record.load_file(p)) for p in trial_record_files(output)
     ]
 
     task = asyncio.create_task(
