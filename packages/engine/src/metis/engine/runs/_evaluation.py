@@ -882,16 +882,8 @@ async def _evaluate_records(
         # stop. A cancellation is a BaseException, so the command's `except Exception`
         # never sees it: log it here and let it go on. No results file is written; the
         # trials that ended keep their files, so a resume grades only the rest.
-        results_path.unlink(missing_ok=True)
-        evaluation_log.write("EVALUATION INTERRUPTED")
-        saved = len(load_trial_evaluations(experiment_dir, trials))
-        console.print(
-            f"\nInterrupted. {saved} of {len(trials)} trials are saved. "
-            "To continue, run: "
-            f"{resume_command(experiment_dir.resolve(), command)}",
-            style="yellow",
-            markup=False,
-            soft_wrap=True,
+        _end_interrupted(
+            experiment_dir, trials, evaluation_log, console=console, command=command
         )
         raise
     finally:
@@ -899,6 +891,12 @@ async def _evaluate_records(
         if gateway is not None and needs_llm:
             await llm.client.close()
 
+    if stop is not None and stop.is_set():
+        # The stop arrived after the last session ended, before the watcher saw it.
+        _end_interrupted(
+            experiment_dir, trials, evaluation_log, console=console, command=command
+        )
+        raise RunStopped("stopped")
     saved = attempted | {evaluation.trial: evaluation for evaluation in evaluations}
     every_trial = [saved[trial] for trial in trials]
     results_file = _write_results(experiment_dir, every_trial)
@@ -913,6 +911,33 @@ async def _evaluate_records(
     if grader_errors:
         evaluation_log.write(grader_errors)
     return outcome
+
+
+def _end_interrupted(
+    experiment_dir: Path,
+    trials: list[str],
+    evaluation_log: EvaluationLogger,
+    *,
+    console: Console,
+    command: Literal["evaluate", "run"],
+) -> None:
+    """Remove ``results.json``, log the stop, and print how to continue.
+
+    The trials that ended keep their files, so a resume grades only the rest.
+    """
+    from metis.engine.evaluation.trial_files import load_trial_evaluations
+
+    (experiment_dir / execution_layout.RESULTS).unlink(missing_ok=True)
+    evaluation_log.write("EVALUATION INTERRUPTED")
+    saved = len(load_trial_evaluations(experiment_dir, trials))
+    console.print(
+        f"\nInterrupted. {saved} of {len(trials)} trials are saved. "
+        "To continue, run: "
+        f"{resume_command(experiment_dir.resolve(), command)}",
+        style="yellow",
+        markup=False,
+        soft_wrap=True,
+    )
 
 
 def _grader_errors_line(evaluations: list[TrialEvaluation]) -> str | None:

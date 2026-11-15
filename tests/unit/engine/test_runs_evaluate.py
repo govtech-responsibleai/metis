@@ -176,6 +176,43 @@ def test_a_stop_before_any_session_starts_ends_the_run(
     assert not _results(output).exists()
 
 
+@pytest.mark.parametrize("function", [evaluate, resume_evaluation])
+def test_a_stop_as_the_last_session_ends_still_stops_the_run(
+    monkeypatch, tmp_path: Path, function
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 1)
+    _patch_evaluation(monkeypatch)
+    from metis.engine import extractor
+
+    fetch_traces = extractor.fetch_session
+    stop = threading.Event()
+
+    async def fetch_then_stop(*args: Any, **kwargs: Any):
+        # The stop arrives after the session has its traces, before the watcher looks.
+        session = await fetch_traces(*args, **kwargs)
+        stop.set()
+        return session
+
+    monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch_then_stop)
+    console, text = _console()
+
+    with pytest.raises(RunStopped):
+        function(
+            output,
+            trace_wait=_WAIT,
+            concurrency=1,
+            stop=stop,
+            console=console,
+        )
+
+    assert not _results(output).exists()
+    assert _phase_lines(output)[-1] == ("evaluating", "interrupted")
+    assert "Interrupted. 1 of 1 trials are saved." in text.getvalue()
+    log = (output / execution_layout.LOGS / "evaluate.log").read_text()
+    assert log.splitlines()[-1].endswith("EVALUATION INTERRUPTED")
+
+
 def _earlier_evaluation(output: Path) -> dict[Path, bytes]:
     """The outputs of an evaluation that graded run-01, with a stale results.json and trace."""
     write_trial_file(
