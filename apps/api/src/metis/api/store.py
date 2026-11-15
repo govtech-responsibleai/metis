@@ -198,9 +198,6 @@ class Store:
         metadata.create_all(self._engine)
         # One save or delete at a time, so the owner check and the write stay together.
         self._lock = threading.Lock()
-        self._move_files()
-        self._move_states()
-        self._fill_targets()
         self._add_cli_interviews()
 
     @property
@@ -484,28 +481,6 @@ class Store:
 
     # Internals.
 
-    def _fill_targets(self) -> None:
-        """Add Target metadata for saved Interviews that have no Target row."""
-        query = (
-            select(interviews)
-            .outerjoin(targets, interviews.c.target_id == targets.c.id)
-            .where(targets.c.id.is_(None))
-        )
-        with self._engine.begin() as connection:
-            for row in connection.execute(query).all():
-                saved = self._with_state(row.target_id, row.record)
-                if record_problem(saved) is not None:
-                    continue
-                record = InterviewRecord.model_validate(saved)
-                connection.execute(
-                    insert(targets).values(
-                        id=row.target_id,
-                        name=record.state.specification.target.name,
-                        created_at=row.updated_at,
-                        updated_at=row.updated_at,
-                    )
-                )
-
     def _add_cli_interviews(self) -> None:
         """Add rows for the Interview folders of the wizard CLI that have no row.
 
@@ -569,47 +544,6 @@ class Store:
                 ),
             )
         return list(refs.values())
-
-    def _move_files(self) -> None:
-        """Rename the file folder of each Target that a store of an earlier version wrote."""
-        with self._engine.connect() as connection:
-            ids = connection.execute(select(interviews.c.target_id)).scalars().all()
-        for target_id in ids:
-            if not TARGET_ID.fullmatch(target_id):
-                continue
-            earlier = self.target_dir(target_id) / "inputs" / "fixtures"
-            if earlier.is_dir() and not self.files_dir(target_id).exists():
-                earlier.rename(self.files_dir(target_id))
-
-    def _move_states(self) -> None:
-        """Move the state of each row that holds one into the state file of its Target.
-
-        A store of an earlier version kept the state in the Interview row.
-        """
-        with self._engine.begin() as connection:
-            for row in connection.execute(select(interviews)).all():
-                saved = row.record
-                if (
-                    not isinstance(saved, dict)
-                    or "state" not in saved
-                    or not TARGET_ID.fullmatch(row.target_id)
-                ):
-                    continue
-                path = self.state_path(row.target_id)
-                if not path.is_file():
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    temporary = path.with_name(f".{uuid.uuid4().hex}.part")
-                    temporary.write_text(json.dumps(saved["state"]), encoding="utf-8")
-                    temporary.replace(path)
-                connection.execute(
-                    update(interviews)
-                    .where(interviews.c.target_id == row.target_id)
-                    .values(
-                        record={
-                            key: value for key, value in saved.items() if key != "state"
-                        }
-                    )
-                )
 
     def _with_state(self, target_id: str, saved: Any) -> Any:
         """The saved JSON of a row with the state from the state file of the Target.
