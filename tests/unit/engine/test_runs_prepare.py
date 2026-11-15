@@ -127,6 +127,21 @@ def test_prepare_experiment_raises_for_inputs_that_are_not_valid(
     assert capsys.readouterr().out == ""
 
 
+def test_prepare_experiment_raises_for_a_project_folder_that_does_not_exist(
+    tmp_path: Path, capsys
+) -> None:
+    source = _write_source(tmp_path)
+    missing = tmp_path / "no-such-project"
+    console, text = _console()
+
+    with pytest.raises(InvalidInputsError):
+        prepare_experiment(source, project_dir=missing, console=console)
+
+    assert "is not an existing folder" in text.getvalue()
+    assert not missing.exists()
+    assert capsys.readouterr().out == ""
+
+
 def test_prepare_experiment_raises_when_the_folder_name_is_used(
     monkeypatch, tmp_path: Path
 ) -> None:

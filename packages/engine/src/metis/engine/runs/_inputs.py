@@ -126,10 +126,15 @@ def prepare_experiment(input_dir: Path, *, project_dir: Path, console: Console) 
     The caller sets up the process first: it loads ``.env``. Only one run at a time is safe
     in one process.
 
-    :raises InvalidInputsError: When an input is not valid. Nothing is created.
+    :raises InvalidInputsError: When an input is not valid, or ``project_dir`` is not an
+        existing folder. Nothing is created.
     :raises ExperimentExistsError: When a run of the same Specification started in the
         same second. The folder that exists is left as it is.
     """
+    if not project_dir.is_dir():
+        message = f"the project folder '{project_dir}' is not an existing folder."
+        console.print(f"Error: {message}", style="bold red", markup=False)
+        raise InvalidInputsError(message)
     source = input_dir.resolve()
     specification = validate_inputs(source, console=console)
     suffix = datetime.now().strftime("%Y%m%d-%H%M%S")
