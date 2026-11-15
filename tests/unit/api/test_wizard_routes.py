@@ -110,6 +110,27 @@ def test_extract_returns_text_in_upload_order_without_server_state(
         {"name": "second.txt", "text": "Second document"}
     ]
 
+    # A later turn adds a document under the limits of the whole Interview.
+    turn = {
+        "state": state,
+        "request_id": state["pending"]["request_id"],
+        "response": {"type": "chat", "text": "It answers policy questions."},
+    }
+    added = make_client().post(
+        "/api/v1/wizard/interview/turn",
+        json={**turn, "documents": [extracted.json()["documents"][1]]},
+    )
+    assert added.status_code == 200
+    assert added.json()["state"]["context"]["documents"] == [
+        {"name": "second.txt", "text": "Second document"},
+        {"name": "first.md", "text": "# First document"},
+    ]
+    repeated = make_client().post(
+        "/api/v1/wizard/interview/turn",
+        json={**turn, "documents": [{"name": "SECOND.txt"}]},
+    )
+    assert repeated.status_code == 422
+
 
 def test_extract_returns_typed_file_error_and_no_partial_result(
     client: TestClient,

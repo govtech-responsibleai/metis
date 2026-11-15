@@ -64,7 +64,8 @@ Use the returned IDs in the start request. An empty capability selection is vali
 
 ### Extract document text
 
-`POST /documents/extract` is optional. Call it before `/interview/start`.
+`POST /documents/extract` is optional. Call it before `/interview/start`, or before a turn that
+adds documents.
 
 ```bash
 curl --fail-with-body http://localhost:8001/api/v1/wizard/documents/extract \
@@ -73,7 +74,7 @@ curl --fail-with-body http://localhost:8001/api/v1/wizard/documents/extract \
 
 The response contains a `documents` list with canonical file names and extracted text. The route
 supports UTF-8 TXT, Markdown, YAML, JSON, CSV, PDF text layers, and DOCX files. It does not run OCR. Add the returned
-list to the start request. The opening document list cannot change after start.
+list to the start request, or to the `documents` field of a turn.
 
 Keep each original file. If a Scenario uses it, send the original bytes to `/package`.
 
@@ -210,6 +211,27 @@ Do not rebuild state from the visible Specification or from an abbreviated respo
 | `state` | Complete `state` from `interview.json`. |
 | `request_id` | Exact ID from `state.pending.request_id`. |
 | `response` | Typed answer that matches `state.pending.type`. |
+| `documents` | Optional. New documents to add with this answer, in the format of the start request. |
+
+### Add documents on a turn
+
+A turn can add documents at any stage. The API appends them to `state.context.documents` in the
+returned state, and each later model call can read them. The full list has the limits of the
+start request: the document count, the text size, and one name for each document. A turn that
+breaks a limit gets 422 and changes nothing.
+
+```json
+{
+  "state": {"...": "the complete state from interview.json"},
+  "request_id": "req-...",
+  "response": {"type": "chat", "text": "Use the escalation policy for the Criteria."},
+  "documents": [{"name": "escalation.md", "text": "Escalate a complaint within one day."}]
+}
+```
+
+The wizard tells the model which documents are new on that turn. A new document alone changes
+no Specification content. To use it, say so in the text of a `chat` response or in the
+`feedback` of a `choice` response. The new names are also available as Test Case files.
 
 Read the next screen with:
 

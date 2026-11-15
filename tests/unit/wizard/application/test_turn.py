@@ -74,12 +74,13 @@ def _start(
     )
 
 
-def _turn(state, response, *, request_id=None, interviewer=None):
+def _turn(state, response, *, request_id=None, interviewer=None, documents=None):
     return handle_interview(
         InterviewTurnRequest(
             state=state,
             request_id=request_id or state.pending.request_id,
             response=response,
+            documents=documents or [],
         ),
         interviewer=interviewer or ScriptedInterviewer(),
         matcher=None,
@@ -434,6 +435,82 @@ def test_documents_survive_turns_and_require_file_review() -> None:
     )
     assert isinstance(done, InterviewSuccess)
     assert done.outcome == "done" and done.state.confirmed
+
+
+def test_documents_added_on_a_turn_join_the_context_and_reach_the_model() -> None:
+    """A later document joins the opening ones. The model reads it and gets a sign of which
+    one is new, and the Specification changes only as the model answers the user."""
+    opening = InterviewDocument(name="policy.pdf", text="POLICY_SENTINEL")
+    during_clarify = InterviewDocument(name="notes.md", text="NOTES_SENTINEL")
+    during_review = InterviewDocument(name="sample.csv")
+    seen: dict[str, object] = {}
+
+    class RecordingInterviewer(ScriptedInterviewer):
+        def clarify(self, specification, history, context=None, scope=None):
+            seen["clarify"] = (history[-1].text, list(context.documents))
+            return super().clarify(specification, history, context)
+
+        def chat(self, specification, step, text, target, context=None, scope=None):
+            seen["chat"] = (text, list(context.documents))
+            return StepResult(message="Noted.")
+
+    interviewer = RecordingInterviewer()
+    started = _start(interviewer=interviewer, documents=[opening])
+    assert isinstance(started, InterviewSuccess)
+
+    answered = _turn(
+        started.state,
+        ChatResponse(text="It answers policy questions."),
+        interviewer=interviewer,
+        documents=[during_clarify],
+    )
+    assert isinstance(answered, InterviewSuccess)
+    assert answered.state.context.documents == [opening, during_clarify]
+    said, documents = seen["clarify"]
+    assert said.startswith("It answers policy questions.")
+    assert "notes.md" in said and "policy.pdf" not in said
+    assert documents == [opening, during_clarify]
+    # The caller's state is a value: the turn does not change it.
+    assert started.state.context.documents == [opening]
+
+    pending = behaviours_screen(research_assistant(), "Review.")
+    pending.request_id = "review"
+    pending.stage = InterviewStep.BEHAVIOURS
+    review = InterviewState(
+        specification=research_assistant(),
+        context=answered.state.context,
+        pending=pending,
+    )
+    interviewer.calls.clear()
+    silent = _turn(
+        review,
+        ChoiceResponse(selected=[]),
+        interviewer=interviewer,
+        documents=[during_review],
+    )
+    assert isinstance(silent, InterviewSuccess)
+    assert silent.state.context.document_names == [
+        "policy.pdf",
+        "notes.md",
+        "sample.csv",
+    ]
+    # A document alone asks for nothing: no model call, and the same Specification.
+    assert interviewer.calls == []
+    assert silent.state.specification == review.specification
+    assert "sample.csv" in silent.state.history[-1].text
+
+    asked = _turn(
+        review,
+        ChoiceResponse(feedback="Use the sample."),
+        interviewer=interviewer,
+        documents=[during_review],
+    )
+    assert isinstance(asked, InterviewSuccess)
+    said, documents = seen["chat"]
+    assert said.startswith("Use the sample.") and "sample.csv" in said
+    assert documents == [opening, during_clarify, during_review]
+    assert [turn.role for turn in asked.state.history[-1:]] == ["user"]
+    assert asked.state.history[-1].text == said
 
 
 def test_final_continue_completes_a_ready_specification() -> None:
