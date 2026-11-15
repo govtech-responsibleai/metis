@@ -9,7 +9,7 @@ import type {
   UserResponse,
 } from "../transport/api.ts";
 import { api } from "../transport/api.ts";
-import { downloadArchive } from "../download.ts";
+import { saveFile } from "../download.ts";
 import {
   addFixtures,
   fixturesForSpecification,
@@ -377,7 +377,7 @@ test("runs a document interview through skip, review, reload and package", async
   );
   assert.equal(await archive.blob.text(), "zip bytes");
   const downloads: string[] = [];
-  downloadArchive(
+  saveFile(
     archive,
     {
       createElement: () => ({
@@ -526,7 +526,7 @@ test("runs an offline start, chat, choice, form, reload, end and package flow", 
   );
   assert.equal(await archive.blob.text(), "zip bytes");
   const downloads: string[] = [];
-  downloadArchive(
+  saveFile(
     archive,
     {
       createElement: () => ({

@@ -4,16 +4,23 @@
 export type TargetTab = "specification" | "experiments";
 export type ExperimentTab = "trials" | "report";
 
+// The part of an experiment place after the experiment id.
+export type ExperimentPart =
+  // `tab` is null for the bare experiment URL, which opens the default tab of the experiment.
+  | { tab: null }
+  | { tab: "report" }
+  // `taskId` is the test case that the Trials tab opens, or null for the full tab.
+  | { tab: "trials"; taskId: string | null };
+
 export type Place =
   | { page: "new-target" }
   // `tab` is null for `/targets/:targetId`, which opens the default tab of the Target.
   | { page: "target"; targetId: string; tab: TargetTab | null }
-  | {
+  | ({
       page: "experiment";
       targetId: string;
       experimentId: string;
-      tab: ExperimentTab;
-    }
+    } & ExperimentPart)
   | { page: "compare"; targetId: string }
   | { page: "experiments" }
   | { page: "not-found" };
@@ -30,9 +37,12 @@ export const paths = {
   experiment: (
     targetId: string,
     experimentId: string,
-    tab: ExperimentTab = "trials",
-  ) =>
-    `${paths.target(targetId, "experiments")}/${segment(experimentId)}${tab === "report" ? "/report" : ""}`,
+    tab?: ExperimentTab,
+  ): string =>
+    `${paths.target(targetId, "experiments")}/${segment(experimentId)}${tab ? `/${tab}` : ""}`,
+  // The trials of one test case. `taskId` is the `task_id` of a row of the report.
+  testCase: (targetId: string, experimentId: string, taskId: string) =>
+    `${paths.experiment(targetId, experimentId, "trials")}/${segment(taskId)}`,
   compare: (targetId: string) => `${paths.target(targetId)}/compare`,
   experiments: () => "/experiments",
 };
@@ -48,7 +58,7 @@ function segments(path: string): string[] | null {
 export function placeOf(path: string): Place {
   const parts = segments(path);
   if (!parts) return { page: "not-found" };
-  const [root, targetId, section, experimentId, view, ...rest] = parts;
+  const [root, targetId, section, experimentId, view, taskId, ...rest] = parts;
   if (root === undefined) return { page: "new-target" };
   if (root === "experiments" && targetId === undefined)
     return { page: "experiments" };
@@ -66,10 +76,12 @@ export function placeOf(path: string): Place {
   if (section !== "experiments") return { page: "not-found" };
   if (experimentId === undefined)
     return { page: "target", targetId, tab: "experiments" };
-  if (view === undefined)
-    return { page: "experiment", targetId, experimentId, tab: "trials" };
-  if (view === "report")
-    return { page: "experiment", targetId, experimentId, tab: "report" };
+  const experiment = { page: "experiment", targetId, experimentId } as const;
+  if (view === undefined) return { ...experiment, tab: null };
+  if (view === "trials")
+    return { ...experiment, tab: "trials", taskId: taskId ?? null };
+  if (view === "report" && taskId === undefined)
+    return { ...experiment, tab: "report" };
   return { page: "not-found" };
 }
 
