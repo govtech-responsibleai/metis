@@ -1915,10 +1915,10 @@ def test_the_gateway_and_the_driver_get_the_same_review(monkeypatch) -> None:
     seen: dict[str, list] = {"gateway": [], "driver": []}
 
     def spy(name):
-        def review(specification, patches, scope, **values):
+        def review(specification, patches, scope):
             result = patch_review.review_patches(specification, patches, scope)
             seen[name].append((scope, result.problems, result.candidate))
-            return patch_review.review_patches(specification, patches, scope, **values)
+            return result
 
         return review
 
@@ -2109,3 +2109,48 @@ def test_a_reword_keeps_the_settings_unless_the_grader_changes(
     else:
         assert criterion.grader_args.get("threshold", 0.5) == 0.5
         assert shown == f"Reworded it. {prompts.settings_reset(criterion.name)}"
+
+
+def test_the_gateway_reviews_new_ids_as_the_driver_applies_them() -> None:
+    """A deleted Persona's id is not given again, and the model hears so before the apply."""
+    from tests.fixtures.wizard.gateway import scripted_gateway
+
+    reply = json.dumps(
+        {
+            "message": "Added the Sceptic and a Test Case for it.",
+            "patches": [
+                {
+                    "op": "add",
+                    "path": "personas",
+                    "value": {
+                        "name": "Sceptic",
+                        "description": "Doubts every answer and asks for sources.",
+                    },
+                },
+                {
+                    "op": "add",
+                    "path": "tasks",
+                    "value": {
+                        "persona_ref": "sceptic",
+                        "scenario_ref": "S-2",
+                        "behaviour_refs": ["EB-1"],
+                    },
+                },
+            ],
+        }
+    )
+    gateway, completions = scripted_gateway([reply])
+    specification = research_assistant()
+    state = driver_state(
+        specification=specification,
+        step=InterviewStep.TEST_CASES,
+        issued_ids=collect_specification_ids(specification) | {"sceptic"},
+    )
+
+    StepDriver(interviewer=gateway).handle(
+        state, ChatRequest(prompt="q", multiline=True), ChatResponse(text="Add it")
+    )
+
+    assert len(completions.calls) == 3  # the model was asked to correct its reply
+    assert "sceptic-2" in [persona.id for persona in state.specification.personas]
+    assert all(task.persona_ref != "sceptic" for task in state.specification.tasks)

@@ -167,7 +167,9 @@ def test_replaying_the_accepted_patches_gives_the_candidate() -> None:
         set_("tasks[TC-003].scenario_ref", "S-404"),
     ]
 
-    review = review_patches(specification, patches, PatchScope(), issued_ids=issued)
+    review = review_patches(
+        specification, patches, PatchScope(issued_ids=frozenset(issued))
+    )
     apply(specification, review.accepted, issued_ids=issued)
 
     assert len(review.accepted) == 3

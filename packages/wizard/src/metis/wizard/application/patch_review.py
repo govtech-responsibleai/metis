@@ -79,13 +79,16 @@ class PatchScope:
     `areas` is None for a call that may write anywhere the permission tables allow. `user_message` is
     True only for a chat that answers the user's own message. `locked_items` are ids whose name
     and description the call must not change, such as the items that the user typed in a form.
-    `fixture_names` are the files that a drafted Test Case may name.
+    `fixture_names` are the files that a drafted Test Case may name. `issued_ids` are the ids
+    given out before this call, including those of deleted items, so that a new item never
+    takes an old id. None means the ids in the Specification.
     """
 
     areas: tuple[ScopeArea, ...] | None = None
     user_message: bool = False
     locked_items: frozenset[str] = frozenset()
     fixture_names: frozenset[str] = frozenset()
+    issued_ids: frozenset[str] | None = None
 
     @classmethod
     def exactly(
@@ -157,9 +160,6 @@ def review_patches(
     specification: Specification,
     patches: Sequence[Any],
     scope: PatchScope,
-    *,
-    issued_ids: set[str] | None = None,
-    user_typed: set[str] | None = None,
 ) -> PatchReview:
     """Decide which model patches the wizard accepts. The Specification is not changed."""
     proposed = sanitise(patches)
@@ -170,8 +170,6 @@ def review_patches(
             proposed,
             scope,
             skip=set(removed),
-            issued_ids=issued_ids,
-            user_typed=user_typed,
         )
         found = _result_problems(specification, applied)
         if not found:
@@ -197,16 +195,13 @@ def _apply_each(
     scope: PatchScope,
     *,
     skip: set[int],
-    issued_ids: set[str] | None,
-    user_typed: set[str] | None,
 ) -> _Applied:
     applied = _Applied(candidate=specification.model_copy(deep=True))
     ids = set(
-        issued_ids
-        if issued_ids is not None
+        scope.issued_ids
+        if scope.issued_ids is not None
         else collect_specification_ids(specification)
     )
-    typed = set(user_typed or ())
 
     for index, patch in enumerate(proposed):
         if index in skip:
@@ -228,13 +223,13 @@ def _apply_each(
             continue
 
         trial = applied.candidate.model_copy(deep=True)
-        trial_ids, trial_typed = set(ids), set(typed)
+        trial_ids = set(ids)
         try:
             apply_one(
                 trial,
                 patch,
                 issued_ids=trial_ids,
-                user_typed=trial_typed,
+                user_typed=None,
                 allowed_fixture_names=set(scope.fixture_names),
             )
             # Assignment is not validated on Pydantic models. Rebuilding after each patch
@@ -249,7 +244,7 @@ def _apply_each(
             )
             continue
         applied.accepted[index] = (patch, _touched(applied.candidate, trial, path))
-        applied.candidate, ids, typed = trial, trial_ids, trial_typed
+        applied.candidate, ids = trial, trial_ids
     return applied
 
 

@@ -232,9 +232,7 @@ class StepDriver:
             asked = _clarify_questions_asked(state.history)
             cap = config.clarify_turn_cap()
             if asked <= cap:
-                scope = PatchScope.exactly(
-                    _CLARIFY_TARGET_PATHS, fixture_names=_files(state)
-                )
+                scope = PatchScope.exactly(_CLARIFY_TARGET_PATHS, **_known(state))
                 result = self.interviewer.clarify(
                     specification,
                     state.history,
@@ -257,7 +255,7 @@ class StepDriver:
             if completion is not None:
                 return completion
             if not specification.features:
-                scope = PatchScope(fixture_names=_files(state))
+                scope = PatchScope(**_known(state))
                 self._try(
                     lambda: self.interviewer.draft_behaviours(
                         specification,
@@ -336,7 +334,7 @@ class StepDriver:
         )
         if not missing:
             return
-        scope = PatchScope.exactly(missing, {PatchOp.SET}, fixture_names=_files(state))
+        scope = PatchScope.exactly(missing, {PatchOp.SET}, **_known(state))
         self._try(
             lambda: self.interviewer.chat(
                 state.specification,
@@ -1271,7 +1269,7 @@ class StepDriver:
         missing = missing_criteria_paths(state.specification)
         if not missing:
             return
-        scope = PatchScope.exactly(missing, {PatchOp.ADD}, fixture_names=_files(state))
+        scope = PatchScope.exactly(missing, {PatchOp.ADD}, **_known(state))
         self._try(
             lambda: self.interviewer.draft_criteria(
                 state.specification, context=state.context, scope=scope
@@ -1317,13 +1315,7 @@ class StepDriver:
         self, state: DriverState, result: StepResult, scope: PatchScope
     ) -> PatchReview:
         """Apply the patches that the patch review accepts, the same review as the gateway's."""
-        review = review_patches(
-            state.specification,
-            result.patches,
-            scope,
-            issued_ids=set(state.issued_ids),
-            user_typed=set(state.user_typed),
-        )
+        review = review_patches(state.specification, result.patches, scope)
         before = state.specification.model_copy(deep=True)
         apply(
             state.specification,
@@ -1472,7 +1464,7 @@ class StepDriver:
                 ),
             ),
             locked_items=frozenset(state.user_typed),
-            fixture_names=_files(state),
+            **_known(state),
         )
         result = self.interviewer.chat(
             state.specification,
@@ -1532,15 +1524,19 @@ def _customised(args: dict[str, Any], defaults: dict[str, Any]) -> bool:
     )
 
 
-def _files(state: DriverState) -> frozenset[str]:
-    """The files that a drafted Test Case may name."""
-    return frozenset(state.context.document_names)
+def _known(state: DriverState) -> dict[str, frozenset[str]]:
+    """What every review needs from the Interview: the files that a drafted Test Case may name,
+    and the ids already given out, so that the gateway's review gives the same ids as the apply."""
+    return {
+        "fixture_names": frozenset(state.context.document_names),
+        "issued_ids": frozenset(state.issued_ids),
+    }
 
 
 def _draft_scope(state: DriverState, step: InterviewStep) -> PatchScope:
     """A drafting call adds to its own collection only."""
     return PatchScope.exactly(
-        {_DRAFT_COLLECTIONS[step]}, {PatchOp.ADD}, fixture_names=_files(state)
+        {_DRAFT_COLLECTIONS[step]}, {PatchOp.ADD}, **_known(state)
     )
 
 
@@ -1552,7 +1548,7 @@ def _chat_scope(state: DriverState, target: str | None) -> PatchScope:
     step owns its Behaviour or Feature.
     """
     if target is None:
-        return PatchScope(user_message=True, fixture_names=_files(state))
+        return PatchScope(user_message=True, **_known(state))
     feature = state.specification.feature_of(target)
     if state.step is InterviewStep.CRITERIA:
         # With no Feature, the prefix matches no path, so nothing is writable.
@@ -1562,7 +1558,7 @@ def _chat_scope(state: DriverState, target: str | None) -> PatchScope:
         prefix = f"features[{feature.id}].behaviours[{target}]"
     else:
         prefix = f"features[{target}]"
-    return PatchScope.under({prefix}, user_message=True, fixture_names=_files(state))
+    return PatchScope.under({prefix}, user_message=True, **_known(state))
 
 
 def _target_of(chosen: list[Option], action: str) -> str | None:
