@@ -193,7 +193,7 @@ answer, for example "The target is for staff only." To change the capabilities, 
 `init --restart`.
 
 The CLI saves state after each accepted turn in
-`experiments/design/YYYYMMDD-HHMMSS-interview/inputs/interview_state.json`. The date and time are local to the
+`experiments/design/YYYYMMDD-HHMMSS-interview-<random>/inputs/interview_state.json`. The random part is five characters. The date and time are local to the
 machine when `init` starts. Use `--out-dir` to select an exact experiment root:
 
 ```bash

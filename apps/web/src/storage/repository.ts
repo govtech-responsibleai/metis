@@ -162,8 +162,8 @@ export function randomPart(): string {
   ).join("");
 }
 
-// The Target id of a new Interview, which is also its folder name. It is the name of a
-// `metis wizard init` folder, in local time, and then a random part.
+// The Target id of a new Interview, which is also its folder name. It has the form of a
+// `metis wizard init` folder: the local time, the word `interview`, and a random part.
 export function interviewId(now: Date, random = randomPart()): string {
   const two = (value: number) => String(value).padStart(2, "0");
   const date = `${now.getFullYear()}${two(now.getMonth() + 1)}${two(now.getDate())}`;

@@ -528,8 +528,8 @@ curl --fail-with-body -X PUT \
 
 The Target id is also the name of its folder. It has 1 to 64 letters, digits, `-` or `_`. The
 web client uses `YYYYMMDD-HHMMSS-interview-<random>`, in the local time of the first message,
-for example `20261112-101500-interview-k7mwp`. A `metis wizard init` folder has the same name
-without the random part. The `created_at` of the record tells one Interview
+for example `20261112-101500-interview-k7mwp`. A `metis wizard init` folder has a name of the
+same form. The `created_at` of the record tells one Interview
 from another. A save with the id of another Interview gets 409 `target_exists` and the store does
 not change. The web client then saves again with `-2`, `-3`, and so on at the end of the id.
 

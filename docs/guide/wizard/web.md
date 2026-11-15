@@ -65,7 +65,7 @@ the repository folder. To use another folder, start the API with
 - The `<id>` is `YYYYMMDD-HHMMSS-interview-<random>`, in the local time when you send the first
   message. For example, `20261112-101500-interview-k7mwp`. The random part is five characters,
   so two people who start an Interview in the same second get different ids. A
-  `metis wizard init` folder has the same name without the random part. When another Interview
+  `metis wizard init` folder has a name of the same form. When another Interview
   already has the id, the web app adds `-2`, `-3`, and so on.
 - When an Interview is done, the API also writes its Specification to
   `experiments/design/<id>/outputs/`. Give that folder to `metis engine simulate --input-dir`.

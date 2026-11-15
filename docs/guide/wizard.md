@@ -148,7 +148,7 @@ file. It does not guess submissions during a run.
 
 ## Run the evaluation
 
-The CLI writes files to `experiments/design/YYYYMMDD-HHMMSS-interview/` by default. The timestamp uses the machine's local date and 24-hour time, including seconds.
+The CLI writes files to `experiments/design/YYYYMMDD-HHMMSS-interview-<random>/` by default, for example `20261112-101500-interview-k7mwp`. The timestamp uses the machine's local date and 24-hour time, including seconds. The random part is five characters.
 Extract browser or API downloads into `experiments/design/`.
 The API store uses the same layout. It writes each done web Interview to
 `experiments/design/<target-id>/outputs/`, and you can give that folder to `--input-dir`.

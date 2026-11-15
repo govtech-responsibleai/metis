@@ -281,8 +281,8 @@ Target list as problems.
 
 The files of a Target are in the layout that `metis wizard init` writes, under
 `<project>/experiments/design/<target_id>/`. The web app gives a new Target the id
-`YYYYMMDD-HHMMSS-interview-<random>` in local time. It is the name of a `metis wizard init`
-folder and then five random characters, so two people who start in the same second get
+`YYYYMMDD-HHMMSS-interview-<random>` in local time, the same form as a `metis wizard init`
+folder. The random part is five characters, so two people who start in the same second get
 different ids. When
 the id is taken, it adds `-2`, `-3`, and so on. The `created_at` of the record tells one
 Interview from another, so a save with the id of another Interview gets 409 `target_exists` and
