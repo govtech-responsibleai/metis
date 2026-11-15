@@ -78,6 +78,12 @@ _MODEL_CALL_PLACEHOLDERS: dict[str, frozenset[str]] = {
 _MATCH_GRADERS_PLACEHOLDERS = frozenset({"grader_library", "criteria"})
 _FEEDBACK_PROBLEM_PLACEHOLDERS = frozenset({"op", "path", "reason", "detail"})
 _FEEDBACK_FRAME_PLACEHOLDERS = frozenset({"problems"})
+# Each reply sentence and the placeholders that it may use.
+_REPLY_PLACEHOLDERS: dict[str, frozenset[str]] = {
+    "nothing_applied": frozenset(),
+    "part_applied": frozenset(),
+    "not_changed": frozenset({"reasons"}),
+}
 _SYSTEM_PLACEHOLDERS = frozenset(
     {
         "patch_rules",
@@ -145,6 +151,7 @@ class PromptCatalog:
     patch_reasons: Mapping[str, str]
     feedback_problem: str
     feedback_frame: str
+    replies: Mapping[str, str]
 
 
 def _error(key: str, detail: str) -> PromptCatalogError:
@@ -239,6 +246,13 @@ def load_prompt_catalog() -> PromptCatalog:
         feedback_frame, "model_feedback.frame", _FEEDBACK_FRAME_PLACEHOLDERS
     )
 
+    reply_texts = _mapping(_required(document, "replies"), "replies")
+    replies: dict[str, str] = {}
+    for name, allowed in _REPLY_PLACEHOLDERS.items():
+        value = _text(reply_texts, f"replies.{name}").strip()
+        _validate_template(value, f"replies.{name}", allowed)
+        replies[name] = value
+
     return PromptCatalog(
         system_template=system_template,
         patch_rules=patch_rules,
@@ -248,6 +262,7 @@ def load_prompt_catalog() -> PromptCatalog:
         patch_reasons=patch_reasons,
         feedback_problem=feedback_problem,
         feedback_frame=feedback_frame,
+        replies=replies,
     )
 
 
@@ -560,6 +575,39 @@ def model_feedback(problems: Iterable[PatchProblem]) -> str:
     )
 
 
+def reply(name: Literal["nothing_applied", "part_applied"]) -> str:
+    """A default reply, for a result whose own message the wizard cannot show."""
+    return load_prompt_catalog().replies[name]
+
+
+def not_changed(
+    reasons: Iterable[PatchReason],
+    details: Mapping[PatchReason, Iterable[str]] | None = None,
+) -> str:
+    """One sentence that names what did not change, from the sentence of each reason.
+
+    `details` adds plain words after a reason's sentence. It must never hold an internal path.
+    """
+    catalog = load_prompt_catalog()
+    details = details or {}
+    chosen = set(reasons)
+    parts = [
+        " ".join(
+            [
+                catalog.patch_reasons[reason.value],
+                *dict.fromkeys(details.get(reason, ())),
+            ]
+        )
+        for reason in PatchReason
+        if reason in chosen
+    ]
+    return _substitute(
+        catalog.replies["not_changed"],
+        "replies.not_changed",
+        {"reasons": " ".join(parts)},
+    )
+
+
 def match_graders(specs: Iterable[GraderSpec], criteria: str) -> ModelPrompt:
     """Ask which of ``specs`` fits each Criterion. ``criteria`` is the Criteria as JSON."""
     catalog = load_prompt_catalog()
@@ -597,9 +645,11 @@ __all__ = [
     "load_prompt_catalog",
     "match_graders",
     "model_feedback",
+    "not_changed",
     "patch_reason",
     "personas",
     "primer",
+    "reply",
     "scenarios",
     "test_cases",
 ]

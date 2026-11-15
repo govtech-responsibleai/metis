@@ -127,7 +127,7 @@ def test_start_records_a_perspective_and_reuses_it_on_the_next_turn() -> None:
             super().__init__()
             self.seen: list[Perspective] = []
 
-        def clarify(self, specification, history, context=None):
+        def clarify(self, specification, history, context=None, scope=None):
             assert context is not None
             self.seen.append(context.perspective)
             return super().clarify(specification, history, context)
@@ -296,10 +296,10 @@ def test_model_failure_preserves_state_and_diagnostics(error, code, retryable) -
     answer fills the history to its limit (a full Clarify, then review feedback)."""
 
     class FailingInterviewer(ScriptedInterviewer):
-        def clarify(self, specification, history, context=None):
+        def clarify(self, specification, history, context=None, scope=None):
             raise error
 
-        def chat(self, specification, step, text, target, context=None):
+        def chat(self, specification, step, text, target, context=None, scope=None):
             raise error
 
     opening = _start()
@@ -345,7 +345,7 @@ def test_end_finishes_a_completable_interview() -> None:
 
 def test_missing_target_details_can_be_completed_before_review() -> None:
     class IncompleteInterviewer(ScriptedInterviewer):
-        def clarify(self, specification, history, context=None):
+        def clarify(self, specification, history, context=None, scope=None):
             return ClarifyResult(
                 done=True,
                 message="",
@@ -387,7 +387,7 @@ def test_documents_survive_turns_and_require_file_review() -> None:
     ]
 
     class FixtureInterviewer(ScriptedInterviewer):
-        def clarify(self, specification, history, context=None):
+        def clarify(self, specification, history, context=None, scope=None):
             assert context is not None and context.documents == documents
             return super().clarify(specification, history, context)
 
@@ -475,7 +475,7 @@ def test_end_on_a_held_gate_preserves_state() -> None:
 
 def test_failed_end_preserves_pending_state_for_a_later_turn() -> None:
     class DraftUnavailable(ScriptedInterviewer):
-        def draft_behaviours(self, specification, history, context=None):
+        def draft_behaviours(self, specification, history, context=None, scope=None):
             raise InterviewerOutputError("three attempts, all failed")
 
     state = InterviewState(
@@ -604,7 +604,7 @@ def test_compile_specification_raises_on_a_specification_that_will_not_build() -
 
 def test_end_completes_missing_target_fields_from_evidence() -> None:
     class TargetCompletionInterviewer(ScriptedInterviewer):
-        def chat(self, specification, step, text, target, context=None):
+        def chat(self, specification, step, text, target, context=None, scope=None):
             assert specification.target.description
             return StepResult(
                 message="",
@@ -762,7 +762,7 @@ def test_a_scope_change_on_a_later_review_keeps_the_interview_moving(
     forward, and the completed Interview derives DONE."""
 
     class Measures(ScriptedInterviewer):
-        def chat(self, specification, step, text, target, context=None):
+        def chat(self, specification, step, text, target, context=None, scope=None):
             return StepResult(
                 message="Measured.",
                 patches=[
@@ -996,7 +996,7 @@ def test_a_review_form_cancels_or_goes_back_without_mutation(step, opener) -> No
 )
 def test_review_feedback_is_exclusive_and_applies_in_one_turn(selected, values) -> None:
     class FeedbackInterviewer(ScriptedInterviewer):
-        def chat(self, specification, step, text, target, context=None):
+        def chat(self, specification, step, text, target, context=None, scope=None):
             return StepResult(
                 message="Updated.",
                 patches=[Patch(op=PatchOp.SET, path="target.name", value=text)],

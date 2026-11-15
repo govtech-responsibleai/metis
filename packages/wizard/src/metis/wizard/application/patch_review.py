@@ -316,12 +316,13 @@ def _result_problems(
                 f"{', '.join(ids)} have the same description.",
             )
 
-    # A Test Case is unique by its Persona and Scenario pair.
+    # A Test Case is unique by its Persona and Scenario pair. The later Test Case of a pair is
+    # the repeat, unless the call changed only the earlier one.
     earlier_repeats = duplicate_test_cases(specification)
     for later, earlier in duplicate_test_cases(candidate):
         if (later, earlier) not in earlier_repeats:
             blame(
-                {later, earlier},
+                {later} if later in touched else {earlier},
                 PatchReason.DUPLICATE_TEST_CASE,
                 f"{later} has the same Persona and Scenario as {earlier}.",
             )

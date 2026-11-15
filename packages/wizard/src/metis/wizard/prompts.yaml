@@ -569,3 +569,10 @@ model_feedback:
     Return the full JSON again. Leave out each patch that was not accepted and keep the others.
     Write `message` again for the user. Say what the remaining patches change and, in one
     sentence, what could not change and why. Do not mention patches, JSON or this correction.
+
+# The reply that the user reads when the wizard did not make every change that the model
+# proposed. The wizard adds `not_changed` once, with the sentence of each reason.
+replies:
+  nothing_applied: No changes were made.
+  part_applied: I made some of the changes.
+  not_changed: "Not changed: $reasons"

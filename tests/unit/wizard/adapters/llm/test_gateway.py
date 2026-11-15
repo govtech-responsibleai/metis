@@ -1,7 +1,6 @@
 """The model client: credentials, the retry loop, and the primer."""
 
 import json
-from dataclasses import dataclass, field
 
 import httpx
 import pytest
@@ -29,43 +28,11 @@ from metis.wizard.contracts import (
 from metis.wizard.contracts.output import GraderChoice, GraderChoices
 from metis.wizard.domain.permissions import PatchReason
 from tests.fixtures.wizard.context import interview_context
-
-
-@dataclass
-class FakeCompletions:
-    """Returns a scripted sequence of raw strings, recording what it was sent."""
-
-    replies: list[str]
-    calls: list[dict] = field(default_factory=list)
-
-    def create(self, **kwargs):
-        self.calls.append(kwargs)
-        text = self.replies[min(len(self.calls) - 1, len(self.replies) - 1)]
-
-        class Message:
-            content = text
-
-        class Choice:
-            message = Message()
-
-        class Response:
-            choices = [Choice()]
-
-        return Response()
-
-
-@dataclass
-class FakeClient:
-    completions: FakeCompletions
-
-    @property
-    def chat(self):
-        return self
+from tests.fixtures.wizard.gateway import FakeClient, FakeCompletions, scripted_gateway
 
 
 def interviewer(replies: list[str]) -> tuple[GatewayInterviewer, FakeCompletions]:
-    completions = FakeCompletions(replies=replies)
-    return GatewayInterviewer(_client=FakeClient(completions=completions)), completions
+    return scripted_gateway(replies)
 
 
 def simple_prompt(name: prompts.ModelCall = "clarify") -> prompts.ModelPrompt:
