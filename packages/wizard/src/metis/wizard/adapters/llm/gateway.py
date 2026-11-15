@@ -474,21 +474,7 @@ class GatewayInterviewer:
 
         prompt = prompts.ModelPrompt(
             name="configure_criterion",
-            system=(
-                "You author the final assessment rule and its grader settings. "
-                "The description is a direct statement about the assessed agent or output, "
-                "never a plan or instructions to configure a grader. Do not put grader names, "
-                "schema keys, or response-format instructions in the description. "
-                "For example: The session uses at most 3 traces. Or: The session stays within "
-                "its trace budget. A judge example is: The deck contains exactly 10 slides. "
-                "Preserve the user's full requirement, including exact values and conditions. "
-                "Do not change the assessed property. Return a clear non-empty description and "
-                "the exact grader settings needed to assess it. One Criterion assesses one property. "
-                "The description is the default user summary. Include numerical detail when useful. "
-                "If the grader uses criterion instructions, the description must contain the complete "
-                "assessment rule, including exact numerical requirements. The engine supplies those "
-                "instructions from the description. Preserve unrelated current settings during edits."
-            ),
+            system=prompts.configure_criterion_system(),
             user=json.dumps(
                 {
                     "request": request,

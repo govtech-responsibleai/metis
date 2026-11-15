@@ -63,7 +63,12 @@ from metis.wizard.domain.applier import apply
 from metis.wizard.domain.cascade import Impact, impacts_for
 from metis.wizard.domain.documents import normalize_fixture_name
 from metis.wizard.domain.patch import Patch, PatchOp, PatchOrigin
-from metis.wizard.domain.permissions import PROTECTED, InterviewStep, PatchReason
+from metis.wizard.domain.permissions import (
+    KEPT_ON_REWORD,
+    PROTECTED,
+    InterviewStep,
+    PatchReason,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -135,8 +140,11 @@ _DRAFT_COLLECTIONS = {
 # sentence, because the user did not ask for anything.
 _DRAFT_REPORTED = frozenset(
     {*PROTECTED.values(), PatchReason.MEASURED, PatchReason.NUM_TRIALS}
-    | {PatchReason.BROKEN_REFERENCE}
+    | {PatchReason.INVALID_SETTING, PatchReason.BROKEN_REFERENCE}
 )
+# The reasons whose detail is plain words, so the reply may show it. Other details can name
+# internal paths, which the user never sees.
+_PLAIN_DETAILS = frozenset({PatchReason.INVALID_SETTING})
 
 _DEFAULT_MESSAGES = {
     InterviewStep.BEHAVIOURS: "Choose what to evaluate.",
@@ -423,7 +431,14 @@ class StepDriver:
 
     def _configure_changes(
         self, state: DriverState, before: Specification, request: str = ""
-    ) -> None:
+    ) -> list[str]:
+        """Match and configure each Criterion whose wording changed in this turn.
+
+        When the grader stays the same, the settings in `KEPT_ON_REWORD`
+        keep their values, and the configure call returns the other settings with their current
+        values unless the description states new ones. A new grader starts from its own
+        defaults. Returns one sentence for each Criterion whose own settings that reset.
+        """
         from metis.wizard.application.matching.matcher import (
             default_grader_args,
             rematch,
@@ -431,7 +446,9 @@ class StepDriver:
         )
 
         if self.matcher is None:
-            return
+            return []
+        kept = KEPT_ON_REWORD
+        reset: list[str] = []
         for behaviour in state.specification.behaviours():
             for criterion in behaviour.criteria:
                 previous = before.criterion(criterion.id)
@@ -440,8 +457,12 @@ class StepDriver:
                     criterion.name,
                 ):
                     continue
+                current = dict(criterion.grader_args)
+                defaults = default_grader_args(criterion)
+                grader = criterion.grader_fqn
+                # `rematch` keeps the settings when the grader stays, and gives a new grader
+                # its defaults.
                 rematch(criterion, self.matcher)  # type: ignore[arg-type]
-                criterion.grader_args = default_grader_args(criterion)
                 configured = self.interviewer.configure_criterion(
                     criterion,
                     previous,
@@ -449,18 +470,22 @@ class StepDriver:
                     request,
                     context=state.context,
                 )
+                args = dict(configured.grader_args)
+                if criterion.grader_fqn == grader:
+                    args.update({k: v for k, v in current.items() if k in kept})
+                elif previous is not None and _customised(current, defaults):
+                    reset.append(prompts.settings_reset(criterion.name))
                 try:
                     validate_grader_args(
-                        criterion.grader_fqn,
-                        configured.grader_args,
-                        description=configured.description,
+                        criterion.grader_fqn, args, description=configured.description
                     )
                 except ValueError as exc:
                     raise InterviewerOutputError(
                         f"Invalid assessment settings: {exc}"
                     ) from exc
                 criterion.description = configured.description
-                criterion.grader_args = configured.grader_args
+                criterion.grader_args = args
+        return reset
 
     def _handle_form(
         self, state: DriverState, request: FormRequest, response: AnyResponse
@@ -551,7 +576,7 @@ class StepDriver:
         impacts = impacts_for(before, outcome.applied)
         if impacts:
             self._adjust_derived(state, impacts)
-        self._configure_changes(state, before)
+        self._tell(self._configure_changes(state, before))
         state.step = InterviewStep.BEHAVIOURS
 
     # ── the review actions: add, edit, remove ───────────────────────────────
@@ -734,7 +759,7 @@ class StepDriver:
         impacts = impacts_for(before, outcome.applied)
         if impacts:
             self._adjust_derived(state, impacts)
-        self._configure_changes(state, before)
+        self._tell(self._configure_changes(state, before))
 
     def _edit_criterion(
         self,
@@ -1157,6 +1182,13 @@ class StepDriver:
                 "That scenario field could not be updated; I left the specification unchanged."
             )
 
+    def _tell(self, sentences: list[str]) -> None:
+        """Show sentences after a form edit, which has no reply to carry them."""
+        for text in sentences:
+            self.pending_warnings.append(
+                Warning(text=text, source=WarningSource.RUNTIME, blocking=False)
+            )
+
     def _refuse_field_edit(self, text: str) -> None:
         self.pending_warnings.append(
             Warning(text=text, source=WarningSource.RUNTIME, blocking=False)
@@ -1330,7 +1362,7 @@ class StepDriver:
         impacts = impacts_for(before, review.accepted)
         if impacts:
             self._adjust_derived(state, impacts)
-        self._configure_changes(state, before, request)
+        reset = self._configure_changes(state, before, request)
         # The user changed the measured set from the chat after Behaviours were confirmed.
         # Follow it in the Test Cases now, as Behaviours Continue does.
         if (
@@ -1339,7 +1371,7 @@ class StepDriver:
             and _measured_ids(before) != _measured_ids(state.specification)
         ):
             _follow_measured_scope(state.specification)
-        self._reply(state, result, review, scope)
+        self._reply(state, result, review, scope, notes=reset)
 
     def _reply(
         self,
@@ -1347,6 +1379,8 @@ class StepDriver:
         result: StepResult,
         review: PatchReview,
         scope: PatchScope,
+        *,
+        notes: list[str] | None = None,
     ) -> None:
         """Store the text that the step shows, by one rule for every model result.
 
@@ -1355,7 +1389,8 @@ class StepDriver:
         Problems in the final result: a default reply and the same sentence, because the
         model's message describes changes that were not made. A call without a user message
         keeps the step's default text and reports only what a person would care about.
-        An empty reply never leaves an older one in place.
+        An empty reply never leaves an older one in place. `notes` are sentences that the
+        wizard adds after the reply, such as a grader reset after a reword.
         """
         step = state.step
         # Clarify questions are kept in the history, so only a review step keeps its message.
@@ -1376,7 +1411,12 @@ class StepDriver:
         if review.problems and scope.user_message:
             text = default
         if reasons:
-            text = f"{text or default} {prompts.not_changed(reasons)}"
+            details: dict[PatchReason, list[str]] = {}
+            for problem in review.problems:
+                if problem.reason in _PLAIN_DETAILS and problem.detail:
+                    details.setdefault(problem.reason, []).append(problem.detail)
+            text = f"{text or default} {prompts.not_changed(reasons, details)}"
+        text = " ".join(part for part in (text, *(notes or [])) if part)
         if text:
             state.step_messages[step] = text
         else:
@@ -1478,6 +1518,18 @@ class StepDriver:
 
 
 _TEXT_FIELDS = frozenset({"name", "description"})
+# Judge settings that the configure call carries over by itself.
+_JUDGE_KEYS = frozenset({"model", "max_input_tokens"})
+
+
+def _customised(args: dict[str, Any], defaults: dict[str, Any]) -> bool:
+    """Whether a Criterion sets a value other than its grader's default. A missing key is
+    the default."""
+    return any(
+        key not in defaults or value != defaults[key]
+        for key, value in args.items()
+        if key not in _JUDGE_KEYS
+    )
 
 
 def _files(state: DriverState) -> frozenset[str]:

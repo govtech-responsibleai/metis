@@ -10,7 +10,8 @@ The review works on a copy and does these checks in order:
     2. the scope: the part of the Specification that this call may write
     3. the permission tables (`permissions.refusal`)
     4. apply the patch to the copy, and check that the copy is still a valid Specification
-    5. check the result for what the call touched: Task references and duplicates
+    5. check the result for what the call touched: grader settings, Task references and
+       duplicates
 
 A patch that fails a result check leaves the accepted list, and the review applies the rest
 again. The result is the accepted patches, the candidate Specification after them, and one
@@ -23,6 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from metis.wizard.application.matching.matcher import grader_args_errors
 from metis.wizard.domain import paths
 from metis.wizard.domain.applier import (
     APPLY_ERRORS,
@@ -252,8 +254,14 @@ def _apply_each(
 
 
 def _touched(before: Specification, after: Specification, path: str) -> frozenset[str]:
-    """The ids of the Personas and Test Cases that one patch created or changed."""
-    first = paths.parse(path)[0]
+    """The ids of the Personas, Test Cases and grader settings that one patch changed.
+
+    A grader setting counts as its Criterion's id.
+    """
+    segments = paths.parse(path)
+    if len(segments) >= 2 and segments[-2].field == "grader_args":
+        return frozenset({segments[-3].key or ""})
+    first = segments[0]
     if first.field not in ("personas", "tasks"):
         return frozenset()
     if first.key is not None:
@@ -276,6 +284,69 @@ def _result_problems(
                 found[index] = _problem(patch, reason, detail)
 
     touched = frozenset().union(*(items for _, items in applied.accepted.values()))
+
+    # A grader setting that the call set is one that its grader accepts, as the engine checks
+    # before a run. Only a new error counts, and it removes the patch of the setting that the
+    # error names. When the error names none, it removes each setting patch that fails alone,
+    # or every setting patch of that Criterion when only the combination fails.
+    for criterion in (c for b in candidate.behaviours() for c in b.criteria):
+        if criterion.id not in touched:
+            continue
+        old = specification.criterion(criterion.id)
+        known = (
+            set(
+                grader_args_errors(
+                    old.grader_fqn, old.grader_args, description=old.description
+                )
+            )
+            if old is not None
+            else set()
+        )
+        errors = [
+            error
+            for error in grader_args_errors(
+                criterion.grader_fqn,
+                criterion.grader_args,
+                description=criterion.description,
+            )
+            if error not in known
+        ]
+        if not errors:
+            continue
+        settings = {
+            index: paths.parse(patch.path)[-1].field
+            for index, (patch, items) in applied.accepted.items()
+            if criterion.id in items
+        }
+        named = {name.split(".", 1)[0] for name, _ in errors}
+        culprits = named & set(settings.values())
+        if not culprits and old is not None:
+            # The error names no setting. A setting is a cause when it fails alone.
+            culprits = {
+                setting
+                for setting in set(settings.values())
+                if set(
+                    grader_args_errors(
+                        old.grader_fqn,
+                        {
+                            **old.grader_args,
+                            setting: criterion.grader_args.get(setting),
+                        },
+                        description=old.description,
+                    )
+                )
+                - known
+            }
+        for index, setting in settings.items():
+            if setting in culprits or not culprits:
+                messages = [m for n, m in errors if n.split(".", 1)[0] == setting] or [
+                    m for _, m in errors
+                ]
+                found[index] = _problem(
+                    applied.accepted[index][0],
+                    PatchReason.INVALID_SETTING,
+                    f"{criterion.name}, {setting}: {' '.join(messages)}",
+                )
     measured = {behaviour.id for behaviour in candidate.measured_behaviours()}
     behaviours = {behaviour.id for behaviour in candidate.behaviours()}
 

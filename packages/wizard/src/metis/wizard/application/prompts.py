@@ -83,6 +83,7 @@ _REPLY_PLACEHOLDERS: dict[str, frozenset[str]] = {
     "nothing_applied": frozenset(),
     "part_applied": frozenset(),
     "not_changed": frozenset({"reasons"}),
+    "settings_reset": frozenset({"name"}),
 }
 _SYSTEM_PLACEHOLDERS = frozenset(
     {
@@ -147,6 +148,7 @@ class PromptCatalog:
     patch_rules: str
     model_calls: Mapping[str, str]
     match_graders_system: str
+    configure_criterion_system: str
     match_graders_user: str
     patch_reasons: Mapping[str, str]
     feedback_problem: str
@@ -253,11 +255,17 @@ def load_prompt_catalog() -> PromptCatalog:
         _validate_template(value, f"replies.{name}", allowed)
         replies[name] = value
 
+    configure = _mapping(
+        _required(document, "configure_criterion"), "configure_criterion"
+    )
+    configure_system = _text(configure, "configure_criterion.system")
+
     return PromptCatalog(
         system_template=system_template,
         patch_rules=patch_rules,
         model_calls=calls,
         match_graders_system=match_system,
+        configure_criterion_system=configure_system,
         match_graders_user=match_user,
         patch_reasons=patch_reasons,
         feedback_problem=feedback_problem,
@@ -580,6 +588,20 @@ def reply(name: Literal["nothing_applied", "part_applied"]) -> str:
     return load_prompt_catalog().replies[name]
 
 
+def settings_reset(name: str) -> str:
+    """The sentence for a reworded Criterion whose new grader starts from its default settings."""
+    return _substitute(
+        load_prompt_catalog().replies["settings_reset"],
+        "replies.settings_reset",
+        {"name": name},
+    )
+
+
+def configure_criterion_system() -> str:
+    """The instructions of the call that configures a matched Criterion."""
+    return load_prompt_catalog().configure_criterion_system
+
+
 def not_changed(
     reasons: Iterable[PatchReason],
     details: Mapping[PatchReason, Iterable[str]] | None = None,
@@ -641,6 +663,7 @@ __all__ = [
     "behaviours",
     "chat",
     "clarify",
+    "configure_criterion_system",
     "criteria",
     "load_prompt_catalog",
     "match_graders",
@@ -651,5 +674,6 @@ __all__ = [
     "primer",
     "reply",
     "scenarios",
+    "settings_reset",
     "test_cases",
 ]

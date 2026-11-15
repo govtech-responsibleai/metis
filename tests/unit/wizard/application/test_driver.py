@@ -1990,3 +1990,122 @@ def test_a_follow_up_call_never_replaces_the_reply(step, patch, follow_up) -> No
 
     assert interviewer.calls.count(follow_up) == 1 + (follow_up == "chat")
     assert driver.compose(state).prompt == "Done as you asked."
+
+
+def test_the_chat_sets_every_threshold_the_user_asks_for() -> None:
+    """Issue 68: "set every threshold to 0.85" changes every Criterion, and the reply is the
+    model's own, with no warning."""
+    specification = research_assistant()
+    criteria = [
+        (feature.id, behaviour.id, criterion.id)
+        for feature in specification.features
+        for behaviour in feature.behaviours
+        for criterion in behaviour.criteria
+    ]
+    reply = _model_reply(
+        "Every threshold is now 0.85.",
+        *(
+            (f"features[{f}].behaviours[{b}].criteria[{c}].grader_args.threshold", 0.85)
+            for f, b, c in criteria
+        ),
+    )
+
+    driver, state, completions = _chat_through_the_gateway([reply])
+
+    assert len(completions.calls) == 1
+    assert {
+        c.grader_args["threshold"]
+        for b in state.specification.behaviours()
+        for c in b.criteria
+    } == {0.85}
+    assert driver.compose(state).prompt == "Every threshold is now 0.85."
+    assert not driver.pending_warnings
+
+
+def test_a_grader_setting_that_the_grader_rejects_is_named_in_the_reply() -> None:
+    reply = _model_reply(
+        "Set the thresholds.",
+        (f"{_AC11}.grader_args.threshold", 1.5),
+        (f"{_AC31}.grader_args.threshold", 0.85),
+    )
+
+    driver, state, _ = _chat_through_the_gateway([reply])
+
+    shown = driver.compose(state).prompt
+    criterion = state.specification.criterion("AC-1-1")
+    assert state.specification.criterion("AC-3-1").grader_args["threshold"] == 0.85  # type: ignore[union-attr]
+    assert "threshold" not in criterion.grader_args  # type: ignore[union-attr]
+    assert shown.startswith(f"{prompts.reply('part_applied')} Not changed: ")
+    assert prompts.patch_reason(PatchReason.INVALID_SETTING) in shown
+    assert f"{criterion.name}, threshold:" in shown  # type: ignore[union-attr]
+    assert "grader_args" not in shown
+
+
+@dataclass
+class _ResettingConfigure(RewordingInterviewer):
+    """A configure call that returns the grader's settings without the user's pass mark."""
+
+    path: str = _AC1
+
+    def chat(self, specification, step, text, target, context=None, scope=None):
+        return StepResult(
+            message="Reworded it.",
+            patches=[
+                Patch(op=PatchOp.SET, path=self.path, value="It stays in budget.")
+            ],
+        )
+
+    def configure_criterion(
+        self, criterion, previous, specification, request, context=None
+    ):
+        from metis.wizard.contracts.output import CriterionConfiguration
+
+        args = {k: v for k, v in criterion.grader_args.items() if k != "threshold"}
+        return CriterionConfiguration(
+            description=criterion.description, grader_args=args
+        )
+
+
+@pytest.mark.parametrize(
+    ("criterion_id", "fqn", "kept"),
+    [
+        # The matcher gives the trace budget grader. AC-3-1 already has it.
+        ("AC-3-1", "metis.library.graders.demo.DemoTraceBudgetGrader", True),
+        # AC-1-1 has another grader, so the reword gives it a new one.
+        ("AC-1-1", "tests.unit.engine.graders_for_tests.FixedScoreGrader", False),
+    ],
+    ids=["same grader", "new grader"],
+)
+def test_a_reword_keeps_the_settings_unless_the_grader_changes(
+    criterion_id, fqn, kept
+) -> None:
+    specification = research_assistant()
+    criterion = specification.criterion(criterion_id)
+    assert criterion is not None and criterion.grader_fqn == fqn
+    criterion.grader_args = {"threshold": 0.9, "scope": "session"}
+    path = next(
+        f"features[{f.id}].behaviours[{b.id}].criteria[{criterion_id}].description"
+        for f in specification.features
+        for b in f.behaviours
+        if specification.criterion(criterion_id) in b.criteria
+    )
+    driver = StepDriver(
+        interviewer=_ResettingConfigure(path=path), matcher=RecordingMatcher()
+    )
+    state = driver_state(
+        specification=specification,
+        step=InterviewStep.CRITERIA,
+        issued_ids=collect_specification_ids(specification),
+    )
+
+    driver.handle(
+        state, ChatRequest(prompt="q", multiline=True), ChatResponse(text="Reword it")
+    )
+
+    shown = driver.compose(state).prompt
+    if kept:
+        assert criterion.grader_args == {"threshold": 0.9, "scope": "session"}
+        assert shown == "Reworded it."
+    else:
+        assert criterion.grader_args.get("threshold", 0.5) == 0.5
+        assert shown == f"Reworded it. {prompts.settings_reset(criterion.name)}"

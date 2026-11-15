@@ -5,6 +5,7 @@ import pytest
 from metis.wizard.application import prompts
 from metis.wizard.domain.patch import PatchOp
 from metis.wizard.domain.permissions import (
+    KEPT_ON_REWORD,
     ON_REQUEST,
     PROTECTED,
     InterviewStep,
@@ -16,6 +17,7 @@ from metis.wizard.domain.permissions import (
 
 BEHAVIOUR = "features[F-1].behaviours[EB-1]"
 CRITERION = f"{BEHAVIOUR}.criteria[AC-1-1]"
+SETTINGS = f"{CRITERION}.grader_args"
 
 ADD, REMOVE, SET, REORDER = PatchOp.ADD, PatchOp.REMOVE, PatchOp.SET, PatchOp.REORDER
 LIST = {ADD, REORDER}
@@ -92,9 +94,17 @@ def test_the_form_of_an_owned_address_decides_its_operations(step, glob) -> None
         ("tasks[TC-001].num_trials", SET, 5, False, PatchReason.NUM_TRIALS),
         ("tasks[TC-001].num_trials", SET, 50, True, PatchReason.NUM_TRIALS),
         ("tasks[TC-001].num_trials", SET, True, True, PatchReason.NUM_TRIALS),
+        (f"{SETTINGS}.threshold", SET, 0.9, True, None),
+        (f"{SETTINGS}.max_traces", SET, 4, True, None),
+        (f"{SETTINGS}.threshold", SET, 0.9, False, PatchReason.OUTSIDE_SCOPE),
+        (f"{SETTINGS}.max_traces", ADD, 4, True, PatchReason.WRONG_OPERATION),
         # A protected field is refused for every call.
         ("tasks[TC-001].fixtures", SET, ["a.md"], True, PatchReason.FIXTURES),
         (f"{CRITERION}.grader_fqn", SET, "x.Grader", True, PatchReason.GRADER),
+        (f"{SETTINGS}.model", SET, "gpt", True, PatchReason.JUDGE_SETTING),
+        (f"{SETTINGS}.provider", SET, "x", True, PatchReason.JUDGE_SETTING),
+        (f"{SETTINGS}.max_input_tokens", SET, 9, True, PatchReason.JUDGE_SETTING),
+        (f"{SETTINGS}.criterion", SET, "x", True, PatchReason.CRITERION_TEXT),
         # The form of an owned address.
         ("scenarios[S-1]", SET, {}, True, PatchReason.WHOLE_ITEM),
         ("features", REMOVE, None, True, PatchReason.WRONG_OPERATION),
@@ -115,6 +125,10 @@ def test_every_reason_has_a_sentence_in_the_prompt_catalogue() -> None:
         assert prompts.patch_reason(reason).strip()
     assert set(PROTECTED.values()) <= set(PatchReason)
     assert {reason for reason, _ in ON_REQUEST.values()} <= set(PatchReason)
+
+
+def test_a_reword_keeps_the_pass_mark_and_the_scope() -> None:
+    assert {"threshold", "scope"} == KEPT_ON_REWORD
 
 
 def test_a_glob_does_not_span_a_dot() -> None:

@@ -1,13 +1,14 @@
 """What the model may write, and where.
 
-Three plain tables hold the rules. `refusal` reads them in this order:
+Four plain tables hold the rules. `refusal` reads the first three in this order:
 
 1. `PROTECTED`: the fields that no model call may write, each with its reason.
 2. `ON_REQUEST`: the fields that a chat may set only when the user's own message asks, each
    with the reason that a refusal gets and a check of the value.
 3. `StepPermissions`: each Interview step and the addresses that it owns.
 
-An address in none of them is not writable.
+An address in none of them is not writable. `KEPT_ON_REWORD` names the grader settings that keep
+their values when a reword leaves the grader the same.
 
 `StepPermissions` does not name operations, because the form of an address decides them. A list
 takes ADD and REORDER (`features`, `features[F-1].behaviours`). An item takes REMOVE
@@ -64,12 +65,15 @@ class PatchReason(StrEnum):
     NUM_TRIALS = "num_trials"
     FIXTURES = "fixtures"
     GRADER = "grader"
+    JUDGE_SETTING = "judge_setting"
+    CRITERION_TEXT = "criterion_text"
     WHOLE_ITEM = "whole_item"
     WRONG_OPERATION = "wrong_operation"
     NOT_WRITABLE = "not_writable"
     OUTSIDE_SCOPE = "outside_scope"
     UNKNOWN_ADDRESS = "unknown_address"
     BAD_VALUE = "bad_value"
+    INVALID_SETTING = "invalid_setting"
     BROKEN_REFERENCE = "broken_reference"
     DUPLICATE_PERSONA = "duplicate_persona"
     DUPLICATE_TEST_CASE = "duplicate_test_case"
@@ -92,6 +96,10 @@ def _glob_to_regex(glob: str) -> re.Pattern[str]:
     return re.compile("^" + "".join(parts) + "$")
 
 
+def _any_value(_value: object) -> bool:
+    return True
+
+
 def _is_flag(value: object) -> bool:
     return isinstance(value, bool)
 
@@ -107,8 +115,9 @@ def _is_trial_count(value: object) -> bool:
 _BEHAVIOUR = "features[*].behaviours[*]"
 _CRITERION = f"{_BEHAVIOUR}.criteria[*]"
 
-# Each step owns both the list and its items. The measurement tick and the Trial count are
-# not here: see `ON_REQUEST`. A user's tick is a wizard patch, which never reaches these tables.
+# Each step owns both the list and its items. The measurement tick, the Trial count and the
+# grader settings are not here: see `ON_REQUEST`. A user's tick is a wizard patch, which never
+# reaches these tables.
 StepPermissions: dict[InterviewStep, list[str]] = {
     InterviewStep.CLARIFY: [
         "target.name",
@@ -156,18 +165,28 @@ StepPermissions: dict[InterviewStep, list[str]] = {
 }
 
 # What a chat may set only when the user's own message asks. Each entry has the reason that a
-# refusal gets and the check of the value.
+# refusal gets and the check of the value. The patch review also checks a grader setting with
+# its grader.
 ON_REQUEST: dict[str, tuple[PatchReason, Callable[[object], bool]]] = {
     f"{_BEHAVIOUR}.measured": (PatchReason.MEASURED, _is_flag),
     "tasks[*].num_trials": (PatchReason.NUM_TRIALS, _is_trial_count),
+    f"{_CRITERION}.grader_args.*": (PatchReason.OUTSIDE_SCOPE, _any_value),
 }
 
 # What no model call may set, and the reason. The matcher chooses the grader from the wording
-# of the Criterion. The files of a Test Case change only in its form.
+# of the Criterion. The judge comes from the run configuration, and the judge instructions come
+# from the Criterion description. The files of a Test Case change only in its form.
 PROTECTED: dict[str, PatchReason] = {
     f"{_CRITERION}.grader_fqn": PatchReason.GRADER,
+    f"{_CRITERION}.grader_args.model": PatchReason.JUDGE_SETTING,
+    f"{_CRITERION}.grader_args.provider": PatchReason.JUDGE_SETTING,
+    f"{_CRITERION}.grader_args.max_input_tokens": PatchReason.JUDGE_SETTING,
+    f"{_CRITERION}.grader_args.criterion": PatchReason.CRITERION_TEXT,
     "tasks[*].fixtures": PatchReason.FIXTURES,
 }
+
+# The grader settings that keep their values when a reword leaves the grader the same.
+KEPT_ON_REWORD = frozenset({"threshold", "scope"})
 
 _OWNED = {glob for globs in StepPermissions.values() for glob in globs}
 

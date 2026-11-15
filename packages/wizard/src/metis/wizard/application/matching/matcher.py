@@ -193,7 +193,7 @@ def default_grader_args(criterion: Criterion) -> dict[str, Any]:
 def validate_grader_args(
     fqn: str | None, args: Any, *, description: str | None = None
 ) -> None:
-    """Check ``args`` as the engine will before a run.
+    """Check ``args`` as the engine will before a run. Raise ``ValueError`` when they fail.
 
     The args must match the grader's ``args_model``, and the grader must accept the
     ``scope``, ``judgment_form`` and ``aggregation`` they set. The grader checks the second
@@ -202,28 +202,45 @@ def validate_grader_args(
     A model-based grader's ``model`` is filled in with a placeholder when absent: the engine
     resolves it at run time, so its absence here is not an error.
     """
+    errors = grader_args_errors(fqn, args, description=description)
+    if errors:
+        raise ValueError(
+            "; ".join(
+                f"{name}: {message}" if name else message for name, message in errors
+            )
+        )
+
+
+def grader_args_errors(
+    fqn: str | None, args: Any, *, description: str | None = None
+) -> list[tuple[str, str]]:
+    """The problems of ``args`` as ``(setting, message)`` pairs, empty when they are valid.
+
+    The setting is empty for a problem that no single setting causes.
+    """
     if not fqn or not isinstance(args, dict):
-        raise ValueError("Select a Grader and supply a JSON object.")
+        return [("", "Select a Grader and supply a JSON object.")]
     try:
         module, name = fqn.rsplit(".", 1)
         cls = getattr(import_module(module), name)
     except (ImportError, AttributeError, ValueError) as exc:
-        raise ValueError(str(exc)) from exc
+        return [("", str(exc))]
     if not (isinstance(cls, type) and issubclass(cls, Grader)):
-        raise ValueError(f"{fqn} is not a metis.library.grader.Grader")
+        return [("", f"{fqn} is not a metis.library.grader.Grader")]
     # The same check as the engine's `resolve_grader_class`, repeated here because the
     # wizard must not import the engine.
     if inspect.isabstract(cls) or not hasattr(cls, "args_model"):
-        raise ValueError(f"{fqn} is an abstract base, not a concrete grader")
-    candidate = criterion_judge_args(cls.args_model, args, description)
-    if issubclass(cls.args_model, JudgeArgs):
-        candidate.setdefault("model", "resolved-at-run-time")
+        return [("", f"{fqn} is an abstract base, not a concrete grader")]
     try:
+        candidate = criterion_judge_args(cls.args_model, args, description)
+        if issubclass(cls.args_model, JudgeArgs):
+            candidate.setdefault("model", "resolved-at-run-time")
         cls(cls.args_model.model_validate(candidate))
     except ValidationError as exc:
-        raise ValueError(
-            "; ".join(
-                f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
-                for error in exc.errors()
-            )
-        ) from exc
+        return [
+            (".".join(str(part) for part in error["loc"]), error["msg"])
+            for error in exc.errors()
+        ]
+    except ValueError as exc:
+        return [("", str(exc))]
+    return []

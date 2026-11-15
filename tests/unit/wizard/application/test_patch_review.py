@@ -12,6 +12,7 @@ from tests.fixtures.wizard.specifications import research_assistant
 EB1 = "features[F-1].behaviours[EB-1]"
 AC11 = f"{EB1}.criteria[AC-1-1]"
 EB3 = "features[F-2].behaviours[EB-3]"
+AC31 = f"{EB3}.criteria[AC-3-1]"
 
 
 def set_(path: str, value: object) -> Patch:
@@ -98,6 +99,15 @@ def test_each_refused_patch_is_a_problem_with_its_reason(patch, reason) -> None:
 @pytest.mark.parametrize(
     ("failing", "reason"),
     [
+        # The pass mark is a number from 0 to 1. The grader rejects 1.5.
+        (set_(f"{AC11}.grader_args.threshold", 1.5), PatchReason.INVALID_SETTING),
+        # Two settings of one Criterion: only the setting that the grader rejects is removed.
+        (set_(f"{AC31}.grader_args.max_traces", 0), PatchReason.INVALID_SETTING),
+        # A grader accepts only the judgment forms that it declares.
+        (
+            set_(f"{AC31}.grader_args.judgment_form", "scalar"),
+            PatchReason.INVALID_SETTING,
+        ),
         (set_("tasks[TC-001].persona_ref", "nobody"), PatchReason.BROKEN_REFERENCE),
         # EB-2 exists, but it is not measured.
         (set_("tasks[TC-001].behaviour_refs", ["EB-2"]), PatchReason.BROKEN_REFERENCE),
@@ -116,18 +126,32 @@ def test_each_refused_patch_is_a_problem_with_its_reason(patch, reason) -> None:
             PatchReason.DUPLICATE_TEST_CASE,
         ),
     ],
-    ids=["missing persona", "unmeasured behaviour", "same persona", "same pair"],
+    ids=[
+        "threshold out of range",
+        "grader setting",
+        "unsupported judgment form",
+        "missing persona",
+        "unmeasured behaviour",
+        "same persona",
+        "same pair",
+    ],
 )
 def test_a_failed_result_check_removes_only_the_patches_that_caused_it(
     failing, reason
 ) -> None:
-    valid = set_(f"{EB1}.name", "Cites every claim")
+    valid = [
+        set_(f"{EB1}.name", "Cites every claim"),
+        set_(f"{AC31}.grader_args.threshold", 0.85),
+    ]
 
-    review = review_patches(research_assistant(), [valid, failing], PatchScope())
+    review = review_patches(
+        research_assistant(), [*valid, failing], PatchScope(user_message=True)
+    )
 
-    assert review.accepted == [valid]
+    assert review.accepted == valid
     assert [(p.path, p.reason) for p in review.problems] == [(failing.path, reason)]
     assert review.candidate.behaviour("EB-1").name == "Cites every claim"  # type: ignore[union-attr]
+    assert review.candidate.criterion("AC-3-1").grader_args == {"threshold": 0.85}  # type: ignore[union-attr]
     assert review.candidate.tasks == research_assistant().tasks
     assert review.candidate.personas == research_assistant().personas
 
