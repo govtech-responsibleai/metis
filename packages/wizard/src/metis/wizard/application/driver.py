@@ -11,11 +11,10 @@ model is called at five points only — clarify, and the four drafting steps.
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from metis.wizard.application import config, screens
+from metis.wizard.application import config, prompts, screens
 from metis.wizard.application.interviewer import Interviewer, InterviewerOutputError
 from metis.wizard.application.readiness import missing_criteria_paths
 from metis.wizard.contracts.conversation import (
@@ -1349,8 +1348,6 @@ class StepDriver:
         if result.message and state.step in _DEFAULT_MESSAGES:
             state.step_messages[state.step] = result.message
         patches = sanitise(result.patches)
-        if user_message:
-            patches = [_user_requested(patch) for patch in patches]
         refused = [
             patch
             for patch in patches
@@ -1375,12 +1372,13 @@ class StepDriver:
             issued_ids=state.issued_ids,
             user_typed=state.user_typed,
             allowed_fixture_names=set(state.context.document_names),
+            user_message=user_message,
         )
 
         for rejection in outcome.rejected:
             self.pending_warnings.append(
                 Warning(
-                    text=rejection.message,
+                    text=prompts.patch_reason(rejection.reason),
                     source=WarningSource.RUNTIME,
                     blocking=False,
                 )
@@ -1483,7 +1481,10 @@ class StepDriver:
         )
         for rejection in outcome.rejected:
             self.pending_warnings.append(
-                Warning(text=rejection.message, source=WarningSource.RUNTIME)
+                Warning(
+                    text=prompts.patch_reason(rejection.reason),
+                    source=WarningSource.RUNTIME,
+                )
             )
         if result.message and state.step in _DEFAULT_MESSAGES:
             state.step_messages[state.step] = result.message
@@ -1524,31 +1525,6 @@ def _target_of(chosen: list[Option], action: str) -> str | None:
     unscoped; the criteria actions carry a behaviour id, which is what scopes them to one card.
     """
     return next((o.id.target for o in chosen if o.id.action == action), None)
-
-
-# The user's own decisions. No model call may write them, except a chat that answers the
-# user's own message: "measure only the citation behaviour" or "run 5 trials" is the user
-# deciding, through the chat. A drafting call never reaches this.
-_USER_DECISIONS = (
-    (re.compile(r"^features\[[^\]]+\]\.behaviours\[[^\]]+\]\.measured$"), bool),
-    (re.compile(r"^tasks\[[^\]]+\]\.num_trials$"), int),
-)
-
-
-def _user_requested(patch: Patch) -> Patch:
-    """Trust a SET of a user decision, with a value of the right type, from a user chat."""
-    if patch.op is not PatchOp.SET:
-        return patch
-    for pattern, kind in _USER_DECISIONS:
-        if (
-            pattern.match(patch.path)
-            and type(patch.value) is kind
-            and (
-                kind is bool or screens.TRIALS_MIN <= patch.value <= screens.TRIALS_MAX
-            )
-        ):
-            return patch.model_copy(update={"origin": PatchOrigin.WIZARD})
-    return patch
 
 
 def _task_settings(

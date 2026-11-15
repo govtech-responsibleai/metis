@@ -29,7 +29,7 @@ from metis.wizard.contracts.interview_state import (
     InterviewContext,
     Perspective,
 )
-from metis.wizard.domain.permissions import InterviewStep
+from metis.wizard.domain.permissions import InterviewStep, PatchReason
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -139,6 +139,7 @@ class PromptCatalog:
     model_calls: Mapping[str, str]
     match_graders_system: str
     match_graders_user: str
+    patch_reasons: Mapping[str, str]
 
 
 def _error(key: str, detail: str) -> PromptCatalogError:
@@ -216,12 +217,20 @@ def load_prompt_catalog() -> PromptCatalog:
     match_user = _text(match, "match_graders.user")
     _validate_template(match_user, "match_graders.user", _MATCH_GRADERS_PLACEHOLDERS)
 
+    # Every reason that the permission tables or the patch review can give needs its sentence.
+    reasons = _mapping(_required(document, "patch_reasons"), "patch_reasons")
+    patch_reasons = {
+        reason.value: _text(reasons, f"patch_reasons.{reason.value}").strip()
+        for reason in PatchReason
+    }
+
     return PromptCatalog(
         system_template=system_template,
         patch_rules=patch_rules,
         model_calls=calls,
         match_graders_system=match_system,
         match_graders_user=match_user,
+        patch_reasons=patch_reasons,
     )
 
 
@@ -504,6 +513,11 @@ def chat(
     )
 
 
+def patch_reason(reason: PatchReason) -> str:
+    """The sentence that says why the wizard did not apply a patch."""
+    return load_prompt_catalog().patch_reasons[reason.value]
+
+
 def match_graders(specs: Iterable[GraderSpec], criteria: str) -> ModelPrompt:
     """Ask which of ``specs`` fits each Criterion. ``criteria`` is the Criteria as JSON."""
     catalog = load_prompt_catalog()
@@ -540,6 +554,7 @@ __all__ = [
     "criteria",
     "load_prompt_catalog",
     "match_graders",
+    "patch_reason",
     "personas",
     "primer",
     "scenarios",

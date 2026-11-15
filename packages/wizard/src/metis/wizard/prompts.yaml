@@ -541,3 +541,20 @@ match_graders:
 
     Return one choice for each Criterion, with its `id` as `criterion_id`. Use only the IDs above
     and the FQNs above.
+
+# One sentence for each reason the wizard does not apply a model patch. The keys are the values
+# of `PatchReason`. The model reads them in the correction, and the user reads them in the reply.
+patch_reasons:
+  measured: Which Behaviours are measured is the user's decision.
+  num_trials: The Trial count is the user's decision, a whole number from 1 to 20.
+  fixtures: The files of a Test Case change only in its form.
+  grader: The grader of a Criterion cannot be set. It follows the wording of the Criterion.
+  whole_item: An item cannot be replaced as a whole. Only its fields can change.
+  wrong_operation: That operation does not fit that part of the Specification.
+  not_writable: That part of the Specification cannot change in the chat.
+  outside_scope: The change was outside the item or step in view.
+  unknown_address: The change named an item that does not exist.
+  bad_value: A value did not fit its field.
+  broken_reference: A Test Case named a Persona, Scenario or Behaviour that does not exist or is not measured.
+  duplicate_persona: Two Personas cannot have the same description.
+  duplicate_test_case: Two Test Cases cannot use the same Persona and Scenario.

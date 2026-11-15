@@ -137,6 +137,7 @@ class StepResultPatch(BaseModel):
         | TaskDraft
         | str
         | int
+        | float
         | bool
         | list[str]
         | None

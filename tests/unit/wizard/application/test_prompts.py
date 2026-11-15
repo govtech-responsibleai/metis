@@ -131,6 +131,10 @@ def _unsupported_placeholder(document: dict[str, Any]) -> None:
     document["model_calls"]["criteria"] = "$specification $unknown"
 
 
+def _remove_a_patch_reason(document: dict[str, Any]) -> None:
+    del document["patch_reasons"]["grader"]
+
+
 @pytest.mark.parametrize(
     ("change", "broken_key"),
     [
@@ -140,6 +144,7 @@ def _unsupported_placeholder(document: dict[str, Any]) -> None:
         (_remove_match_graders, "match_graders"),
         (_invalid_template, "model_calls.criteria"),
         (_unsupported_placeholder, "model_calls.criteria"),
+        (_remove_a_patch_reason, "patch_reasons.grader"),
     ],
 )
 def test_catalogue_validation_cases(
