@@ -47,7 +47,9 @@ Conversation upload controls this rule through `UploadContext`.
 
 The id of an Interview is its Target id and the name of its folder in `experiments/design/`.
 `interviewId` makes it from the local time when the user sends the first message:
-`YYYYMMDD-HHMMSS-interview`, the same name as a `metis wizard init` folder. When the store
+`YYYYMMDD-HHMMSS-interview-<random>`. It is the name of a `metis wizard init` folder and then
+the five characters of `randomPart`, so two people who start in the same second get different
+ids. When the store
 gives 409 `target_exists` on the first save, `putNew` saves again as `-2`, `-3`, and so on.
 
 The client has two authoring paths. The Interview is the guided path. The manual form

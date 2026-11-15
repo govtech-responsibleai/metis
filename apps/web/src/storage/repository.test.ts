@@ -205,15 +205,19 @@ test("lists summaries newest first with the problems that the store reports", as
   ]);
 });
 
-test("an Interview id is the local start time in the folder format of the wizard", () => {
+test("an Interview id is the local start time, the word interview, and a random part", () => {
   const sent = new Date(2026, 10, 12, 10, 15, 0);
 
-  assert.equal(interviewId(sent), "20261112-101500-interview");
-  assert.equal(interviewId(sent, 2), "20261112-101500-interview-2");
+  assert.equal(interviewId(sent, "k7mwp"), "20261112-101500-interview-k7mwp");
   assert.equal(
-    interviewId(new Date(2026, 0, 2, 3, 4, 5)),
-    "20260102-030405-interview",
+    interviewId(new Date(2026, 0, 2, 3, 4, 5), "k7mwp"),
+    "20260102-030405-interview-k7mwp",
   );
+  assert.match(
+    interviewId(sent),
+    /^20261112-101500-interview-[a-hjkmnp-z2-9]{5}$/,
+  );
+  assert.notEqual(interviewId(sent), interviewId(sent));
 });
 
 test("a new Interview whose id another Interview has is saved under the next id", async () => {
@@ -221,16 +225,17 @@ test("a new Interview whose id another Interview has is saved under the next id"
   globalThis.fetch = server.fetch;
   const repository = new InterviewRepository();
   const sent = new Date(2026, 10, 12, 10, 15, 0);
-  const other = emptyRecord(interviewId(sent), state, "clarify", []);
+  const id = interviewId(sent, "k7mwp");
+  const other = emptyRecord(id, state, "clarify", []);
   await repository.put({ ...other, created_at: 1 });
-  const record = emptyRecord(interviewId(sent), state, "clarify", []);
+  const record = emptyRecord(id, state, "clarify", []);
 
-  const saved = await putNew(repository, record, sent);
+  const saved = await putNew(repository, record);
 
-  assert.equal(saved.id, "20261112-101500-interview-2");
+  assert.equal(saved.id, "20261112-101500-interview-k7mwp-2");
   assert.equal(server.targets.get(saved.id)?.record.id, saved.id);
-  assert.equal(server.targets.get(interviewId(sent))?.record.created_at, 1);
-  assert.equal((await putNew(repository, record, sent)).id, saved.id);
+  assert.equal(server.targets.get(id)?.record.created_at, 1);
+  assert.equal((await putNew(repository, record)).id, saved.id);
 });
 
 test("a deleted Interview reads as missing", async () => {

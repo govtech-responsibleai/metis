@@ -93,7 +93,8 @@ project folder of the command. The store builds its paths from the constants in 
 
 The files of a Target are in the layout that `metis wizard init` writes, under
 `<project>/experiments/design/<target_id>/`. The web app gives a new Target the id
-`YYYYMMDD-HHMMSS-interview`, which is the name of a `metis wizard init` folder. When the id is
+`YYYYMMDD-HHMMSS-interview-<random>`. It is the name of a `metis wizard init` folder and then
+five random characters, so two people who start in the same second get different ids. When the id is
 taken, the web app adds `-2`, `-3`, and so on. The `created_at` of the record tells one Interview
 from another. A save with the id of another Interview gets 409 `target_exists` and changes
 nothing. `inputs/interview_state.json` holds the state of the Interview, in the file that the
