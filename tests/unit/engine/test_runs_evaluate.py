@@ -221,6 +221,36 @@ def test_evaluate_deletes_the_earlier_evaluation_outputs(
     assert json.loads(_results(output).read_text())["records"]
 
 
+@pytest.mark.parametrize("function", [evaluate, resume_evaluation])
+def test_a_stop_before_the_run_starts_leaves_the_earlier_evaluation(
+    monkeypatch, tmp_path: Path, function
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    _write_records(output, 2)
+    earlier = _earlier_evaluation(output)
+    log = output / execution_layout.LOGS / "evaluate.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text("earlier evaluation\n")
+    earlier[log] = log.read_bytes()
+    earlier[_results(output)] = _results(output).read_bytes()
+    calls = _patch_evaluation(monkeypatch)
+    stop = threading.Event()
+    stop.set()
+
+    with pytest.raises(RunStopped):
+        function(
+            output,
+            trace_wait=_WAIT,
+            concurrency=1,
+            stop=stop,
+            console=_console()[0],
+        )
+
+    assert calls == []
+    assert {path: path.read_bytes() for path in earlier} == earlier
+    assert _phase_lines(output)[-1] == ("evaluating", "interrupted")
+
+
 def test_resume_evaluation_keeps_the_earlier_evaluation_outputs(
     monkeypatch, tmp_path: Path
 ) -> None:

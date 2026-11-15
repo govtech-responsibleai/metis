@@ -82,7 +82,8 @@ def evaluate(
     It writes the ``evaluating`` lines of ``logs/events.jsonl``: ``started``, then
     ``completed``, ``failed`` or ``interrupted``. When ``stop`` is set, it cancels the
     sessions in flight within a fraction of a second, also while a session waits for its
-    traces. It keeps the trials that it graded and writes no ``results.json``.
+    traces. It keeps the trials that it graded and writes no ``results.json``. When
+    ``stop`` is already set, it deletes nothing and grades nothing.
 
     ``show_progress`` draws a progress bar on ``console``, for a terminal. ``command``
     names the CLI command that the "to continue" text names.
@@ -225,6 +226,10 @@ def _grade(
     from metis.core.model_settings import find_env_file
     from metis.core.trials import TrialRecord
 
+    if stop.is_set():
+        # A stop before any session starts changes nothing: the log is not started
+        # again and no earlier output is deleted.
+        raise RunStopped("stopped")
     evaluation_log = EvaluationLogger(
         experiment_dir / execution_layout.LOGS, reset=not resume
     )
