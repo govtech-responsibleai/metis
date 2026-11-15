@@ -885,7 +885,7 @@ The engine performs these checks at experiment load time:
 3. Get `class_name` from the module — raises `ImportError` if the attribute doesn't exist
 4. Verify the class has callable `start`, `create`, and `close` methods — raises `TypeError` if any are missing
 
-At simulation time (`_simulate_in` in `packages/engine/src/metis/engine/runs/_simulation.py`):
+At simulation time (`_simulate_in` in `packages/engine/src/metis/engine/run/_simulation.py`):
 
 ```python
 factory_cls = resolve_runner_factory(specification.runner_factory_ref)

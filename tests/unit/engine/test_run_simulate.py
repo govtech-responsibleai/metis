@@ -1,4 +1,4 @@
-"""Tests for ``metis.engine.runs.simulate`` and ``resume_simulation``, called with no CLI."""
+"""Tests for ``metis.engine.run.simulate`` and ``resume_simulation``, called with no CLI."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from rich.console import Console
 
 from metis.core import execution_layout
 from metis.core.logging import configure_logging
-from metis.engine.runs import (
+from metis.engine.run import (
     RunError,
     RunStopped,
     prepare_experiment,

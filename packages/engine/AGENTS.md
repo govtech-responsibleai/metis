@@ -8,7 +8,7 @@ Evaluation runtime — simulation harness, trace extraction, and grader executio
 
 ## Library functions
 
-`metis.engine.runs` runs an experiment from Python, with no CLI. `metis engine simulate`,
+`metis.engine.run` runs an experiment from Python, with no CLI. `metis engine simulate`,
 `evaluate`, and `run` call these functions, and so does the API.
 
 | Function | Does |
@@ -20,7 +20,7 @@ Evaluation runtime — simulation harness, trace extraction, and grader executio
 | `resume_evaluation(experiment_dir, *, trace_wait, concurrency, stop, console)` | Grades only the trials that have no evaluation file. |
 
 The functions never exit and never set a signal handler. Each raises an error from
-`metis.engine.runs.errors`: a `RunError` (exit code 1 in the CLI) or `RunStopped` (exit code
+`metis.engine.run.errors`: a `RunError` (exit code 1 in the CLI) or `RunStopped` (exit code
 130). An unexpected error is raised as itself. `stop` is a `threading.Event`. When it is set,
 a simulation ends each trial at its next turn, and an evaluation cancels its sessions within a
 fraction of a second. The functions write their text only to `console`, which is a Rich

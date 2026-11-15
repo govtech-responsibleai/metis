@@ -1,4 +1,4 @@
-"""Tests for ``metis.engine.runs.prepare_experiment``, called with no CLI."""
+"""Tests for ``metis.engine.run.prepare_experiment``, called with no CLI."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
-from metis.engine.runs import (
+from metis.engine.run import (
     ExperimentExistsError,
     InvalidInputsError,
     RunError,
@@ -145,7 +145,7 @@ def test_prepare_experiment_raises_for_a_project_folder_that_does_not_exist(
 def test_prepare_experiment_raises_when_the_folder_name_is_used(
     monkeypatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr("metis.engine.runs._inputs.datetime", _FixedClock)
+    monkeypatch.setattr("metis.engine.run._inputs.datetime", _FixedClock)
     source = _write_source(tmp_path)
     project = _project(tmp_path)
     console, text = _console()

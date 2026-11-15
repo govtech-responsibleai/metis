@@ -19,8 +19,8 @@ from metis.core.console import console
 from metis.core.execution_layout import find_project_root
 from metis.core.phase_events import PhaseEventLog
 from metis.engine import __version__
-from metis.engine.runs import EvaluationInputError, EvaluationOutcome
-from metis.engine.runs._evaluation import evaluation_is_complete
+from metis.engine.run import EvaluationInputError, EvaluationOutcome
+from metis.engine.run._evaluation import evaluation_is_complete
 from metis.engine.tracing import tracing_key
 
 if TYPE_CHECKING:
@@ -163,7 +163,7 @@ def _needs_judge(specification: Specification) -> bool:
 
 def _validate_inputs(input_dir: Path) -> None:
     """Check every input of a new run, or print the error and exit with code 1."""
-    from metis.engine.runs import InvalidInputsError, validate_inputs
+    from metis.engine.run import InvalidInputsError, validate_inputs
 
     try:
         validate_inputs(input_dir, console=console)
@@ -197,7 +197,7 @@ def _configure_process_logging(log_level: str, *, use_tui: bool = False) -> None
 
 def _trial_record_files(experiment_dir: Path) -> list[Path]:
     """Return trial records in the same order used by the old CLI."""
-    from metis.engine.runs._common import trial_record_files
+    from metis.engine.run._common import trial_record_files
 
     return trial_record_files(experiment_dir)
 
@@ -312,21 +312,21 @@ def _resolve_simulation_target(
 
 def _resolve_experiment_dir(experiment_dir: Path) -> Path:
     """Validate an explicit simulation output directory."""
-    from metis.engine.runs import resolve_experiment_dir
+    from metis.engine.run import resolve_experiment_dir
 
     return resolve_experiment_dir(experiment_dir, console=console)
 
 
 def _evaluate_command(experiment_dir: Path) -> str:
     """Build the shell-safe command for evaluating a simulation output."""
-    from metis.engine.runs._common import evaluate_command
+    from metis.engine.run._common import evaluate_command
 
     return evaluate_command(experiment_dir)
 
 
 def _resume_command(experiment_dir: Path, command: str) -> str:
     """Build the shell-safe command for resuming a simulation output."""
-    from metis.engine.runs._common import resume_command
+    from metis.engine.run._common import resume_command
 
     return resume_command(experiment_dir, command)
 
@@ -493,7 +493,7 @@ def _run_simulation(
         )
         _check_simulation_settings(command, specification, env_file)
     else:
-        from metis.engine.runs import RunError, prepare_experiment, validate_inputs
+        from metis.engine.run import RunError, prepare_experiment, validate_inputs
 
         try:
             # The inputs are checked before the model settings, so that a bad input is the
@@ -506,7 +506,7 @@ def _run_simulation(
         except RunError:
             raise typer.Exit(code=1) from None
 
-    from metis.engine.runs import RunError, RunStopped, resume_simulation, simulate
+    from metis.engine.run import RunError, RunStopped, resume_simulation, simulate
 
     run_simulation = resume_simulation if resume else simulate
     try:
@@ -585,7 +585,7 @@ def _run_evaluation(
     Ctrl-C stops the evaluation as it always has: ``asyncio.run`` cancels it and raises
     ``KeyboardInterrupt``. The stop flag is never set here.
     """
-    from metis.engine.runs import evaluate, resume_evaluation
+    from metis.engine.run import evaluate, resume_evaluation
 
     _load_env()
     # Registered before the target's Langfuse client, so judge calls always have their own.
@@ -617,7 +617,7 @@ def _run_evaluation_command(
 
     The evaluation has already printed each error and written its phase line.
     """
-    from metis.engine.runs import EvaluationInputError, RunStopped
+    from metis.engine.run import EvaluationInputError, RunStopped
 
     try:
         return _run_evaluation(

@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from metis.core import execution_layout
-from metis.engine.runs.errors import (
+from metis.engine.run.errors import (
     EvaluationInputError,
     ExperimentExistsError,
     InvalidInputsError,

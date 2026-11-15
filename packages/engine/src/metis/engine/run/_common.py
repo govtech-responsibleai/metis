@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from metis.core import execution_layout
 from metis.core.phase_events import INTERRUPTED_REASON
-from metis.engine.runs.errors import RunError, RunStopped
+from metis.engine.run.errors import RunError, RunStopped
 
 if TYPE_CHECKING:
     from pathlib import Path

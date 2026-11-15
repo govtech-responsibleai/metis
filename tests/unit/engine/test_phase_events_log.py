@@ -345,7 +345,7 @@ def test_a_simulation_with_no_records_fails_and_skips_evaluation(
 ) -> None:
     input_dir = _input_dir(monkeypatch, tmp_path)
     monkeypatch.setattr(
-        "metis.engine.runs._simulation.trial_record_files", lambda _root: []
+        "metis.engine.run._simulation.trial_record_files", lambda _root: []
     )
 
     events = _run(tmp_path, "--input-dir", str(input_dir), exit_code=1)

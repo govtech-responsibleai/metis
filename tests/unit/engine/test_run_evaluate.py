@@ -1,4 +1,4 @@
-"""Tests for ``metis.engine.runs.evaluate`` and ``resume_evaluation``, called with no CLI."""
+"""Tests for ``metis.engine.run.evaluate`` and ``resume_evaluation``, called with no CLI."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from rich.console import Console
 
 from metis.core import execution_layout
 from metis.engine.extractor import TraceWaitSettings
-from metis.engine.runs import (
+from metis.engine.run import (
     EvaluationInputError,
     EvaluationOutcome,
     RunStopped,

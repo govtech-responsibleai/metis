@@ -399,7 +399,7 @@ async def _worker(
             # A resume redoes only a trial that did not end: its record is
             # missing or unreadable, or its stop reason is interrupted. A trial
             # stopped by Ctrl-C does write a record.json with stop reason
-            # interrupted, and _classify_resume_trials in metis.engine.runs reads
+            # interrupted, and _classify_resume_trials in metis.engine.run reads
             # it to decide that the trial needs redoing. The earlier process's history
             # is dropped rather than merged: that record's attempt_number and
             # prior_failures are discarded when the redone run writes over the

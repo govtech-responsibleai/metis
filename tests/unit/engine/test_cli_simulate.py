@@ -286,7 +286,7 @@ def test_resume_passes_append_true_to_setup_engine_logging(
     monkeypatch.setattr(experiment_module, "execute_experiment", lambda *_a, **_k: None)
 
     captured_append: list[object] = []
-    from metis.engine.runs import _simulation
+    from metis.engine.run import _simulation
 
     _real_setup = _simulation.setup_engine_logging
 
@@ -532,7 +532,7 @@ def test_each_new_run_is_listed_in_the_project_folder(
     project = tmp_path / "project"
     project.mkdir()
     monkeypatch.setattr(_TickingClock, "ticks", 0)
-    monkeypatch.setattr("metis.engine.runs._inputs.datetime", _TickingClock)
+    monkeypatch.setattr("metis.engine.run._inputs.datetime", _TickingClock)
     input_dir = _write_source(tmp_path)
     _capture_factory(monkeypatch)
     command = [
@@ -558,7 +558,7 @@ def test_a_second_run_in_the_same_second_stops_and_leaves_the_first(
 ) -> None:
     project = tmp_path / "project"
     project.mkdir()
-    monkeypatch.setattr("metis.engine.runs._inputs.datetime", _FixedClock)
+    monkeypatch.setattr("metis.engine.run._inputs.datetime", _FixedClock)
     input_dir = _write_source(tmp_path)
     _capture_factory(monkeypatch)
     command = [

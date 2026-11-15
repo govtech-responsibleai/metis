@@ -9,7 +9,7 @@ calls lives in the shared client's connection pool (see ``judge.py``).
 
 Three separate limits are easy to confuse, so each is named by what it counts:
 
-* ``--concurrency N`` counts sessions in flight. It lives in ``metis.engine.runs._evaluation._evaluate_records``.
+* ``--concurrency N`` counts sessions in flight. It lives in ``metis.engine.run._evaluation._evaluate_records``.
 * ``grade_session`` runs the criteria of one session together. It has no limit of its own.
 * The judge client's connection pool counts LLM calls in flight, across all sessions.
 

@@ -30,8 +30,8 @@ from metis.engine.extractor.langfuse import (
     TraceWaitSettings,
     UnsupportedTraceError,
 )
-from metis.engine.runs import _evaluation
-from metis.engine.runs._common import trial_record_files as _trial_record_files
+from metis.engine.run import _evaluation
+from metis.engine.run._common import trial_record_files as _trial_record_files
 
 runner = CliRunner()
 

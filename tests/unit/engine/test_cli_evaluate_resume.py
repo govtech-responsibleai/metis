@@ -25,8 +25,8 @@ from metis.engine.evaluation.trial_files import (
 )
 from metis.engine.extractor import TraceWaitSettings
 from metis.engine.extractor.langfuse import NO_TRACES
-from metis.engine.runs import _evaluation
-from metis.engine.runs._common import trial_record_files as _trial_record_files
+from metis.engine.run import _evaluation
+from metis.engine.run._common import trial_record_files as _trial_record_files
 from tests.unit.engine.test_cli_evaluate import (
     _patch_evaluation,
     _session,
