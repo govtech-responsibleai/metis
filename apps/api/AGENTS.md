@@ -25,9 +25,28 @@ returned `InterviewState`, not on the app.
 
 ## The store
 
-The store adds missing Target rows for existing saved Interviews when it opens. It keeps their
-save times and file paths. It prepares a missing completed Specification on its first read.
+The store prepares a missing completed Specification on its first read.
 An Interview that cannot compile gives a per-record error and remains available for editing.
+
+A saved record has two parts: rows in the database and files in a project folder. `Store`
+writes the two parts together. A `Store` object works for one user account, `Store.user_id`:
+it reads and writes only the Targets of that user account. `Store(url, project_dir)` works for
+the local user account, which owns each record when login is off. `Store.for_user` gives a
+`Store` for a different user account on the same database and lock. Its files are in
+`users/<user id>/` of the server project folder, with the layout of a project folder inside.
+A route gets its store from `get_store` only, which gives the `Store` for the user account that
+the login guard found. Do not read `app.state.store` in a route.
+
+The `targets` table is the one table that names the user account. The other tables link to
+`targets.id`. `Store._owns` is the one place that finds a Target for a request, and it reads
+only the Targets of its user account. Thus a record of another user account gets 404
+`not_found`, as a record that does not exist. A save with the Target id of another user account
+gets 409 `target_exists`. Two user accounts can have an Experiment folder with the same name,
+so the key of an Experiment row is its Target and its folder name together. The report routes read the
+Experiment folders of the project folder of the user account.
+
+The store starts from a new database. It has no step that changes the tables of an earlier
+version.
 
 The store routes save what a client wants to keep. They do not call the wizard routes, and the
 wizard routes do not use the store.

@@ -607,6 +607,21 @@ The admin token can only make and list user accounts. It does not open another r
 cannot read the records of a user account. A website that gives credentials to its visitors can
 thus hold the token on its server. That website must decide who gets a user account, and how many.
 
+### Records of each user account
+
+When login is on, each person sees only the records of their own user account: the Targets,
+with their Interviews, files, Specifications, and Experiments. A record of another user account
+gets 404 `not_found`, as a record that does not exist. A save with the Target id of another
+user account gets 409 `target_exists`. Two user accounts can use the same Experiment folder name.
+
+Each user account has its own project folder at `users/<user id>/` in the project folder of
+the server. The layout inside it is the same as on your own computer, for example
+`users/<user id>/experiments/design/<target_id>/`. The database stays at `metis.db` in the
+project folder of the server.
+
+Records that a server saved with login off belong to the local user account. A user account of
+a login does not see them.
+
 ### Log in and log out
 
 | Route | Purpose |

@@ -35,11 +35,21 @@ _ERRORS: dict[int | str, dict[str, object]] = {
 
 
 def get_store(request: Request) -> Store:
-    """Return the store that the app composed at startup."""
+    """Return a store that works only for the user account of the request.
+
+    With login off, that is the local user account, and the store is the one that the app
+    composed at startup. With login on, it is a copy for the user account that the login guard
+    found. A route gets no other store, so it cannot read a record of another user account.
+    """
     store: Store | None = getattr(request.app.state, "store", None)
     if store is None:
         raise RuntimeError("The store was not composed at application startup.")
-    return store
+    if not getattr(request.app.state, "login", False):
+        return store
+    account = getattr(request.state, "user_account", None)
+    if account is None:
+        raise RuntimeError("The login guard did not find the user account.")
+    return store.for_user(account.id)
 
 
 @router.get("", summary="List the Targets", response_model=TargetList)

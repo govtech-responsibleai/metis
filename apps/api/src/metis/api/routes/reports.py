@@ -18,6 +18,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
 
 from metis.api.routes.wizard import ServiceError
+from metis.api.store import user_project_dir
 from metis.core import execution_layout
 from metis.core.report import Report
 from metis.insights import ReportBuildError, ReportFiles, ResultsMissing, ensure_report
@@ -40,8 +41,24 @@ _RESPONSES = {
 }
 
 
+def _project_dir(request: Request) -> Path:
+    """The project folder that holds the Experiment folders of the request.
+
+    With login off, it is the project folder of the server. With login on, it is the project
+    folder of the user account that the login guard found, so a request reads only the
+    Experiment folders of its own user account.
+    """
+    server: Path = request.app.state.project_dir
+    if not getattr(request.app.state, "login", False):
+        return server
+    account = getattr(request.state, "user_account", None)
+    if account is None:
+        raise RuntimeError("The login guard did not find the user account.")
+    return user_project_dir(server, account.id)
+
+
 def _experiment_dir(request: Request, experiment_id: str) -> Path | JSONResponse:
-    executions: Path = request.app.state.project_dir / execution_layout.EXECUTIONS
+    executions = _project_dir(request) / execution_layout.EXECUTIONS
     if executions.is_dir():
         for path in executions.iterdir():
             if path.name == experiment_id and path.is_dir():

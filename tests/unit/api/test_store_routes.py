@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import create_engine
 
 from metis.api.settings import Settings
-from metis.api.store import STATE, Store
+from metis.api.store import LOCAL_USER_ID, STATE, Store
 from metis.api.tables import interviews, targets
 from metis.wizard import InterviewState
 from metis.wizard.application import export_layout
@@ -455,7 +455,11 @@ def test_a_row_that_no_longer_validates_is_a_problem_in_the_list(
     with create_engine(database_url(project_dir)).begin() as connection:
         connection.execute(
             targets.insert().values(
-                id="broken", name="old", created_at=now, updated_at=now
+                id="broken",
+                user_id=LOCAL_USER_ID,
+                name="old",
+                created_at=now,
+                updated_at=now,
             )
         )
         connection.execute(

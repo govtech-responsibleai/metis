@@ -2,14 +2,27 @@
 
 from __future__ import annotations
 
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, MetaData, String, Table, Text
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    ForeignKey,
+    MetaData,
+    String,
+    Table,
+    Text,
+)
 
 metadata = MetaData()
 
 targets = Table(
     "targets",
     metadata,
+    # The name of the Target folder in `experiments/design/`. The client makes it.
     Column("id", String(64), primary_key=True),
+    # The one column that names the user account. Each other record belongs to a user account
+    # through its Target.
+    Column("user_id", String(32), ForeignKey("users.id"), nullable=False),
     Column("name", Text, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
@@ -35,8 +48,10 @@ specifications = Table(
 experiments = Table(
     "experiments",
     metadata,
+    # Two user accounts can have an Experiment folder with the same name, so the folder name
+    # is a key only together with the Target.
+    Column("target_id", String(64), ForeignKey("targets.id"), primary_key=True),
     Column("experiment_id", String(200), primary_key=True),
-    Column("target_id", String(64), ForeignKey("targets.id"), nullable=False),
     Column("started_at", DateTime(timezone=True), nullable=False),
     Column("step", String(16), nullable=False),
 )
