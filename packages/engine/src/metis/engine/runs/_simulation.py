@@ -54,6 +54,8 @@ def simulate(
     It writes the ``simulating`` lines of ``logs/events.jsonl``: ``started``, then
     ``completed``, ``failed`` or ``interrupted``. When ``stop`` is set, each trial in flight
     ends at its next turn and is recorded as ``interrupted``, and no new trial starts.
+    Before the first trial starts, it deletes the outputs of any earlier evaluation of the
+    folder, so no grade outlives the trial it graded.
 
     ``use_tui`` shows the full-screen dashboard on the terminal, for the CLI only.
     ``log_level`` is the lowest level that its log tail shows.
@@ -290,10 +292,10 @@ def _simulate_in(
 
     trial_max_retries, trial_retry_delay_seconds = runner_factory.retry_defaults
 
-    if resume:
-        # a re-simulated trial must never be graded from the evaluation of its old run;
-        # this waits for the runner factory so a setup error leaves the evaluation intact
-        clear_evaluation_outputs(experiment_dir)
+    # A trial that runs again must never be graded from the evaluation of its old run,
+    # whether a resume or a fresh simulate runs it. This waits for the runner factory, so
+    # a setup error leaves the evaluation intact.
+    clear_evaluation_outputs(experiment_dir)
 
     console.print(f"\n{'=' * 60}")
     console.print("  SIMULATION")

@@ -26,6 +26,7 @@ from metis.engine.simulation import experiment as experiment_module
 from tests.unit.engine.test_cli_simulate import (
     MINIMAL_EXPERIMENT,
     TWO_TRIAL_EXPERIMENT,
+    _write_evaluation_outputs,
     _write_record,
 )
 
@@ -92,6 +93,38 @@ def test_simulate_runs_the_trials_and_ends_with_a_completed_line(
         ("simulating", "started"),
         ("simulating", "completed"),
     ]
+
+
+def test_simulate_again_clears_the_evaluation_of_the_earlier_trials(
+    monkeypatch, tmp_path: Path
+) -> None:
+    experiment_dir = _experiment(tmp_path)
+    _fake_trials(monkeypatch)
+    simulate(
+        experiment_dir, concurrency=1, stop=threading.Event(), console=_console()[0]
+    )
+    evaluation_paths = _write_evaluation_outputs(experiment_dir)
+
+    simulate(
+        experiment_dir, concurrency=1, stop=threading.Event(), console=_console()[0]
+    )
+
+    assert [path.exists() for path in evaluation_paths] == [False, False, False]
+
+
+def test_a_stop_before_simulate_starts_keeps_the_evaluation(
+    monkeypatch, tmp_path: Path
+) -> None:
+    experiment_dir = _experiment(tmp_path)
+    _fake_trials(monkeypatch)
+    evaluation_paths = _write_evaluation_outputs(experiment_dir)
+    stop = threading.Event()
+    stop.set()
+
+    with pytest.raises(RunStopped):
+        simulate(experiment_dir, concurrency=1, stop=stop, console=_console()[0])
+
+    assert [path.exists() for path in evaluation_paths] == [True, True, True]
 
 
 def test_the_stop_flag_ends_simulate_with_an_interrupted_line(
