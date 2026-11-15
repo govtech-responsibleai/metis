@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { downloadArchive } from "./download.ts";
+import { saveFile } from "./download.ts";
 
-test("offers the ZIP with its server filename", () => {
+test("offers the file with its server filename", () => {
   const downloads: string[] = [];
   const revoked: string[] = [];
   const document = {
@@ -20,7 +20,7 @@ test("offers the ZIP with its server filename", () => {
     revokeObjectURL: (url: string) => revoked.push(url),
   } as Pick<typeof URL, "createObjectURL" | "revokeObjectURL">;
 
-  downloadArchive(
+  saveFile(
     {
       blob: new Blob(["zip bytes"], { type: "application/zip" }),
       filename: "20261016-223045-interview.zip",

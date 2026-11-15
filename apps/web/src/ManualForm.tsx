@@ -13,7 +13,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConnectionForm, ModePicker } from "./ConnectionStep";
 import { startConnection, type ConnectionDraft } from "./connection";
-import { downloadArchive } from "./download";
+import { saveFile } from "./download";
 import { ACCEPTED_FIXTURE_EXTENSIONS, admitFiles } from "./fixture-policy";
 import { Field, NumberInput, SelectInput, TextArea, TextInput } from "./fields";
 import {
@@ -493,7 +493,7 @@ export function ManualForm({
         connectionRef.current?.focus();
         return;
       }
-      downloadArchive(archive);
+      saveFile(archive);
     } catch (cause) {
       setError(
         cause instanceof TransportError
