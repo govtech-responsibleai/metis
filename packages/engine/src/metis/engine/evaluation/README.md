@@ -1,8 +1,8 @@
 # Evaluation
 
 Runs each criterion's grader on every session it applies to and records the results as
-`results.json`. The CLI loop that drives this is `_evaluate_records` in
-`../cli.py`; this package holds the pieces it uses.
+`results.json`. The loop that drives this is `_evaluate_records` in
+`../runs/_evaluation.py`; this package holds the pieces it uses.
 
 ## Flow
 
@@ -26,7 +26,7 @@ trial record ──▶ fetch_session ──▶ GradingInput (every trace + artif
 Each level counts a different thing, and only the first two are in this package's control:
 
 ```
-sessions        _evaluate_one × records      limit: --concurrency N   (cli.py)
+sessions        _evaluate_one × records      limit: --concurrency N   (runs/)
   └─ graders    grade_session gather × criteria   limit: none of its own
        └─ calls   judge LLM requests              limit: 50-connection pool (judge.py)
 ```
