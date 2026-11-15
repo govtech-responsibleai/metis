@@ -2154,3 +2154,51 @@ def test_the_gateway_reviews_new_ids_as_the_driver_applies_them() -> None:
     assert len(completions.calls) == 3  # the model was asked to correct its reply
     assert "sceptic-2" in [persona.id for persona in state.specification.personas]
     assert all(task.persona_ref != "sceptic" for task in state.specification.tasks)
+
+
+@dataclass
+class _SettingAndRewording(RewordingInterviewer):
+    """A chat that sets a grader setting and rewords the same Criterion, and a configure call
+    that returns the grader's default for that setting."""
+
+    def chat(self, specification, step, text, target, context=None, scope=None):
+        return StepResult(
+            message="Set the budget and reworded it.",
+            patches=[
+                Patch(op=PatchOp.SET, path=f"{_AC31}.grader_args.max_traces", value=3),
+                Patch(
+                    op=PatchOp.SET,
+                    path=f"{_AC31}.description",
+                    value="The session uses a small number of traces.",
+                ),
+            ],
+        )
+
+    def configure_criterion(
+        self, criterion, previous, specification, request, context=None
+    ):
+        from metis.wizard.contracts.output import CriterionConfiguration
+
+        return CriterionConfiguration(
+            description=criterion.description, grader_args={"max_traces": 10}
+        )
+
+
+def test_a_reword_keeps_a_setting_that_the_same_message_set() -> None:
+    specification = research_assistant()
+    driver = StepDriver(interviewer=_SettingAndRewording(), matcher=RecordingMatcher())
+    state = driver_state(
+        specification=specification,
+        step=InterviewStep.CRITERIA,
+        issued_ids=collect_specification_ids(specification),
+    )
+
+    driver.handle(
+        state,
+        ChatRequest(prompt="q", multiline=True),
+        ChatResponse(text="Allow 3 traces, and reword it"),
+    )
+
+    criterion = state.specification.criterion("AC-3-1")
+    assert criterion.grader_args["max_traces"] == 3  # type: ignore[union-attr]
+    assert driver.compose(state).prompt == "Set the budget and reworded it."

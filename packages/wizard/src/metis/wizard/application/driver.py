@@ -58,7 +58,7 @@ from metis.wizard.contracts.output import (
     ScenarioDraft,
     StepResult,
 )
-from metis.wizard.domain import materializer, nodes
+from metis.wizard.domain import materializer, nodes, paths
 from metis.wizard.domain.applier import apply
 from metis.wizard.domain.cascade import Impact, impacts_for
 from metis.wizard.domain.documents import normalize_fixture_name
@@ -428,14 +428,19 @@ class StepDriver:
         )
 
     def _configure_changes(
-        self, state: DriverState, before: Specification, request: str = ""
+        self,
+        state: DriverState,
+        before: Specification,
+        request: str = "",
+        asked: frozenset[tuple[str, str]] = frozenset(),
     ) -> list[str]:
         """Match and configure each Criterion whose wording changed in this turn.
 
-        When the grader stays the same, the settings in `KEPT_ON_REWORD`
-        keep their values, and the configure call returns the other settings with their current
+        When the grader stays the same, the settings in `KEPT_ON_REWORD` keep their values, and
+        so does each setting in `asked`, the `(Criterion id, setting)` pairs that the user set
+        in the same turn. The configure call returns the other settings with their current
         values unless the description states new ones. A new grader starts from its own
-        defaults. Returns one sentence for each Criterion whose own settings that reset.
+        defaults. Returns one sentence for each Criterion whose own settings were reset.
         """
         from metis.wizard.application.matching.matcher import (
             default_grader_args,
@@ -470,7 +475,8 @@ class StepDriver:
                 )
                 args = dict(configured.grader_args)
                 if criterion.grader_fqn == grader:
-                    args.update({k: v for k, v in current.items() if k in kept})
+                    keep = kept | {key for owner, key in asked if owner == criterion.id}
+                    args.update({k: v for k, v in current.items() if k in keep})
                 elif previous is not None and _customised(current, defaults):
                     reset.append(prompts.settings_reset(criterion.name))
                 try:
@@ -1354,7 +1360,9 @@ class StepDriver:
         impacts = impacts_for(before, review.accepted)
         if impacts:
             self._adjust_derived(state, impacts)
-        reset = self._configure_changes(state, before, request)
+        reset = self._configure_changes(
+            state, before, request, asked=_settings_set(review.accepted)
+        )
         # The user changed the measured set from the chat after Behaviours were confirmed.
         # Follow it in the Test Cases now, as Behaviours Continue does.
         if (
@@ -1522,6 +1530,16 @@ def _customised(args: dict[str, Any], defaults: dict[str, Any]) -> bool:
         for key, value in args.items()
         if key not in _JUDGE_KEYS
     )
+
+
+def _settings_set(patches: list[Patch]) -> frozenset[tuple[str, str]]:
+    """The `(Criterion id, setting)` pairs of the grader settings that these patches set."""
+    pairs = set()
+    for patch in patches:
+        segments = paths.parse(patch.path)
+        if len(segments) >= 3 and segments[-2].field == "grader_args":
+            pairs.add((segments[-3].key or "", segments[-1].field))
+    return frozenset(pairs)
 
 
 def _known(state: DriverState) -> dict[str, frozenset[str]]:
