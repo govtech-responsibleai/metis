@@ -21,7 +21,7 @@ from metis.engine.runs._common import (
     resume_command,
     trial_record_files,
 )
-from metis.engine.runs._inputs import validate_inputs
+from metis.engine.runs._inputs import resolve_experiment_dir, validate_inputs
 from metis.engine.runs.errors import (
     EvaluationInputError,
     InvalidInputsError,
@@ -154,10 +154,12 @@ def _evaluate(
 ) -> EvaluationOutcome:
     """Grade between the phase lines ``started`` and the line that ends the phase.
 
-    A resume's ``started`` line counts the trials already evaluated as done.
+    A resume's ``started`` line counts the trials already evaluated as done. A folder that
+    is not an experiment folder of this layout fails before anything is written.
     """
     from metis.engine.evaluation.trial_files import load_trial_evaluations
 
+    experiment_dir = resolve_experiment_dir(experiment_dir, console=console)
     trials = [path.parent.name for path in trial_record_files(experiment_dir)]
     results_path = experiment_dir / execution_layout.RESULTS
     if resume and evaluation_is_complete(experiment_dir):

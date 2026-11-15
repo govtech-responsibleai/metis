@@ -326,7 +326,50 @@ def test_a_missing_snapshot_raises_an_evaluation_input_error(
         )
 
     assert "Error:" in text.getvalue()
-    assert _phase_lines(output)[-1] == ("evaluating", "failed")
+    assert not (output / execution_layout.LOGS).exists()
+
+
+@pytest.mark.parametrize("function", [evaluate, resume_evaluation])
+def test_a_folder_that_does_not_exist_is_an_input_error_and_creates_nothing(
+    tmp_path: Path, function
+) -> None:
+    missing = tmp_path / "no-such-experiment"
+    console, text = _console()
+
+    with pytest.raises(EvaluationInputError):
+        function(
+            missing,
+            trace_wait=_WAIT,
+            concurrency=1,
+            stop=threading.Event(),
+            console=console,
+        )
+
+    assert "does not exist" in text.getvalue()
+    assert not missing.exists()
+
+
+@pytest.mark.parametrize("function", [evaluate, resume_evaluation])
+def test_a_folder_of_the_earlier_layout_is_an_input_error(
+    monkeypatch, tmp_path: Path, function
+) -> None:
+    output = _write_experiment_dir(tmp_path)
+    (output / "trials").mkdir()
+    calls = _patch_evaluation(monkeypatch)
+    console, text = _console()
+
+    with pytest.raises(EvaluationInputError):
+        function(
+            output,
+            trace_wait=_WAIT,
+            concurrency=1,
+            stop=threading.Event(),
+            console=console,
+        )
+
+    assert "earlier folder layout" in text.getvalue()
+    assert calls == []
+    assert not (output / execution_layout.LOGS).exists()
 
 
 def test_a_record_that_does_not_load_raises_an_evaluation_input_error(
