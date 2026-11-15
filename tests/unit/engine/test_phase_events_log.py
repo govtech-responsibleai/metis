@@ -214,7 +214,7 @@ def test_a_resume_appends_and_continues_the_sequence(
     run_folder = _run_folder(tmp_path)
     record_path = run_folder / "outputs" / "trials" / "TC-001-alice-2" / "record.json"
     record = TrialRecord.load_file(record_path)
-    record.outcome.stop_reason = "system_error"
+    record.outcome.stop_reason = "interrupted"
     record_path.write_text(record.model_dump_json())
 
     events = _run(tmp_path, "--resume", "--experiment-dir", str(run_folder))

@@ -604,7 +604,13 @@ def _classify_resume_trials(
     experiment_dir: Path,
     trial_plan: list[TrialPlanItem],
 ) -> tuple[list[TrialPlanItem], dict[tuple[str, str, int], TrialRecord]]:
-    """Return redo items and valid existing records keyed by plan identity."""
+    """Return redo items and valid existing records keyed by plan identity.
+
+    A trial is redone only when it did not end: its record is missing, unreadable,
+    or not valid, or its stop reason is ``interrupted``. A trial that ended is
+    complete whatever its result, so a ``system_error`` trial, which ended after its
+    retry limit, is not run again. To run failed trials again, start a new run.
+    """
     from metis.core.trials import TrialRecord
     from metis.engine.simulation.experiment import trial_folder_name
 
@@ -624,7 +630,7 @@ def _classify_resume_trials(
             redo.append(item)
             continue
         key = (scenario.task_id or scenario.id, persona.id, trial_index)
-        if record.outcome.stop_reason == "system_error":
+        if record.outcome.stop_reason == "interrupted":
             redo.append(item)
         else:
             completed[key] = record

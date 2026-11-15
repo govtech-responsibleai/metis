@@ -39,7 +39,7 @@ A breaking change to a nested model bumps the version of the root model that con
 1. Increment `_SPECIFICATION_VERSION` in `metis.core.specification` or `_TRIAL_RECORD_VERSION` in `metis.core.trials`
 2. Update the `Literal[N]` annotation on the model field to match
 3. Run `make -C packages/core generate-schema` if `Specification` changed
-4. Update `examples/http-agentic_eval_toyapp-1/specification.yaml` if affected
+4. Update `packages/engine/examples/http-agentic_eval_toyapp-1/specification.yaml` if affected
 5. Note the schema version change in the commit message
 
 See `packages/core/schemas/README.md` for the version policy.

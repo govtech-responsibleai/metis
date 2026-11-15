@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime
 from pathlib import Path
@@ -173,16 +174,16 @@ def test_simulate_zero_records_exits_one(monkeypatch, tmp_path: Path) -> None:
     assert "Evaluate:" not in result.output
 
 
-def test_resume_runs_only_missing_or_system_error_records(
+def test_resume_runs_only_missing_or_interrupted_records(
     monkeypatch, tmp_path: Path
 ) -> None:
     output_dir = _write_output(
         tmp_path / "experiments" / "execute" / "test-exp-20260101-010101",
-        TWO_TRIAL_EXPERIMENT,
+        MINIMAL_EXPERIMENT.replace("num_trials: 1", "num_trials: 3"),
     )
     (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
     _write_record(output_dir, "TC-001-alice-1", "goal_achieved")
-    _write_record(output_dir, "TC-001-alice-2", "system_error")
+    _write_record(output_dir, "TC-001-alice-2", "interrupted")
     monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
     selected: list[tuple[str, str, int]] = []
 
@@ -200,8 +201,72 @@ def test_resume_runs_only_missing_or_system_error_records(
     )
 
     assert result.exit_code == 0
-    assert selected == [("task-1", "alice", 2)]
+    assert selected == [("task-1", "alice", 2), ("task-1", "alice", 3)]
     assert "trials to redo" in " ".join(result.output.split())
+
+
+def test_resume_runs_an_interrupted_trial_and_skips_a_system_error_trial(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output_dir = _write_output(
+        tmp_path / "experiments" / "execute" / "test-exp-20260101-010101",
+        TWO_TRIAL_EXPERIMENT,
+    )
+    (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
+    _write_record(output_dir, "TC-001-alice-1", "system_error")
+    _write_record(output_dir, "TC-001-alice-2", "interrupted")
+    monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
+    selected: list[tuple[str, str, int]] = []
+
+    def fake_execute_experiment(*_args: object, **kwargs: object) -> None:
+        for scenario, persona, trial_index in kwargs["trial_plan"]:  # type: ignore[index]
+            selected.append((scenario.id, persona.id, trial_index))
+
+    monkeypatch.setattr(
+        experiment_module, "execute_experiment", fake_execute_experiment
+    )
+
+    result = runner.invoke(
+        app,
+        ["simulate", "--resume", "--experiment-dir", str(output_dir), "--no-tui"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert selected == [("task-1", "alice", 2)]
+    assert "1 trials to redo, 1 already complete" in " ".join(result.output.split())
+    events = [
+        json.loads(line)
+        for line in (output_dir / execution_layout.LOGS / execution_layout.EVENTS_FILE)
+        .read_text()
+        .splitlines()
+    ]
+    started = next(e for e in events if e["status"] == "started" and not e.get("trial"))
+    assert (started["total"], started["done"]) == (2, 1)
+
+
+def test_resume_with_only_a_system_error_record_has_nothing_to_redo(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output_dir = _write_output(
+        tmp_path / "experiments" / "execute" / "test-exp-20260101-010101"
+    )
+    (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
+    _write_record(output_dir, "TC-001-alice-1", "system_error")
+    monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
+    calls: list[object] = []
+    monkeypatch.setattr(
+        experiment_module, "execute_experiment", lambda *_a, **_k: calls.append(_k)
+    )
+
+    result = runner.invoke(
+        app,
+        ["simulate", "--resume", "--experiment-dir", str(output_dir), "--no-tui"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "0 trials to redo, 1 already complete" in " ".join(result.output.split())
+    assert "nothing to resume" in result.output
+    assert calls == []
 
 
 def test_resume_passes_append_true_to_setup_engine_logging(
@@ -213,7 +278,7 @@ def test_resume_passes_append_true_to_setup_engine_logging(
     )
     (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
     _write_record(output_dir, "TC-001-alice-1", "goal_achieved")
-    _write_record(output_dir, "TC-001-alice-2", "system_error")
+    _write_record(output_dir, "TC-001-alice-2", "interrupted")
     monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
     monkeypatch.setattr(experiment_module, "execute_experiment", lambda *_a, **_k: None)
 
@@ -273,7 +338,7 @@ def test_a_resume_that_reruns_a_trial_clears_the_evaluation(
     )
     (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
     _write_record(output_dir, "TC-001-alice-1", "goal_achieved")
-    _write_record(output_dir, "TC-001-alice-2", "system_error")
+    _write_record(output_dir, "TC-001-alice-2", "interrupted")
     evaluation_paths = _write_evaluation_outputs(output_dir)
     log_path = output_dir / execution_layout.LOGS / "engine.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -303,7 +368,7 @@ def test_a_resume_whose_runner_cannot_be_built_keeps_the_evaluation(
     )
     (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
     _write_record(output_dir, "TC-001-alice-1", "goal_achieved")
-    _write_record(output_dir, "TC-001-alice-2", "system_error")
+    _write_record(output_dir, "TC-001-alice-2", "interrupted")
     evaluation_paths = _write_evaluation_outputs(output_dir)
     monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
 
@@ -615,7 +680,7 @@ def test_a_factory_with_from_specification_gets_the_specification_and_inputs(
     output_dir = _write_output(
         tmp_path / "resumed" / "test-exp-20260101-010101", _with_factory(ref)
     )
-    _write_record(output_dir, "TC-001-alice-1", "system_error")
+    _write_record(output_dir, "TC-001-alice-1", "interrupted")
     _SpecFactory.received = None
 
     result = runner.invoke(

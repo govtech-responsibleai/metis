@@ -380,15 +380,16 @@ async def _worker(
             # budget and an empty prior_failures, so attempt_number means
             # "attempts in this process", never a lifetime total.
             #
-            # The earlier process's history is dropped rather than merged, for a
-            # different reason in each of the two resume cases. An interrupted
-            # run never wrote a record.json, so its attempts are genuinely
-            # unrecoverable. A system_error run did write one, and
-            # _classify_resume_trials in cli.py reads it to decide the trial needs
-            # redoing at all — so that record's attempt_number and prior_failures
-            # are in hand at that moment, and are deliberately discarded when the
-            # redone run overwrites the file. Carrying them forward is deferred,
-            # not impossible.
+            # A resume redoes only a trial that did not end: its record is
+            # missing or unreadable, or its stop reason is interrupted. A trial
+            # stopped by Ctrl-C does write a record.json with stop reason
+            # interrupted, and _classify_resume_trials in cli.py reads it to
+            # decide that the trial needs redoing. The earlier process's history
+            # is dropped rather than merged: that record's attempt_number and
+            # prior_failures are discarded when the redone run writes over the
+            # file. Carrying them forward is deferred, not impossible. A
+            # system_error trial ended after its retry limit, so a resume never
+            # runs it again.
             #
             # Consequence worth knowing: a run that spent attempts, was
             # interrupted, then succeeded after a --resume reports attempt 1, so
