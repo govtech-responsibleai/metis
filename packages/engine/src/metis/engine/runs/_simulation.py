@@ -18,6 +18,7 @@ from metis.engine.runs._common import (
     end_phase_on_error,
     trial_record_files,
 )
+from metis.engine.runs._inputs import resolve_experiment_dir
 from metis.engine.runs.errors import RunError, RunStopped
 from metis.engine.tui import (
     SimulationScenarioState,
@@ -65,6 +66,8 @@ def simulate(
     time is safe in one process.
 
     :raises RunStopped: When ``stop`` was set. A stop before the trials start runs none.
+    :raises EvaluationInputError: When ``experiment_dir`` is not an experiment folder of
+        this layout. Nothing is written.
     :raises RunError: When the runner cannot be built, or no trial record was written.
     """
     return _simulate(
@@ -102,6 +105,8 @@ def resume_simulation(
     process, as for ``simulate``.
 
     :raises RunStopped: When ``stop`` was set while trials ran.
+    :raises EvaluationInputError: When ``experiment_dir`` is not an experiment folder of
+        this layout. Nothing is written.
     :raises RunError: When the runner cannot be built, or no trial record exists.
     """
     return _simulate(
@@ -131,6 +136,7 @@ def _simulate(
 ) -> Path:
     from metis.engine.simulation.types import Specification
 
+    experiment_dir = resolve_experiment_dir(experiment_dir, console=console)
     specification = Specification.load_file(
         experiment_dir / execution_layout.SPECIFICATION
     )

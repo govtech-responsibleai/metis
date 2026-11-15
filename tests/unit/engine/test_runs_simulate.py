@@ -164,6 +164,33 @@ def test_the_stop_flag_ends_resume_simulation_with_an_interrupted_line(
     assert _events(experiment_dir)[-1] == ("simulating", "interrupted")
 
 
+@pytest.mark.parametrize("function", [simulate, resume_simulation])
+def test_a_folder_that_does_not_exist_raises_a_run_error_and_creates_nothing(
+    tmp_path: Path, function
+) -> None:
+    missing = tmp_path / "no-such-experiment"
+    console, text = _console()
+
+    with pytest.raises(RunError):
+        function(missing, concurrency=1, stop=threading.Event(), console=console)
+
+    assert "does not exist" in text.getvalue()
+    assert not missing.exists()
+
+
+@pytest.mark.parametrize("function", [simulate, resume_simulation])
+def test_a_folder_with_no_snapshot_raises_a_run_error(tmp_path: Path, function) -> None:
+    folder = tmp_path / "not-an-experiment"
+    folder.mkdir()
+    console, text = _console()
+
+    with pytest.raises(RunError):
+        function(folder, concurrency=1, stop=threading.Event(), console=console)
+
+    assert "no 'inputs/' snapshot" in text.getvalue()
+    assert list(folder.iterdir()) == []
+
+
 def test_resume_with_nothing_to_redo_completes_even_if_stop_is_set(
     monkeypatch, tmp_path: Path
 ) -> None:
