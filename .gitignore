@@ -57,6 +57,9 @@ openspec/
 /metis.db
 /metis.db-journal
 
+# The project folder of each user account, on a server with login on (generated at runtime)
+/users/
+
 # Wizard session output (generated at runtime)
 /evaluation/
 
