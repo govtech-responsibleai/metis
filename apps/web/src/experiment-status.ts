@@ -13,13 +13,86 @@ export interface Progress {
   total: number;
 }
 
+// The engine step that Resume starts. `resume-simulate` runs the trials that did not end,
+// `evaluate` grades every trial, and `resume-evaluate` grades the trials with no evaluation.
+export type ResumeStep = "resume-simulate" | "evaluate" | "resume-evaluate";
+
 // What the app shows for an Experiment.
 export type ExperimentState =
-  | { kind: "simulating" | "evaluating"; progress: Progress | null }
+  | {
+      kind: "simulating" | "evaluating";
+      progress: Progress | null;
+      // True after a stop, until the run ends.
+      stopping: boolean;
+    }
   // Simulate is done and evaluate has not started.
-  | { kind: "waiting"; progress: Progress | null }
+  | { kind: "waiting"; progress: Progress | null; resume: "evaluate" }
   | { kind: "completed"; progress: Progress | null }
-  | { kind: "stopped"; progress: Progress | null; reason: string | null };
+  | {
+      kind: "stopped";
+      progress: Progress | null;
+      reason: string | null;
+      resume: ResumeStep;
+    };
+
+export type ExperimentAction = "stop" | "resume" | "delete";
+
+// The actions that are on in each state. Delete is off while a run is alive.
+export const ACTIONS: Record<
+  ExperimentState["kind"],
+  Record<ExperimentAction, boolean>
+> = {
+  simulating: { stop: true, resume: false, delete: false },
+  evaluating: { stop: true, resume: false, delete: false },
+  waiting: { stop: false, resume: true, delete: true },
+  completed: { stop: false, resume: false, delete: true },
+  stopped: { stop: false, resume: true, delete: true },
+};
+
+export type StepPhase = "done" | "live" | "paused" | "next";
+
+// The two steps of an Experiment, Simulate and Evaluate, and where each one is.
+export function phaseSteps(state: ExperimentState): {
+  simulate: StepPhase;
+  evaluate: StepPhase;
+} {
+  switch (state.kind) {
+    case "simulating":
+      return { simulate: "live", evaluate: "next" };
+    case "evaluating":
+      return { simulate: "done", evaluate: "live" };
+    case "waiting":
+      return { simulate: "done", evaluate: "next" };
+    case "completed":
+      return { simulate: "done", evaluate: "done" };
+    case "stopped":
+      return state.resume === "resume-simulate"
+        ? { simulate: "paused", evaluate: "next" }
+        : {
+            simulate: "done",
+            evaluate: state.resume === "evaluate" ? "next" : "paused",
+          };
+  }
+}
+
+// The part of each step that is done, from 0 to 1. Only the step of the newest phase has a count.
+export function stepParts(state: ExperimentState): {
+  simulate: number;
+  evaluate: number;
+} {
+  const steps = phaseSteps(state);
+  const part = (step: StepPhase, phase: Phase) => {
+    if (step === "done") return 1;
+    const progress = state.progress;
+    return progress?.phase === phase && progress.total > 0
+      ? progress.ended / progress.total
+      : 0;
+  };
+  return {
+    simulate: part(steps.simulate, "simulating"),
+    evaluate: part(steps.evaluate, "evaluating"),
+  };
+}
 
 export const STATE_LABEL: Record<ExperimentState["kind"], string> = {
   simulating: "Simulating",
@@ -29,7 +102,9 @@ export const STATE_LABEL: Record<ExperimentState["kind"], string> = {
   stopped: "Stopped",
 };
 
-export function isLive(state: ExperimentState): boolean {
+export type LiveState = Extract<ExperimentState, { stopping: boolean }>;
+
+export function isLive(state: ExperimentState): state is LiveState {
   return state.kind === "simulating" || state.kind === "evaluating";
 }
 
@@ -43,18 +118,23 @@ export function experimentState(
   switch (status.status) {
     case "running":
     case "stopping":
-      return { kind: phase, progress };
+      return { kind: phase, progress, stopping: status.status === "stopping" };
     case "completed":
       if (phase === "evaluating") return { kind: "completed", progress };
       // With the step `evaluate`, the app started evaluate and it wrote no line.
       return step === "simulate"
-        ? { kind: "waiting", progress }
-        : { kind: "stopped", progress, reason: null };
+        ? { kind: "waiting", progress, resume: "evaluate" }
+        : { kind: "stopped", progress, reason: null, resume: "evaluate" };
     case "failed":
     case "interrupted":
     case "unfinished":
     case "not_started":
-      return { kind: "stopped", progress, reason: status.reason };
+      return {
+        kind: "stopped",
+        progress,
+        reason: status.reason,
+        resume: phase === "evaluating" ? "resume-evaluate" : "resume-simulate",
+      };
   }
 }
 

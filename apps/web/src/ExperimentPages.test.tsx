@@ -9,7 +9,13 @@ import {
   type DoctorLoad,
   type StartState,
 } from "./ExperimentDialog";
-import { AllExperimentsView, ExperimentView } from "./ExperimentPages";
+import {
+  AllExperimentsView,
+  ExperimentView,
+  type RunView,
+} from "./ExperimentPages";
+import type { ExperimentState } from "./experiment-status";
+import type { TrialRow } from "./trials";
 import { at, control, tab, text } from "./markup.test-helper";
 import { experimentScreen, type ReportLoad, type ReportPage } from "./report";
 import { ReportSections, SPEC_START, type SpecState } from "./ReportTab";
@@ -244,7 +250,14 @@ const NO_REPORT: ReportLoad[] = [
   { status: "not-found" },
 ];
 
-function view(urlTab: ExperimentTab | null, load: ReportLoad): string {
+const NO_ACTIONS = { stop: () => {}, resume: () => {}, remove: () => {} };
+
+function view(
+  urlTab: ExperimentTab | null,
+  load: ReportLoad,
+  run: RunView = { status: "loading" },
+  taskId: string | null = null,
+): string {
   return at(
     paths.experiment("a", "e1", urlTab ?? undefined),
     <ExperimentView
@@ -252,11 +265,69 @@ function view(urlTab: ExperimentTab | null, load: ReportLoad): string {
       targetTitle="Bank bot"
       experimentId="e1"
       screen={experimentScreen(urlTab, load)}
+      taskId={taskId}
       load={load}
       onReload={() => {}}
+      run={run}
+      actions={NO_ACTIONS}
     />,
   );
 }
+
+const trial = (fields: Partial<TrialRow> & { trial: string }): TrialRow => ({
+  taskId: "case-1",
+  persona: "New customer",
+  scenario: "Opens an account",
+  status: "waiting",
+  reason: null,
+  ...fields,
+});
+
+const TRIALS: TrialRow[] = [
+  trial({ trial: "case-1-p1-1", status: "simulated" }),
+  trial({
+    trial: "case-1-p1-2",
+    status: "failed",
+    reason: "Target returned HTTP 502",
+  }),
+  trial({
+    trial: "case-2-p2-1",
+    taskId: "case-2",
+    persona: "Old customer",
+    scenario: "Closes an account",
+    status: "simulating",
+  }),
+  trial({
+    trial: "case-2-p2-2",
+    taskId: "case-2",
+    persona: "Old customer",
+    scenario: "Closes an account",
+  }),
+];
+
+const running = (
+  state: ExperimentState,
+  fields: Partial<Extract<RunView, { status: "ready" }>> = {},
+): RunView => ({
+  status: "ready",
+  state,
+  trials: TRIALS,
+  busy: null,
+  error: null,
+  ...fields,
+});
+
+const SIMULATING: ExperimentState = {
+  kind: "simulating",
+  stopping: false,
+  progress: { phase: "simulating", ended: 2, total: 4 },
+};
+const STOPPED: ExperimentState = {
+  kind: "stopped",
+  progress: { phase: "simulating", ended: 2, total: 4 },
+  reason: "Stopped by Ctrl-C",
+  resume: "resume-simulate",
+};
 
 test("an experiment has its name and links back to its Target and to its Trials and Report", () => {
   const markup = view("trials", READY);
@@ -273,7 +344,94 @@ test("an experiment has its name and links back to its Target and to its Trials 
     /href="\/targets\/a\/experiments\/e1\/report"/,
   );
   assert.match(tab(markup, "Report"), /aria-selected="false"/);
-  assert.match(markup, /The trials of this experiment show here\./);
+});
+
+test("the Trials tab shows the progress and one row for each trial in plan order", () => {
+  const markup = view(
+    "trials",
+    { status: "not-evaluated" },
+    running(SIMULATING),
+  );
+  const shown = text(markup);
+
+  assert.match(
+    markup,
+    /role="progressbar" aria-label="Experiment progress"[^>]*aria-valuenow="25"/,
+  );
+  assert.match(shown, /25%2 of 4 simulatedSimulate.*EvaluateSimulating/);
+  assert.match(markup, /aria-current="step"[^>]*>.*Simulate</);
+  assert.match(shown, /TrialPersonaScenarioStatusReason/);
+  assert.match(
+    shown,
+    /case-1-p1-1New customerOpens an accountSimulated.*case-1-p1-2New customerOpens an accountFailedTarget returned HTTP 502.*case-2-p2-1Old customerCloses an accountSimulating.*case-2-p2-2Old customerCloses an accountWaiting/,
+  );
+  assert.doesNotMatch(shown, /Graded|Passed|%\(/);
+});
+
+test("the trials of one Test Case show only its rows", () => {
+  const shown = text(
+    view("trials", { status: "not-evaluated" }, running(SIMULATING), "case-2"),
+  );
+
+  assert.match(shown, /case-2Show all trials/);
+  assert.match(shown, /p2-1.*p2-2/);
+  assert.doesNotMatch(shown, /p1-1|New customer/);
+});
+
+test("a live Experiment can stop and cannot be deleted", () => {
+  const markup = view(
+    "trials",
+    { status: "not-evaluated" },
+    running(SIMULATING),
+  );
+
+  assert.doesNotMatch(control(markup, "Stop"), /disabled=""/);
+  assert.match(control(markup, "Delete"), /disabled=""/);
+  assert.doesNotMatch(text(markup), /Resume/);
+});
+
+test("a stopped Experiment can resume and be deleted, and shows a refused action", () => {
+  const markup = view(
+    "trials",
+    { status: "not-evaluated" },
+    running(STOPPED, { error: "Another experiment is running." }),
+  );
+
+  assert.doesNotMatch(control(markup, "Resume"), /disabled=""/);
+  assert.doesNotMatch(control(markup, "Delete"), /disabled=""/);
+  assert.doesNotMatch(text(markup), /Stop</);
+  assert.match(
+    markup,
+    /role="alert"[^>]*>(?:(?!<\/p>).)*Another experiment is running\.<\/p>/,
+  );
+});
+
+test("an Experiment that waits for evaluate shows its state and can resume", () => {
+  const markup = view(
+    "trials",
+    { status: "not-evaluated" },
+    running({
+      kind: "waiting",
+      progress: { phase: "simulating", ended: 4, total: 4 },
+      resume: "evaluate",
+    }),
+  );
+
+  assert.match(text(markup), /Waiting for evaluate/);
+  assert.match(control(markup, "Resume"), /^<button/);
+});
+
+test("the Trials tab says when the trials do not load", () => {
+  const markup = view(
+    "trials",
+    { status: "not-evaluated" },
+    {
+      status: "failed",
+      message: "The METIS API returned HTTP 500.",
+    },
+  );
+
+  assert.match(markup, /role="alert"[^>]*>The METIS API returned HTTP 500\.</);
 });
 
 test("the Report tab control is off while the experiment has no report", () => {
@@ -675,7 +833,7 @@ test("all experiments shows the Target of each row", () => {
             targetTitle: "Shop bot",
             load: {
               status: "ready",
-              state: { kind: "waiting", progress: null },
+              state: { kind: "waiting", progress: null, resume: "evaluate" },
             },
           },
         ],

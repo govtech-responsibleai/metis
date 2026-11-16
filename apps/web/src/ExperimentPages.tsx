@@ -1,9 +1,24 @@
-// The experiment pages. An experiment has its report, and the list of all experiments has the
-// Experiments of every Target. The Trials tab and the comparison say what they will show.
+// The experiment pages. An experiment has its trials and its report, and the list of all
+// experiments has the Experiments of every Target. The comparison says what it will show.
 
-import { ChevronLeft } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
-import { Link } from "wouter";
+import {
+  ChevronLeft,
+  CircleAlert,
+  RotateCcw,
+  Square,
+  Trash2,
+} from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { Link, useLocation } from "wouter";
+import { ACTIONS, isLive, type ExperimentState } from "./experiment-status";
+import { useExperimentWatch, type WatchLoad } from "./experiment-watch";
 import {
   experimentScreen,
   loadReport,
@@ -18,9 +33,11 @@ import {
   type ListLoad,
 } from "./ExperimentList";
 import { DownloadReport, ReportTab } from "./ReportTab";
-import { store } from "./transport/api";
-import { paths, type ExperimentTab } from "./routes";
-import { cn } from "./ui";
+import { store, type Specification } from "./transport/api";
+import { paths, type ExperimentPart, type ExperimentTab } from "./routes";
+import { trialPlan, trialRows, type TrialRow } from "./trials";
+import { TrialsTab } from "./TrialsTab";
+import { Button, cn, ConfirmDialog } from "./ui";
 
 function Page({ children }: { children: ReactNode }) {
   return (
@@ -77,10 +94,8 @@ function useReportLoad(experimentId: string): {
       current = false;
     };
   }, [experimentId, key]);
-  return {
-    load: held?.key === key ? held.load : LOADING,
-    reload: () => setAttempt((count) => count + 1),
-  };
+  const reload = useCallback(() => setAttempt((count) => count + 1), []);
+  return { load: held?.key === key ? held.load : LOADING, reload };
 }
 
 interface ExperimentProps {
@@ -89,21 +104,162 @@ interface ExperimentProps {
   experimentId: string;
 }
 
+type Busy = "stop" | "resume" | "delete" | null;
+
+// The run of the Experiment, as the view draws it.
+export type RunView =
+  | { status: "loading" }
+  | { status: "failed"; message: string }
+  | {
+      status: "ready";
+      state: ExperimentState;
+      trials: TrialRow[];
+      busy: Busy;
+      // The message of the last action that the API refused.
+      error: string | null;
+    };
+
+export interface RunActions {
+  stop: () => void;
+  resume: () => void;
+  remove: () => void;
+}
+
+function runView(
+  watch: WatchLoad,
+  plan: ReturnType<typeof trialPlan>,
+  busy: Busy,
+  error: string | null,
+): RunView {
+  if (watch.status !== "ready") return watch;
+  return {
+    status: "ready",
+    state: watch.state,
+    trials: trialRows(plan, watch.events, isLive(watch.state)),
+    busy,
+    error,
+  };
+}
+
 export function ExperimentPage({
-  tab,
+  part,
+  specification,
   ...experiment
 }: ExperimentProps & {
-  // Null for the bare experiment URL.
-  tab: ExperimentTab | null;
+  part: ExperimentPart;
+  // The Specification of the Target. It gives the names of the trials.
+  specification: Specification;
 }) {
-  const { load, reload } = useReportLoad(experiment.experimentId);
+  const { experimentId, targetId } = experiment;
+  const { load, reload } = useReportLoad(experimentId);
+  const watch = useExperimentWatch(experimentId);
+  const [, navigate] = useLocation();
+  const [deletion, setDeletion] = useState<
+    | { status: "idle" }
+    | { status: "busy" }
+    | { status: "failed"; message: string }
+  >({ status: "idle" });
+  const plan = useMemo(() => trialPlan(specification), [specification]);
+
+  // The report route builds the report once evaluate completes, so read it again then.
+  const kind = watch.load.status === "ready" ? watch.load.state.kind : null;
+  const seen = useRef(kind);
+  useEffect(() => {
+    if (kind === null) return;
+    if (kind === "completed" && seen.current !== null && seen.current !== kind)
+      reload();
+    seen.current = kind;
+  }, [kind, reload]);
+
+  const remove = () => {
+    setDeletion({ status: "busy" });
+    store.deleteExperiment(experimentId).then(
+      () => navigate(paths.target(targetId, "experiments")),
+      (cause: unknown) =>
+        setDeletion({
+          status: "failed",
+          message: cause instanceof Error ? cause.message : String(cause),
+        }),
+    );
+  };
+
   return (
     <ExperimentView
       {...experiment}
-      screen={experimentScreen(tab, load)}
+      screen={experimentScreen(part.tab, load)}
+      taskId={part.tab === "trials" ? part.taskId : null}
       load={load}
       onReload={reload}
+      run={runView(
+        watch.load,
+        plan,
+        deletion.status === "busy" ? "delete" : watch.busy,
+        deletion.status === "failed" ? deletion.message : watch.actionError,
+      )}
+      actions={{ stop: watch.stop, resume: watch.resume, remove }}
     />
+  );
+}
+
+function RunControls({
+  run,
+  actions,
+}: {
+  run: Extract<RunView, { status: "ready" }>;
+  actions: RunActions;
+}) {
+  const [confirm, setConfirm] = useState(false);
+  const on = ACTIONS[run.state.kind];
+  const stopping = isLive(run.state) && run.state.stopping;
+  return (
+    <div className="relative flex items-center gap-2">
+      {run.error !== null && (
+        <p
+          role="alert"
+          className="absolute top-full right-0 mt-1.5 flex w-max max-w-md items-start gap-1.5 text-sm text-destructive"
+        >
+          <CircleAlert size={14} className="mt-0.5 shrink-0" aria-hidden />
+          {run.error}
+        </p>
+      )}
+      {on.stop && (
+        <Button disabled={run.busy !== null || stopping} onClick={actions.stop}>
+          <Square size={13} strokeWidth={2} aria-hidden />
+          {stopping ? "Stopping" : "Stop"}
+        </Button>
+      )}
+      {on.resume && (
+        <Button
+          variant="primary"
+          disabled={run.busy !== null}
+          onClick={actions.resume}
+        >
+          <RotateCcw size={13} strokeWidth={2} aria-hidden />
+          Resume
+        </Button>
+      )}
+      <Button
+        disabled={!on.delete || run.busy !== null}
+        title={
+          on.delete ? undefined : "Stop the experiment before you delete it"
+        }
+        onClick={() => setConfirm(true)}
+      >
+        <Trash2 size={13} strokeWidth={2} aria-hidden />
+        Delete
+      </Button>
+      {confirm && (
+        <ConfirmDialog
+          text="Delete this experiment? It goes from the app. Its experiment folder stays on disk."
+          confirmLabel="Delete experiment"
+          onCancel={() => setConfirm(false)}
+          onConfirm={() => {
+            setConfirm(false);
+            actions.remove();
+          }}
+        />
+      )}
+    </div>
   );
 }
 
@@ -113,12 +269,19 @@ export function ExperimentView({
   targetTitle,
   experimentId,
   screen,
+  taskId,
   load,
   onReload,
+  run,
+  actions,
 }: ExperimentProps & {
   screen: ExperimentScreen;
+  // The Test Case that the Trials tab shows, or null for every trial.
+  taskId: string | null;
   load: ReportLoad;
   onReload: () => void;
+  run: RunView;
+  actions: RunActions;
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -134,9 +297,14 @@ export function ExperimentView({
               {experimentId}
             </span>
           </h1>
-          {load.status === "ready" && (
-            <DownloadReport experimentId={experimentId} />
-          )}
+          <div className="flex items-center gap-2">
+            {run.status === "ready" && (
+              <RunControls run={run} actions={actions} />
+            )}
+            {load.status === "ready" && (
+              <DownloadReport experimentId={experimentId} />
+            )}
+          </div>
         </header>
         <div
           role="tablist"
@@ -184,7 +352,23 @@ export function ExperimentView({
             Loading the experiment
           </p>
         ) : screen.tab === "trials" ? (
-          <Placeholder>The trials of this experiment show here.</Placeholder>
+          run.status === "ready" ? (
+            <TrialsTab
+              targetId={targetId}
+              experimentId={experimentId}
+              state={run.state}
+              rows={run.trials}
+              taskId={taskId}
+            />
+          ) : run.status === "failed" ? (
+            <p role="alert" className="text-sm text-destructive">
+              {run.message}
+            </p>
+          ) : (
+            <p role="status" className="text-sm text-muted-foreground">
+              Loading the trials
+            </p>
+          )
         ) : (
           <ReportTab
             targetId={targetId}
