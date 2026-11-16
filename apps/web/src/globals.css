@@ -444,10 +444,40 @@
   animation: open-under-box 0.16s ease-out both;
 }
 
+/* A surface that opens above a message box at the foot of the page. The box covers the bottom
+   edge of the surface, so the surface gets the overlap as extra bottom padding. */
+@keyframes open-above-box {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-open-above-box {
+  animation: open-above-box 0.16s ease-out both;
+}
+
+.above-box-stack {
+  --above-box-overlap: 1rem;
+  margin-bottom: calc(-1 * var(--above-box-overlap));
+}
+
+.above-box-stack > section {
+  padding-bottom: calc(0.75rem + var(--above-box-overlap));
+}
+
 /* A compact surface keeps its small padding on the side that the box covers, and its close
    button is level with the first row. */
 .under-box-stack > section.under-box-compact:first-of-type {
   padding-top: calc(0.375rem + var(--under-box-overlap));
+}
+
+.above-box-stack > section.under-box-compact {
+  padding-bottom: calc(0.375rem + var(--above-box-overlap));
 }
 
 section.under-box-compact > .under-box-close {
@@ -495,6 +525,7 @@ section.under-box-compact > .under-box-close {
 @media (prefers-reduced-motion: reduce) {
   .animate-open-menu,
   .animate-open-under-box,
+  .animate-open-above-box,
   .perspective-default {
     animation: none !important;
   }

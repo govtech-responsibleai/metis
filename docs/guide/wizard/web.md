@@ -268,7 +268,7 @@ download. Continue with no selected Test Case shows "Select at least one Test Ca
 
 A row shows its values only. To change a Test Case, select the pen. The row then shows the
 Persona and Scenario dropdowns, the Behaviour ID chips, the Trials number, and the Files cell. In
-the Files cell, open **Add file**. Choose **Upload a file**, or choose an opening document. Select
+the Files cell, open **Add file**. Choose **Upload a file**, or choose a document of the Interview. Select
 **Save** to keep the changes. Each pair can have one Test Case only, so a pair
 that is in use is not available. The **+** on Test Cases adds a row for a pair that has no Test
 Case yet.
@@ -282,13 +282,29 @@ Case yet.
    that the wizard gets the name of the file, without its text. For a file that could not be read,
    select **Use name only**, or select the X to remove it.
 
+You can also add a document at each later step of the Interview:
+
+1. Select the plus button in the message box of the conversation. A panel opens above the box.
+2. Select **Upload files**. Choose the files and check the status of each document above the
+   text.
+3. Type a message that says what the wizard must do with the documents, for example "Add
+   Criteria from the escalation policy". Then select **Send**.
+
+The documents go with that message, and the conversation shows their names under it. The
+conversation also shows the documents of the opening message under that message. From that
+message on, the wizard uses them together with the earlier documents. A new document alone does
+not change the Specification. The wizard makes only the change that your message asks for. The
+plus button is not available while a form is open or after the Interview is done.
+
 Document facts:
 
 - **Upload files** shows the accepted file types and size limits when the pointer is on it.
 - The API extracts text from UTF-8 TXT, Markdown, YAML, JSON, CSV, PDF text layers, and DOCX files.
 - The API does not run OCR. Scanned PDFs give no text.
-- A Test Case has no files at first. Select its pen to add an opening document or upload a file
-  in its **Files** cell.
+- A Test Case has no files at first. Select its pen to add a document of the Interview or upload
+  a file in its **Files** cell.
+- All the documents of an Interview share the limits for the number of files and the size of the
+  text.
 - The browser never replaces a file. When you add a file with the name of a file that the
   Interview already has, the new file gets a number before its extension, for example
   `policy (2).pdf`. Names that differ only by case are the same name, so `POLICY.pdf` also gets a

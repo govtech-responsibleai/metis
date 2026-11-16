@@ -57,7 +57,8 @@ import {
   SelectBox,
   Tooltip,
 } from "./ui";
-import { groupTranscript } from "./wizard/transcript";
+import { DocumentChip } from "./Documents";
+import { addedDocuments, groupTranscript } from "./wizard/transcript";
 import type { AdmittedFile, FixtureFileLike } from "./fixture-policy";
 
 // What a block can send up. `null` from a resolved or read-only block.
@@ -129,6 +130,7 @@ export function Transcript({
         {!inProfile && (
           <RequestBlock request={request} busy={busy} onRespond={onRespond} />
         )}
+        <AddedDocuments names={addedDocuments(entry)} />
         {failed && !inProfile && (
           <div role="alert" className="mt-2 flex items-center gap-3">
             <p>{entry.failure?.message}</p>
@@ -2624,6 +2626,18 @@ export function InlineEdit({
 // which is plain foreground text flush to the left — by a tint, a left rule and an indent, so
 // the two sides of the exchange read as two sides without either being domain-aware. The
 // package composed the question; this is the only text in the transcript the user wrote.
+// The documents that the user added to the Interview with a message, under that message.
+function AddedDocuments({ names }: { names: readonly string[] }) {
+  if (names.length === 0) return null;
+  return (
+    <ul aria-label="Added documents" className="mt-2 flex flex-wrap gap-1.5">
+      {names.map((name) => (
+        <DocumentChip key={name} name={name} />
+      ))}
+    </ul>
+  );
+}
+
 function UserSaid({ text }: { text: string }) {
   return (
     <div className="border-l-2 border-accent/40 bg-muted/40 pl-3 pr-2 py-1.5">
@@ -2666,6 +2680,7 @@ export function Composer({
   bare = false,
   sourceControl,
   attachments,
+  panel,
   sendBlockedReason,
 }: {
   request: WizardRequest | undefined;
@@ -2694,6 +2709,8 @@ export function Composer({
   sourceControl?: ReactNode;
   // The documents that wait for the next message. They show above the text.
   attachments?: ReactNode;
+  // A surface that opens above the box. The box covers its bottom edge.
+  panel?: ReactNode;
   // When set, Send stays grey and shows this text on hover and focus. The user can still type.
   sendBlockedReason?: string;
 }) {
@@ -2809,7 +2826,7 @@ export function Composer({
   const pill = (
     <div
       className={cn(
-        "flex rounded-2xl border border-input bg-card p-2 pl-4",
+        "relative z-10 flex rounded-2xl border border-input bg-card p-2 pl-4",
         sourceControl ? "flex-col gap-1" : "items-end gap-2",
         "transition-colors focus-within:border-accent",
         !enabled && "opacity-70",
@@ -2843,7 +2860,14 @@ export function Composer({
   if (bare) return pill;
   return (
     <div className="w-full pb-6 pt-2">
-      <div className="mx-auto w-4/5">{pill}</div>
+      <div className="mx-auto w-4/5">
+        {panel && (
+          <div className="above-box-stack relative z-0 mx-auto w-[95%]">
+            {panel}
+          </div>
+        )}
+        {pill}
+      </div>
     </div>
   );
 }

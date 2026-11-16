@@ -13,6 +13,7 @@ import type {
   LoadedInterviewRecord,
   CapabilityConfidence,
   CapabilityEvidence,
+  InterviewDocument,
   ModelStatus,
   Perspective,
   UserResponse,
@@ -28,6 +29,7 @@ import {
   ReviewSectionActions,
   Transcript,
   UploadContext,
+  acceptsChat,
   type AdmitUploads,
 } from "./Conversation";
 import { ConnectionForm, ModePicker } from "./ConnectionStep";
@@ -98,9 +100,14 @@ import {
   targetOf,
   targetRedirect,
 } from "./routes";
-import { admitFiles, type AdmittedFile } from "./fixture-policy";
+import {
+  admitFiles,
+  readmitSavedFile,
+  type AdmittedFile,
+} from "./fixture-policy";
 import {
   documentsForRequest,
+  documentTextLength,
   useDocumentIntake,
   type DocumentReads,
 } from "./document-intake";
@@ -223,8 +230,24 @@ export function App() {
     wizardConfig.status === "ready"
       ? (wizardConfig.config.document_limits ?? undefined)
       : undefined;
-  // The documents of the opening message. They wait until the user sends that message.
+  // The documents of the opening message, and the documents of the next message of the open
+  // Interview. Each waits in its own input until the user sends that message.
   const openingIntake = useDocumentIntake(documentLimits, NO_FILES, setError);
+  const recordFileList = useMemo(
+    () => (record ? recordFiles(record) : NO_FILES),
+    [record],
+  );
+  const turnIntake = useDocumentIntake(
+    documentLimits,
+    recordFileList,
+    setError,
+  );
+  const [turnAddOpen, setTurnAddOpen] = useState(false);
+  const resetTurnIntake = turnIntake.reset;
+  useEffect(() => {
+    resetTurnIntake();
+    setTurnAddOpen(false);
+  }, [targetId, resetTurnIntake]);
   const [capabilityEvidence, setCapabilityEvidence] =
     useState<CapabilityEvidenceDraft>(emptyCapabilityEvidence);
   // The opening owns the connection in run mode. "add" is the Done pane's Connect target.
@@ -466,7 +489,11 @@ export function App() {
           interviewId(sent),
           result.state,
           result.stage,
-          startTranscript(description, result.state),
+          startTranscript(
+            description,
+            result.state,
+            documents.map((document) => document.name),
+          ),
         );
         const record = addFixtures(started, openingIntake.documents);
         const opened = async (saved: LoadedInterviewRecord) => {
@@ -540,51 +567,73 @@ export function App() {
       response: UserResponse,
       files: readonly AdmittedFile[] = [],
       removedFixtures: readonly string[] = [],
+      documents: readonly InterviewDocument[] = [],
     ) => {
       if (!record) return;
       const key = `${record.id}:${record.state.pending?.request_id ?? ""}`;
-      await operations.send(record, response, files, removedFixtures, () => {
-        if (response.type === "chat") drafts.current.delete(draftKey);
-        if (response.type === "choice" && response.feedback)
-          drafts.current.delete(composerKey);
-        formDrafts.current.delete(key);
-        setDraftRevision((value) => value + 1);
-      });
+      await operations.send(
+        record,
+        response,
+        files,
+        removedFixtures,
+        () => {
+          if (response.type === "chat") drafts.current.delete(draftKey);
+          if (response.type === "choice" && response.feedback)
+            drafts.current.delete(composerKey);
+          formDrafts.current.delete(key);
+          setDraftRevision((value) => value + 1);
+          if (documents.length > 0) resetTurnIntake();
+        },
+        documents,
+      );
     },
-    [operations, record, draftKey, composerKey],
+    [operations, record, draftKey, composerKey, resetTurnIntake],
   );
 
-  // An answer file gets a name that no file of the Interview has, and no file that waits in the
-  // same input. The files of an answer that failed count too, because the store holds them. A
+  // An answer file gets a name that no file of the Interview has, no document that waits in the
+  // composer, and no file that waits in the same input. The files of an answer that failed count too, because the store holds them. A
   // refused file shows its reason and adds nothing.
   const admitUploads = useCallback<AdmitUploads>(
     (files, queued) => {
       try {
         return admitFiles(
           files,
-          [...(record ? recordFiles(record) : []), ...queued],
-          wizardConfig.status === "ready"
-            ? wizardConfig.config.document_limits
-            : undefined,
+          [...recordFileList, ...turnIntake.documents, ...queued],
+          documentLimits,
         );
       } catch (cause) {
         setError(errorMessage(cause));
         return [];
       }
     },
-    [record, wizardConfig, setError],
+    [recordFileList, turnIntake.documents, documentLimits, setError],
   );
 
   // Typed text goes to the pending request. A review takes it as feedback. The package accepts only
   // a form response while a form is open, so text typed then first cancels the form and then goes
   // to the review that the package sends back. The text stays in the composer until the feedback
   // itself is accepted: if the cancel fails, the user retries it and then sends the same text.
+  // The documents that wait in the composer go with the text, so the user says in the same
+  // message what the wizard must do with them.
   const sendText = useCallback(
     async (text: string) => {
       if (!record) return;
-      if (pending?.type === "chat") return send({ type: "chat", text });
+      const ready = documentsForRequest(
+        turnIntake.documents,
+        turnIntake.reads,
+        documentLimits,
+        record.state.context.documents ?? [],
+      );
+      if ("blocked" in ready) {
+        setError(ready.blocked);
+        return;
+      }
+      const files = turnIntake.documents;
+      const documents = ready.documents;
+      if (pending?.type === "chat")
+        return send({ type: "chat", text }, files, [], documents);
       if (pending?.type === "choice")
-        return send({ type: "choice", feedback: text });
+        return send({ type: "choice", feedback: text }, files, [], documents);
       if (pending?.type !== "form" || !pending.cancellable) return;
       await send({ type: "form", cancelled: true, values: {} });
       const latest = operations.latest.get(record.id);
@@ -594,15 +643,28 @@ export function App() {
       await operations.send(
         latest,
         { type: "choice", feedback: text },
-        [],
+        files,
         [],
         () => {
           drafts.current.delete(composerKey);
           setDraftRevision((value) => value + 1);
+          if (documents.length > 0) resetTurnIntake();
         },
+        documents,
       );
     },
-    [record, pending, send, operations, composerKey],
+    [
+      record,
+      pending,
+      send,
+      operations,
+      composerKey,
+      turnIntake.documents,
+      turnIntake.reads,
+      documentLimits,
+      resetTurnIntake,
+      setError,
+    ],
   );
 
   // Back from Run settings or Done reopens the last review of the completed Interview.
@@ -924,6 +986,12 @@ export function App() {
                     }}
                     onEdit={() => {
                       if (!record) return;
+                      const outbound = pendingEntry(record)?.outbound;
+                      if (outbound?.documents?.length)
+                        turnIntake.restore(
+                          outbound.files.map(readmitSavedFile),
+                          outbound.documents,
+                        );
                       const response = pendingEntry(record)?.response;
                       if (response?.type === "chat")
                         drafts.current.set(draftKey, response.text);
@@ -969,6 +1037,46 @@ export function App() {
                 <Composer
                   key={composerKey}
                   request={review ?? pending}
+                  sourceControl={
+                    <AddButton
+                      expanded={turnAddOpen}
+                      controls="turn-add"
+                      disabled={replyBusy || !acceptsChat(review ?? pending)}
+                      onClick={() => setTurnAddOpen(!turnAddOpen)}
+                    />
+                  }
+                  panel={
+                    turnAddOpen &&
+                    acceptsChat(review ?? pending) && (
+                      <UnderBoxSurface
+                        id="turn-add"
+                        label="Add"
+                        compact
+                        above
+                        onClose={() => setTurnAddOpen(false)}
+                      >
+                        <AddOptions
+                          limits={documentLimits}
+                          disabled={replyBusy}
+                          onAdd={turnIntake.add}
+                          onDone={() => setTurnAddOpen(false)}
+                        />
+                      </UnderBoxSurface>
+                    )
+                  }
+                  attachments={
+                    <DocumentList
+                      documents={turnIntake.documents}
+                      reads={turnIntake.reads}
+                      limits={documentLimits}
+                      heldText={documentTextLength(
+                        record?.state.context.documents ?? [],
+                      )}
+                      disabled={replyBusy}
+                      onRemove={turnIntake.remove}
+                      onUseNameOnly={turnIntake.keepUnread}
+                    />
+                  }
                   value={drafts.current.get(composerKey) ?? ""}
                   onValueChange={(value) => {
                     drafts.current.set(composerKey, value);
