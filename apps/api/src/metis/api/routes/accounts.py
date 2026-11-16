@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from metis.api.accounts import LOGIN_SESSION_LIFETIME, Accounts, UserAccount
@@ -185,7 +186,19 @@ async def login_guard(
     return await call_next(request)
 
 
-def require_admin(request: Request) -> None:
+_admin_token = HTTPBearer(
+    scheme_name="AdminToken",
+    description="The admin token of the server, which is the value of `METIS_ADMIN_TOKEN`.",
+    auto_error=False,
+)
+"""The bearer scheme of the user routes. With it, the API documentation page has a field for
+the admin token. ``require_admin`` gives the answer for a wrong token."""
+
+
+def require_admin(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_admin_token)],
+) -> None:
     """Refuse a request that does not have the admin token of the server.
 
     The comparison takes the same time for each wrong token.
@@ -197,9 +210,8 @@ def require_admin(request: Request) -> None:
             "not_found",
             "This METIS server has no admin token, so the route is off.",
         )
-    scheme, _, given = request.headers.get("authorization", "").partition(" ")
-    correct = hmac.compare_digest(given.strip().encode(), expected.encode())
-    if scheme.lower() != "bearer" or not correct:
+    given = credentials.credentials if credentials is not None else ""
+    if not hmac.compare_digest(given.strip().encode(), expected.encode()):
         raise AccountError(
             401,
             "invalid_admin_token",

@@ -109,6 +109,17 @@ def test_the_user_routes_refuse_a_request_without_the_admin_token(
     assert browser.get(USERS, headers=ADMIN).json() == {"users": []}
 
 
+def test_the_api_description_names_the_admin_token_for_the_user_routes(
+    browser: TestClient,
+) -> None:
+    schema = browser.app.openapi()
+
+    assert schema["components"]["securitySchemes"]["AdminToken"]["scheme"] == "bearer"
+    for method in ("post", "get"):
+        assert schema["paths"][USERS][method]["security"] == [{"AdminToken": []}]
+    assert "security" not in schema["paths"][LOGIN]["post"]
+
+
 def test_the_user_routes_are_off_when_the_server_has_no_admin_token(
     make_client: MakeClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
