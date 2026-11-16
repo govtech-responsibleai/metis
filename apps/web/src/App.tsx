@@ -1439,8 +1439,8 @@ export function OpeningScreen(props: OpeningScreenProps) {
                   label="Perspective"
                   onClose={() => onOpenControl(null)}
                 >
-                  {/* Equal side space keeps the cards clear of the close button and centred. */}
-                  <div className="px-6">
+                  {/* The cards leave a right column for the close button. */}
+                  <div className="pr-4">
                     <PerspectivePicker
                       perspectives={config.perspectives}
                       selected={perspective}

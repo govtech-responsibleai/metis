@@ -110,14 +110,14 @@ export function UnderBoxSurface({
             "under-box-sheet max-sm:quiet-scrollbar max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:z-30 max-sm:max-h-[80vh] max-sm:w-full max-sm:overflow-y-auto max-sm:rounded-b-none max-sm:pt-4 max-sm:shadow-[0_-8px_24px_hsl(0_0%_0%/0.08)]",
         )}
       >
-        {/* The chip that opens the panel names it, so the panel shows no visible title. The close
-            button sits in the corner, so it takes no row and the content stays centred. */}
+        {/* The chip that opens the panel names it, so the panel shows no visible title. The small close
+            button sits close to the corner, so it takes little space from the content. */}
         <button
           type="button"
           aria-label={`Close ${label.toLowerCase()}`}
           onClick={onClose}
           className={cn(
-            "under-box-close absolute right-2.5 top-2.5 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            "under-box-close absolute right-1.5 top-1.5 rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
           )}
         >
           <X size={16} strokeWidth={1.75} aria-hidden />
@@ -197,7 +197,7 @@ export function PerspectivePicker({
     <div
       role="radiogroup"
       aria-label="Perspective"
-      className="flex flex-col gap-1"
+      className="flex flex-col gap-0.5"
     >
       {perspectives.map((perspective) => {
         const Icon = PERSPECTIVE_ICONS[perspective.id];
@@ -213,7 +213,7 @@ export function PerspectivePicker({
             onClick={() => onSelect(perspective.id)}
             onKeyDown={(event) => moveRadio(event, ids, selected, onSelect)}
             className={cn(
-              "flex w-full items-start gap-3 rounded-md border px-3 py-2.5 text-left transition-colors duration-150",
+              "flex w-full items-start gap-3 rounded-md border px-3 py-1.5 text-left transition-colors duration-150",
               active
                 ? "border-accent bg-accent/10"
                 : "border-transparent hover:bg-muted",

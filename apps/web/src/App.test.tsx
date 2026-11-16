@@ -30,6 +30,7 @@ import {
   FileMenu,
   FixtureField,
   RowFiles,
+  takeReplyFocus,
   Transcript,
 } from "./Conversation";
 import { ConnectionForm, ModePicker } from "./ConnectionStep";
@@ -39,6 +40,7 @@ import {
   type CapabilityEvidence,
   type InterviewState,
   type Perspective,
+  type WizardRequest,
 } from "./transport/api";
 
 const originalFetch = globalThis.fetch;
@@ -996,4 +998,42 @@ test("the mode toggle above the box shows the connection card only in run mode",
   assert.equal(draft.mode, "run");
   findElement(card()[0], (element) => element.type === ConnectionForm);
   assert.equal(control, null);
+});
+
+test("a request that the composer answers takes the focus, and other requests and controls keep it", () => {
+  const chat = {
+    type: "chat",
+    request_id: "chat-2",
+    state: "pending",
+  } as WizardRequest;
+  const choice = { type: "choice", request_id: "choice-1" } as WizardRequest;
+  const page = { body: {} as HTMLElement };
+  const focused = (
+    request: WizardRequest,
+    activeElement: Element | null = page.body,
+  ) => {
+    let calls = 0;
+    takeReplyFocus({ focus: () => void calls++ }, request, {
+      ...page,
+      activeElement,
+    });
+    return calls === 1;
+  };
+
+  assert.equal(focused(chat), true);
+  assert.equal(focused(chat, null), true);
+  assert.equal(
+    focused({
+      ...choice,
+      feedback_placeholder: "Tell me what to change",
+    } as WizardRequest),
+    true,
+  );
+  assert.equal(
+    focused({ type: "form", request_id: "form-1" } as WizardRequest),
+    false,
+  );
+  assert.equal(focused(choice), false);
+  assert.equal(focused({ ...chat, state: "resolved" } as WizardRequest), false);
+  assert.equal(focused(chat, {} as Element), false);
 });

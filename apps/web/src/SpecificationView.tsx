@@ -221,15 +221,10 @@ export function SpecificationView({
         className="quiet-scrollbar flex-1 overflow-y-auto overflow-x-hidden rounded-[12px] bg-card text-sm text-card-foreground shadow-sm"
       >
         <KeepInPlaceContext.Provider value={keepInPlace}>
-          {/* While a model call writes into the document, every blank of the page takes the slow
-              crest (`is-writing`, in globals.css). The dot in a section heading marks the one
-              section that the call fills. */}
-          <div
-            className={cn(
-              "flex flex-col gap-8 px-5 pb-5",
-              writing && "is-writing",
-            )}
-          >
+          {/* While a model call writes into the document, the blanks of the one section that the
+              call fills take the slow crest (`is-writing`, in globals.css). A dot in the heading of
+              that section marks it too. */}
+          <div className="flex flex-col gap-8 px-5 pb-5">
             <Section
               title="Target"
               writing={writing === "target"}
@@ -414,7 +409,7 @@ function SpecificationFooter({
 // of the document already say what each section holds.
 //
 // The bars carry `placeholder-rule`, so they take the travelling accent crest while a model call
-// writes into the document (`is-writing`, in globals.css).
+// writes into their section (`is-writing`, in globals.css).
 //
 // `aria-hidden` throughout: the section heading above already carries the meaning, and a screen
 // reader should not hear a description of furniture.
@@ -516,7 +511,7 @@ function Section({
   return (
     <section
       aria-current={current ? "step" : undefined}
-      className="flex flex-col gap-3"
+      className={cn("flex flex-col gap-3", writing && "is-writing")}
     >
       <div className="sticky top-0 z-10 -mx-5 flex min-h-12 items-end justify-between gap-3 border-b border-border bg-card px-5 pb-2 pt-4">
         <h2
