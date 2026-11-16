@@ -158,7 +158,7 @@ def _needs_judge(specification: Specification) -> bool:
             try:
                 grader = build_grader(
                     criteria_by_id[ref.criterion_id],
-                    default_judge_model=specification.experiment.defaults.judge_model,
+                    default_judge_model=specification.defaults.judge_model,
                     env=os.environ,
                 )
             except GraderSetupError:
@@ -390,7 +390,7 @@ def _models_line(specification: Specification, roles: list[ModelRole]) -> str:
         user_agent_settings,
     )
 
-    defaults = specification.experiment.defaults
+    defaults = specification.defaults
     user_agent = user_agent_settings(defaults.user_agent_model)
     by_role = {
         ModelRole.USER_AGENT: user_agent,

@@ -113,7 +113,7 @@ def test_each_save_of_a_done_interview_writes_its_specification(
     _validate_inputs(input_dir)
 
     changed = state.model_copy(deep=True)
-    changed.specification.experiment.defaults.judge_model = "chosen-judge"
+    changed.specification.defaults.judge_model = "chosen-judge"
     resaved = put_interview(client, web_record(TARGET, changed, fixtures=refs))
 
     assert resaved.status_code == 204, resaved.text

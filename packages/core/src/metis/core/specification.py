@@ -1,36 +1,27 @@
-"""A Specification combines a Profile and an Experiment.
+"""The specification document: a profile and the configuration needed to conduct an experiment.
 
-YAML and API JSON use one flat document. The domain objects retain their own fields.
+YAML and API JSON use the same flat document.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    GetJsonSchemaHandler,
-    SerializationInfo,
-    model_serializer,
     model_validator,
 )
 
-if TYPE_CHECKING:
-    from pydantic.json_schema import JsonSchemaValue
-    from pydantic_core import CoreSchema
-
 from metis.core.experiment import (
-    Experiment,
     ExperimentDefaults,
     Persona,
     RelativePath,
     Scenario,
     Task,
-    omit_unset_models,
 )
-from metis.core.profile import Behaviour, Criterion, Feature, Target, TargetProfile
+from metis.core.profile import Behaviour, Criterion, Feature, Target
 
 _SPECIFICATION_VERSION = 1
 
@@ -44,7 +35,7 @@ def _require_document_header(schema: dict[str, Any]) -> None:
 
 # the source of packages/core/schemas/specification.schema.json; run
 # `make -C packages/core generate-schema` after a change.
-class SpecificationDocument(BaseModel):
+class Specification(BaseModel):
     """The flat YAML and API representation of a Specification."""
 
     model_config = ConfigDict(json_schema_extra=_require_document_header)
@@ -52,8 +43,14 @@ class SpecificationDocument(BaseModel):
     schema_version: Literal[1] = _SPECIFICATION_VERSION
     id: str = ""
     runner_factory_ref: str = "metis.engine.simulation.runners.http.HttpRunnerFactory"
-    target_binding: RelativePath | None = None
-    defaults: ExperimentDefaults = Field(default_factory=ExperimentDefaults)
+    # unset values stay out of a dump, so existing specs serialise unchanged.
+    target_binding: RelativePath | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    defaults: ExperimentDefaults = Field(
+        default_factory=ExperimentDefaults,
+        exclude_if=lambda value: value == ExperimentDefaults(),
+    )
     target: Target
     features: list[Feature] = Field(default_factory=list)
     personas: list[Persona] = Field(default_factory=list)
@@ -75,168 +72,51 @@ class SpecificationDocument(BaseModel):
             )
         return data
 
-
-class Specification(BaseModel):
-    """A Profile and an Experiment, authored by hand or through the Interview."""
-
-    schema_version: Literal[1] = _SPECIFICATION_VERSION
-    profile: TargetProfile
-    experiment: Experiment
-
-    @model_validator(mode="before")
-    @classmethod
-    def _read_document(cls, data: Any) -> Any:
-        if not isinstance(data, dict) or "profile" in data or "experiment" in data:
-            return data
-        document = SpecificationDocument.model_validate(data)
-        return {
-            "schema_version": document.schema_version,
-            "profile": TargetProfile(
-                target=document.target, features=document.features
-            ),
-            "experiment": Experiment(
-                id=document.id,
-                runner_factory_ref=document.runner_factory_ref,
-                target_binding=document.target_binding,
-                defaults=document.defaults,
-                personas=document.personas,
-                scenarios=document.scenarios,
-                tasks=document.tasks,
-                fixture_content_descriptions=document.fixture_content_descriptions,
-            ),
-        }
-
-    @model_serializer
-    def _write_document(self, info: SerializationInfo) -> dict[str, Any]:
-        document = SpecificationDocument(
-            schema_version=self.schema_version,
-            **self.profile.model_dump(),
-            **self.experiment.model_dump(),
-        )
-        dumped = document.model_dump(
-            mode=info.mode,
-            by_alias=info.by_alias,
-            include=info.include,
-            exclude=info.exclude,
-            exclude_none=info.exclude_none,
-            exclude_defaults=info.exclude_defaults,
-        )
-        omit_unset_models(dumped)
-        if self.experiment.target_binding is None:
-            dumped.pop("target_binding", None)
-        return dumped
-
-    @classmethod
-    def __get_pydantic_json_schema__(
-        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
-    ) -> JsonSchemaValue:
-        """Describe the flat document at every API and file boundary."""
-        schema = handler(SpecificationDocument.__pydantic_core_schema__)
-        schema = handler.resolve_ref_schema(schema).copy()
-        schema["title"] = cls.__name__
-        return schema
-
-    @property
-    def target(self) -> Target:
-        return self.profile.target
-
-    @target.setter
-    def target(self, value: Target) -> None:
-        self.profile.target = value
-
-    @property
-    def features(self) -> list[Feature]:
-        return self.profile.features
-
-    @features.setter
-    def features(self, value: list[Feature]) -> None:
-        self.profile.features = value
-
-    @property
-    def id(self) -> str:
-        return self.experiment.id
-
-    @id.setter
-    def id(self, value: str) -> None:
-        self.experiment.id = value
-
-    @property
-    def runner_factory_ref(self) -> str:
-        return self.experiment.runner_factory_ref
-
-    @runner_factory_ref.setter
-    def runner_factory_ref(self, value: str) -> None:
-        self.experiment.runner_factory_ref = value
-
-    @property
-    def target_binding(self) -> str | None:
-        return self.experiment.target_binding
-
-    @target_binding.setter
-    def target_binding(self, value: str | None) -> None:
-        self.experiment.target_binding = value
-
-    @property
-    def personas(self) -> list[Persona]:
-        return self.experiment.personas
-
-    @personas.setter
-    def personas(self, value: list[Persona]) -> None:
-        self.experiment.personas = value
-
-    @property
-    def scenarios(self) -> list[Scenario]:
-        return self.experiment.scenarios
-
-    @scenarios.setter
-    def scenarios(self, value: list[Scenario]) -> None:
-        self.experiment.scenarios = value
-
-    @property
-    def tasks(self) -> list[Task]:
-        return self.experiment.tasks
-
-    @tasks.setter
-    def tasks(self, value: list[Task]) -> None:
-        self.experiment.tasks = value
-
-    @property
-    def fixture_content_descriptions(self) -> dict[str, str]:
-        return self.experiment.fixture_content_descriptions
-
-    @fixture_content_descriptions.setter
-    def fixture_content_descriptions(self, value: dict[str, str]) -> None:
-        self.experiment.fixture_content_descriptions = value
-
     def behaviours(self) -> list[Behaviour]:
-        return self.profile.behaviours()
+        """Every behaviour, in document order."""
+        return [b for feature in self.features for b in feature.behaviours]
 
     def measured_behaviours(self) -> list[Behaviour]:
-        return self.profile.measured_behaviours()
+        """The behaviours the user chose to measure."""
+        return [
+            b for feature in self.features for b in feature.behaviours if b.measured
+        ]
 
     def behaviour(self, behaviour_id: str) -> Behaviour | None:
-        return self.profile.behaviour(behaviour_id)
+        return next((b for b in self.behaviours() if b.id == behaviour_id), None)
 
     def feature(self, feature_id: str) -> Feature | None:
-        return self.profile.feature(feature_id)
+        """Find a Feature by ID."""
+        return next((f for f in self.features if f.id == feature_id), None)
 
     def feature_of(self, behaviour_id: str) -> Feature | None:
-        return self.profile.feature_of(behaviour_id)
+        """Which feature owns a behaviour — symmetric with `feature` and `behaviour`."""
+        return next(
+            (
+                f
+                for f in self.features
+                if any(b.id == behaviour_id for b in f.behaviours)
+            ),
+            None,
+        )
 
     def criterion(self, criterion_id: str) -> Criterion | None:
-        return self.profile.criterion(criterion_id)
+        return next(
+            (c for b in self.behaviours() for c in b.criteria if c.id == criterion_id),
+            None,
+        )
 
     def persona(self, persona_id: str) -> Persona | None:
-        return self.experiment.persona(persona_id)
+        return next((p for p in self.personas if p.id == persona_id), None)
 
     def scenario(self, scenario_id: str) -> Scenario | None:
-        return self.experiment.scenario(scenario_id)
+        return next((s for s in self.scenarios if s.id == scenario_id), None)
 
     def task(self, task_id: str) -> Task | None:
-        return self.experiment.task(task_id)
+        return next((task for task in self.tasks if task.id == task_id), None)
 
     def trial_count(self) -> int:
-        return self.experiment.trial_count()
+        return sum(task.num_trials for task in self.tasks)
 
     def scenarios_covering(self, behaviour_id: str) -> list[Scenario]:
         covered = {

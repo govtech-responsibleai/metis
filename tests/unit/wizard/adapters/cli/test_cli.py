@@ -524,7 +524,7 @@ def test_the_run_summary_shows_each_model_its_source_and_its_key_status(
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("JUDGE_API_KEY", "k")
     specification = research_assistant()
-    specification.experiment.defaults.user_agent_model = "ua-model"
+    specification.defaults.user_agent_model = "ua-model"
 
     lines = cli._run_settings(specification)
 
@@ -536,7 +536,7 @@ def test_the_run_summary_shows_each_model_its_source_and_its_key_status(
     # As in the engine, the runner agent follows the user agent model of the run.
     monkeypatch.delenv("RUNNER_AGENT_MODEL", raising=False)
     monkeypatch.delenv("RUNNER_AGENT_API_KEY", raising=False)
-    specification.experiment.target_binding = "targets/app.yaml"
+    specification.target_binding = "targets/app.yaml"
     assert cli._run_settings(specification)[1] == (
         "  Runner agent: ua-model from user agent model (not configured: set "
         "RUNNER_AGENT_API_KEY or USER_AGENT_API_KEY or OPENAI_API_KEY)"

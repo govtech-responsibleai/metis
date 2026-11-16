@@ -25,7 +25,7 @@ def test_target_binding_defaults_to_none_and_is_not_written():
 def test_target_binding_round_trips():
     spec = Specification.model_validate({**BASE, "target_binding": "targets/app.yaml"})
     assert spec.target_binding == "targets/app.yaml"
-    assert spec.experiment.target_binding == "targets/app.yaml"
+    assert spec.target_binding == "targets/app.yaml"
     assert spec.model_dump(mode="json")["target_binding"] == "targets/app.yaml"
 
 

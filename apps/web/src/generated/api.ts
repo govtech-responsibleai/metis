@@ -1712,36 +1712,6 @@ export interface components {
             scenario?: string | null;
         };
         /**
-         * Experiment
-         * @description The Test Cases and settings used to execute an evaluation.
-         */
-        "Experiment-Input": {
-            /**
-             * Id
-             * @default
-             */
-            id: string;
-            /**
-             * Runner Factory Ref
-             * @default metis.engine.simulation.runners.http.HttpRunnerFactory
-             */
-            runner_factory_ref: string;
-            /** Target Binding */
-            target_binding?: string | null;
-            defaults?: components["schemas"]["ExperimentDefaults"];
-            /** Personas */
-            personas?: components["schemas"]["Persona"][];
-            /** Scenarios */
-            scenarios?: components["schemas"]["Scenario"][];
-            /** Tasks */
-            tasks?: components["schemas"]["Task"][];
-            /** Fixture Content Descriptions */
-            fixture_content_descriptions?: {
-                [key: string]: string;
-            };
-        };
-        "Experiment-Output": unknown;
-        /**
          * ExperimentDefaults
          * @description Experiment-wide defaults that individual criteria can override.
          */
@@ -3321,10 +3291,7 @@ export interface components {
              */
             concurrency?: number | null;
         };
-        /**
-         * Specification
-         * @description The flat YAML and API representation of a Specification.
-         */
+        /** Specification */
         Specification: {
             /**
              * Schema Version
@@ -3489,15 +3456,6 @@ export interface components {
             id: string;
             /** Message */
             message: string;
-        };
-        /**
-         * TargetProfile
-         * @description The target context and requirements that an evaluation measures.
-         */
-        TargetProfile: {
-            target: components["schemas"]["Target"];
-            /** Features */
-            features?: components["schemas"]["Feature"][];
         };
         /**
          * TargetSummary
