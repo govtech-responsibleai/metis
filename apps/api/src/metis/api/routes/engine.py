@@ -280,12 +280,30 @@ def start_simulation(body: SimulateRequest, request: Request) -> EngineRunAccept
     `experiments/execute/<specification id>-<YYYYmmdd-HHMMSS>/`. The trials run after the
     response.
     """
+    project_dir = request_project_dir(request)
+    experiment_id = start_simulation_of(
+        request, _input_dir(project_dir, body.input_dir), body.concurrency
+    )
+    return EngineRunAccepted(experiment_id=experiment_id)
+
+
+def start_simulation_of(
+    request: Request, input_dir: Path, concurrency: int | None
+) -> str:
+    """Create an experiment folder from ``input_dir`` and start its simulation.
+
+    ``input_dir`` is a folder inside the project folder of the request. Every check of the
+    start runs in the request. The trials run after it, on the thread of the run.
+
+    :returns: The experiment id.
+    :raises RouteError: ``validation_error``, ``engine_busy``, ``invalid_inputs``, or
+        ``experiment_exists``.
+    """
     settings = _settings(request)
-    concurrency = _limit(
-        "concurrency", body.concurrency, settings.concurrency, settings.max_concurrency
+    trials_at_a_time = _limit(
+        "concurrency", concurrency, settings.concurrency, settings.max_concurrency
     )
     project_dir = request_project_dir(request)
-    input_dir = _input_dir(project_dir, body.input_dir)
     runs = _runs(request)
 
     def prepare() -> Path:
@@ -302,17 +320,16 @@ def start_simulation(body: SimulateRequest, request: Request) -> EngineRunAccept
 
     def work(experiment_dir: Path, stop: threading.Event, console: Console) -> None:
         runs.functions.simulate(
-            experiment_dir, concurrency=concurrency, stop=stop, console=console
+            experiment_dir, concurrency=trials_at_a_time, stop=stop, console=console
         )
 
-    experiment_id = runs.start(
+    return runs.start(
         project_dir=project_dir,
         experiment_id=None,
         phase="simulating",
         prepare=prepare,
         work=work,
     )
-    return EngineRunAccepted(experiment_id=experiment_id)
 
 
 def _start_existing(
@@ -598,4 +615,4 @@ def _event_json(event: PhaseEvent) -> dict[str, object]:
     }
 
 
-__all__ = ["router"]
+__all__ = ["router", "start_simulation_of"]

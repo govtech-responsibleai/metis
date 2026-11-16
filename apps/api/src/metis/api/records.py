@@ -151,6 +151,16 @@ class ExperimentSave(BaseModel):
     step: ExperimentStep
 
 
+class ExperimentStart(BaseModel):
+    """The body of a start of an Experiment of a Target."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    concurrency: int | None = Field(
+        default=None, ge=1, description="Trials at the same time. Default: a setting."
+    )
+
+
 class ExperimentRecord(BaseModel):
     """One Experiment of a Target. The phase and the progress come from the Experiment folder."""
 

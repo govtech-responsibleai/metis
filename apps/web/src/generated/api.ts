@@ -406,7 +406,15 @@ export interface paths {
          */
         get: operations["list_target_experiments_api_v1_targets__target_id__experiments_get"];
         put?: never;
-        post?: never;
+        /**
+         * Start an Experiment of a Target
+         * @description Start the simulation of the Specification of the Target, and save its Experiment row.
+         *
+         *     The route writes the input folder of the Specification, starts `simulate` on it as
+         *     `POST /api/v1/engine/simulate` does, and saves the row with the step `simulate`. The trials
+         *     run after the response. A Target whose Interview is not done gets 404.
+         */
+        post: operations["start_experiment_api_v1_targets__target_id__experiments_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1785,6 +1793,17 @@ export interface components {
             /** Target Id */
             target_id: string;
             step: components["schemas"]["ExperimentStep"];
+        };
+        /**
+         * ExperimentStart
+         * @description The body of a start of an Experiment of a Target.
+         */
+        ExperimentStart: {
+            /**
+             * Concurrency
+             * @description Trials at the same time. Default: a setting.
+             */
+            concurrency?: number | null;
         };
         /**
          * ExperimentStep
@@ -4715,6 +4734,86 @@ export interface operations {
             };
             /** @description Internal Server Error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    start_experiment_api_v1_targets__target_id__experiments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExperimentStart"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentRecord"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

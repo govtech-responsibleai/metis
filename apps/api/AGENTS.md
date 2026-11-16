@@ -60,7 +60,15 @@ wizard routes do not use the store.
 | `GET /api/v1/targets/{target_id}/interview/files/{name}` | Read one file of the record. |
 | `GET /api/v1/targets/{target_id}/specification` | Read the last Specification and its input folder. |
 | `GET /api/v1/targets/{target_id}/experiments` | List the Experiments of a Target. |
+| `POST /api/v1/targets/{target_id}/experiments` | Start an Experiment of the Specification of a Target, and save its row. |
 | `GET`, `PUT`, `DELETE /api/v1/experiments/{experiment_id}` | Read, save, or delete one Experiment row. |
+
+The POST of an Experiment is the one store route that starts the engine. The web app uses it,
+so the browser never sends a folder path. It writes the input folder of the Specification, as
+the GET of the Specification does, and gives 404 `not_found` when the Interview is not done.
+Then it starts `simulate` on that folder with the checks and errors of
+`POST /api/v1/engine/simulate` (`start_simulation_of` in `routes/engine.py`), and saves the row
+with the step `simulate`. A refused start saves no row. It returns 202 and the row.
 
 The PUT of an Interview is a multipart form. The `record` part is a file that contains the
 record JSON. Each new file is a part named `files`, and its file name is the name in the record.

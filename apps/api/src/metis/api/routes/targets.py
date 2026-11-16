@@ -17,10 +17,15 @@ from pydantic import ValidationError
 
 from metis.api.records import (
     ExperimentList,
+    ExperimentRecord,
+    ExperimentSave,
+    ExperimentStart,
+    ExperimentStep,
     InterviewRecord,
     SpecificationRecord,
     TargetList,
 )
+from metis.api.routes.engine import start_simulation_of
 from metis.api.routes.wizard import ServiceError
 from metis.api.store import Store, Upload
 
@@ -183,6 +188,35 @@ def list_target_experiments(
 ) -> ExperimentList:
     """Return the Experiment rows of the Target, newest first."""
     return ExperimentList(experiments=store.list_experiments(target_id))
+
+
+@router.post(
+    "/{target_id}/experiments",
+    summary="Start an Experiment of a Target",
+    status_code=202,
+    response_model=ExperimentRecord,
+    responses={**_ERRORS, 409: {"model": ServiceError}, 503: {"model": ServiceError}},
+)
+def start_experiment(
+    target_id: str,
+    body: ExperimentStart,
+    request: Request,
+    store: Annotated[Store, Depends(get_store)],
+) -> ExperimentRecord:
+    """Start the simulation of the Specification of the Target, and save its Experiment row.
+
+    The route writes the input folder of the Specification, starts `simulate` on it as
+    `POST /api/v1/engine/simulate` does, and saves the row with the step `simulate`. The trials
+    run after the response. A Target whose Interview is not done gets 404.
+    """
+    store.read_specification(target_id)
+    experiment_id = start_simulation_of(
+        request, store.input_dir(target_id), body.concurrency
+    )
+    return store.put_experiment(
+        experiment_id,
+        ExperimentSave(target_id=target_id, step=ExperimentStep.SIMULATE),
+    )
 
 
 __all__ = ["get_store", "router"]
