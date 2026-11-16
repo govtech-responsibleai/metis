@@ -211,7 +211,7 @@ They call `metis.insights.ensure_report`, so the API holds no report rules. An e
 with no `results.json` gives 409 `results_missing`.
 
 Wizard exports share `inputs/` and `outputs/` at the design root. The CLI defaults to
-`experiments/design/YYYY-MM-DD-interview/`. An explicit `--out-dir` selects the exact root.
+`experiments/design/YYYYMMDD-HHMMSS-interview-<random>/`. An explicit `--out-dir` selects the exact root.
 Resume requires that path. ZIP exports contain a dated `interview` or `manual` root
 folder for extraction into `experiments/design/`. Interview exports MUST
 compile from the same final state saved as `inputs/interview_state.json`. Manual exports MUST
@@ -222,9 +222,9 @@ recovery state until export succeeds. Wizard MUST NOT create Testbed caches or s
 
 Engine creates `experiments/execute/<specification-id>-YYYYMMDD-HHMMSS/` under the project
 folder. `--project-dir` names that folder, which must exist; without it, Engine uses the
-working directory or the nearest folder above it that has a `pyproject.toml`. A new run MUST NOT write into a run folder that exists: a new run with a taken
-name stops with an error. `--resume` continues in the run folder that `--experiment-dir` names.
-A caller finds its runs by listing `experiments/execute/` in the project folder. Engine copies
+working directory or the nearest folder above it that has a `pyproject.toml`. A new experiment MUST NOT write into an experiment folder that exists: a new experiment with a taken
+name stops with an error. `--resume` continues in the experiment folder that `--experiment-dir` names.
+A caller finds its experiments by listing `experiments/execute/` in the project folder. Engine copies
 `--input-dir` into `inputs/`, writes trial records and artifacts under `outputs/trials/`,
 and writes evaluation results to `outputs/reports/results.json`. `outputs/evaluation/` is the
 engine-private record of attempted trials, one file per trial, and Engine writes `results.json`
@@ -270,7 +270,7 @@ tables use portable SQL types. PostgreSQL support is later work.
 |---|---|
 | `targets` | The Target id, its user account, its name, and its times. |
 | `interviews` | The web parts of the Interview record, as JSON: the transcript, the times, and the file references. |
-| `specifications` | The last Specification of the Target and its SHA-256 hash. |
+| `specifications` | The specification document of the Target's last Specification, and its SHA-256 hash. |
 | `experiments` | An Experiment folder name, its Target, its start time, and its last engine step. The key is the Target and the folder name together. |
 
 Each Target belongs to one user account, and the `targets` table is the one table that names
@@ -317,8 +317,8 @@ store has no lock between processes.
 
 `outputs/` is the folder for `metis engine simulate --input-dir`, the same as for the CLI wizard.
 It holds `specification.yaml`, `fixtures/`, and `target-binding.yaml` when the Interview has a
-target connection. Each save of a done Interview compiles the Specification and writes the row
-and `outputs/` again. When the Specification does not compile, the save gets 400
+target connection. Each save of a done Interview compiles the Specification, meaning the package of
+the document, the fixtures, and the binding, and writes the row and `outputs/` again. When the Specification does not compile, the save gets 400
 `compilation_failed` and changes nothing. A save of an Interview that is not done keeps the last
 Specification. An Experiment row refers to an Experiment folder under `experiments/execute/`. The
 engine copies the input folder into each Experiment folder, so a new Specification does not

@@ -14,9 +14,9 @@ test('slugify turns a combined name into a url-safe slug', () => {
 });
 
 test('every term in a "Term" table is found, and no other table adds terms', () => {
-  // 30 terms in the opening table, 5 in the Scope table, and 2 in the Login table. The "Kind"
+  // 33 terms in the opening table, 5 in the Scope table, and 2 in the Login table. The "Kind"
   // table is not a term table.
-  assert.equal(glossary.terms.length, 37);
+  assert.equal(glossary.terms.length, 40);
   assert.equal(glossary.terms[0].name, 'Target');
   assert.equal(glossary.terms.at(-1).name, 'Login session');
 });
@@ -35,6 +35,8 @@ test('blocks keep the file order: terms, note, headings, paragraphs, lists, tabl
   assert.deepEqual(outline, [
     'table',
     'paragraph', // Note: Expected Behaviour corresponds to ...
+    'paragraph', // Note: Experiment Phase corresponds to ...
+    'paragraph', // Note: GraderResult and RecordedResult are single judgments ...
     'h2:Scope',
     'paragraph',
     'paragraph',

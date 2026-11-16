@@ -3,7 +3,8 @@
 | Target | The agentic system under evaluation, considered at a specific version or configuration. |
 | Target binding | A short file that tells the engine how to reach a **target** through the generic HTTP or browser runner. It names environment variables and holds no secret value. It is separate from the **profile**, which states what is evaluated. |
 | Profile | The context and requirements for a **target**: its **features**, **expected behaviours**, and **criteria**, including the selected **graders** and their settings. |
-| Specification | The evaluation document containing a **profile** and the configuration needed to conduct an **experiment**. |
+| Specification | The evaluation package for a **target**: the **specification document**, the **fixtures** its **tasks** select, and the **target binding** when there is one. An **Interview** makes one specification, and editing the Interview replaces it. Each **experiment** runs a frozen copy. |
+| Specification document | `specification.yaml`: a **profile** and the configuration needed to conduct an **experiment**. It names its fixtures but does not contain them. |
 | Interview | The wizard's guided process that builds a **specification** by asking the user a sequence of questions. |
 | Interview turn | One answer in the **Interview**: the client sends its saved state and the user's answer to the pending question or screen, and receives the new state and the next screen. Starting and ending the Interview are separate operations and are not turns. It involves no **target**. The API route `/api/v1/wizard/interview/turn` performs one Interview turn. An Interview turn is neither a **simulated turn** nor a **recorded turn**. |
 | Interview message | One entry in the Interview's clarification history: a message from the user or from the interviewer (role `assistant`). An **Interview turn** adds at most one user message and one assistant message. The wizard keeps only the most recent messages. |
@@ -18,20 +19,26 @@
 | Scenario | A concrete instantiation of a **feature**, specifying the particular situation and conditions in which the agent is evaluated. |
 | Persona | A concrete simulated user whose characteristics and behaviour are relevant to an evaluation interaction. |
 | Fixture | An artefact or piece of environment state selected by a **task** to execute its **scenario**. It may be supplied by the user or generated dynamically. A fixture is an input, not an expected answer or scoring rule. |
-| Test Case / Task | A complete specification of a particular evaluation problem, combining a **scenario**, a **persona**, **fixtures**, a Trial count, and references to **expected behaviours**. Each selected Behaviour supplies all its Criteria. Each Task has an ID. **Test case** and **task** are interchangeable terms. |
+| Test Case / Task | A complete description of a particular evaluation problem, combining a **scenario**, a **persona**, **fixtures**, a Trial count, and references to **expected behaviours**. Each selected Behaviour supplies all its Criteria. Each Task has an ID. **Test case** and **task** are interchangeable terms. |
 | Trial | One execution of a **test case** against a **target**, producing a **trace** and evaluation outputs. |
 | Simulated turn | One exchange in the simulation loop of a **trial**: the simulated user's message, with any actions such as a file upload, and the **target**'s reply. METIS counts simulated turns as it runs, and `max_turns` limits them. A retried delivery is the same simulated turn, and the closing end-of-chat step is not one. A simulated turn is what METIS did; the matching **recorded turn** is what the target logged. Use "turn" alone for neither, and do not confuse either with an **Interview turn**. |
 | Run | A grouping of repeated **trials** of the same **test case**. |
-| Experiment | A collection of **runs** used to evaluate one or more **targets** across a set of **test cases**. |
+| Experiment | One execution of a **specification**, for one **target**: a collection of **runs**, one per **task**. Each start creates a new experiment with a frozen copy of the specification, so one specification can have many experiments, each keeping the version it ran. An experiment goes through two **experiment phases**. |
+| Experiment Phase | One stage of an **experiment**: `simulating` runs its **trials**, and `evaluating` grades them into `results.json`. Insights has no experiment phase. |
 | Grader | A procedure that evaluates a **trial** against one or more **criteria** and produces a **trial score**. |
 | Scope | The evidence unit that a **grader** assesses, such as tool arguments, an artefact, a trace, a subsession, or a session. A grader declares its supported scopes. One judgment selects one attribute within one Scope subdimension. See [Scope](#scope). The **baseline** and **feature-specific** qualifiers describe which **targets** a grader applies to. |
-| Trial Score | The value produced by applying a **grader** to a **trial** for a particular **criterion**. |
+| Trial Score | The value produced by applying a **grader** to a **trial** for a particular **criterion**. In code, it is the score of one `GraderRecord`: one grader on one trial for one criterion. A grader returns one `GraderResult` per scope item, and insights combines their scores into the record's score. |
 | Grader Passing Threshold | A configurable rule applied to the **trial score** from the **grader** to mark it as pass or fail. |
-| Result | The pass rate of a set of **trial scores**. |
+| Result | The pass rate of a set of **trial scores**. `results.json` holds one record per trial score, and a Result is the pass rate computed from them. |
+| Report | The summary of one **experiment**, as `report.json` and `report.html`, which insights builds from its `results.json` and frozen **specification**. The API builds it when a client asks for it, and builds it again when it is older than the results. `metis insights report` builds it from the CLI. |
 | Test-Time Evals | Evaluations that measure a target model or **target** against curated datasets before release. |
 | Run-Time Evals | Evaluations that continuously measure live traffic and real user interaction as a target model or **target** runs. |
 
 Note: **Expected Behaviour** corresponds to the `Behaviour` data models.
+
+Note: **Experiment Phase** corresponds to `metis.core.phase_events.Phase` and to the `phase` field in `logs/events.jsonl`.
+
+Note: `GraderResult` and `RecordedResult` are single judgments, and the report's `TrialResult` and `CaseResult` are pass and fail counts. None of them is a **Result** in this glossary's sense.
 
 ## Scope
 
@@ -90,7 +97,7 @@ supports (see `GraderType`, and the [grader guide](docs/guide/library/graders.md
 | Kind | Grader type values |
 |---|---|
 | Code-based | `deterministic`, `statistical_metric` |
-| Model-based | `llm`, `learned_discriminative_model`, `embedding_similarity` |
+| Model-based | `llm`, `decision_model`, `learned_discriminative_model`, `embedding_similarity` |
 
 A `hybrid` grader uses both kinds. `human` grading is out of scope in v1, because it needs a
 live human-review workflow.
