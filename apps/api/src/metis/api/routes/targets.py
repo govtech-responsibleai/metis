@@ -165,7 +165,7 @@ def read_interview_file(
 def read_specification(
     target_id: str, store: Annotated[Store, Depends(get_store)]
 ) -> SpecificationRecord:
-    """Return the Specification and the input folder for `metis engine simulate --input-dir`.
+    """Return the Specification and the input folder for `POST /api/v1/engine/simulate`.
 
     A Target has a Specification after its Interview is done. Before that, the route gives 404.
     """

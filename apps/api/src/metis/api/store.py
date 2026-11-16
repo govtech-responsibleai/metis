@@ -502,7 +502,9 @@ class Store:
             target_id=target_id,
             specification_yaml=row.specification_yaml,
             sha256=row.sha256,
-            input_dir=str(self.input_dir(target_id)),
+            input_dir=self.input_dir(target_id)
+            .relative_to(self.project_dir)
+            .as_posix(),
             updated_at=_utc(row.updated_at),
         )
 

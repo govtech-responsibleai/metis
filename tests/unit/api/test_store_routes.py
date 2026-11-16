@@ -13,9 +13,11 @@ from sqlalchemy import create_engine
 from metis.api.settings import Settings
 from metis.api.store import LOCAL_USER_ID, STATE, Store
 from metis.api.tables import interviews, targets
+from metis.core import execution_layout
 from metis.wizard import InterviewState
 from metis.wizard.application import export_layout
 from tests.fixtures.api._shared import database_url
+from tests.fixtures.api.engine import FakeEngine, wait_until
 from tests.fixtures.api.records import done_state, put_interview, ref, web_record
 
 if TYPE_CHECKING:
@@ -547,3 +549,38 @@ def test_a_deleted_target_loses_its_rows_and_design_folder_and_keeps_its_experim
     assert client.get(f"/api/v1/experiments/{experiment_id}").status_code == 404
     assert not (project_dir / "experiments" / "design" / TARGET).exists()
     assert (folder / "inputs" / "specification.yaml").is_file()
+
+
+def test_the_browser_starts_the_specification_and_saves_its_experiment_row(
+    engine_client: TestClient, fake_engine: FakeEngine, project_dir: Path
+) -> None:
+    _saved(engine_client)
+    input_dir = engine_client.get(f"/api/v1/targets/{TARGET}/specification").json()[
+        "input_dir"
+    ]
+
+    started = engine_client.post(
+        "/api/v1/engine/simulate", json={"input_dir": input_dir, "concurrency": 2}
+    )
+    assert started.status_code == 202, started.text
+    experiment_id = started.json()["experiment_id"]
+    saved = engine_client.put(
+        f"/api/v1/experiments/{experiment_id}",
+        json={"target_id": TARGET, "step": "simulate"},
+    )
+
+    assert input_dir == f"experiments/design/{TARGET}/outputs"
+    assert saved.status_code == 200, saved.text
+    experiment_dir = project_dir / execution_layout.EXECUTIONS / experiment_id
+    assert (experiment_dir / execution_layout.FIXTURES / "policy.pdf").read_bytes() == (
+        POLICY
+    )
+    wait_until(lambda: len(fake_engine.calls) == 1)
+    [call] = fake_engine.calls
+    assert (call.name, call.experiment_dir, call.options) == (
+        "simulate",
+        experiment_dir,
+        {"concurrency": 2},
+    )
+    listed = engine_client.get(f"/api/v1/targets/{TARGET}/experiments").json()
+    assert listed["experiments"] == [saved.json()]
