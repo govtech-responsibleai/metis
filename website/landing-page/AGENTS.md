@@ -39,6 +39,6 @@ Tailwind emits utility classes in `@layer utilities`, and CSS outside any cascad
 ## Design
 
 The landing page sells the product, so it is the dynamic and colourful METIS surface. It uses the
-full brand palette from [the design guide](../docs/design.md): the navy hero, paper sections, gold
+full brand palette from [the design guide](../../docs/design.md): the navy hero, paper sections, gold
 primary buttons, and an Instrument Serif italic accent in the hero. Keep the colours and fonts in
 the `:root` block of `src/index.css`.

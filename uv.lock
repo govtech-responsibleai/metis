@@ -624,7 +624,7 @@ wheels = [
 
 [[package]]
 name = "metis"
-version = "1.0.0b1"
+version = "1.0.0b3"
 source = { editable = "." }
 dependencies = [
     { name = "metis-api" },
@@ -667,11 +667,12 @@ dev = [
 
 [[package]]
 name = "metis-api"
-version = "1.0.0b1"
+version = "1.0.0b3"
 source = { editable = "apps/api" }
 dependencies = [
     { name = "fastapi" },
     { name = "metis-core" },
+    { name = "metis-engine" },
     { name = "metis-insights" },
     { name = "metis-wizard" },
     { name = "pydantic" },
@@ -683,7 +684,6 @@ dependencies = [
 [package.optional-dependencies]
 test = [
     { name = "httpx" },
-    { name = "metis-engine" },
 ]
 
 [package.metadata]
@@ -691,7 +691,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.110" },
     { name = "httpx", marker = "extra == 'test'", specifier = ">=0.27" },
     { name = "metis-core", editable = "packages/core" },
-    { name = "metis-engine", marker = "extra == 'test'", editable = "packages/engine" },
+    { name = "metis-engine", editable = "packages/engine" },
     { name = "metis-insights", editable = "packages/insights" },
     { name = "metis-wizard", editable = "packages/wizard" },
     { name = "pydantic", specifier = ">=2.0" },
@@ -703,7 +703,7 @@ provides-extras = ["test"]
 
 [[package]]
 name = "metis-core"
-version = "1.0.0b1"
+version = "1.0.0b3"
 source = { editable = "packages/core" }
 dependencies = [
     { name = "httpx" },
@@ -724,7 +724,7 @@ requires-dist = [
 
 [[package]]
 name = "metis-engine"
-version = "1.0.0b1"
+version = "1.0.0b3"
 source = { editable = "packages/engine" }
 dependencies = [
     { name = "httpx" },
@@ -762,7 +762,7 @@ provides-extras = ["playwright"]
 
 [[package]]
 name = "metis-insights"
-version = "1.0.0b1"
+version = "1.0.0b3"
 source = { editable = "packages/insights" }
 dependencies = [
     { name = "metis-core" },
@@ -783,7 +783,7 @@ requires-dist = [
 
 [[package]]
 name = "metis-library"
-version = "1.0.0b1"
+version = "1.0.0b3"
 source = { editable = "packages/library" }
 dependencies = [
     { name = "jsonschema" },
@@ -800,7 +800,7 @@ requires-dist = [
 
 [[package]]
 name = "metis-testbed"
-version = "1.0.0b1"
+version = "1.0.0b3"
 source = { editable = "packages/testbed" }
 dependencies = [
     { name = "metis-core" },
@@ -821,7 +821,7 @@ requires-dist = [
 
 [[package]]
 name = "metis-wizard"
-version = "1.0.0b1"
+version = "1.0.0b3"
 source = { editable = "packages/wizard" }
 dependencies = [
     { name = "httpx" },

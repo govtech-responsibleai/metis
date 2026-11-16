@@ -41,7 +41,8 @@ def _reset_logging():
 
 def _console() -> tuple[Console, io.StringIO]:
     text = io.StringIO()
-    return Console(file=text, width=200), text
+    # soft_wrap: a message holds a temp path of any length, and must stay on one line.
+    return Console(file=text, width=200, soft_wrap=True), text
 
 
 def _experiment(tmp_path: Path, content: str = MINIMAL_EXPERIMENT) -> Path:

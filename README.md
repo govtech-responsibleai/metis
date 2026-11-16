@@ -134,7 +134,7 @@ For the full specification see [docs/architecture.md](docs/architecture.md).
 
 ## Status
 
-**Beta.** METIS `1.0.0b1` is the state of `main` at tag `v1.0.0b1`, plus any later
+**Beta.** METIS `1.0.0b3` is the state of `main` at tag `v1.0.0b3`, plus any later
 documentation fixes, and is not a stable release. v1 is not finished.
 
 - **No compatibility between betas.** Anything can change from one beta to the next, including

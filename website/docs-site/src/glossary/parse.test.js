@@ -4,7 +4,7 @@ import {test} from 'node:test';
 
 import {parseGlossary, slugify} from './parse.js';
 
-const glossaryText = readFileSync(new URL('../../../GLOSSARY.md', import.meta.url), 'utf8');
+const glossaryText = readFileSync(new URL('../../../../GLOSSARY.md', import.meta.url), 'utf8');
 const glossary = parseGlossary(glossaryText);
 
 test('slugify turns a combined name into a url-safe slug', () => {

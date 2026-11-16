@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "metis-api"
-version = "1.0.0b1"
+version = "1.0.0b3"
 description = "METIS REST API service"
 requires-python = ">=3.11"
 dependencies = [
@@ -15,6 +15,8 @@ dependencies = [
     # The run report routes call metis-insights, which builds the reports. The API
     # holds no report rules.
     "metis-insights",
+    # The engine routes call the metis.engine.run library functions in the API's own process.
+    "metis-engine",
     "fastapi>=0.110",
     "uvicorn>=0.27",
     "pydantic>=2.0",
@@ -26,7 +28,6 @@ dependencies = [
 # FastAPI's TestClient uses httpx; kept as a dev extra so the routes are testable offline.
 test = [
     "httpx>=0.27",
-    "metis-engine",
 ]
 
 [project.scripts]

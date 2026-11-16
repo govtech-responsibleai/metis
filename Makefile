@@ -9,8 +9,8 @@ help:
 	@printf "  make install-engine              Install metis-engine + Playwright browser\n"
 	@printf "  make install-api                 Install metis-api only\n"
 	@printf "  make install-web                 Install apps/web dependencies from its lockfile\n"
-	@printf "  make install-docs                Install website dependencies from its lockfile\n"
-	@printf "  make install-landing             Install landing-page dependencies from its lockfile\n"
+	@printf "  make install-docs                Install website/docs-site dependencies from its lockfile\n"
+	@printf "  make install-landing             Install website/landing-page dependencies from its lockfile\n"
 	@printf "  make install-extras              Install all optional extras (Playwright, docs, landing page)\n"
 	@printf "  make install-extras-playwright   Install Playwright Python package + Chromium binary\n"
 	@printf "\n"
@@ -63,16 +63,16 @@ install-web:
 	npm --prefix apps/web ci
 
 install-docs:
-	npm --prefix website ci --omit=optional
+	npm --prefix website/docs-site ci --omit=optional
 
 run-docs:
-	npm --prefix website start
+	npm --prefix website/docs-site start
 
 build-docs:
-	npm --prefix website run build
+	npm --prefix website/docs-site run build
 
 check-docs: build-docs
-	npm --prefix website test
+	npm --prefix website/docs-site test
 
 # The landing page uses pnpm, which Node does not bring with it, so fail early with the fix.
 check-pnpm:
@@ -83,25 +83,25 @@ check-pnpm:
 	}
 
 install-landing: check-pnpm
-	pnpm --dir landing-page install --frozen-lockfile
+	pnpm --dir website/landing-page install --frozen-lockfile
 
 run-landing: check-pnpm
-	pnpm --dir landing-page dev
+	pnpm --dir website/landing-page dev
 
 build-landing: check-pnpm
-	pnpm --dir landing-page build
+	pnpm --dir website/landing-page build
 
 # Both site servers, as build-site builds both. They run on separate ports, so the published
 # layout of /metis/ and /metis/docs/ is only visible in build-site output.
-# The landing page waits until the docs answer, so the landing-page address is the last line at startup.
+# The landing page waits until the docs answer, so its address is the last line at startup.
 run-site:
 	@uv run python metis_dev.py site
 
 # GitHub Pages serves the landing page at /metis/ and the docs at /metis/docs/.
 build-site: build-landing build-docs
 	rm -rf _site
-	cp -R landing-page/dist _site
-	cp -R website/build _site/docs
+	cp -R website/landing-page/dist _site
+	cp -R website/docs-site/build _site/docs
 
 generate-grader-docs:
 	uv run python packages/library/scripts/generate_grader_docs.py
