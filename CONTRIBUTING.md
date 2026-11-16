@@ -302,13 +302,19 @@ re-locked with `uv lock`, and each beta gets one suite tag, `v1.0.0bN`, instead 
 package. The scoped `<package-name>/v<semver>` tags return for independent releases after v1.0.0.
 Betas promise no compatibility with each other.
 
-A beta has no release branch. It is released in three steps:
+A beta has no release branch. It is released in four steps:
 
 1. Open a pull request into `next` that bumps every `pyproject.toml` version and re-locks with
-   `uv lock`, for example from a `chore/bump-1.0.0bN` branch.
-2. Merge `next` into `main` with a merge commit, not a squash, so that `next` never diverges
-   from `main`. Tag the merge commit on `main` with an annotated `v1.0.0bN` tag.
-3. Publish a GitHub prerelease for the tag.
+   `uv lock`, for example from a `chore/bump-1.0.0bN` branch. Every beta needs this pull request,
+   because `metis --version`, `metis doctor` and the API docs page read the version from these
+   files. Update the version in the Status section of `README.md` in the same pull request.
+2. Check the version on `next` after the pull request is merged.
+   `git grep -n '^version = ' -- '*pyproject.toml'` must show `1.0.0bN` on each of its 8 lines,
+   and `uv lock --check` must pass.
+3. Merge `next` into `main` with a merge commit, not a squash, so that `next` never diverges
+   from `main`. Tag the merge commit on `main` with an annotated `v1.0.0bN` tag. Do not tag a
+   commit whose files show a different version.
+4. Publish a GitHub prerelease for the tag.
 
 ```
 feat/*, fix/*, chore/bump-* ──PR──▶ next ──●──●──●
