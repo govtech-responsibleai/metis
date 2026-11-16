@@ -246,17 +246,25 @@ def test_a_specification_id_that_is_not_one_folder_name_is_refused(
     assert sorted(p.name for p in project_dir.parent.iterdir()) == ["project"]
 
 
-def test_a_folder_that_prepare_makes_outside_the_experiments_is_not_run(
+def test_a_folder_that_prepare_makes_outside_the_experiments_is_not_run_and_is_removed(
     make_engine_client: Callable[..., TestClient],
     fake_engine: FakeEngine,
     project_dir: Path,
     input_dir: Path,
     tmp_path: Path,
 ) -> None:
+    # The id check reads specification.yaml, and prepare_experiment reads it again. A file
+    # that changes between the two reads can make prepare_experiment put the folder in
+    # another place. The fake gives that result directly.
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "kept.txt").write_text("not made by the run")
+    stray = elsewhere / "test-exp-20260101-000000"
+
     def prepare(input_dir: Path, *, project_dir: Path, console: object) -> Path:
-        folder = tmp_path / "elsewhere" / "test-exp-20260101-000000"
-        folder.mkdir(parents=True)
-        return folder
+        (stray / "inputs").mkdir(parents=True)
+        (stray / "inputs" / "specification.yaml").write_text("copied")
+        return stray
 
     client = make_engine_client(prepare_experiment=prepare)
 
@@ -267,6 +275,8 @@ def test_a_folder_that_prepare_makes_outside_the_experiments_is_not_run(
     assert response.status_code == 422
     assert response.json()["code"] == "invalid_inputs"
     assert fake_engine.calls == []
+    assert not stray.exists()
+    assert sorted(p.name for p in elsewhere.iterdir()) == ["kept.txt"]
 
 
 def test_an_input_dir_with_a_nul_byte_is_refused(

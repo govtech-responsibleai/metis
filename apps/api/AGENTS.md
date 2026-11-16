@@ -234,7 +234,7 @@ stops the start.
 |---|---|---|
 | `METIS_API_ENGINE_CONCURRENCY` | 1 | The `concurrency` of a request that gives none. |
 | `METIS_API_ENGINE_MAX_CONCURRENCY` | 8 | The largest `concurrency` of a request. |
-| `METIS_API_LANGFUSE_TIMEOUT` | 90 | The `langfuse_timeout` in seconds of a request that gives none. |
+| `METIS_API_LANGFUSE_TIMEOUT` | 180 | The `langfuse_timeout` in seconds of a request that gives none. It is longer than the 90 of `--langfuse-timeout`, because the web app can evaluate while the last traces still reach Langfuse. A session whose traces have settled waits only for its first check. |
 | `METIS_API_MAX_LANGFUSE_TIMEOUT` | 600 | The largest `langfuse_timeout` of a request. |
 | `METIS_API_STOP_TIMEOUT` | 30 | The seconds that the shutdown waits for the run to stop. |
 

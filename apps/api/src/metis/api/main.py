@@ -140,6 +140,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     """
     owned: Store | None = None
     settings = Settings.from_env(project_dir=app.state.project_dir)
+    runs: EngineRuns = app.state.engine_runs
+    app.state.engine_settings = settings.engine
+    # Before the store, so a setup that fails leaves nothing to close.
+    runs.functions.setup_process()
     if getattr(app.state, "wizard_dependencies", None) is None:
         app.state.model_settings = settings
         app.state.connection_check = settings.connection_check
@@ -155,9 +159,6 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.admin_token = settings.admin_token
     app.state.secure_cookie = settings.secure_cookie
     app.state.accounts = Accounts(app.state.store.engine)
-    runs: EngineRuns = app.state.engine_runs
-    app.state.engine_settings = settings.engine
-    runs.functions.setup_process()
     try:
         yield
     finally:

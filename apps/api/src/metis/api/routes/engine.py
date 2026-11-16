@@ -12,6 +12,7 @@ log with a ``failed`` line, and the status route reports it.
 from __future__ import annotations
 
 import io
+import shutil
 from pathlib import Path, PurePath
 from typing import TYPE_CHECKING, Literal
 
@@ -85,7 +86,7 @@ class EvaluateRequest(BaseModel):
         ge=1,
         description=(
             "The longest wait in seconds for the traces of a session, as "
-            "--langfuse-timeout. Default: a setting."
+            "--langfuse-timeout. Default: a setting, 180 unless the server changes it."
         ),
     )
 
@@ -228,10 +229,16 @@ def _check_specification_id(input_dir: Path) -> None:
 def _inside_executions(project_dir: Path, experiment_dir: Path) -> Path:
     """The experiment folder, once it is a folder of ``experiments/execute/`` of the request.
 
+    ``_check_specification_id`` and ``prepare_experiment`` each read ``specification.yaml``,
+    so a file that changes between the two reads can put the folder in another place. Such a
+    folder is removed. ``prepare_experiment`` always makes a new folder, so the removal
+    deletes only what that call made.
+
     :raises RouteError: 422 ``invalid_inputs`` when it is in another place.
     """
     executions = (project_dir / execution_layout.EXECUTIONS).resolve()
     if experiment_dir.resolve().parent != executions:
+        shutil.rmtree(experiment_dir, ignore_errors=True)
         raise RouteError(
             422,
             "invalid_inputs",

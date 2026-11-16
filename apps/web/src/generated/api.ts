@@ -1648,7 +1648,7 @@ export interface components {
             concurrency?: number | null;
             /**
              * Langfuse Timeout
-             * @description The longest wait in seconds for the traces of a session, as --langfuse-timeout. Default: a setting.
+             * @description The longest wait in seconds for the traces of a session, as --langfuse-timeout. Default: a setting, 180 unless the server changes it.
              */
             langfuse_timeout?: number | null;
         };

@@ -5,15 +5,15 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
+import pytest
 from fastapi.testclient import TestClient
 
-from metis.api import engine_runs
+from metis.api import engine_runs, main
 from metis.api.main import create_app
+from metis.core.model_settings import ModelSettingsError
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import pytest
 
 SETUP = engine_runs.setup_engine_process
 """The real setup. The ``no_engine_setup`` fixture replaces it in the module for each test."""
@@ -58,3 +58,30 @@ def test_an_api_test_app_does_not_load_the_env_file(
         pass
 
     assert "METIS_TEST_LEAK" not in os.environ
+
+
+def test_a_setup_that_fails_stops_the_start_before_the_store_is_built(
+    monkeypatch: pytest.MonkeyPatch, project_dir: Path
+) -> None:
+    built: list[object] = []
+
+    def fail() -> None:
+        raise ModelSettingsError("METIS_ENV_FILE names a file that does not exist.")
+
+    monkeypatch.setattr("metis.api.engine_runs.setup_engine_process", fail)
+    real_store = main.Store
+
+    def store(*args: object) -> object:
+        opened = real_store(*args)
+        built.append(opened)
+        return opened
+
+    monkeypatch.setattr(main, "Store", store)
+
+    with (
+        pytest.raises(ModelSettingsError, match="does not exist"),
+        TestClient(create_app(project_dir=project_dir)),
+    ):
+        pass
+
+    assert built == []

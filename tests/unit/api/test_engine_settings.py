@@ -9,13 +9,13 @@ from metis.api.main import create_app
 from metis.api.settings import EngineSettings, InvalidSettingError
 
 
-def test_the_defaults_match_the_engine_cli() -> None:
+def test_the_defaults() -> None:
     settings = EngineSettings.from_env({})
 
     assert settings == EngineSettings(
         concurrency=1,
         max_concurrency=8,
-        langfuse_timeout=90,
+        langfuse_timeout=180,
         max_langfuse_timeout=600,
         stop_timeout=30,
     )

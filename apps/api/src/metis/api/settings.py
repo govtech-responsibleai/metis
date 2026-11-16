@@ -76,11 +76,16 @@ class EngineSettings:
     ``--concurrency`` and ``--langfuse-timeout`` of the engine CLI. A request cannot give more
     than the maximum. ``stop_timeout`` is the number of seconds that the shutdown waits for
     the run to stop.
+
+    ``langfuse_timeout`` is 180 seconds, longer than the 90 of the CLI. The web app can start
+    an evaluation as soon as the simulation ends, while the last traces still reach Langfuse.
+    A session whose traces have settled is graded after its first check, so the longer limit
+    costs time only when traces are late or missing.
     """
 
     concurrency: int = 1
     max_concurrency: int = 8
-    langfuse_timeout: int = 90
+    langfuse_timeout: int = 180
     max_langfuse_timeout: int = 600
     stop_timeout: int = 30
 

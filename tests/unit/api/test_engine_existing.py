@@ -84,7 +84,7 @@ def test_an_evaluation_with_no_timeout_waits_the_default_time(
     engine_client.post(ROUTES[name].format(id=experiment_dir.name), json={})
 
     wait_until(lambda: len(fake_engine.calls) == 1)
-    assert fake_engine.calls[0].options["trace_wait"].timeout_seconds == 90
+    assert fake_engine.calls[0].options["trace_wait"].timeout_seconds == 180
 
 
 @pytest.mark.parametrize("name", list(ROUTES))
