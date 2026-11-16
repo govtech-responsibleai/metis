@@ -31,7 +31,7 @@ def _kwargs(tmp_path: Path) -> dict[str, Any]:
         "trial_index": 1,
         "state": None,
         "tui_ctx": None,
-        "shutdown_event": None,
+        "stop": None,
     }
 
 
