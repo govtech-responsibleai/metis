@@ -244,3 +244,42 @@ def test_a_start_while_another_experiment_runs_is_engine_busy(
     assert response.json()["code"] == "engine_busy"
     assert running.name in response.json()["message"]
     assert len(fake_engine.calls) == 1
+
+
+def test_a_bad_timeout_is_checked_after_the_folder_and_the_run(
+    engine_client: TestClient,
+    fake_engine: FakeEngine,
+    project_dir: Path,
+    make_experiment_dir: Callable[..., Path],
+) -> None:
+    bad = {"langfuse_timeout": 10}
+    bare = project_dir / execution_layout.EXECUTIONS / "bare"
+    bare.mkdir(parents=True)
+    running = make_experiment_dir("test-exp-20260101-000001")
+    other = make_experiment_dir("test-exp-20260101-000002")
+    fake_engine.mode = "hold"
+    engine_client.post(ROUTES["resume_simulation"].format(id=running.name))
+
+    codes = [
+        engine_client.post(ROUTES["evaluate"].format(id=name), json=bad).json()["code"]
+        for name in ("no-such-experiment", running.name, other.name)
+    ]
+    fake_engine.release.set()
+    wait_until(
+        lambda: (
+            engine_client.get(f"/api/v1/engine/{running.name}").json()["status"]
+            != "running"
+        )
+    )
+    codes.append(
+        engine_client.post(ROUTES["evaluate"].format(id="bare"), json=bad).json()[
+            "code"
+        ]
+    )
+
+    assert codes == [
+        "experiment_not_found",
+        "run_in_progress",
+        "engine_busy",
+        "invalid_experiment",
+    ]

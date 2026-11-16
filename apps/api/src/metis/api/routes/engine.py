@@ -401,10 +401,12 @@ def _start_evaluation(
         settings.max_langfuse_timeout,
     )
     runs = _runs(request)
-    trace_wait: list[TraceWaitSettings] = []
+    # Set in ``check``, so a bad timeout is reported after the folder, run, and layout errors.
+    trace_wait: TraceWaitSettings | None = None
 
     def check(experiment_dir: Path) -> None:
-        trace_wait.append(_trace_wait(langfuse_timeout))
+        nonlocal trace_wait
+        trace_wait = _trace_wait(langfuse_timeout)
         if resume and evaluation_is_complete(experiment_dir):
             raise RouteError(
                 409,
@@ -414,12 +416,13 @@ def _start_evaluation(
             )
 
     def work(experiment_dir: Path, stop: threading.Event, console: Console) -> None:
+        assert trace_wait is not None  # check runs before the thread starts
         function = (
             runs.functions.resume_evaluation if resume else runs.functions.evaluate
         )
         function(
             experiment_dir,
-            trace_wait=trace_wait[0],
+            trace_wait=trace_wait,
             concurrency=concurrency,
             stop=stop,
             console=console,

@@ -19,7 +19,7 @@ from __future__ import annotations
 import functools
 import threading
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Protocol
 
 from rich.console import Console
 
@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from metis.core.phase_events import Phase
+    from metis.engine.extractor import TraceWaitSettings
 
 logger = get_logger(__name__)
 
@@ -58,15 +59,56 @@ def setup_engine_process() -> None:
     configure_logging()
 
 
+class PrepareExperiment(Protocol):
+    """``metis.engine.run.prepare_experiment``."""
+
+    def __call__(
+        self, input_dir: Path, /, *, project_dir: Path, console: Console
+    ) -> Path: ...
+
+
+class Simulate(Protocol):
+    """``metis.engine.run.simulate`` and ``resume_simulation``, as the routes call them."""
+
+    def __call__(
+        self,
+        experiment_dir: Path,
+        /,
+        *,
+        concurrency: int,
+        stop: threading.Event,
+        console: Console,
+    ) -> object: ...
+
+
+class Evaluate(Protocol):
+    """``metis.engine.run.evaluate`` and ``resume_evaluation``, as the routes call them."""
+
+    def __call__(
+        self,
+        experiment_dir: Path,
+        /,
+        *,
+        trace_wait: TraceWaitSettings,
+        concurrency: int,
+        stop: threading.Event,
+        console: Console,
+    ) -> object: ...
+
+
 @dataclass(frozen=True)
 class EngineFunctions:
-    """The library calls of the engine routes. The tests give fakes for some of them."""
+    """The library calls of the engine routes. The tests give fakes for some of them.
 
-    prepare_experiment: Callable[..., Path] = engine_run.prepare_experiment
-    simulate: Callable[..., Any] = engine_run.simulate
-    resume_simulation: Callable[..., Any] = engine_run.resume_simulation
-    evaluate: Callable[..., Any] = engine_run.evaluate
-    resume_evaluation: Callable[..., Any] = engine_run.resume_evaluation
+    Each field has the type of the engine function, so the type checker checks each call
+    of a route against the signature in ``metis.engine.run``.
+    """
+
+    prepare_experiment: PrepareExperiment = engine_run.prepare_experiment
+    simulate: Simulate = engine_run.simulate
+    resume_simulation: Simulate = engine_run.resume_simulation
+    evaluate: Evaluate = engine_run.evaluate
+    resume_evaluation: Evaluate = engine_run.resume_evaluation
     setup_process: Callable[[], None] = field(
         default_factory=lambda: setup_engine_process
     )
