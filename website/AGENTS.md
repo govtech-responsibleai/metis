@@ -58,17 +58,17 @@ re-export from the actual implementations in `docs/src/theme/`.
 ## Commands
 
 ```bash
-npm --prefix website ci             # Install docs dependencies
-npm --prefix website start          # Dev server on port 3000
-npm --prefix website run build      # Production build
-npm --prefix website test           # Run glossary tests
+make install-docs          # Install docs dependencies (from lockfile, --omit=optional)
+make run-docs              # Start the docs dev server on port 3000
+make build-docs            # Build the docs site
+make check-docs            # Check links and build the docs
 
-pnpm --dir website/landing-page install   # Install landing-page dependencies
-pnpm --dir website/landing-page dev       # Dev server on port 8443
-pnpm --dir website/landing-page build     # Production build
+make install-landing       # Install landing-page dependencies (from lockfile)
+make run-landing           # Start the landing page dev server on port 8443
+make build-landing         # Build the landing page
 
-make run-site                       # Both servers together
-make build-site                     # Combined build into _site/
+make run-site              # Both servers together
+make build-site            # Combined build into _site/ (landing page + docs)
 ```
 
 ## See also
