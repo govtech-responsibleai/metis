@@ -1,8 +1,8 @@
 """The report of each experiment folder in the project folder.
 
 An experiment id is the name of an experiment folder under
-``<project folder>/experiments/execute/``. The routes find the folder among the names in that
-directory, so an id can never name another path. metis-insights builds the reports. These
+``<project folder>/experiments/execute/``. The routes find the folder with
+``find_experiment_dir``, so an id can never name another path. metis-insights builds the reports. These
 routes hold no report rules.
 
 ``/report`` returns report.json and ``/report.html`` returns report.html. Both are the same
@@ -11,19 +11,15 @@ report, and both responses are inline. A client that wants a file saves the resp
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
 
+from metis.api.experiment_dirs import find_experiment_dir
 from metis.api.routes.wizard import ServiceError
-from metis.core import execution_layout
 from metis.core.report import Report
 from metis.insights import ReportBuildError, ReportFiles, ResultsMissing, ensure_report
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 router = APIRouter(prefix="/api/v1/experiments", tags=["reports"])
 
@@ -40,21 +36,8 @@ _RESPONSES = {
 }
 
 
-def _experiment_dir(request: Request, experiment_id: str) -> Path | JSONResponse:
-    executions: Path = request.app.state.project_dir / execution_layout.EXECUTIONS
-    if executions.is_dir():
-        for path in executions.iterdir():
-            if path.name == experiment_id and path.is_dir():
-                return path
-    return _failure(
-        404, "experiment_not_found", f"No experiment folder is named {experiment_id!r}."
-    )
-
-
 def _report_files(request: Request, experiment_id: str) -> ReportFiles | JSONResponse:
-    experiment_dir = _experiment_dir(request, experiment_id)
-    if isinstance(experiment_dir, JSONResponse):
-        return experiment_dir
+    experiment_dir = find_experiment_dir(request.app.state.project_dir, experiment_id)
     try:
         return ensure_report(experiment_dir)
     except ResultsMissing as exc:

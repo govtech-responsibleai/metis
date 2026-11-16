@@ -56,6 +56,70 @@ DATABASE_URL_ENV = "METIS_DATABASE_URL"
 `sqlite:///<project>/experiments/metis.db`."""
 
 
+class InvalidSettingError(ValueError):
+    """An engine setting in the environment is not valid. The API does not start."""
+
+
+@dataclass(frozen=True)
+class EngineSettings:
+    """The settings of the engine routes.
+
+    ``concurrency`` and ``langfuse_timeout`` are the values of a request that gives none, as
+    ``--concurrency`` and ``--langfuse-timeout`` of the engine CLI. A request cannot give more
+    than the maximum. ``stop_timeout`` is the number of seconds that the shutdown waits for
+    the run to stop.
+    """
+
+    concurrency: int = 1
+    max_concurrency: int = 8
+    langfuse_timeout: int = 90
+    max_langfuse_timeout: int = 600
+    stop_timeout: int = 30
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str]) -> EngineSettings:
+        """Read each setting from its variable, or use its default.
+
+        :raises InvalidSettingError: When a value is not a whole number of 1 or more, or a
+            default is more than its maximum.
+        """
+        values = {
+            name: _whole_number(env, variable, getattr(cls, name))
+            for name, variable in _ENGINE_VARIABLES.items()
+        }
+        settings = cls(**values)
+        for name, maximum in (
+            ("concurrency", "max_concurrency"),
+            ("langfuse_timeout", "max_langfuse_timeout"),
+        ):
+            if getattr(settings, name) > getattr(settings, maximum):
+                raise InvalidSettingError(
+                    f"{_ENGINE_VARIABLES[name]} is {getattr(settings, name)}, which is more "
+                    f"than {_ENGINE_VARIABLES[maximum]} ({getattr(settings, maximum)})."
+                )
+        return settings
+
+
+_ENGINE_VARIABLES = {
+    "concurrency": "METIS_API_ENGINE_CONCURRENCY",
+    "max_concurrency": "METIS_API_ENGINE_MAX_CONCURRENCY",
+    "langfuse_timeout": "METIS_API_LANGFUSE_TIMEOUT",
+    "max_langfuse_timeout": "METIS_API_MAX_LANGFUSE_TIMEOUT",
+    "stop_timeout": "METIS_API_STOP_TIMEOUT",
+}
+
+
+def _whole_number(env: Mapping[str, str], variable: str, default: int) -> int:
+    if variable not in env:
+        return default
+    text = env[variable].strip()
+    if not text.isdigit() or int(text) < 1:
+        raise InvalidSettingError(
+            f"{variable} must be a whole number of 1 or more, got {env[variable]!r}."
+        )
+    return int(text)
+
+
 def connection_check_from_env() -> bool:
     """Whether the connection check reads the environment and reaches the target.
 
@@ -90,6 +154,7 @@ class Settings:
     connection_check: bool = False
     project_dir: Path = field(default_factory=find_project_root)
     database_url: str = field(default="", repr=False)
+    engine: EngineSettings = field(default_factory=EngineSettings)
 
     @classmethod
     def from_env(
@@ -99,6 +164,8 @@ class Settings:
 
         ``project_dir`` comes from `metis-api --project-dir`. Without it, the project folder is
         the one that ``find_project_root`` finds.
+
+        :raises InvalidSettingError: When an engine setting is not valid.
         """
         project_dir = (project_dir or find_project_root()).resolve()
         database_url = (
@@ -111,6 +178,7 @@ class Settings:
             connection_check=connection_check_from_env(),
             project_dir=project_dir,
             database_url=database_url,
+            engine=EngineSettings.from_env(os.environ),
         )
 
     def role(self, role: ModelRole) -> RoleSettings:
@@ -164,7 +232,9 @@ __all__ = [
     "API_ROLES",
     "CONNECTION_CHECK_ENV",
     "DATABASE_URL_ENV",
+    "EngineSettings",
     "InterviewHandler",
+    "InvalidSettingError",
     "Settings",
     "SettingsError",
     "WizardDependencies",

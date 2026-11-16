@@ -106,6 +106,103 @@ compile failure gets 400 `compilation_failed` and changes nothing. A missing row
 `not_found`. A row that this version cannot read gets 409 `unreadable_record` and shows in the
 `problems` list of `GET /api/v1/targets`.
 
+## Engine routes
+
+The engine routes start, stop, and follow the engine steps of an experiment. They call the
+`metis.engine.run` library functions in the API's own process, on a `threading.Thread` of
+their own. They start no child process, and they do not use the store. They read and write
+the experiment folders only, as `metis engine simulate` and `evaluate` do.
+
+The experiment folders on disk are the source of truth. In memory, `EngineRuns` keeps only
+the run that is alive now: its experiment id and folder, its phase, its stop flag (a
+`threading.Event`), its thread, and the last `seq` of `logs/events.jsonl` when it started.
+When the thread ends, the API forgets the run.
+
+The API runs one engine run at a time, across all experiments. Logging, the Langfuse clients,
+and `LANGFUSE_HOST` are shared by the whole process, so a second run at the same time is not
+safe. A second start gets 503 `engine_busy`, and there is no queue. One lock covers the busy
+check, the checks of the start, and the start of the thread. A refused start therefore creates
+no folder, and two starts at the same time cannot both pass.
+
+| Route | Purpose |
+|---|---|
+| `POST /api/v1/engine/simulate` | Create an experiment from an input folder and run its trials (`simulate`). |
+| `POST /api/v1/engine/simulate/{experiment_id}/resume` | Run again the trials that did not end (`resume_simulation`). |
+| `POST /api/v1/engine/evaluate/{experiment_id}` | Delete the earlier evaluation and grade every trial (`evaluate`). |
+| `POST /api/v1/engine/evaluate/{experiment_id}/resume` | Grade the trials with no evaluation file (`resume_evaluation`). |
+| `POST /api/v1/engine/{experiment_id}/stop` | Set the stop flag of the run. |
+| `GET /api/v1/engine/{experiment_id}` | The phase, the status, and the counts of the experiment. |
+| `GET /api/v1/engine/{experiment_id}/events?after=<seq>` | The lines of `logs/events.jsonl` after `seq`. |
+| `GET /api/v1/doctor` | The checks of `metis doctor`. |
+
+Each start and stop returns 202 `{experiment_id}` at once. The `input_dir` of a new
+simulation is relative to the project folder. The API resolves it, symbolic links included,
+and refuses a path that is absolute or outside the project folder. `concurrency` and
+`langfuse_timeout` take their default from a setting when a request leaves them out.
+
+Every check of a start runs in the request, before the thread starts. The routes check in
+this order and return the first error:
+
+| Route | Order of the checks |
+|---|---|
+| `simulate` | `validation_error`, `input_dir_outside_project`, `engine_busy`, `invalid_inputs` or `experiment_exists` |
+| resume, evaluate | `validation_error`, `experiment_not_found`, `run_in_progress` or `engine_busy`, `invalid_experiment`, `invalid_langfuse_timeout` (evaluate only), `evaluation_complete` (evaluate resume only) |
+| stop | `experiment_not_found`, `no_run` |
+| status, events | `validation_error` (events only), `experiment_not_found` |
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `experiment_not_found` | No folder in `experiments/execute/` has the id. |
+| 422 | `input_dir_outside_project` | `input_dir` is absolute or outside the project folder. |
+| 422 | `invalid_inputs` | `prepare_experiment` refuses the inputs or the project folder. The message is the engine text. |
+| 409 | `experiment_exists` | A run of the same Specification started in the same second. |
+| 409 | `run_in_progress` | A start for the experiment that runs now. |
+| 503 | `engine_busy` | A start while another experiment runs. The message names it. It is the only error with `retryable: true`. |
+| 422 | `invalid_experiment` | The folder has no `inputs/` snapshot, or uses the earlier layout. The message is the text of `resolve_experiment_dir`. |
+| 422 | `invalid_langfuse_timeout` | `TraceWaitSettings.from_env` refuses the timeout. |
+| 409 | `evaluation_complete` | A resume of an evaluation whose `results.json` loads. |
+| 409 | `no_run` | A stop for an experiment that does not run. |
+| 422 | `validation_error` | A field is not valid, or `concurrency` or `langfuse_timeout` is more than its maximum setting. |
+
+A run that fails after the 202 fails on its thread. The engine has then already ended the
+events log with `failed` and its reason, or with `interrupted` for a stop. The API logs any
+error that is not a `RunError` or `RunStopped`. The text of a run goes to `logs/console.log`
+of the experiment, never to the stdout of the API.
+
+The status route takes its answer from the live run when the run of that id is alive:
+`running`, or `stopping` once the stop flag is set. The counts come from the run's own
+`started` line, which has a `seq` more than the start `seq`, so they are `null` until the
+engine writes it. When no run is alive, the answer comes from the last phase line of the
+events log: `completed`, `failed` with its reason, or `interrupted`. A log that ends with
+`started` is `unfinished`, because the run ended with no last line, for example after the
+process was killed. A log with no phase line is `not_started`. The status route and the
+events route read the file with one reader (`read_events`). It skips a last line with no
+newline and any line that does not parse. The events route returns each line as the engine
+wrote it.
+
+Startup and shutdown:
+
+- Before the first request, the lifespan calls `setup_engine_process` one time. It loads
+  `.env`, calls `tracing_key()`, and calls `configure_logging()`. `METIS_LOG_LEVEL` sets the
+  level, which also decides what reaches the per-trial log files of a simulation.
+- At shutdown, the lifespan sets the stop flag and waits for the thread, for at most
+  `METIS_API_STOP_TIMEOUT` seconds. The run thread is a daemon thread, so a run that does not
+  stop in time cannot keep the process open.
+
+Settings, which the API reads at startup. A value that is not a whole number of 1 or more
+stops the start.
+
+| Variable | Default | Sets |
+|---|---|---|
+| `METIS_API_ENGINE_CONCURRENCY` | 1 | The `concurrency` of a request that gives none. |
+| `METIS_API_ENGINE_MAX_CONCURRENCY` | 8 | The largest `concurrency` of a request. |
+| `METIS_API_LANGFUSE_TIMEOUT` | 90 | The `langfuse_timeout` in seconds of a request that gives none. |
+| `METIS_API_MAX_LANGFUSE_TIMEOUT` | 600 | The largest `langfuse_timeout` of a request. |
+| `METIS_API_STOP_TIMEOUT` | 30 | The seconds that the shutdown waits for the run to stop. |
+
+`GET /api/v1/doctor` returns each `DoctorResult` of `metis.core.doctor.run_doctor()` as
+`{name, status, detail, fix}`, in display order. It holds no check rule.
+
 ## Module layout
 
 ```
@@ -117,6 +214,11 @@ src/metis/api/
 ├── routes/wizard.py   client config, Interview lifecycle, compile, and package routes
 ├── routes/targets.py  store routes for Targets, Interview records, files, and Specifications
 ├── routes/experiments.py  store routes for Experiment rows
+├── routes/engine.py   engine routes: start, resume, evaluate, stop, status, and events
+├── routes/doctor.py   the checks of `metis doctor`
+├── engine_runs.py     the one live engine run, its thread and console file, and the events reader
+├── experiment_dirs.py finds an experiment folder from its id, for the report and engine routes
+├── errors.py          RouteError, which the app maps to the service error shape
 ├── records.py         the wire models of the store routes
 ├── store.py           the store: rows through SQLAlchemy, files in experiments/design/
 ├── tables.py          the portable tables of the store
@@ -126,7 +228,8 @@ src/metis/api/
 └── __init__.py        version and the re-exported core version
 ```
 
-The dependency arrows are `apps/api -> metis.wizard` and `apps/api -> metis.insights`. The wizard
+The dependency arrows are `apps/api -> metis.wizard`, `apps/api -> metis.insights`, and
+`apps/api -> metis.engine`. The wizard
 router calls `handle_interview`,
 `compile_specification`, and `package_specification` from the `metis.wizard` facade and maps typed results
 onto an HTTP status (200/400/422/503/500) in one error shape. No stage, Specification, prompt, matching,
@@ -171,6 +274,10 @@ a wizard Interview across two app instances that writes no file, the store route
 folder through the engine gate, the generated OpenAPI discriminators, package archive
 contents and validation, and one offline Interview start/turn/end-to-`/compile` end-to-end validated
 through the engine gate. Do not repeat every driver example.
+
+The engine route tests use `FakeEngine` from `tests/fixtures/api/engine.py` in place of the
+engine library functions, so no test runs a trial, calls a model, or reaches the network. The
+checks before a run starts are the real library functions on folders under `tmp_path`.
 
 ## Package-Specific Notes
 

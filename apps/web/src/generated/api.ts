@@ -485,6 +485,183 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/engine/simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a simulation of an input folder
+         * @description Create an experiment folder from the input folder and run every trial in it.
+         *
+         *     The request checks the inputs as `metis engine simulate --input-dir` does, then creates
+         *     `experiments/execute/<specification id>-<YYYYmmdd-HHMMSS>/`. The trials run after the
+         *     response.
+         */
+        post: operations["start_simulation_api_v1_engine_simulate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engine/simulate/{experiment_id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run again the trials of an experiment that did not end
+         * @description Run again each trial whose record is missing, cannot be read, or was interrupted.
+         *
+         *     When it runs any trial again, the run deletes the evaluation outputs of the experiment,
+         *     so the report routes return results_missing until the next evaluate.
+         */
+        post: operations["resume_simulation_api_v1_engine_simulate__experiment_id__resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engine/evaluate/{experiment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grade every trial of an experiment
+         * @description Delete the earlier evaluation of the experiment, then grade every trial.
+         */
+        post: operations["start_evaluation_api_v1_engine_evaluate__experiment_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engine/evaluate/{experiment_id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grade the trials of an experiment that have no evaluation
+         * @description Grade only the trials with no evaluation file. A complete evaluation gives 409
+         *     evaluation_complete.
+         */
+        post: operations["resume_evaluation_api_v1_engine_evaluate__experiment_id__resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engine/{experiment_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop the run of an experiment
+         * @description Set the stop flag of the run, and return at once.
+         *
+         *     A simulation ends each trial at its next turn, and an evaluation cancels its sessions
+         *     within a fraction of a second. The events log then ends with interrupted.
+         */
+        post: operations["stop_run_api_v1_engine__experiment_id__stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engine/{experiment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the status of an experiment
+         * @description Return the phase, the status, and the counts of the experiment.
+         */
+        get: operations["experiment_status_api_v1_engine__experiment_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engine/{experiment_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the events of an experiment after a seq
+         * @description Return the lines of logs/events.jsonl whose seq is more than `after`, in file order.
+         *
+         *     Each element is the line as the engine wrote it, in the format of
+         *     phase-event.schema.json. A last line that the engine still writes, and a line that does
+         *     not parse, are skipped. An experiment with no events file returns [].
+         */
+        get: operations["experiment_events_api_v1_engine__experiment_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/doctor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check the environment before a run
+         * @description Run every check of `metis doctor` and return the results in display order.
+         *
+         *     The checks report variable and service names, never values.
+         */
+        get: operations["run_doctor_api_v1_doctor_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1252,6 +1429,27 @@ export interface components {
          */
         Dimension: "task_and_output_quality" | "execution_and_decision_quality" | "resource_use" | "reliability_and_robustness" | "safety" | "security" | "interaction_quality";
         /**
+         * DoctorCheck
+         * @description The result of one check.
+         */
+        DoctorCheck: {
+            /** Name */
+            name: string;
+            /**
+             * Status
+             * @description A warning or a skip does not stop a run. A failure does.
+             * @enum {string}
+             */
+            status: "pass" | "fail" | "warn" | "skip";
+            /** Detail */
+            detail: string;
+            /**
+             * Fix
+             * @description A one-line fix for a failure or a warning.
+             */
+            fix: string | null;
+        };
+        /**
          * DocumentExtractionErrorCode
          * @description Stable causes returned when an uploaded Interview document cannot be read.
          * @enum {string}
@@ -1284,6 +1482,69 @@ export interface components {
         DocumentExtractionResult: {
             /** Documents */
             documents: components["schemas"]["ExtractedDocument"][];
+        };
+        /**
+         * EngineRunAccepted
+         * @description The experiment of a run that started or that was asked to stop.
+         */
+        EngineRunAccepted: {
+            /** Experiment Id */
+            experiment_id: string;
+        };
+        /**
+         * EngineStatus
+         * @description The current state of an experiment, from the live run or from its events log.
+         */
+        EngineStatus: {
+            /** Experiment Id */
+            experiment_id: string;
+            /**
+             * Phase
+             * @description The phase of the live run, else of the last phase line.
+             */
+            phase: ("simulating" | "evaluating") | null;
+            /**
+             * Status
+             * @description running or stopping while a run is alive. Else the status of the last phase line: completed, failed, or interrupted. unfinished when that line is started, because the run ended with no last line. not_started when the events log has no phase line.
+             * @enum {string}
+             */
+            status: "running" | "stopping" | "completed" | "failed" | "interrupted" | "unfinished" | "not_started";
+            /**
+             * Total
+             * @description Trials in the phase, from its started line. null until it is written.
+             */
+            total: number | null;
+            /**
+             * Done
+             * @description Trials that an earlier run finished, from the same started line.
+             */
+            done: number | null;
+            /**
+             * Reason
+             * @description The reason of a failed line, else null.
+             */
+            reason: string | null;
+            /**
+             * Last Seq
+             * @description The highest seq in logs/events.jsonl, 0 when there is none.
+             */
+            last_seq: number;
+        };
+        /**
+         * EvaluateRequest
+         * @description Grade the trials of an experiment.
+         */
+        EvaluateRequest: {
+            /**
+             * Concurrency
+             * @description Sessions at the same time. Default: a setting.
+             */
+            concurrency?: number | null;
+            /**
+             * Langfuse Timeout
+             * @description The longest wait in seconds for the traces of a session, as --langfuse-timeout. Default: a setting.
+             */
+            langfuse_timeout?: number | null;
         };
         /** EvidenceItem */
         EvidenceItem: {
@@ -2240,6 +2501,134 @@ export interface components {
             /** Question */
             question: string;
         };
+        /**
+         * PhaseEvent
+         * @description One line of ``logs/events.jsonl``. Validate a line with ``PhaseEvent.parse_line``.
+         */
+        PhaseEvent: {
+            /**
+             * Seq
+             * @description Line number of the event in the file, from 1.
+             */
+            seq: number;
+            /**
+             * At
+             * Format: date-time
+             * @description UTC time at which the engine wrote the event.
+             */
+            at: string;
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "simulating" | "evaluating";
+            /**
+             * Trial
+             * @description The trial's folder name under outputs/trials/, or null for the phase.
+             */
+            trial: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "started" | "running" | "retrying" | "completed" | "failed" | "interrupted" | "skipped";
+            /**
+             * Total
+             * @description Trials in the phase, done ones included.
+             */
+            total?: number | null;
+            /**
+             * Done
+             * @description Trials that an earlier command already finished in this phase.
+             */
+            done?: number | null;
+            /**
+             * Attempt
+             * @description The attempt of the trial, from 1. On retrying, the one that failed.
+             */
+            attempt?: number | null;
+            /**
+             * Turn
+             * @description Turns of the attempt that are done.
+             */
+            turn?: number | null;
+            /** Reason */
+            reason?: string | null;
+        } & ({
+            /** @constant */
+            status?: "started";
+            trial?: null;
+        } | {
+            /** @constant */
+            status?: "completed";
+            trial?: null;
+        } | {
+            /** @constant */
+            status?: "failed";
+            trial?: null;
+        } | {
+            /** @constant */
+            status?: "interrupted";
+            trial?: null;
+        } | {
+            /** @constant */
+            status?: "skipped";
+            trial?: null;
+        } | {
+            /** @constant */
+            status?: "started";
+            trial?: string;
+            /** @constant */
+            phase?: "simulating";
+        } | {
+            /** @constant */
+            status?: "running";
+            trial?: string;
+            /** @constant */
+            phase?: "simulating";
+        } | {
+            /** @constant */
+            status?: "retrying";
+            trial?: string;
+            /** @constant */
+            phase?: "simulating";
+        } | {
+            /** @constant */
+            status?: "completed";
+            trial?: string;
+            /** @constant */
+            phase?: "simulating";
+        } | {
+            /** @constant */
+            status?: "failed";
+            trial?: string;
+            /** @constant */
+            phase?: "simulating";
+        } | {
+            /** @constant */
+            status?: "interrupted";
+            trial?: string;
+            /** @constant */
+            phase?: "simulating";
+        } | {
+            /** @constant */
+            status?: "started";
+            trial?: string;
+            /** @constant */
+            phase?: "evaluating";
+        } | {
+            /** @constant */
+            status?: "completed";
+            trial?: string;
+            /** @constant */
+            phase?: "evaluating";
+        } | {
+            /** @constant */
+            status?: "failed";
+            trial?: string;
+            /** @constant */
+            phase?: "evaluating";
+        });
         /** Plan */
         Plan: {
             /** Personas */
@@ -2587,6 +2976,17 @@ export interface components {
             };
         };
         /**
+         * ResumeSimulationRequest
+         * @description Run again the trials of an experiment that did not end.
+         */
+        ResumeSimulationRequest: {
+            /**
+             * Concurrency
+             * @description Trials at the same time. Default: a setting.
+             */
+            concurrency?: number | null;
+        };
+        /**
          * ReviewSection
          * @description A heading on a review screen, with the actions that belong to it.
          *
@@ -2766,6 +3166,22 @@ export interface components {
              * @default false
              */
             retryable: boolean;
+        };
+        /**
+         * SimulateRequest
+         * @description Start a simulation of an input folder, as ``metis engine simulate --input-dir``.
+         */
+        SimulateRequest: {
+            /**
+             * Input Dir
+             * @description The input folder, relative to the project folder. For example experiments/design/<target id>/outputs.
+             */
+            input_dir: string;
+            /**
+             * Concurrency
+             * @description Trials at the same time. Default: a setting.
+             */
+            concurrency?: number | null;
         };
         /**
          * Specification
@@ -4435,6 +4851,413 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    start_simulation_api_v1_engine_simulate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimulateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineRunAccepted"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    resume_simulation_api_v1_engine_simulate__experiment_id__resume_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ResumeSimulationRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineRunAccepted"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    start_evaluation_api_v1_engine_evaluate__experiment_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["EvaluateRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineRunAccepted"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    resume_evaluation_api_v1_engine_evaluate__experiment_id__resume_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["EvaluateRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineRunAccepted"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    stop_run_api_v1_engine__experiment_id__stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineRunAccepted"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    experiment_status_api_v1_engine__experiment_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineStatus"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    experiment_events_api_v1_engine__experiment_id__events_get: {
+        parameters: {
+            query?: {
+                /** @description Return the events whose seq is more than this. */
+                after?: number;
+            };
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhaseEvent"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    run_doctor_api_v1_doctor_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DoctorCheck"][];
                 };
             };
         };
