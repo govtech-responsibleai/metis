@@ -216,11 +216,11 @@ test("the YAML view and Download wait for the end of the Interview", () => {
   assert.doesNotMatch(control(markup, "Document"), /disabled=""/);
 });
 
-test("an empty Experiments tab says so and links to the comparison", () => {
-  const markup = at("/targets/a/experiments", <ExperimentsTab targetId="a" />);
-
-  assert.match(markup, /No experiments yet\./);
-  assert.match(control(markup, "Compare"), /href="\/targets\/a\/compare"/);
+test("an empty Experiments tab says so", () => {
+  assert.match(
+    at("/targets/a/experiments", <ExperimentsTab />),
+    /No experiments yet\./,
+  );
 });
 
 test("the comparison links back to its Target", () => {
