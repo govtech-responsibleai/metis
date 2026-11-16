@@ -56,10 +56,15 @@ type ReportOperation =
   operations["experiment_report_api_v1_experiments__experiment_id__report_get"];
 type ExperimentsOperation =
   operations["list_target_experiments_api_v1_targets__target_id__experiments_get"];
+type SpecificationOperation =
+  operations["read_specification_api_v1_targets__target_id__specification_get"];
+type SimulateOperation =
+  operations["start_simulation_api_v1_engine_simulate_post"];
 type EngineStatusOperation =
   operations["experiment_status_api_v1_engine__experiment_id__get"];
 type EngineEventsOperation =
   operations["experiment_events_api_v1_engine__experiment_id__events_get"];
+type DoctorOperation = operations["run_doctor_api_v1_doctor_get"];
 
 export type CurrentUser = JsonResponse<CurrentUserOperation>;
 export type UserAccount = Schema["UserAccountBody"];
@@ -414,8 +419,12 @@ export type TargetList = JsonResponse<TargetsOperation>;
 export type Report = JsonResponse<ReportOperation>;
 export type ExperimentRecord = Schema["ExperimentRecord"];
 export type ExperimentList = JsonResponse<ExperimentsOperation>;
+export type ExperimentSave = Schema["ExperimentSave"];
+export type SpecificationRecord = JsonResponse<SpecificationOperation>;
+export type EngineRunAccepted = JsonResponse<SimulateOperation, 202>;
 export type EngineStatus = JsonResponse<EngineStatusOperation>;
 export type PhaseEvent = JsonResponse<EngineEventsOperation>[number];
+export type DoctorCheck = JsonResponse<DoctorOperation>[number];
 // The record as the store keeps it: each file is a reference to bytes in the store.
 export type StoredInterviewRecord = Omit<
   LoadedInterviewRecord,
@@ -717,6 +726,13 @@ export const api = {
       }),
       ".html",
     ),
+  doctor: () => call<DoctorCheck[]>("/api/v1/doctor"),
+  // `inputDir` is relative to the project folder, as the Specification route gives it.
+  simulate: (inputDir: string) =>
+    call<EngineRunAccepted>("/api/v1/engine/simulate", {
+      ...JSON_POST,
+      body: JSON.stringify({ input_dir: inputDir }),
+    }),
   engineStatus: (experimentId: string) =>
     call<EngineStatus>(
       route("/api/v1/engine/{experiment_id}", { experiment_id: experimentId }),
@@ -787,6 +803,19 @@ export const store = {
   experiments: (targetId: string) =>
     call<ExperimentList>(
       route("/api/v1/targets/{target_id}/experiments", { target_id: targetId }),
+    ),
+  specification: (targetId: string) =>
+    call<SpecificationRecord>(
+      route("/api/v1/targets/{target_id}/specification", {
+        target_id: targetId,
+      }),
+    ),
+  putExperiment: (experimentId: string, body: ExperimentSave) =>
+    call<ExperimentRecord>(
+      route("/api/v1/experiments/{experiment_id}", {
+        experiment_id: experimentId,
+      }),
+      { ...JSON_POST, method: "PUT", body: JSON.stringify(body) },
     ),
   deleteTarget: async (id: string) => {
     await responseFor(route("/api/v1/targets/{target_id}", { target_id: id }), {

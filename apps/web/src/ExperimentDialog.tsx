@@ -1,50 +1,130 @@
-// The dialog that "Start an experiment" opens. It shows what the experiment covers and holds
-// its options.
-// Start opens the experiment view.
+// The dialog that "Start an experiment" opens. It shows what the experiment covers and the checks
+// of `metis doctor` on the server. The server sets how many trials run at a time.
 
-import { Play } from "lucide-react";
-import { useId, useState } from "react";
-import { Button, formatTrials, Modal } from "./ui";
-import type { Specification } from "./transport/api";
+import { Check, Minus, Play, TriangleAlert, X } from "lucide-react";
+import { useEffect, useId, useState } from "react";
+import { startExperiment } from "./experiment-start";
+import {
+  api,
+  type DoctorCheck,
+  type ExperimentRecord,
+  type Specification,
+} from "./transport/api";
+import { Button, cn, formatTrials, Modal, Mono } from "./ui";
 
-export interface ExperimentOptions {
-  // The number of trials that run at one time.
-  concurrency: number;
-  // The time to wait for the traces of a trial, in seconds.
-  traceWait: number;
-}
+export type DoctorLoad =
+  | { status: "loading" }
+  | { status: "failed"; message: string }
+  | { status: "ready"; checks: DoctorCheck[] };
 
-export const DEFAULT_EXPERIMENT_OPTIONS: ExperimentOptions = {
-  concurrency: 1,
-  traceWait: 90,
-};
+export type StartState =
+  | { status: "idle" }
+  | { status: "starting" }
+  | { status: "failed"; message: string };
+
+const message = (cause: unknown) =>
+  cause instanceof Error ? cause.message : String(cause);
 
 export function ExperimentDialog({
+  targetId,
   title,
   specification,
   onCancel,
-  onStart,
+  onStarted,
 }: {
+  targetId: string;
   title: string;
   // The Specification that the experiment uses, which is the one that the download exports.
   specification: Specification;
   onCancel: () => void;
-  onStart: (options: ExperimentOptions) => void;
+  onStarted: (experiment: ExperimentRecord) => void;
 }) {
+  const [attempt, setAttempt] = useState(0);
+  const [doctor, setDoctor] = useState<DoctorLoad>({ status: "loading" });
+  const [start, setStart] = useState<StartState>({ status: "idle" });
+  useEffect(() => {
+    let current = true;
+    setDoctor({ status: "loading" });
+    void api.doctor().then(
+      (checks) => {
+        if (current) setDoctor({ status: "ready", checks });
+      },
+      (cause: unknown) => {
+        if (current) setDoctor({ status: "failed", message: message(cause) });
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [attempt]);
   const id = useId();
-  const [options, setOptions] = useState(DEFAULT_EXPERIMENT_OPTIONS);
+  return (
+    <Modal
+      labelledBy={`${id}-title`}
+      describedBy={`${id}-scope`}
+      className="max-w-xl gap-5 p-6"
+      onCancel={onCancel}
+    >
+      <ExperimentDialogView
+        id={id}
+        title={title}
+        specification={specification}
+        doctor={doctor}
+        start={start}
+        onCheckAgain={() => setAttempt((count) => count + 1)}
+        onCancel={onCancel}
+        onStart={() => {
+          setStart({ status: "starting" });
+          startExperiment(targetId).then(onStarted, (cause: unknown) =>
+            setStart({ status: "failed", message: message(cause) }),
+          );
+        }}
+      />
+    </Modal>
+  );
+}
+
+// The content of the dialog. `id` names its title and its scope for the Modal.
+export function ExperimentDialogView({
+  id,
+  title,
+  specification,
+  doctor,
+  start,
+  onCheckAgain,
+  onCancel,
+  onStart,
+}: {
+  id: string;
+  title: string;
+  specification: Specification;
+  doctor: DoctorLoad;
+  start: StartState;
+  onCheckAgain: () => void;
+  onCancel: () => void;
+  onStart: () => void;
+}) {
   const cases = specification.tasks.length;
   const trials = specification.tasks.reduce(
     (total, task) => total + task.num_trials,
     0,
   );
+  const failed =
+    doctor.status === "ready"
+      ? doctor.checks.filter((check) => check.status === "fail").length
+      : 0;
+  const blocked =
+    cases === 0
+      ? "Select a Test Case first"
+      : doctor.status === "loading"
+        ? "Wait for the server checks"
+        : failed > 0
+          ? "Fix the failed check first"
+          : start.status === "starting"
+            ? "Starting the experiment"
+            : null;
   return (
-    <Modal
-      labelledBy={`${id}-title`}
-      describedBy={`${id}-scope`}
-      className="max-w-md gap-5 p-6"
-      onCancel={onCancel}
-    >
+    <>
       <div className="flex flex-col gap-1">
         <h2 id={`${id}-title`} className="text-base font-semibold">
           Start an experiment
@@ -54,22 +134,16 @@ export function ExperimentDialog({
           {formatTrials(trials)}.
         </p>
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <NumberField
-          label="Trials at a time"
-          value={options.concurrency}
-          min={1}
-          max={16}
-          onChange={(concurrency) => setOptions({ ...options, concurrency })}
-        />
-        <NumberField
-          label="Trace wait (s)"
-          value={options.traceWait}
-          min={10}
-          max={600}
-          onChange={(traceWait) => setOptions({ ...options, traceWait })}
-        />
-      </div>
+      <ServerChecks
+        doctor={doctor}
+        failed={failed}
+        onCheckAgain={onCheckAgain}
+      />
+      {start.status === "failed" && (
+        <p role="alert" className="text-sm text-destructive">
+          {start.message}
+        </p>
+      )}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel
@@ -78,56 +152,104 @@ export function ExperimentDialog({
           type="button"
           variant="primary"
           autoFocus
-          disabled={cases === 0}
-          title={cases === 0 ? "Select a Test Case first" : undefined}
-          onClick={() => onStart(options)}
+          disabled={blocked !== null}
+          title={blocked ?? undefined}
+          onClick={onStart}
         >
           <Play size={14} strokeWidth={2} aria-hidden />
           Start
         </Button>
       </div>
-    </Modal>
+    </>
   );
 }
 
-function NumberField({
-  label,
-  value,
-  min,
-  max,
-  onChange,
+// When every check passes, the dialog shows one line. It lists only the checks that warn or
+// fail, because only those ask the user to do something. Each row gives the check name and the
+// reason. The fix text says the name again, so the dialog leaves it out. The rows share the
+// columns of the list, so every name starts and every reason ends at the same place.
+function ServerChecks({
+  doctor,
+  failed,
+  onCheckAgain,
 }: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  onChange: (value: number) => void;
+  doctor: DoctorLoad;
+  failed: number;
+  onCheckAgain: () => void;
 }) {
-  const id = useId();
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium">
-        {label}
-      </label>
-      <input
-        id={id}
-        type="number"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(event) =>
-          onChange(
-            Math.min(
-              max,
-              Math.max(
-                min,
-                Math.round(Number(event.currentTarget.value)) || min,
-              ),
-            ),
-          )
-        }
-        className="rounded-md border border-border bg-background px-3 py-1.5 font-mono text-sm tabular-nums"
-      />
-    </div>
+  if (doctor.status === "loading")
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        Checking the server
+      </p>
+    );
+  if (doctor.status === "failed")
+    return (
+      <p className="flex items-center justify-between gap-3 text-sm">
+        <span role="alert" className="text-destructive">
+          {doctor.message}
+        </span>
+        <Button type="button" onClick={onCheckAgain}>
+          Check again
+        </Button>
+      </p>
+    );
+  const open = doctor.checks.filter(
+    (check) => check.status === "fail" || check.status === "warn",
   );
+  if (open.length === 0)
+    return (
+      <p className="flex items-center gap-1 text-sm text-success">
+        <Check size={14} aria-hidden />
+        Server ready
+      </p>
+    );
+  return (
+    <section className="flex flex-col gap-2" aria-label="Server checks">
+      <ul className="quiet-scrollbar grid max-h-[45vh] grid-cols-[1.25rem_auto_minmax(0,1fr)] gap-x-2 overflow-y-auto rounded-md border border-border bg-background px-3 py-1">
+        {open.map((check) => (
+          <li
+            key={check.name}
+            className="col-span-3 grid grid-cols-subgrid items-baseline border-b border-border py-1.5 text-sm last:border-b-0"
+          >
+            <span className="flex h-5 items-center self-start">
+              <DoctorIcon status={check.status} />
+            </span>
+            <Mono className="text-foreground">{check.name}</Mono>
+            <span
+              className={cn(
+                "text-right",
+                check.status === "fail" ? "text-fail" : "text-muted-foreground",
+              )}
+            >
+              {check.detail}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {failed > 0 && (
+        <p className="flex items-center justify-between gap-3 text-sm">
+          <span>Fix the server, then check again.</span>
+          <Button type="button" onClick={onCheckAgain}>
+            Check again
+          </Button>
+        </p>
+      )}
+    </section>
+  );
+}
+
+function DoctorIcon({ status }: { status: DoctorCheck["status"] }) {
+  switch (status) {
+    case "pass":
+      return <Check size={14} className="text-success" aria-label="Pass" />;
+    case "fail":
+      return <X size={14} className="text-fail" aria-label="Fail" />;
+    case "warn":
+      return (
+        <TriangleAlert size={14} className="text-warning" aria-label="Warn" />
+      );
+    case "skip":
+      return <Minus size={14} className="text-skipped" aria-label="Skip" />;
+  }
 }

@@ -11,7 +11,12 @@ the current place with `placeOf`. Do not write a path string in a component. The
 `wouter` with the browser location. Render a routed component in a test inside
 `<Router ssrPath="...">`. The shell reads Targets through `src/targets.ts` only.
 
-The Experiments tab and the All experiments page show the rows of the store routes with
+The experiment dialog runs the checks of `GET /api/v1/doctor`. It lists only the checks that warn
+or fail, and shows one line when every check passes. `startExperiment` in
+`src/experiment-start.ts` starts an Experiment in three requests. It reads the `input_dir` of the
+Specification, sends it to `POST /api/v1/engine/simulate`, then saves the row with
+`PUT /api/v1/experiments/{experiment_id}`. The
+Experiments tab and the All experiments page show the rows of the store routes with
 `ExperimentList` (`src/ExperimentList.tsx`). The phase and the progress of a row come from the
 engine status and events routes. Only `experimentState` in `src/experiment-status.ts` changes
 them into the state that the app shows.

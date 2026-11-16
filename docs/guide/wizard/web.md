@@ -99,9 +99,12 @@ A Target page has two tabs:
   experiment started, its state, and how many trials are done. It is off until the Interview is
   done.
 
-**Start an experiment**, on the right of the tab row, opens a dialog with the experiment options: the number
-of trials at a time and the trace wait. **Start** in the dialog opens the experiment view. The
-button is also off until the Interview is done. When you open a Target, the app shows Experiments for a done Interview and Specification
+**Start an experiment**, on the right of the tab row, opens a dialog. It runs the checks of
+`metis doctor` on the server. When every check passes,
+the dialog shows **Server ready**. Otherwise it lists each check that warns or fails, with the
+reason. **Start** stays off while a check fails. **Start** starts the simulation of the Specification and opens the experiment view.
+When the server cannot start it, for example because another experiment is running, the dialog
+shows why and stays open. The button is also off until the Interview is done. When you open a Target, the app shows Experiments for a done Interview and Specification
 for one that is not done.
 
 Each page has its own address, so you can bookmark a Target or open it in another browser
