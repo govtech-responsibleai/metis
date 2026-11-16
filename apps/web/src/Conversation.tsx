@@ -12,6 +12,7 @@ import {
   Fragment,
   useContext,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -749,7 +750,12 @@ export function ActiveReview({
                       grow
                       onClick={() => toggleGroup(id)}
                     >
-                      <span className="font-semibold">{title}</span>
+                      {/* A group heading names an item (a Feature), so its id leads the title
+                          the same way as the ids of the cards and rows under it. */}
+                      <span className="flex min-w-0 items-baseline gap-2">
+                        {heading && <Mono>{heading.id}</Mono>}
+                        <span className="font-semibold">{title}</span>
+                      </span>
                     </DisclosureButton>
                     <OptionControls
                       options={heading?.options ?? []}
@@ -767,7 +773,8 @@ export function ActiveReview({
                 const nested = formAt(card.id, "nested");
                 return [
                   <CardBlock
-                    key={card.id}
+                    // A card that changes to or from inactive starts again, closed or open.
+                    key={`${card.id}-${card.inactive}`}
                     card={card}
                     disabled={disabled}
                     onPick={pickFrom(card.id)}
@@ -807,11 +814,16 @@ export function ActiveReview({
                 <div
                   hidden={!open}
                   className={cn(
-                    "divide-y divide-border",
                     header && body.length > 0 && "border-t border-border",
                   )}
                 >
-                  {body}
+                  {/* Under a heading, the cards are indented, so the Feature, its Behaviours
+                      and their Criteria read as one hierarchy. */}
+                  <div
+                    className={cn("divide-y divide-border", header && "pl-6")}
+                  >
+                    {body}
+                  </div>
                 </div>
               </section>
             );
@@ -1676,10 +1688,24 @@ function CardBlock({
   const actions = card.options.filter((o) => o !== tick);
   const icons = actions.filter((o) => o.icon);
   const buttons = actions.filter((o) => !o.icon);
+  // A card with rows (a Behaviour with its Criteria) opens and closes like the Feature above it
+  // and the Criteria below it. It starts open. An inactive card (a Behaviour that is not
+  // measured) also closes when it has no Criteria, and it starts closed.
+  const collapsible =
+    card.components.some(isRow) ||
+    (card.inactive && card.components.length > 0);
+  const [open, setOpen] = useState(!card.inactive);
+  const bodyId = useId();
   return (
     <div
       data-keep-anchor={card.id}
-      className={cn("px-4 py-3", card.blocking && "bg-destructive/5")}
+      className={cn(
+        "px-4 py-3",
+        card.blocking && "bg-destructive/5",
+        // An item out of this step (a Behaviour that is not measured) reads quieter, the same
+        // as in the document.
+        card.inactive && "opacity-45",
+      )}
     >
       {editing ? (
         <InlineEdit
@@ -1695,14 +1721,30 @@ function CardBlock({
           {box && <div className="flex h-6 items-center">{box}</div>}
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <div className="flex min-h-6 items-center justify-between gap-3">
-              <label
-                htmlFor={box ? `review-${card.id}` : undefined}
-                className="min-w-0 font-medium text-foreground"
-              >
-                {card.title}
-              </label>
+              {collapsible ? (
+                <DisclosureButton
+                  open={open}
+                  controls={bodyId}
+                  grow
+                  onClick={() => setOpen(!open)}
+                >
+                  <span className="flex min-w-0 items-baseline gap-2">
+                    {id}
+                    <span className="min-w-0 font-medium">{card.title}</span>
+                  </span>
+                </DisclosureButton>
+              ) : (
+                <div className="flex min-w-0 items-baseline gap-2">
+                  {id}
+                  <label
+                    htmlFor={box ? `review-${card.id}` : undefined}
+                    className="min-w-0 font-medium text-foreground"
+                  >
+                    {card.title}
+                  </label>
+                </div>
+              )}
               <div className="flex shrink-0 items-center gap-1">
-                {id}
                 <OptionControls
                   options={icons}
                   disabled={disabled}
@@ -1711,18 +1753,42 @@ function CardBlock({
               </div>
             </div>
 
-            {card.components.map((component, i) => (
-              <ComponentBlock
-                key={i}
-                component={component}
-                trialCount={"trials" in card ? card.trials : undefined}
-                disabled={disabled}
-                onPick={onPick}
-                onFieldChange={onFieldChange}
-                rowEdit={rowEdit}
-                nested
-              />
-            ))}
+            <div
+              id={bodyId}
+              hidden={collapsible && !open}
+              className={cn("flex flex-col gap-2", collapsible && "pl-5")}
+            >
+              {card.components
+                .filter((component) => !isRow(component))
+                .map((component, i) => (
+                  <ComponentBlock
+                    key={i}
+                    component={component}
+                    trialCount={"trials" in card ? card.trials : undefined}
+                    disabled={disabled}
+                    onPick={onPick}
+                    onFieldChange={onFieldChange}
+                    rowEdit={rowEdit}
+                    nested
+                  />
+                ))}
+              {collapsible && (
+                // The rows of a card (its Criteria) are indented under its description.
+                <div className="flex flex-col gap-1 pl-3">
+                  {card.components.filter(isRow).map((component, i) => (
+                    <ComponentBlock
+                      key={i}
+                      component={component}
+                      disabled={disabled}
+                      onPick={onPick}
+                      onFieldChange={onFieldChange}
+                      rowEdit={rowEdit}
+                      nested
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
 
             {card.note && (
               <p className="text-sm text-muted-foreground">{card.note}</p>
@@ -1748,6 +1814,11 @@ function CardBlock({
 // draws it quiet: small grey text.
 function quiet(component: CardComponent) {
   return component.muted === true;
+}
+
+// A row inside a card: a details block that is not muted (a Criterion).
+function isRow(component: CardComponent) {
+  return component.type === "details" && !quiet(component);
 }
 
 function ComponentBlock({
@@ -1779,10 +1850,11 @@ function ComponentBlock({
   const value = (() => {
     switch (component.type) {
       case "details": {
-        // A row inside a card: an open details block that is not muted (a Criterion). Its
-        // icon-only option group moves to the end of its title line, the same place as the
-        // card's own actions, and an edit that one of those options opened takes the row.
-        const row = nested && component.expanded && !quiet(component);
+        // A row inside a card: a details block that is not muted (a Criterion). Its icon-only
+        // option group moves to the end of its title line, the same place as the card's own
+        // actions, so a closed row can still be edited. An edit that one of those options
+        // opened takes the row.
+        const row = nested && isRow(component);
         const iconGroup = (child: CardComponent) =>
           child.type === "options" &&
           child.options.length > 0 &&
@@ -1795,7 +1867,9 @@ function ComponentBlock({
         const children = row
           ? component.components.filter((child) => !iconGroup(child))
           : component.components;
-        const item = actions.find((option) => option.id.target)?.id.target;
+        // The item that the row shows. A row with no actions still names its item.
+        const item =
+          component.id ?? actions.find((option) => option.id.target)?.id.target;
         const editHere =
           row &&
           rowEdit != null &&
@@ -1821,12 +1895,16 @@ function ComponentBlock({
         return (
           <div
             data-keep-anchor={row ? item : undefined}
-            className={cn(row && "rounded-md bg-muted/50 px-3 py-2")}
+            className={cn(row && "py-1")}
           >
             <Disclosure
               summary={
-                <span className={cn(!quiet(component) && "font-medium")}>
-                  {component.title}
+                // A row names the item that its actions edit, so that id leads its title.
+                <span className="flex min-w-0 items-baseline gap-2">
+                  {row && item && <Mono>{item}</Mono>}
+                  <span className={cn(!quiet(component) && "font-medium")}>
+                    {component.title}
+                  </span>
                 </span>
               }
               trailing={

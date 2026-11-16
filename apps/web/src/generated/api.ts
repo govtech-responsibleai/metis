@@ -913,6 +913,11 @@ export interface components {
              * @default false
              */
             blocking: boolean;
+            /**
+             * Inactive
+             * @default false
+             */
+            inactive: boolean;
         };
         /**
          * BehaviourCard
@@ -958,6 +963,11 @@ export interface components {
              * @default false
              */
             blocking: boolean;
+            /**
+             * Inactive
+             * @default false
+             */
+            inactive: boolean;
         };
         /** BlankCause */
         BlankCause: {
@@ -1072,6 +1082,8 @@ export interface components {
             type: "details";
             /** Title */
             title: string;
+            /** Id */
+            id?: string | null;
             /** Components */
             components?: (components["schemas"]["CardText"] | components["schemas"]["CardOptionGroup"] | components["schemas"]["CardNumberField"] | components["schemas"]["CardUploadField"] | components["schemas"]["CardDivider"] | components["schemas"]["CardDetails-Input"])[];
             /**
@@ -1096,6 +1108,8 @@ export interface components {
             type: "details";
             /** Title */
             title: string;
+            /** Id */
+            id?: string | null;
             /** Components */
             components?: (components["schemas"]["CardText"] | components["schemas"]["CardOptionGroup"] | components["schemas"]["CardNumberField"] | components["schemas"]["CardUploadField"] | components["schemas"]["CardDivider"] | components["schemas"]["CardDetails-Output"])[];
             /**
@@ -3173,6 +3187,11 @@ export interface components {
              * @default false
              */
             blocking: boolean;
+            /**
+             * Inactive
+             * @default false
+             */
+            inactive: boolean;
             /** Trials */
             trials: number;
         };
@@ -3219,6 +3238,11 @@ export interface components {
              * @default false
              */
             blocking: boolean;
+            /**
+             * Inactive
+             * @default false
+             */
+            inactive: boolean;
             /** Trials */
             trials: number;
         };

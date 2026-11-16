@@ -57,8 +57,8 @@ DEFAULT_TRIALS = 3  # the shared Task default
 # One short sentence for each review. Each tells the user what to do on that screen.
 # The report scores a Behaviour from its Criteria, so the instruction says what they stand for.
 CRITERIA_INSTRUCTION = (
-    "The criteria under a behaviour show how well it performs. "
-    "Check that each one is right for its behaviour."
+    "Accept the criteria for your selected behaviours. "
+    "Open a criterion to read or change it."
 )
 PERSONAS_INSTRUCTION = "Check that these personas are the users you want to simulate."
 SCENARIOS_INSTRUCTION = (
@@ -145,10 +145,11 @@ def _back() -> Option:
     return Option(id=OptionId(action="back"), label="← Back")
 
 
-def _continue(enabled: bool) -> Option:
-    # A disabled Continue is still shown, marked unavailable.
+def _continue(enabled: bool, label: str = "Continue") -> Option:
+    # A disabled Continue is still shown, marked unavailable. A review can name what
+    # Continue accepts in its label; the action stays `continue`.
     return Option(
-        id=OptionId(action="continue"), label="Continue", primary=True, enabled=enabled
+        id=OptionId(action="continue"), label=label, primary=True, enabled=enabled
     )
 
 
@@ -457,8 +458,10 @@ def _criterion_components(
                     ]
                 )
             )
+        # Closed by default: the name says what is checked, and the user opens a
+        # Criterion only to read or change it.
         components.append(
-            CardDetails(title=criterion.name, expanded=True, components=details)
+            CardDetails(id=criterion.id, title=criterion.name, components=details)
         )
     return components
 
@@ -470,12 +473,39 @@ def _criteria_placeholder(specification: Specification) -> str:
     return "Add a new criterion that checks…"
 
 
+def _measured_first(
+    specification: Specification,
+) -> list[tuple[Feature, list[Behaviour]]]:
+    """The Features and their Behaviours, with the measured ones first.
+
+    Inside a Feature, the measured Behaviours come before the others. A Feature with no
+    measured Behaviour comes after the Features that have one. The order of the
+    Specification does not change.
+    """
+    groups = [
+        (
+            feature,
+            sorted(feature.behaviours, key=lambda behaviour: not behaviour.measured),
+        )
+        for feature in specification.features
+    ]
+    return sorted(
+        groups,
+        key=lambda group: not any(behaviour.measured for behaviour in group[1]),
+    )
+
+
 def criteria_screen(specification: Specification, message: str) -> ChoiceRequest:
-    """Keep Feature groups and Behaviour identity while reviewing Criteria."""
+    """Show the Criteria in their Feature groups, with the measured Behaviours first.
+
+    A Behaviour that is not measured stays on the screen, after the measured ones, so the user
+    can see what is left out. It keeps its Criteria, which can come from an earlier selection,
+    and it has no actions.
+    """
     cards: list[AnyCard] = []
     sections = [ReviewSection(id="behaviours", title="Features / Expected Behaviours")]
 
-    for feature in specification.features:
+    for feature, behaviours in _measured_first(specification):
         sections.append(
             ReviewSection(
                 id=feature.id,
@@ -484,7 +514,7 @@ def criteria_screen(specification: Specification, message: str) -> ChoiceRequest
                 options=[_edit(feature.id, feature.name)],
             )
         )
-        for behaviour in feature.behaviours:
+        for behaviour in behaviours:
             card = BehaviourCard(
                 id=behaviour.id,
                 profile_section_id="behaviours",
@@ -504,9 +534,7 @@ def criteria_screen(specification: Specification, message: str) -> ChoiceRequest
                     _add(behaviour.id, f"Add a Criterion to {behaviour.name}"),
                 ]
             else:
-                # Drawn with no actions — visible so you can see what you left out,
-                # dormant so it costs nothing.
-                card.note = "Not selected. Tasks cannot use these Criteria."
+                card.inactive = True
             cards.append(card)
 
     return ChoiceRequest(
@@ -519,7 +547,10 @@ def criteria_screen(specification: Specification, message: str) -> ChoiceRequest
         instruction=CRITERIA_INSTRUCTION,
         options=[
             _back(),
-            _continue(_ready_through(specification, InterviewStep.CRITERIA)),
+            _continue(
+                _ready_through(specification, InterviewStep.CRITERIA),
+                label="Accept Criteria",
+            ),
         ],
     )
 

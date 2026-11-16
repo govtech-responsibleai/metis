@@ -152,7 +152,21 @@ export function SpecificationView({
         ? "current"
         : "frozen";
   const { target } = specification;
-  const { features } = specification;
+  // The same order as the Criteria review: measured Behaviours first in each Feature, and the
+  // Features with no measured Behaviour last. Only the drawing changes; the Specification keeps
+  // its order.
+  const features = [...specification.features]
+    .map((feature) => ({
+      ...feature,
+      behaviours: [...feature.behaviours].sort(
+        (a, b) => Number(!a.measured) - Number(!b.measured),
+      ),
+    }))
+    .sort(
+      (a, b) =>
+        Number(!a.behaviours.some((behaviour) => behaviour.measured)) -
+        Number(!b.behaviours.some((behaviour) => behaviour.measured)),
+    );
   const writing =
     busy && interviewStep ? WRITING_TARGET[interviewStep] : undefined;
   // The user is choosing which behaviours to measure on the combined Behaviours screen, and a
@@ -762,18 +776,20 @@ function FeatureView({
           data-keep-anchor={`feature-${feature.id}`}
           className="flex min-w-0 items-center gap-2"
         >
+          <Mono>{feature.id}</Mono>
           <span className="min-w-0 flex-1 font-medium">{feature.name}</span>
         </span>
       }
     >
-      <div className="ml-1.5 mt-1 border-l border-border pb-1 pl-3">
+      <div className="mt-1 pb-1 pl-5">
         <p className="mb-3 whitespace-pre-wrap text-sm text-muted-foreground">
           {feature.description}
         </p>
         <ul className="flex flex-col gap-4">
           {feature.behaviours.map((b) => (
             <BehaviourView
-              key={b.id}
+              // A behaviour that is ticked or unticked starts again, open or closed.
+              key={`${b.id}-${b.measured}`}
               behaviour={b}
               selecting={selecting}
               graderByFqn={graderByFqn}
@@ -812,99 +828,109 @@ function BehaviourView({
   const awaitingCriteria =
     behaviour.measured && behaviour.criteria.length === 0 && !selecting;
   return (
-    // The id sits in a gutter at the left rather than trailing the description. Trailing, it landed
-    // wherever the prose happened to stop wrapping, so a run of behaviours ended in a ragged
-    // column of ids that competed with the text without ever lining up. In a fixed gutter the ids
-    // form one straight edge to read down, which is what makes a scenario's `Behaviours EB-1 EB-3`
-    // resolvable by eye — the only job the id has in this pane.
-    <li
-      className={cn(
-        "animate-arrive grid grid-cols-[3.25rem_minmax(0,1fr)] gap-x-2 gap-y-0.5",
-        dormant && "opacity-45",
-      )}
-    >
-      {/* The id takes the accent on a behaviour that is measured, and stays grey otherwise. Dimming
-          the dormant rows says which ones are out; the accent ids say which are in, and they form
-          a straight column to read down. */}
-      <Mono
-        tone={behaviour.measured ? "accent" : "muted"}
-        className={cn(
-          "pt-px tabular-nums",
-          behaviour.measured && "font-semibold",
-        )}
+    // A behaviour opens and closes like the Feature above it and the Criteria below it. The id
+    // leads its name, so a scenario's `Behaviours EB-1 EB-3` can be found by eye. A dormant
+    // behaviour starts closed.
+    // The fade sits on the Disclosure: the arrive animation on the item ends at full opacity.
+    <li className="animate-arrive">
+      <Disclosure
+        defaultOpen={!dormant}
+        className={cn(dormant && "opacity-45")}
+        summary={
+          <span className="flex min-w-0 items-baseline gap-2">
+            {/* The id takes the accent on a behaviour that is measured, and stays grey
+                otherwise. Dimming the dormant rows says which ones are out. */}
+            <Mono
+              tone={behaviour.measured ? "accent" : "muted"}
+              className="tabular-nums"
+            >
+              {behaviour.id}
+            </Mono>
+            <span className="font-medium">{behaviour.name}</span>
+          </span>
+        }
+        contentClassName="flex flex-col gap-1"
       >
-        {behaviour.id}
-      </Mono>
-      <span className="min-w-0 text-foreground">
-        <span className="font-medium">{behaviour.name}</span> —{" "}
-        {behaviour.description}
-      </span>
-      {behaviour.criteria.length > 0 && (
-        // The criteria are set apart from the description above them with a top gap, so a
-        // behaviour and its criteria read as one labelled unit. Each criterion is spaced from the next for the same reason.
-        <ul className="col-start-2 mt-1.5 flex flex-col gap-3 text-xs">
-          {behaviour.criteria.map((c) => {
-            const grader = c.grader_fqn
-              ? graderByFqn.get(c.grader_fqn)
-              : undefined;
-            return (
-              <li
-                key={c.id}
-                className="animate-arrive flex flex-col gap-1 [&:not(:first-child)]:border-t [&:not(:first-child)]:border-border [&:not(:first-child)]:pt-3"
-              >
-                <p className="text-foreground">{c.description}</p>
-                <Disclosure tone="muted" summary="Grader details">
-                  <div className="mt-1 flex flex-col gap-0.5">
-                    {/* The two names have labels, because a bare name does not say if it is the
+        <p className="text-foreground">{behaviour.description}</p>
+        {behaviour.criteria.length > 0 && (
+          // Each criterion shows its id and name, closed, the same as on the Criteria review, and
+          // is indented under its behaviour. Open it to read the full text and the grader.
+          <ul className="mt-1 flex flex-col gap-1 pl-3 text-xs">
+            {behaviour.criteria.map((c) => {
+              const grader = c.grader_fqn
+                ? graderByFqn.get(c.grader_fqn)
+                : undefined;
+              return (
+                <li key={c.id} className="animate-arrive">
+                  <Disclosure
+                    summary={
+                      <span className="flex min-w-0 items-baseline gap-2">
+                        <Mono>{c.id}</Mono>
+                        <span className="text-foreground">{c.name}</span>
+                      </span>
+                    }
+                    contentClassName="mt-1 flex flex-col gap-1"
+                  >
+                    <p className="text-foreground">{c.description}</p>
+                    <Disclosure tone="muted" summary="Grader details">
+                      <div className="mt-1 flex flex-col gap-0.5">
+                        {/* The two names have labels, because a bare name does not say if it is the
                         Criterion or the grader. The settings follow in the same grid. */}
-                    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5">
-                      <dt>Criterion</dt>
-                      <dd>{c.name}</dd>
-                      <dt>Grader</dt>
-                      <dd>
-                        <span className="block font-medium text-foreground">
-                          {grader?.name ?? c.grader_fqn ?? "Not selected"}
-                        </span>
-                        {grader && (
-                          <span className="block">{grader.description}</span>
-                        )}
-                        {!grader && c.grader_fqn && (
-                          <span className="block">
-                            Unlisted settings use the grader defaults.
-                          </span>
-                        )}
-                      </dd>
-                      {Object.entries({
-                        ...Object.fromEntries(
-                          (grader?.settings ?? [])
-                            .filter((setting) => !setting.required)
-                            .map((setting) => [setting.name, setting.default]),
-                        ),
-                        ...c.grader_args,
-                      }).map(([key, value]) => (
-                        <div key={key} className="contents">
-                          <dt>{key}</dt>
-                          <dd className="break-words font-mono">
-                            {JSON.stringify(value)}
+                        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5">
+                          <dt>Criterion</dt>
+                          <dd>{c.name}</dd>
+                          <dt>Grader</dt>
+                          <dd>
+                            <span className="block font-medium text-foreground">
+                              {grader?.name ?? c.grader_fqn ?? "Not selected"}
+                            </span>
+                            {grader && (
+                              <span className="block">
+                                {grader.description}
+                              </span>
+                            )}
+                            {!grader && c.grader_fqn && (
+                              <span className="block">
+                                Unlisted settings use the grader defaults.
+                              </span>
+                            )}
                           </dd>
-                        </div>
-                      ))}
-                    </dl>
-                  </div>
-                </Disclosure>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {awaitingCriteria && (
-        // One short bar per behaviour still to be written up. It is not the full
-        // three-line placeholder: this repeats once per selected behaviour, so anything larger
-        // would put too much grey on the page.
-        <div className="col-start-2 pt-0.5">
-          <Placeholder widths={["w-28"]} />
-        </div>
-      )}
+                          {Object.entries({
+                            ...Object.fromEntries(
+                              (grader?.settings ?? [])
+                                .filter((setting) => !setting.required)
+                                .map((setting) => [
+                                  setting.name,
+                                  setting.default,
+                                ]),
+                            ),
+                            ...c.grader_args,
+                          }).map(([key, value]) => (
+                            <div key={key} className="contents">
+                              <dt>{key}</dt>
+                              <dd className="break-words font-mono">
+                                {JSON.stringify(value)}
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </div>
+                    </Disclosure>
+                  </Disclosure>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {awaitingCriteria && (
+          // One short bar per behaviour still to be written up. It is not the full
+          // three-line placeholder: this repeats once per selected behaviour, so anything larger
+          // would put too much grey on the page.
+          <div className="pt-0.5">
+            <Placeholder widths={["w-28"]} />
+          </div>
+        )}
+      </Disclosure>
     </li>
   );
 }
