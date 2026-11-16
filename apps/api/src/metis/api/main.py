@@ -9,6 +9,10 @@ Specifications, and Experiments in the `Store` that the app composes at startup.
 routes read the experiment folders. The engine routes run one engine run at a time, on a
 thread, in this process. The store and the experiment folders are in the project folder that
 `create_app` gets, or the default project folder that `find_project_root` finds.
+
+When the web folder of the API package has a built web app, the app also serves that web app on
+every path that no API route takes. See `metis.api.web`. Without a built web app, the app serves
+the API only.
 """
 
 from __future__ import annotations
@@ -49,6 +53,7 @@ from metis.api.settings import (
     build_dependencies,
 )
 from metis.api.store import Store, StoreError
+from metis.api.web import serve_web
 from metis.core.execution_layout import find_project_root
 from metis.core.logging import get_logger
 from metis.wizard import InterviewerUnavailable
@@ -227,6 +232,8 @@ def create_app(
     @app.exception_handler(AccountError)
     def _on_account_error(_request: Request, exc: AccountError) -> JSONResponse:
         return account_error_response(exc)
+
+    serve_web(app)
 
     @app.exception_handler(StoreError)
     def _on_store_error(_request: Request, exc: StoreError) -> JSONResponse:
