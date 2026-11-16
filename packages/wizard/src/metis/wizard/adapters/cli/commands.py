@@ -423,7 +423,7 @@ def init(
     out_dir: Path | None = typer.Option(
         None,
         "--out-dir",
-        help="Experiment root. Default: experiments/design/YYYYMMDD-HHMMSS-interview/.",
+        help="Experiment root. Default: experiments/design/YYYYMMDD-HHMMSS-interview-<random>/.",
     ),
     restart: bool = typer.Option(
         False,
@@ -456,9 +456,8 @@ def init(
     # credentials, so an accidental re-run of `init` reports the collision rather than
     # overwriting an interview in progress. `--restart` is the one way past this.
     if out_dir is None:
-        out_dir = Path("experiments/design") / export_layout.experiment_name(
-            "interview"
-        )
+        name = export_layout.experiment_name("interview")
+        out_dir = Path("experiments/design") / f"{name}-{export_layout.random_part()}"
     state_path = _state_path(out_dir)
     if not restart and _complete(out_dir):
         typer.echo(

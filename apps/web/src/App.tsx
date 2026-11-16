@@ -616,14 +616,14 @@ export function App() {
         };
         let saved: LoadedInterviewRecord;
         try {
-          saved = await putNew(interviewRepository, record, sent);
+          saved = await putNew(interviewRepository, record);
         } catch (cause) {
           operations.report(
             operationKey,
             `The new Interview was not saved. ${errorMessage(cause)}`,
             () =>
               operations.run(operationKey, async () => {
-                await opened(await putNew(interviewRepository, record, sent));
+                await opened(await putNew(interviewRepository, record));
               }),
           );
           return;
