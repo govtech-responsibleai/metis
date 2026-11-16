@@ -29,11 +29,12 @@ from metis.wizard.contracts.interview_state import (
     InterviewContext,
     Perspective,
 )
-from metis.wizard.domain.permissions import InterviewStep
+from metis.wizard.domain.permissions import InterviewStep, PatchReason
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from metis.wizard.application.patch_review import PatchProblem
     from metis.wizard.contracts.grader_spec import GraderSpec
     from metis.wizard.contracts.interview_state import InterviewMessage
     from metis.wizard.domain.specification import Specification
@@ -75,6 +76,15 @@ _MODEL_CALL_PLACEHOLDERS: dict[str, frozenset[str]] = {
     "chat": frozenset({"specification", "step", "text", "scope"}),
 }
 _MATCH_GRADERS_PLACEHOLDERS = frozenset({"grader_library", "criteria"})
+_FEEDBACK_PROBLEM_PLACEHOLDERS = frozenset({"op", "path", "reason", "detail"})
+_FEEDBACK_FRAME_PLACEHOLDERS = frozenset({"problems"})
+# Each reply sentence and the placeholders that it may use.
+_REPLY_PLACEHOLDERS: dict[str, frozenset[str]] = {
+    "nothing_applied": frozenset(),
+    "part_applied": frozenset(),
+    "not_changed": frozenset({"reasons"}),
+    "settings_reset": frozenset({"name"}),
+}
 _SYSTEM_PLACEHOLDERS = frozenset(
     {
         "patch_rules",
@@ -138,7 +148,12 @@ class PromptCatalog:
     patch_rules: str
     model_calls: Mapping[str, str]
     match_graders_system: str
+    configure_criterion_system: str
     match_graders_user: str
+    patch_reasons: Mapping[str, str]
+    feedback_problem: str
+    feedback_frame: str
+    replies: Mapping[str, str]
 
 
 def _error(key: str, detail: str) -> PromptCatalogError:
@@ -216,12 +231,46 @@ def load_prompt_catalog() -> PromptCatalog:
     match_user = _text(match, "match_graders.user")
     _validate_template(match_user, "match_graders.user", _MATCH_GRADERS_PLACEHOLDERS)
 
+    # Every reason that the permission tables or the patch review can give needs its sentence.
+    reasons = _mapping(_required(document, "patch_reasons"), "patch_reasons")
+    patch_reasons = {
+        reason.value: _text(reasons, f"patch_reasons.{reason.value}").strip()
+        for reason in PatchReason
+    }
+
+    feedback = _mapping(_required(document, "model_feedback"), "model_feedback")
+    feedback_problem = _text(feedback, "model_feedback.problem")
+    _validate_template(
+        feedback_problem, "model_feedback.problem", _FEEDBACK_PROBLEM_PLACEHOLDERS
+    )
+    feedback_frame = _text(feedback, "model_feedback.frame")
+    _validate_template(
+        feedback_frame, "model_feedback.frame", _FEEDBACK_FRAME_PLACEHOLDERS
+    )
+
+    reply_texts = _mapping(_required(document, "replies"), "replies")
+    replies: dict[str, str] = {}
+    for name, allowed in _REPLY_PLACEHOLDERS.items():
+        value = _text(reply_texts, f"replies.{name}").strip()
+        _validate_template(value, f"replies.{name}", allowed)
+        replies[name] = value
+
+    configure = _mapping(
+        _required(document, "configure_criterion"), "configure_criterion"
+    )
+    configure_system = _text(configure, "configure_criterion.system")
+
     return PromptCatalog(
         system_template=system_template,
         patch_rules=patch_rules,
         model_calls=calls,
         match_graders_system=match_system,
+        configure_criterion_system=configure_system,
         match_graders_user=match_user,
+        patch_reasons=patch_reasons,
+        feedback_problem=feedback_problem,
+        feedback_frame=feedback_frame,
+        replies=replies,
     )
 
 
@@ -504,6 +553,83 @@ def chat(
     )
 
 
+def patch_reason(reason: PatchReason) -> str:
+    """The sentence that says why the wizard did not apply a patch."""
+    return load_prompt_catalog().patch_reasons[reason.value]
+
+
+def model_feedback(problems: Iterable[PatchProblem]) -> str:
+    """The correction for a model result whose patches the review did not all accept.
+
+    The frame is generic. Each problem adds one line with its operation, path, reason sentence
+    and detail.
+    """
+    catalog = load_prompt_catalog()
+    lines = [
+        _substitute(
+            catalog.feedback_problem,
+            "model_feedback.problem",
+            {
+                "op": problem.op.value,
+                "path": problem.path,
+                "reason": catalog.patch_reasons[problem.reason.value],
+                "detail": problem.detail,
+            },
+        ).strip()
+        for problem in problems
+    ]
+    return _substitute(
+        catalog.feedback_frame, "model_feedback.frame", {"problems": "\n".join(lines)}
+    )
+
+
+def reply(name: Literal["nothing_applied", "part_applied"]) -> str:
+    """A default reply, for a result whose own message the wizard cannot show."""
+    return load_prompt_catalog().replies[name]
+
+
+def settings_reset(name: str) -> str:
+    """The sentence for a reworded Criterion whose new grader starts from its default settings."""
+    return _substitute(
+        load_prompt_catalog().replies["settings_reset"],
+        "replies.settings_reset",
+        {"name": name},
+    )
+
+
+def configure_criterion_system() -> str:
+    """The instructions of the call that configures a matched Criterion."""
+    return load_prompt_catalog().configure_criterion_system
+
+
+def not_changed(
+    reasons: Iterable[PatchReason],
+    details: Mapping[PatchReason, Iterable[str]] | None = None,
+) -> str:
+    """One sentence that names what did not change, from the sentence of each reason.
+
+    `details` adds plain words after a reason's sentence. It must never hold an internal path.
+    """
+    catalog = load_prompt_catalog()
+    details = details or {}
+    chosen = set(reasons)
+    parts = [
+        " ".join(
+            [
+                catalog.patch_reasons[reason.value],
+                *dict.fromkeys(details.get(reason, ())),
+            ]
+        )
+        for reason in PatchReason
+        if reason in chosen
+    ]
+    return _substitute(
+        catalog.replies["not_changed"],
+        "replies.not_changed",
+        {"reasons": " ".join(parts)},
+    )
+
+
 def match_graders(specs: Iterable[GraderSpec], criteria: str) -> ModelPrompt:
     """Ask which of ``specs`` fits each Criterion. ``criteria`` is the Criteria as JSON."""
     catalog = load_prompt_catalog()
@@ -537,11 +663,17 @@ __all__ = [
     "behaviours",
     "chat",
     "clarify",
+    "configure_criterion_system",
     "criteria",
     "load_prompt_catalog",
     "match_graders",
+    "model_feedback",
+    "not_changed",
+    "patch_reason",
     "personas",
     "primer",
+    "reply",
     "scenarios",
+    "settings_reset",
     "test_cases",
 ]

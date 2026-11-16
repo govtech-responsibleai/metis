@@ -5,6 +5,9 @@ tests. The stand-in is not a throwaway — it is how the whole corridor is exerc
 paying per test run, and it stays as the regression suite for the prompts and the matcher.
 
 Every method returns structured output. Nothing here returns prose the caller has to parse.
+A method that returns patches takes the scope of the call: the part of the Specification that
+the call may write. The gateway reviews each attempt against it, and the driver applies the
+result with the same review.
 """
 
 from __future__ import annotations
@@ -12,6 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
+    from metis.wizard.application.patch_review import PatchScope
     from metis.wizard.contracts.interview_state import (
         InterviewContext,
         InterviewMessage,
@@ -55,6 +59,8 @@ class Interviewer(Protocol):
         specification: Specification,
         history: list[InterviewMessage],
         context: InterviewContext | None = None,
+        *,
+        scope: PatchScope | None = None,
     ) -> ClarifyResult:
         """One open question, or done. The only step the model may end on its own."""
         ...
@@ -64,6 +70,8 @@ class Interviewer(Protocol):
         specification: Specification,
         history: list[InterviewMessage],
         context: InterviewContext | None = None,
+        *,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         """Features and behaviours. No criteria yet."""
         ...
@@ -72,6 +80,8 @@ class Interviewer(Protocol):
         self,
         specification: Specification,
         context: InterviewContext | None = None,
+        *,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         """Criteria for every ticked behaviour that lacks them, in one call."""
         ...
@@ -80,6 +90,8 @@ class Interviewer(Protocol):
         self,
         specification: Specification,
         context: InterviewContext | None = None,
+        *,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         """Archetypes, justified by what the user chose to measure."""
         ...
@@ -88,6 +100,8 @@ class Interviewer(Protocol):
         self,
         specification: Specification,
         context: InterviewContext | None = None,
+        *,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         """The whole covering set, in one call."""
         ...
@@ -96,6 +110,8 @@ class Interviewer(Protocol):
         self,
         specification: Specification,
         context: InterviewContext | None = None,
+        *,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         """Test Cases for each Scenario that has none: its Personas and Behaviours."""
         ...
@@ -107,6 +123,8 @@ class Interviewer(Protocol):
         text: str,
         target: str | None,
         context: InterviewContext | None = None,
+        *,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         """A free-text exchange, answered with suggested edits as chips."""
         ...

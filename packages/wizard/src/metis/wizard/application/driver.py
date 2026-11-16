@@ -6,17 +6,29 @@ applies what came back and decides where to go next.
 Most responses cost no model call: every tick, chip and stepper arrives carrying a patch the
 package composed before the screen was ever drawn, so applying it is a dictionary lookup. The
 model is called at five points only — clarify, and the four drafting steps.
+
+Every model result goes through the patch review (`application.patch_review`) with the scope of
+its call, and only the accepted patches are applied. The reply that the user reads follows one
+rule, in `_reply`: the model's own message is shown only when no attempt of the call had a
+problem. Otherwise the wizard adds one sentence that names what did not change, or shows a
+default reply when problems remain. A follow-up model call in the same turn never replaces the
+reply to the user's message.
 """
 
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from metis.wizard.application import config, screens
+from metis.wizard.application import config, prompts, screens
 from metis.wizard.application.interviewer import Interviewer, InterviewerOutputError
+from metis.wizard.application.patch_review import (
+    PatchReview,
+    PatchScope,
+    ScopeArea,
+    review_patches,
+)
 from metis.wizard.application.readiness import missing_criteria_paths
 from metis.wizard.contracts.conversation import (
     AnyRequest,
@@ -46,12 +58,17 @@ from metis.wizard.contracts.output import (
     ScenarioDraft,
     StepResult,
 )
-from metis.wizard.domain import materializer, nodes
-from metis.wizard.domain.applier import apply, sanitise
+from metis.wizard.domain import materializer, nodes, paths
+from metis.wizard.domain.applier import apply
 from metis.wizard.domain.cascade import Impact, impacts_for
 from metis.wizard.domain.documents import normalize_fixture_name
 from metis.wizard.domain.patch import Patch, PatchOp, PatchOrigin
-from metis.wizard.domain.permissions import InterviewStep
+from metis.wizard.domain.permissions import (
+    KEPT_ON_REWORD,
+    PROTECTED,
+    InterviewStep,
+    PatchReason,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -109,12 +126,25 @@ AFTER_BEHAVIOURS = frozenset(
     }
 )
 
-# A drafting call writes only its own collection. It cannot add a Feature, a Behaviour or a
-# Criterion, so nothing becomes measured without the user.
-_PERSONA_DRAFT_PATHS = frozenset({"personas"})
-_SCENARIO_DRAFT_PATHS = frozenset({"scenarios"})
-# Test Case drafting adds Test Cases only. It cannot change a Persona or a Scenario.
-_TEST_CASE_DRAFT_PATHS = frozenset({"tasks"})
+# A drafting call adds to its own collection only. It cannot add a Feature, a Behaviour or a
+# Criterion, so nothing becomes measured without the user. Test Case drafting cannot change a
+# Persona or a Scenario.
+_DRAFT_COLLECTIONS = {
+    InterviewStep.PERSONAS: "personas",
+    InterviewStep.SCENARIOS: "scenarios",
+    InterviewStep.TEST_CASES: "tasks",
+}
+
+# The reasons that a call without a user message reports to the user: a protected field, or a
+# value that does not fit. A drafting call that only strayed outside its scope is not worth a
+# sentence, because the user did not ask for anything.
+_DRAFT_REPORTED = frozenset(
+    {*PROTECTED.values(), PatchReason.MEASURED, PatchReason.NUM_TRIALS}
+    | {PatchReason.INVALID_SETTING, PatchReason.BROKEN_REFERENCE}
+)
+# The reasons whose detail is plain words, so the reply may show it. Other details can name
+# internal paths, which the user never sees.
+_PLAIN_DETAILS = frozenset({PatchReason.INVALID_SETTING})
 
 _DEFAULT_MESSAGES = {
     InterviewStep.BEHAVIOURS: "Choose what to evaluate.",
@@ -161,6 +191,9 @@ class StepDriver:
     matcher: object | None = None  # a GraderMatcher; None leaves criteria unmatched
     pending_warnings: list[Warning] = field(default_factory=list)
     model_error: InterviewerOutputError | None = field(default=None, repr=False)
+    # True once this turn stored the reply to the user's own message. A follow-up model call
+    # in the same turn must not replace it.
+    _replied: bool = field(default=False, init=False, repr=False)
 
     # ── composing ──────────────────────────────────────────────────────────
 
@@ -199,16 +232,14 @@ class StepDriver:
             asked = _clarify_questions_asked(state.history)
             cap = config.clarify_turn_cap()
             if asked <= cap:
+                scope = PatchScope.exactly(_CLARIFY_TARGET_PATHS, **_known(state))
                 result = self.interviewer.clarify(
                     specification,
                     state.history,
                     context=state.context,
+                    scope=scope,
                 )
-                self._run(
-                    state,
-                    result,
-                    allowed_paths=_CLARIFY_TARGET_PATHS,
-                )
+                self._run(state, result, scope)
                 # The call at the bound is record-only. Its patches are required, but its
                 # message must never become a sixth question or enter the transcript.
                 if asked < cap and not result.done and result.message:
@@ -224,13 +255,16 @@ class StepDriver:
             if completion is not None:
                 return completion
             if not specification.features:
+                scope = PatchScope(**_known(state))
                 self._try(
                     lambda: self.interviewer.draft_behaviours(
                         specification,
                         state.history,
                         context=state.context,
+                        scope=scope,
                     ),
                     state,
+                    scope,
                 )
             return self._attach(
                 screens.behaviours_screen(
@@ -247,13 +281,13 @@ class StepDriver:
 
         if step is InterviewStep.PERSONAS:
             if not specification.personas:
+                scope = _draft_scope(state, InterviewStep.PERSONAS)
                 self._try(
                     lambda: self.interviewer.draft_personas(
-                        specification, context=state.context
+                        specification, context=state.context, scope=scope
                     ),
                     state,
-                    allowed_paths=_PERSONA_DRAFT_PATHS,
-                    allowed_ops=frozenset({PatchOp.ADD}),
+                    scope,
                 )
             return self._attach(
                 screens.personas_screen(
@@ -263,13 +297,13 @@ class StepDriver:
 
         if step is InterviewStep.SCENARIOS:
             if not specification.scenarios:
+                scope = _draft_scope(state, InterviewStep.SCENARIOS)
                 self._try(
                     lambda: self.interviewer.draft_scenarios(
-                        specification, context=state.context
+                        specification, context=state.context, scope=scope
                     ),
                     state,
-                    allowed_paths=_SCENARIO_DRAFT_PATHS,
-                    allowed_ops=frozenset({PatchOp.ADD}),
+                    scope,
                 )
             return self._attach(
                 screens.scenarios_screen(
@@ -300,6 +334,7 @@ class StepDriver:
         )
         if not missing:
             return
+        scope = PatchScope.exactly(missing, {PatchOp.SET}, **_known(state))
         self._try(
             lambda: self.interviewer.chat(
                 state.specification,
@@ -311,10 +346,10 @@ class StepDriver:
                 "Return SET patches for these fields only. Do not ask another question.",
                 None,
                 context=state.context,
+                scope=scope,
             ),
             state,
-            allowed_paths=missing,
-            allowed_ops=frozenset({PatchOp.SET}),
+            scope,
         )
 
     @staticmethod
@@ -338,6 +373,7 @@ class StepDriver:
         self, state: DriverState, request: AnyRequest, response: AnyResponse
     ) -> None:
         previous = state.pending
+        self._replied = False
         if isinstance(request, ChatRequest):
             self._handle_chat(state, request, response)
         elif isinstance(request, FormRequest):
@@ -357,11 +393,11 @@ class StepDriver:
         if state.step is InterviewStep.CLARIFY:
             return  # the answer is in history; the next compose() asks the next question
 
-        # A chat raised from a criteria card carries that behaviour's id; a screen-level chat
-        # carries None. The id both tells the model what the user is looking at and confines
-        # the edit to that behaviour's own criteria — so "Chat about these criteria" cannot
-        # reach across and rewrite a different card's.
+        # A chat raised from a card carries that item's id, and a screen-level chat carries None.
+        # The id tells the model what the user is looking at, and the scope confines the edit to
+        # that item, so a chat on one card cannot rewrite another.
         target = request.target
+        scope = _chat_scope(state, target)
         try:
             result = self.interviewer.chat(
                 state.specification,
@@ -369,36 +405,14 @@ class StepDriver:
                 text,
                 target,
                 context=state.context,
+                scope=scope,
             )
         except InterviewerOutputError as exc:
             self.model_error = exc
             # Keep the direct driver API's warning behavior. The turn transaction checks
             # `model_error` and converts this into a typed retryable failure.
             return self._refuse_chat()
-        if target is not None:
-            if state.step is InterviewStep.CRITERIA:
-                result = self._confine_to_behaviour(result, target)
-            else:
-                feature = state.specification.feature_of(target)
-                prefix = (
-                    f"features[{feature.id}].behaviours[{target}]"
-                    if feature
-                    else f"features[{target}]"
-                )
-                kept = [
-                    patch
-                    for patch in result.patches
-                    if patch.path == prefix or patch.path.startswith(prefix + ".")
-                ]
-                if len(kept) != len(result.patches):
-                    self.pending_warnings.append(
-                        Warning(
-                            text="I left out a change outside the selected item. Changes inside this item were applied.",
-                            source=WarningSource.RUNTIME,
-                        )
-                    )
-                result = result.model_copy(update={"patches": kept})
-        self._run(state, result, request=text, user_message=True)
+        self._run(state, result, scope, request=text)
 
     def _refuse_chat(self) -> None:
         """Change nothing and say so, when a chat could not be answered by the model."""
@@ -413,35 +427,21 @@ class StepDriver:
             )
         )
 
-    def _confine_to_behaviour(
-        self, result: StepResult, behaviour_id: str
-    ) -> StepResult:
-        """Drop any patch a scoped criteria chat produced that reaches outside this behaviour.
-
-        The applier already enforces which *fields* the criteria step may write; this enforces
-        which *behaviour*. A patch under `behaviours[<id>].criteria` stays; anything else — a
-        sibling behaviour, the tree, a persona — is dropped and reported, because a chat the
-        user opened on one card must not silently edit another.
-        """
-        prefix = f"behaviours[{behaviour_id}].criteria"
-        kept = [p for p in result.patches if prefix in p.path]
-        for dropped in result.patches:
-            if prefix not in dropped.path:
-                self.pending_warnings.append(
-                    Warning(
-                        text=(
-                            "That change reached outside the criteria you were editing, so "
-                            "I've left it out. Everything for this behaviour still applied."
-                        ),
-                        source=WarningSource.RUNTIME,
-                        blocking=False,
-                    )
-                )
-        return result.model_copy(update={"patches": kept})
-
     def _configure_changes(
-        self, state: DriverState, before: Specification, request: str = ""
-    ) -> None:
+        self,
+        state: DriverState,
+        before: Specification,
+        request: str = "",
+        asked: frozenset[tuple[str, str]] = frozenset(),
+    ) -> list[str]:
+        """Match and configure each Criterion whose wording changed in this turn.
+
+        When the grader stays the same, the settings in `KEPT_ON_REWORD` keep their values, and
+        so does each setting in `asked`, the `(Criterion id, setting)` pairs that the user set
+        in the same turn. The configure call returns the other settings with their current
+        values unless the description states new ones. A new grader starts from its own
+        defaults. Returns one sentence for each Criterion whose own settings were reset.
+        """
         from metis.wizard.application.matching.matcher import (
             default_grader_args,
             rematch,
@@ -449,7 +449,9 @@ class StepDriver:
         )
 
         if self.matcher is None:
-            return
+            return []
+        kept = KEPT_ON_REWORD
+        reset: list[str] = []
         for behaviour in state.specification.behaviours():
             for criterion in behaviour.criteria:
                 previous = before.criterion(criterion.id)
@@ -458,8 +460,12 @@ class StepDriver:
                     criterion.name,
                 ):
                     continue
+                current = dict(criterion.grader_args)
+                defaults = default_grader_args(criterion)
+                grader = criterion.grader_fqn
+                # `rematch` keeps the settings when the grader stays, and gives a new grader
+                # its defaults.
                 rematch(criterion, self.matcher)  # type: ignore[arg-type]
-                criterion.grader_args = default_grader_args(criterion)
                 configured = self.interviewer.configure_criterion(
                     criterion,
                     previous,
@@ -467,18 +473,23 @@ class StepDriver:
                     request,
                     context=state.context,
                 )
+                args = dict(configured.grader_args)
+                if criterion.grader_fqn == grader:
+                    keep = kept | {key for owner, key in asked if owner == criterion.id}
+                    args.update({k: v for k, v in current.items() if k in keep})
+                elif previous is not None and _customised(current, defaults):
+                    reset.append(prompts.settings_reset(criterion.name))
                 try:
                     validate_grader_args(
-                        criterion.grader_fqn,
-                        configured.grader_args,
-                        description=configured.description,
+                        criterion.grader_fqn, args, description=configured.description
                     )
                 except ValueError as exc:
                     raise InterviewerOutputError(
                         f"Invalid assessment settings: {exc}"
                     ) from exc
                 criterion.description = configured.description
-                criterion.grader_args = configured.grader_args
+                criterion.grader_args = args
+        return reset
 
     def _handle_form(
         self, state: DriverState, request: FormRequest, response: AnyResponse
@@ -569,7 +580,7 @@ class StepDriver:
         impacts = impacts_for(before, outcome.applied)
         if impacts:
             self._adjust_derived(state, impacts)
-        self._configure_changes(state, before)
+        self._tell(self._configure_changes(state, before))
         state.step = InterviewStep.BEHAVIOURS
 
     # ── the review actions: add, edit, remove ───────────────────────────────
@@ -752,7 +763,7 @@ class StepDriver:
         impacts = impacts_for(before, outcome.applied)
         if impacts:
             self._adjust_derived(state, impacts)
-        self._configure_changes(state, before)
+        self._tell(self._configure_changes(state, before))
 
     def _edit_criterion(
         self,
@@ -953,47 +964,25 @@ class StepDriver:
         ):
             return
         before = {task.id for task in specification.tasks}
+        scope = _draft_scope(state, InterviewStep.TEST_CASES)
         self._try(
             lambda: self.interviewer.draft_test_cases(
-                specification, context=state.context
+                specification, context=state.context, scope=scope
             ),
             state,
-            allowed_paths=_TEST_CASE_DRAFT_PATHS,
-            allowed_ops=frozenset({PatchOp.ADD}),
+            scope,
         )
+        # The patch review already refused a Test Case that repeats a pair or names an item
+        # that does not exist or is not measured.
         measured = [b.id for b in specification.measured_behaviours()]
-        pairs = {
-            (task.persona_ref, task.scenario_ref)
+        specification.tasks = [
+            task
             for task in specification.tasks
-            if task.id in before
-        }
-        dropped: list[str] = []
-        kept = []
+            if task.id in before or task.scenario_ref not in used
+        ]
         for task in specification.tasks:
-            if task.id in before:
-                kept.append(task)
-                continue
-            pair = (task.persona_ref, task.scenario_ref)
-            if task.scenario_ref in used or pair in pairs:
-                continue
-            pairs.add(pair)
-            dropped += [ref for ref in task.behaviour_refs if ref not in measured]
-            task.behaviour_refs = [
-                ref for ref in task.behaviour_refs if ref in measured
-            ] or list(measured)
-            kept.append(task)
-        specification.tasks = kept
-        if dropped:
-            self.pending_warnings.append(
-                Warning(
-                    text=(
-                        "I left out Behaviours that are not selected: "
-                        + ", ".join(dict.fromkeys(dropped))
-                        + "."
-                    ),
-                    source=WarningSource.RUNTIME,
-                )
-            )
+            if task.id not in before and not task.behaviour_refs:
+                task.behaviour_refs = list(measured)
 
     def _remove(self, state: DriverState, targets: list[str]) -> None:
         """Remove each named node with its dependants. The door confirmed this first.
@@ -1197,6 +1186,13 @@ class StepDriver:
                 "That scenario field could not be updated; I left the specification unchanged."
             )
 
+    def _tell(self, sentences: list[str]) -> None:
+        """Show sentences after a form edit, which has no reply to carry them."""
+        for text in sentences:
+            self.pending_warnings.append(
+                Warning(text=text, source=WarningSource.RUNTIME, blocking=False)
+            )
+
     def _refuse_field_edit(self, text: str) -> None:
         self.pending_warnings.append(
             Warning(text=text, source=WarningSource.RUNTIME, blocking=False)
@@ -1276,16 +1272,16 @@ class StepDriver:
         """
         if state.step not in AFTER_BEHAVIOURS:
             return
-        allowed_paths = missing_criteria_paths(state.specification)
-        if not allowed_paths:
+        missing = missing_criteria_paths(state.specification)
+        if not missing:
             return
+        scope = PatchScope.exactly(missing, {PatchOp.ADD}, **_known(state))
         self._try(
             lambda: self.interviewer.draft_criteria(
-                state.specification, context=state.context
+                state.specification, context=state.context, scope=scope
             ),
             state,
-            allowed_paths=allowed_paths,
-            allowed_ops=frozenset({PatchOp.ADD}),
+            scope,
         )
         # A separate pass, after generation — never folded into it.
         self.match(state)
@@ -1296,9 +1292,7 @@ class StepDriver:
         self,
         call: Callable[[], StepResult],
         state: DriverState,
-        *,
-        allowed_paths: frozenset[str] | None = None,
-        allowed_ops: frozenset[PatchOp] | None = None,
+        scope: PatchScope,
     ) -> bool:
         """Run a model call, turning a total failure into a warning rather than a crash.
 
@@ -1307,12 +1301,7 @@ class StepDriver:
         already decided is still in the specification, because nothing was applied.
         """
         try:
-            self._run(
-                state,
-                call(),
-                allowed_paths=allowed_paths,
-                allowed_ops=allowed_ops,
-            )
+            self._run(state, call(), scope)
             return True
         except InterviewerOutputError as exc:
             self.model_error = exc
@@ -1328,64 +1317,20 @@ class StepDriver:
             )
             return False
 
-    def _run(
-        self,
-        state: DriverState,
-        result: StepResult,
-        *,
-        request: str = "",
-        allowed_paths: frozenset[str] | None = None,
-        allowed_ops: frozenset[PatchOp] | None = None,
-        user_message: bool = False,
-    ) -> None:
-        """Apply a model result, reporting anything the applier refused.
-
-        `sanitise` forces MODEL origin first: origin is stamped by the code that builds a
-        patch, so a model claiming `wizard` is either confused or trying it on.
-        `user_message` is True only when the result answers the user's own chat message.
-        """
+    def _apply_reviewed(
+        self, state: DriverState, result: StepResult, scope: PatchScope
+    ) -> PatchReview:
+        """Apply the patches that the patch review accepts, the same review as the gateway's."""
+        review = review_patches(state.specification, result.patches, scope)
         before = state.specification.model_copy(deep=True)
-        # Clarify questions are kept in the history, so only a review step keeps its message.
-        if result.message and state.step in _DEFAULT_MESSAGES:
-            state.step_messages[state.step] = result.message
-        patches = sanitise(result.patches)
-        if user_message:
-            patches = [_user_requested(patch) for patch in patches]
-        refused = [
-            patch
-            for patch in patches
-            if (allowed_paths is not None and patch.path not in allowed_paths)
-            or (allowed_ops is not None and patch.op not in allowed_ops)
-        ]
-        patches = [patch for patch in patches if patch not in refused]
-        if refused:
-            self.pending_warnings.append(
-                Warning(
-                    text=(
-                        "I left out a model change that was outside this operation's "
-                        "allowed scope. Your specification keeps the scope you selected."
-                    ),
-                    source=WarningSource.RUNTIME,
-                    blocking=False,
-                )
-            )
-        outcome = apply(
+        apply(
             state.specification,
-            patches,
+            review.accepted,
             issued_ids=state.issued_ids,
             user_typed=state.user_typed,
-            allowed_fixture_names=set(state.context.document_names),
+            allowed_fixture_names=set(scope.fixture_names),
+            user_message=scope.user_message,
         )
-
-        for rejection in outcome.rejected:
-            self.pending_warnings.append(
-                Warning(
-                    text=rejection.message,
-                    source=WarningSource.RUNTIME,
-                    blocking=False,
-                )
-            )
-
         removed = nodes.follow_removals(before, state.specification)
         if removed:
             self.pending_warnings.append(
@@ -1397,18 +1342,85 @@ class StepDriver:
                     source=WarningSource.RUNTIME,
                 )
             )
-        impacts = impacts_for(before, outcome.applied)
+        return review
+
+    def _run(
+        self,
+        state: DriverState,
+        result: StepResult,
+        scope: PatchScope,
+        *,
+        request: str = "",
+    ) -> None:
+        """Apply a model result, run the follow-up work, and store the reply."""
+        if scope.user_message:
+            self._replied = True
+        before = state.specification.model_copy(deep=True)
+        review = self._apply_reviewed(state, result, scope)
+        impacts = impacts_for(before, review.accepted)
         if impacts:
             self._adjust_derived(state, impacts)
-        self._configure_changes(state, before, request)
+        reset = self._configure_changes(
+            state, before, request, asked=_settings_set(review.accepted)
+        )
         # The user changed the measured set from the chat after Behaviours were confirmed.
         # Follow it in the Test Cases now, as Behaviours Continue does.
         if (
-            user_message
+            scope.user_message
             and state.step in AFTER_BEHAVIOURS
             and _measured_ids(before) != _measured_ids(state.specification)
         ):
             _follow_measured_scope(state.specification)
+        self._reply(state, result, review, scope, notes=reset)
+
+    def _reply(
+        self,
+        state: DriverState,
+        result: StepResult,
+        review: PatchReview,
+        scope: PatchScope,
+        *,
+        notes: list[str] | None = None,
+    ) -> None:
+        """Store the text that the step shows, by one rule for every model result.
+
+        No problem in any attempt: the model's own message. A problem in an earlier attempt
+        only: the model's rewritten message and one sentence that names what did not change.
+        Problems in the final result: a default reply and the same sentence, because the
+        model's message describes changes that were not made. A call without a user message
+        keeps the step's default text and reports only what a person would care about.
+        An empty reply never leaves an older one in place. `notes` are sentences that the
+        wizard adds after the reply, such as a grader reset after a reword.
+        """
+        step = state.step
+        # Clarify questions are kept in the history, so only a review step keeps its message.
+        if step not in _DEFAULT_MESSAGES:
+            return
+        # A follow-up call in the same turn never replaces the reply to the user's message.
+        if self._replied and not scope.user_message:
+            return
+        reasons = set(result.problem_reasons) | {p.reason for p in review.problems}
+        if not scope.user_message:
+            reasons &= _DRAFT_REPORTED
+        default = (
+            prompts.reply("part_applied" if review.accepted else "nothing_applied")
+            if scope.user_message
+            else _DEFAULT_MESSAGES[step]
+        )
+        text = "" if review.problems else result.message.strip()
+        if review.problems and scope.user_message:
+            text = default
+        if reasons:
+            details: dict[PatchReason, list[str]] = {}
+            for problem in review.problems:
+                if problem.reason in _PLAIN_DETAILS and problem.detail:
+                    details.setdefault(problem.reason, []).append(problem.detail)
+            text = f"{text or default} {prompts.not_changed(reasons, details)}"
+        text = " ".join(part for part in (text, *(notes or [])) if part)
+        if text:
+            state.step_messages[step] = text
+        else:
+            state.step_messages.pop(step, None)
 
     def _adjust_derived(self, state: DriverState, impacts: list[Impact]) -> None:
         prefixes: list[str] = []
@@ -1441,6 +1453,27 @@ class StepDriver:
                     f"scenarios[{scenario.id}]"
                     for scenario in state.specification.scenarios
                 )
+        criteria_paths = missing_criteria_paths(state.specification)
+        # Only the text of the affected content, and the missing Criteria inside it. The text
+        # that the user typed stays as it is.
+        scope = PatchScope(
+            areas=(
+                *(
+                    ScopeArea(prefix, frozenset({PatchOp.SET}), fields=_TEXT_FIELDS)
+                    for prefix in prefixes
+                ),
+                *(
+                    ScopeArea(path, frozenset({PatchOp.ADD}), below=False)
+                    for path in criteria_paths
+                    if any(
+                        ScopeArea(prefix).holds(path, PatchOp.ADD)
+                        for prefix in prefixes
+                    )
+                ),
+            ),
+            locked_items=frozenset(state.user_typed),
+            **_known(state),
+        )
         result = self.interviewer.chat(
             state.specification,
             str(state.step),
@@ -1451,42 +1484,10 @@ class StepDriver:
             "or lists. Do not ask keep-or-regenerate questions. Return a short result message.",
             None,
             context=state.context,
+            scope=scope,
         )
-        criteria_paths = missing_criteria_paths(state.specification)
-        patches = [
-            patch
-            for patch in sanitise(result.patches)
-            if any(
-                patch.path == prefix
-                or patch.path.startswith(prefix + ".")
-                or patch.path.startswith(prefix + "[")
-                for prefix in prefixes
-            )
-            and not any(
-                f"[{item}].name" in patch.path or f"[{item}].description" in patch.path
-                for item in state.user_typed
-            )
-            and (
-                (
-                    patch.op is PatchOp.SET
-                    and patch.path.endswith((".name", ".description"))
-                )
-                or (patch.op is PatchOp.ADD and patch.path in criteria_paths)
-            )
-        ]
-        outcome = apply(
-            state.specification,
-            patches,
-            issued_ids=state.issued_ids,
-            user_typed=state.user_typed,
-            allowed_fixture_names=set(state.context.document_names),
-        )
-        for rejection in outcome.rejected:
-            self.pending_warnings.append(
-                Warning(text=rejection.message, source=WarningSource.RUNTIME)
-            )
-        if result.message and state.step in _DEFAULT_MESSAGES:
-            state.step_messages[state.step] = result.message
+        review = self._apply_reviewed(state, result, scope)
+        self._reply(state, result, review, scope)
 
     def match(self, state: DriverState) -> None:
         """Resolve graders for criteria that lack them.
@@ -1516,6 +1517,68 @@ class StepDriver:
             self.matcher.degraded = False  # type: ignore[attr-defined]  # shown once
 
 
+_TEXT_FIELDS = frozenset({"name", "description"})
+# Judge settings that the configure call carries over by itself.
+_JUDGE_KEYS = frozenset({"model", "max_input_tokens"})
+
+
+def _customised(args: dict[str, Any], defaults: dict[str, Any]) -> bool:
+    """Whether a Criterion sets a value other than its grader's default. A missing key is
+    the default."""
+    return any(
+        key not in defaults or value != defaults[key]
+        for key, value in args.items()
+        if key not in _JUDGE_KEYS
+    )
+
+
+def _settings_set(patches: list[Patch]) -> frozenset[tuple[str, str]]:
+    """The `(Criterion id, setting)` pairs of the grader settings that these patches set."""
+    pairs = set()
+    for patch in patches:
+        segments = paths.parse(patch.path)
+        if len(segments) >= 3 and segments[-2].field == "grader_args":
+            pairs.add((segments[-3].key or "", segments[-1].field))
+    return frozenset(pairs)
+
+
+def _known(state: DriverState) -> dict[str, frozenset[str]]:
+    """What every review needs from the Interview: the files that a drafted Test Case may name,
+    and the ids already given out, so that the gateway's review gives the same ids as the apply."""
+    return {
+        "fixture_names": frozenset(state.context.document_names),
+        "issued_ids": frozenset(state.issued_ids),
+    }
+
+
+def _draft_scope(state: DriverState, step: InterviewStep) -> PatchScope:
+    """A drafting call adds to its own collection only."""
+    return PatchScope.exactly(
+        {_DRAFT_COLLECTIONS[step]}, {PatchOp.ADD}, **_known(state)
+    )
+
+
+def _chat_scope(state: DriverState, target: str | None) -> PatchScope:
+    """The scope of a chat that answers the user's own message.
+
+    A screen-level chat may write anywhere that the permission tables allow. A chat on a card writes
+    inside that item only: a Criteria card owns its Behaviour's Criteria, and a card at another
+    step owns its Behaviour or Feature.
+    """
+    if target is None:
+        return PatchScope(user_message=True, **_known(state))
+    feature = state.specification.feature_of(target)
+    if state.step is InterviewStep.CRITERIA:
+        # With no Feature, the prefix matches no path, so nothing is writable.
+        owner = f"features[{feature.id}]." if feature else ""
+        prefix = f"{owner}behaviours[{target}].criteria"
+    elif feature is not None:
+        prefix = f"features[{feature.id}].behaviours[{target}]"
+    else:
+        prefix = f"features[{target}]"
+    return PatchScope.under({prefix}, user_message=True, **_known(state))
+
+
 def _target_of(chosen: list[Option], action: str) -> str | None:
     """The behaviour id the option carrying `action` was scoped to, or None.
 
@@ -1524,31 +1587,6 @@ def _target_of(chosen: list[Option], action: str) -> str | None:
     unscoped; the criteria actions carry a behaviour id, which is what scopes them to one card.
     """
     return next((o.id.target for o in chosen if o.id.action == action), None)
-
-
-# The user's own decisions. No model call may write them, except a chat that answers the
-# user's own message: "measure only the citation behaviour" or "run 5 trials" is the user
-# deciding, through the chat. A drafting call never reaches this.
-_USER_DECISIONS = (
-    (re.compile(r"^features\[[^\]]+\]\.behaviours\[[^\]]+\]\.measured$"), bool),
-    (re.compile(r"^tasks\[[^\]]+\]\.num_trials$"), int),
-)
-
-
-def _user_requested(patch: Patch) -> Patch:
-    """Trust a SET of a user decision, with a value of the right type, from a user chat."""
-    if patch.op is not PatchOp.SET:
-        return patch
-    for pattern, kind in _USER_DECISIONS:
-        if (
-            pattern.match(patch.path)
-            and type(patch.value) is kind
-            and (
-                kind is bool or screens.TRIALS_MIN <= patch.value <= screens.TRIALS_MAX
-            )
-        ):
-            return patch.model_copy(update={"origin": PatchOrigin.WIZARD})
-    return patch
 
 
 def _task_settings(

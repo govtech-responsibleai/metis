@@ -213,8 +213,10 @@ first and names them. A Feature takes its Behaviours and their Criteria. A Behav
 Criteria and leaves the Test Cases that cover it. A Persona or Scenario takes its Test Cases.
 The last Feature, Persona, or Scenario cannot be deleted.
 
-Use the chat for a written change request. The chat can also select Behaviours and set Trials
-when you ask it to. Content updates in place. Group expansion is retained. Corrections apply
+Use the chat for a written change request. The chat can also select Behaviours, set Trials, and
+set grader settings when you ask it to. See
+[What the chat can change](../wizard.md#what-the-chat-can-change). When a change is not made, the
+chat reply says what did not change and why. Content updates in place. Group expansion is retained. Corrections apply
 automatically and keep unrelated content and form-written entries.
 
 The Profile keeps earlier sections available. Criterion review uses the same Feature and Behaviour

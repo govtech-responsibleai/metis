@@ -2,21 +2,19 @@
 
 The order of the checks is the whole design:
 
-    1. origin      — did the package compose this? then it is trusted
-    2. ownership   — does *any* step own this address?
-    3. construction — strict drafts are materialized with code-owned fields.
+    1. origin: did the package compose this? then it is trusted
+    2. the permission tables: `permissions.refusal` says whether a model patch may make this change
+    3. construction: strict drafts are materialized with code-owned fields.
 
 Origin comes first because an address check alone cannot tell the user's tick from the
-model's attempt at one — the two patches are byte-identical. See `PatchOrigin`.
+model's attempt at one: the two patches are byte-identical. See `PatchOrigin`.
 
 The model-facing contract is validated before this module sees provider JSON. Bundled values
 are strict drafts, and this module materializes ids, defaults and authorship before constructing
 the persisted domain object.
 
-A rejected patch is never silent. The user asked for something and part of it did not happen,
-so the applier says which part and why, and the caller attaches that as a RUNTIME warning.
-Attribution matters more here than anywhere else: it is the one message where the wizard has
-to say *I chose not to*, rather than *you did something wrong* or *something broke*.
+A rejected patch carries a reason key from `PatchReason`. The application turns reason keys into
+sentences from the prompt catalogue, so this layer never writes text for the user.
 """
 
 from __future__ import annotations
@@ -27,9 +25,8 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError
 
 from metis.wizard.domain import materializer, paths
-from metis.wizard.domain.nodes import duplicate_test_cases
 from metis.wizard.domain.patch import Patch, PatchOp, PatchOrigin
-from metis.wizard.domain.permissions import owner_of
+from metis.wizard.domain.permissions import PatchReason, refusal
 from metis.wizard.domain.specification import (
     Behaviour,
     Criterion,
@@ -62,18 +59,16 @@ def _draft(value: Any, name: str) -> bool:
 
 @dataclass
 class Rejection:
-    """One patch that did not happen, and the sentence the user is shown."""
+    """One patch that did not happen, and why."""
 
     patch: Patch
-    reason: str
-
-    @property
-    def message(self) -> str:
-        return self.reason
+    reason: PatchReason
+    # What went wrong in more detail, for the model. It can name internal paths.
+    detail: str = ""
 
 
 class PatchValueError(Exception):
-    """A model patch carries data that cannot build the node at its destination."""
+    """A model result carries data that the wizard cannot use."""
 
 
 @dataclass
@@ -86,41 +81,27 @@ class ApplyResult:
         return bool(self.rejected)
 
 
-def _check(patch: Patch) -> str | None:
-    """Return a rejection reason, or None if the patch may be applied."""
-    # 1. The package composed it, and knows it did, at the moment it drew the option.
+def check(patch: Patch, *, user_message: bool = False) -> PatchReason | None:
+    """Return the reason the permission tables refuse the patch, or None if it may be applied."""
+    # The package composed it, and knows it did, at the moment it drew the option.
     if patch.origin is PatchOrigin.WIZARD:
         return None
+    return refusal(patch.path, patch.op, patch.value, user_message=user_message)
 
-    # 2. Not "does my current step allow this?" but "does any step own it?".
-    if owner_of(patch.path) is None:
-        if patch.path.endswith(".measured"):
-            return (
-                "I've made that change. I can't tick it for you, though — "
-                "which behaviours actually matter is your call, not mine."
-            )
-        if patch.path.endswith(".grader_fqn"):
-            # Graders are chosen by the matcher from the criterion's wording, never written
-            # directly. The model is told to reword instead; if one slips through anyway, the
-            # user hears about the wording, not a field they have never seen.
-            return (
-                "The grader is chosen from how the criterion is worded, so I can't set it "
-                "directly — but rewording the criterion will point it at the right one."
-            )
-        # A model patch for an address no step owns. The path is package bookkeeping the user
-        # has never seen, so it is named as "part of this" rather than shown verbatim.
-        return "I wasn't able to make part of that change — it isn't mine to write."
 
-    # A model may edit a named semantic field, but cannot replace a persisted entity wholesale:
-    # that would be a second creation route around the draft/materializer boundary.
-    if (
-        patch.origin is PatchOrigin.MODEL
-        and patch.op is PatchOp.SET
-        and patch.path.rsplit(".", 1)[-1].find("[") >= 0
-    ):
-        return "I can update a field on that item, but I can't replace the whole item."
+def rejection_for(patch: Patch, exc: Exception) -> Rejection:
+    """Name the reason an exception from `apply_one` stands for."""
+    if isinstance(exc, paths.OperationError):
+        return Rejection(patch, PatchReason.WRONG_OPERATION, str(exc))
+    if isinstance(exc, paths.PathError):
+        return Rejection(patch, PatchReason.UNKNOWN_ADDRESS, str(exc))
+    # The value will not build the object its list holds: a bad enum, or a nested field the
+    # wrong shape. `Patch.value` is `Any`, so this is the first point the shape is checked.
+    return Rejection(patch, PatchReason.BAD_VALUE, str(exc))
 
-    return None
+
+# What `apply_one` raises for a patch that cannot be applied.
+APPLY_ERRORS = (paths.PathError, ValidationError, ValueError, TypeError, AttributeError)
 
 
 def _coerce(field_name: str, value: Any, origin: PatchOrigin) -> Any:
@@ -163,7 +144,7 @@ def _coerce(field_name: str, value: Any, origin: PatchOrigin) -> Any:
     return value
 
 
-def _apply_one(
+def apply_one(
     specification: Specification,
     patch: Patch,
     *,
@@ -177,7 +158,12 @@ def _apply_one(
     parent, segment = paths.resolve_parent(specification, path)
 
     if patch.op is PatchOp.SET:
-        if segment.key is None:
+        if isinstance(parent, dict):
+            # A key inside a mapping, such as one grader setting under `grader_args`.
+            if segment.key is not None:
+                raise paths.PathError(f"{patch.path!r}: a setting has no ids.")
+            parent[segment.field] = patch.value
+        elif segment.key is None:
             setattr(
                 parent, segment.field, _coerce(segment.field, patch.value, patch.origin)
             )
@@ -194,7 +180,7 @@ def _apply_one(
     elif patch.op is PatchOp.ADD:
         items = getattr(parent, segment.field)
         if not isinstance(items, list):
-            raise paths.PathError(f"{patch.path!r}: cannot ADD to a non-list.")
+            raise paths.OperationError(f"{patch.path!r}: cannot ADD to a non-list.")
         value = patch.value
         if _draft(value, "FeatureDraft") and segment.field == "features":
             materializer.add_feature(
@@ -264,7 +250,7 @@ def _apply_one(
     elif patch.op is PatchOp.REMOVE:
         items = getattr(parent, segment.field)
         if segment.key is None:
-            raise paths.PathError(f"{patch.path!r}: REMOVE needs an id.")
+            raise paths.OperationError(f"{patch.path!r}: REMOVE needs an id.")
         remaining = [i for i in items if getattr(i, "id", None) != segment.key]
         if len(remaining) == len(items):
             raise paths.PathError(f"{patch.path!r}: nothing with id {segment.key!r}.")
@@ -287,12 +273,14 @@ def apply(
     issued_ids: set[str] | None = None,
     user_typed: set[str] | None = None,
     allowed_fixture_names: set[str] | None = None,
+    user_message: bool = False,
 ) -> ApplyResult:
     """Apply what is allowed, report what was not.
 
     Patches are applied in order. Nothing here guards against a *set* of patches that
-    conflict — that case is removed a level up instead: anything the user can click together
-    is guaranteed not to conflict (see `multi`), and suggestion chips are one at a time.
+    conflict: the patch review judges a model result as a whole before it reaches this point,
+    and anything the user can click together is guaranteed not to conflict (see `multi`).
+    `user_message` is True only for a chat that answers the user's own message.
     """
     result = ApplyResult()
     issued_ids = (
@@ -302,34 +290,20 @@ def apply(
     )
 
     for patch in patches:
-        reason = _check(patch)
+        reason = check(patch, user_message=user_message)
         if reason is not None:
             result.rejected.append(Rejection(patch, reason))
             continue
         try:
-            _apply_one(
+            apply_one(
                 specification,
                 patch,
                 issued_ids=issued_ids,
                 user_typed=user_typed,
                 allowed_fixture_names=allowed_fixture_names,
             )
-        except paths.PathError as exc:
-            result.rejected.append(Rejection(patch, f"I couldn't apply that: {exc}"))
-            continue
-        except ValidationError:
-            # The value won't build the object its list holds — a bad enum, or a nested
-            # field the wrong shape. `Patch.value` is `Any`, so this is the first point the
-            # shape is checked; a malformed value must be a rejected patch, never a crash
-            # partway through an interview.
-            result.rejected.append(
-                Rejection(patch, f"I couldn't apply that change to {patch.path}.")
-            )
-            continue
-        except (ValueError, TypeError) as exc:
-            result.rejected.append(
-                Rejection(patch, f"I couldn't apply that change: {exc}")
-            )
+        except APPLY_ERRORS as exc:
+            result.rejected.append(rejection_for(patch, exc))
             continue
         result.applied.append(patch)
 
@@ -349,101 +323,3 @@ def sanitise(patches: Sequence[Any]) -> list[Patch]:
         else Patch(op=p.op, path=p.path, value=p.value, origin=PatchOrigin.MODEL)
         for p in patches
     ]
-
-
-def validate_model_patches(
-    specification: Specification,
-    patches: Sequence[Any],
-    *,
-    allowed_fixture_names: set[str] | None = None,
-) -> None:
-    """Validate model patch values without touching the real specification.
-
-    `Patch.value` is necessarily `Any`: its shape depends on the path. Structured output
-    therefore validates only the patch envelope. Applying to a deep copy closes that gap and
-    lets the gateway feed a domain validation error back through its normal retry loop.
-
-    Policy and path rejections remain the applier's concern. They describe something the
-    wizard refuses or cannot locate, not malformed structured output.
-    """
-    candidate = specification.model_copy(deep=True)
-    issued_ids = collect_specification_ids(candidate)
-    user_typed: set[str] = set()
-    previous_persona_counts = _persona_description_counts(specification)
-
-    for patch in sanitise(patches):
-        if _check(patch) is not None:
-            continue
-        try:
-            _apply_one(
-                candidate,
-                patch,
-                issued_ids=issued_ids,
-                user_typed=user_typed,
-                allowed_fixture_names=allowed_fixture_names,
-            )
-            # Assignment itself is not validated on Pydantic models. Rebuilding after every
-            # patch catches scalar SETs and list-shaped values as well as nested model errors.
-            candidate = Specification.model_validate(
-                candidate.model_dump(mode="python", warnings=False)
-            )
-        except paths.PathError:
-            continue
-        except (ValidationError, TypeError, AttributeError, ValueError) as exc:
-            raise PatchValueError(
-                f"The patch at {patch.path!r} has a value that does not fit there:\n{exc}"
-            ) from exc
-
-    # A model should update or remove an existing persona, not append the same prose under
-    # another id. Check after the whole patch set so a legitimate add-then-remove replacement
-    # is judged in its final state rather than halfway through.
-    duplicate = next(
-        (
-            (description, ids)
-            for description, ids in _persona_descriptions(candidate).items()
-            if len(ids) > max(1, previous_persona_counts.get(description, 0))
-        ),
-        None,
-    )
-    if duplicate:
-        _, ids = duplicate
-        raise PatchValueError(
-            "The proposed patches duplicate one persona description under "
-            f"{', '.join(ids)}. Update or remove the existing persona instead of adding "
-            "the same content again."
-        )
-
-    # A Test Case is unique by its Persona and Scenario pair. The check reads the whole
-    # candidate, so a model cannot pair the same two items twice under two Test Cases.
-    repeats = [
-        repeat
-        for repeat in duplicate_test_cases(candidate)
-        if repeat not in duplicate_test_cases(specification)
-    ]
-    if repeats:
-        later, earlier = repeats[0]
-        raise PatchValueError(
-            f"The proposed patches give {later} the same Persona and Scenario as {earlier}. "
-            "Each Test Case needs its own Persona and Scenario pair. Change the pair, or "
-            "update the existing Test Case."
-        )
-
-
-def _normalise_prose(value: str) -> str:
-    return " ".join(value.split()).casefold()
-
-
-def _persona_descriptions(specification: Specification) -> dict[str, list[str]]:
-    descriptions: dict[str, list[str]] = {}
-    for persona in specification.personas:
-        descriptions.setdefault(_normalise_prose(persona.description), []).append(
-            persona.id
-        )
-    return descriptions
-
-
-def _persona_description_counts(specification: Specification) -> dict[str, int]:
-    return {
-        description: len(ids)
-        for description, ids in _persona_descriptions(specification).items()
-    }

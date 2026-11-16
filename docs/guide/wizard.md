@@ -171,6 +171,40 @@ Ask the Wizard to revise the assessment and settings together, or select
 the pencil (**Edit <Criterion name>**) to change them directly. Keep directly edited fields consistent.
 The Wizard validates the fields and grader arguments before it saves the edit.
 
+## What the chat can change
+
+The chat changes the Specification only through the changes that the Wizard accepts. When you ask,
+the chat can:
+
+- Add, remove, and reword Features, Behaviours, Criteria, Personas, Scenarios, and Test Cases.
+- Select the Behaviours to measure, and set the Trials of a Test Case, from 1 to 20.
+- Set the grader settings of a Criterion: the pass mark `threshold`, a number from 0 to 1, the
+  `scope`, the judgment form, the aggregation, and the settings of the grader itself. For
+  example, type "Set every threshold to 0.85." Each grader accepts only the values that it
+  supports, and most graders support one judgment form and one aggregation.
+
+The chat cannot change these items:
+
+- Which grader a Criterion has. Tell the chat the condition that you want to check. The Wizard
+  rewords the Criterion and then selects the grader again.
+- The judge model, provider, and input limit of a grader.
+- The files of a Test Case. Use the Test Case form.
+
+A chat on one card changes only that item.
+
+When a reword keeps the grader of a Criterion, its `threshold` and `scope` keep their values. When
+a reword gives the Criterion a different grader, its settings go back to the defaults of the new
+grader, and the reply tells you.
+
+### When a change is not made
+
+The reply states only the changes that the Wizard made. When the Wizard cannot make a change, it
+first asks the model again and gives the reason. If some changes still cannot be made, the reply
+starts with "I made some of the changes." or "No changes were made." Then one sentence that
+starts with "Not changed:" gives the reason for each change that was not made. For a grader
+setting that the grader does not accept, the sentence names the Criterion and the setting. No
+separate warning repeats the reasons.
+
 ## Edit fallback grading instructions
 
 When no specific grader matches a criterion, the Interview selects the criterion fallback judge.

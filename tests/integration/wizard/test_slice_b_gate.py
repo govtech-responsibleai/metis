@@ -83,17 +83,19 @@ def test_the_state_on_the_wire_stays_bounded() -> None:
     assert result.max_state_bytes < 32_768
 
 
-def test_a_rejected_patch_reaches_the_user_as_a_runtime_warning() -> None:
-    """The model tries to set a tick. The criteria land; the write does not, and is said."""
-    result = walk(RejectingInterviewer())
+def test_a_drafting_call_outside_its_scope_changes_nothing() -> None:
+    """The model tries to set a tick while it drafts Criteria. The Criteria land and the tick
+    does not. A drafting call that strays outside its scope is not worth a warning."""
+    rejecting = walk(RejectingInterviewer())
+    scripted = walk(ScriptedInterviewer())
 
-    runtime = [
+    assert [b.measured for b in rejecting.state.specification.behaviours()] == [
+        b.measured for b in scripted.state.specification.behaviours()
+    ]
+    assert not [
         w
-        for request in result.seen
+        for request in rejecting.seen
         if isinstance(request, ChoiceRequest)
         for w in request.warnings
         if w.source is WarningSource.RUNTIME
     ]
-    assert runtime, "the refusal should have been shown, not swallowed"
-    assert "scope you selected" in runtime[0].text
-    assert not runtime[0].blocking
