@@ -5,7 +5,7 @@ specification is written by hand, the compiler is a pure function, and the engin
 is the judge. If this passes, the output contract is proven before anything upstream of it
 exists.
 
-`_validate_inputs` is the engine's real load path, not a stand-in: it parses `specification.yaml`
+`validate_inputs` is the engine's real load path, not a stand-in: it parses `specification.yaml`
 through `Specification`, checks persona references resolve, checks every fixture file is present,
 and imports every grader FQN via `importlib` to confirm it is a real grader class. That last
 part is the one that matters most here — grader FQNs are strings until run time, so a typo in
@@ -20,6 +20,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from metis.core.console import console
+from metis.engine.run import InvalidInputsError, validate_inputs
 from metis.wizard import (
     ConnectionTransport,
     InterviewState,
@@ -59,12 +61,11 @@ def _input_dir(tmp_path: Path) -> Path:
 
 
 def test_the_engine_loads_the_compiled_experiment(tmp_path: Path) -> None:
-    from metis.engine.cli import _validate_inputs
 
     input_dir = _input_dir(tmp_path)
 
-    # `_validate_inputs` calls sys.exit(1) on any problem, so reaching the end is the pass.
-    _validate_inputs(input_dir)
+    # `validate_inputs` raises InvalidInputsError on any problem, so reaching the end is the pass.
+    validate_inputs(input_dir, console=console)
 
     assert (input_dir / "specification.yaml").is_file()
     assert (input_dir / "review.md").is_file()
@@ -76,7 +77,6 @@ def test_the_gate_would_catch_an_unimportable_grader(tmp_path: Path) -> None:
     FQNs are resolved by importlib at run time, so an experiment naming a grader that has
     moved stops loading. Not silent — which is what this asserts.
     """
-    from metis.engine.cli import _validate_inputs
 
     input_dir = _input_dir(tmp_path)
     experiment = input_dir / "specification.yaml"
@@ -89,10 +89,8 @@ def test_the_gate_would_catch_an_unimportable_grader(tmp_path: Path) -> None:
     )
     experiment.write_text(original.replace(CITATION_GRADER, dead_fqn))
 
-    with pytest.raises(SystemExit) as exit_info:
-        _validate_inputs(input_dir)
-
-    assert exit_info.value.code == 1
+    with pytest.raises(InvalidInputsError):
+        validate_inputs(input_dir, console=console)
 
 
 @pytest.mark.parametrize("interview", [False, True])
@@ -102,7 +100,6 @@ def test_the_specification_package_passes_the_engine_input_gate(
     repo_root: Path,
 ) -> None:
     """The web transform's shared Specification produces the complete runnable package."""
-    from metis.engine.cli import _validate_inputs
 
     specification_path = repo_root / "tests/fixtures/wizard/manual_specification.json"
     specification = Specification.model_validate(
@@ -159,7 +156,7 @@ def test_the_specification_package_passes_the_engine_input_gate(
         ],
         "short-recovery": ["metis.library.graders.demo.DemoTraceBudgetGrader"],
     }
-    _validate_inputs(extracted / "outputs")
+    validate_inputs(extracted / "outputs", console=console)
 
 
 @pytest.mark.parametrize("transport", [None, *ConnectionTransport])
@@ -173,7 +170,6 @@ def test_the_engine_builds_the_runner_factory_that_a_download_names(
     The engine copies `outputs/` to the experiment's `inputs/`, so the factory reads the
     binding from there. No request reaches a target: the factory only loads the binding.
     """
-    from metis.engine.cli import _validate_inputs
     from metis.engine.simulation.runner_resolver import resolve_runner_factory
     from metis.engine.simulation.types import Specification as EngineSpecification
 
@@ -199,7 +195,7 @@ def test_the_engine_builds_the_runner_factory_that_a_download_names(
     with zipfile.ZipFile(io.BytesIO(archive.content)) as specification:
         specification.extractall(tmp_path)
     outputs = tmp_path / archive.filename.removesuffix(".zip") / "outputs"
-    _validate_inputs(outputs)
+    validate_inputs(outputs, console=console)
 
     loaded = EngineSpecification.load_file(outputs / "specification.yaml")
     factory_cls = resolve_runner_factory(loaded.runner_factory_ref)

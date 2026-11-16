@@ -885,14 +885,20 @@ The engine performs these checks at experiment load time:
 3. Get `class_name` from the module — raises `ImportError` if the attribute doesn't exist
 4. Verify the class has callable `start`, `create`, and `close` methods — raises `TypeError` if any are missing
 
-At simulation time (`packages/engine/src/metis/engine/cli.py:557-563`):
+At simulation time (`_simulate_in` in `packages/engine/src/metis/engine/run/_simulation.py`):
 
 ```python
-factory_cls = resolve_runner_factory(experiment.runner_factory_ref)
-runner_factory = factory_cls()
+factory_cls = resolve_runner_factory(specification.runner_factory_ref)
+from_specification = getattr(factory_cls, "from_specification", None)
+runner_factory = (
+    from_specification(specification, experiment_dir / execution_layout.INPUTS)
+    if from_specification is not None
+    else factory_cls()
+)
 ```
 
-The engine calls your factory's constructor with no arguments. All configuration (credentials, URLs, feature flags) should come from environment variables read inside `__init__`.
+A factory with a `from_specification` class method is built from the Specification and its
+inputs folder. Any other factory is built with no arguments. All configuration (credentials, URLs, feature flags) should come from environment variables read inside `__init__`.
 
 #### Removing Playwright Dependencies
 

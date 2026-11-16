@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from metis.core.console import console
+from metis.engine.run import InvalidInputsError, validate_inputs
 from metis.engine.simulation.types import Specification
 from metis.wizard.application.compile import (
     CompilationError,
@@ -118,7 +120,6 @@ def test_edited_yaml_description_reaches_the_judge_and_result_record(
     import asyncio
     import json
 
-    from metis.engine.cli import _validate_inputs
     from metis.engine.evaluation import (
         SessionFacts,
         build_grader,
@@ -147,7 +148,7 @@ def test_edited_yaml_description_reaches_the_judge_and_result_record(
             fixture_path = tmp_path / "fixtures" / fixture
             fixture_path.parent.mkdir(parents=True, exist_ok=True)
             fixture_path.touch()
-    _validate_inputs(tmp_path)
+    validate_inputs(tmp_path, console=console)
     loaded = Specification.load_file(path)
     task = loaded.resolved_tasks()[0]
     saved_criterion = loaded.criterion(criterion.id)
@@ -199,7 +200,6 @@ def test_edited_yaml_description_reaches_the_judge_and_result_record(
 def test_engine_preflight_reports_invalid_fallback_configuration(
     tmp_path: Path, capsys, fault, message
 ) -> None:
-    from metis.engine.cli import _validate_inputs
     from metis.wizard.application.matching import CRITERION_JUDGE_FQN
 
     specification = research_assistant()
@@ -219,9 +219,8 @@ def test_engine_preflight_reports_invalid_fallback_configuration(
     if fault == "blank":
         document["features"][0]["behaviours"][0]["criteria"][0]["description"] = " "
     (tmp_path / "specification.yaml").write_text(yaml.safe_dump(document))
-    with pytest.raises(SystemExit) as caught:
-        _validate_inputs(tmp_path)
-    assert caught.value.code == 1
+    with pytest.raises(InvalidInputsError):
+        validate_inputs(tmp_path, console=console)
     output = capsys.readouterr().out
     if fault != "blank":
         assert criterion.id in output

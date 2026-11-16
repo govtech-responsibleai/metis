@@ -16,6 +16,7 @@ from metis.engine import cli
 from metis.engine.cli import app
 from metis.engine.simulation import experiment as experiment_module
 from metis.engine.simulation.binding import TargetBindingError
+from tests.unit.engine.project_folders import existing_folder
 from tests.unit.engine.test_runner_ref import StubRunnerFactory
 
 runner = CliRunner()
@@ -97,7 +98,9 @@ def _simulate_fresh(monkeypatch, tmp_path: Path, factory_ref: str):
     input_dir = tmp_path / "input"
     input_dir.mkdir()
     (input_dir / "specification.yaml").write_text(_with_factory(factory_ref))
-    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "project")
+    monkeypatch.setattr(
+        cli, "find_project_root", lambda: existing_folder(tmp_path / "project")
+    )
     return runner.invoke(app, ["simulate", "--input-dir", str(input_dir), "--no-tui"])
 
 
@@ -283,13 +286,15 @@ def test_resume_passes_append_true_to_setup_engine_logging(
     monkeypatch.setattr(experiment_module, "execute_experiment", lambda *_a, **_k: None)
 
     captured_append: list[object] = []
-    _real_setup = cli.setup_engine_logging
+    from metis.engine.run import _simulation
+
+    _real_setup = _simulation.setup_engine_logging
 
     def _capturing_setup(*args: object, **kwargs: object) -> object:
         captured_append.append(kwargs.get("append"))
         return _real_setup(*args, **kwargs)
 
-    monkeypatch.setattr(cli, "setup_engine_logging", _capturing_setup)
+    monkeypatch.setattr(_simulation, "setup_engine_logging", _capturing_setup)
 
     result = runner.invoke(
         app,
@@ -421,7 +426,7 @@ def test_resume_with_input_dir_lists_outputs_and_chooses_none(
     root = tmp_path / "project"
     older = _write_output(root / "experiments" / "execute" / "test-exp-20260101-010101")
     newer = _write_output(root / "experiments" / "execute" / "test-exp-20260102-020202")
-    monkeypatch.setattr(cli, "find_project_root", lambda: root)
+    monkeypatch.setattr(cli, "find_project_root", lambda: existing_folder(root))
 
     result = runner.invoke(app, ["simulate", "--resume", "--input-dir", str(input_dir)])
 
@@ -474,7 +479,9 @@ def _start_run(
         "_run_evaluation_command",
         lambda *_a, **_k: cli.EvaluationOutcome(1, 1, 0, None),
     )
-    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "cwd-root")
+    monkeypatch.setattr(
+        cli, "find_project_root", lambda: existing_folder(tmp_path / "cwd-root")
+    )
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
@@ -525,7 +532,7 @@ def test_each_new_run_is_listed_in_the_project_folder(
     project = tmp_path / "project"
     project.mkdir()
     monkeypatch.setattr(_TickingClock, "ticks", 0)
-    monkeypatch.setattr(cli, "datetime", _TickingClock)
+    monkeypatch.setattr("metis.engine.run._inputs.datetime", _TickingClock)
     input_dir = _write_source(tmp_path)
     _capture_factory(monkeypatch)
     command = [
@@ -551,7 +558,7 @@ def test_a_second_run_in_the_same_second_stops_and_leaves_the_first(
 ) -> None:
     project = tmp_path / "project"
     project.mkdir()
-    monkeypatch.setattr(cli, "datetime", _FixedClock)
+    monkeypatch.setattr("metis.engine.run._inputs.datetime", _FixedClock)
     input_dir = _write_source(tmp_path)
     _capture_factory(monkeypatch)
     command = [
@@ -723,7 +730,9 @@ def test_simulate_rejects_a_concurrency_below_one(
     """Before this check, 0 raised ZeroDivisionError and -1 raised IndexError in
     ``_distribute_trials`` once the run had at least one trial."""
     input_dir = _write_source(tmp_path)
-    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "project")
+    monkeypatch.setattr(
+        cli, "find_project_root", lambda: existing_folder(tmp_path / "project")
+    )
 
     result = runner.invoke(
         app, ["simulate", "--input-dir", str(input_dir), "--no-tui", "-c", value]
@@ -731,3 +740,39 @@ def test_simulate_rejects_a_concurrency_below_one(
 
     assert result.exit_code == 2
     assert isinstance(result.exception, SystemExit)
+
+
+@pytest.mark.parametrize("flags", [["--no-tui", "-v"], ["--no-tui", "-vv"]])
+def test_after_simulate_the_cli_logs_only_warnings(
+    monkeypatch, tmp_path: Path, flags: list[str]
+) -> None:
+    """The run logs at its own level. What the process logs after the run is only warnings."""
+    import logging
+
+    import structlog
+
+    from metis.core.logging import get_logger
+
+    input_dir = _write_source(tmp_path)
+    monkeypatch.setattr(
+        cli, "find_project_root", lambda: existing_folder(tmp_path / "project")
+    )
+    monkeypatch.setattr(
+        experiment_module,
+        "execute_experiment",
+        lambda *_a, **kwargs: _write_record_marker(kwargs["output_dir"]),
+    )
+    try:
+        result = runner.invoke(app, ["simulate", "--input-dir", str(input_dir), *flags])
+        assert result.exit_code == 0, result.output
+        dropped = False
+        try:
+            structlog.get_config()["processors"][2](None, "info", {"level": "info"})
+        except structlog.DropEvent:
+            dropped = True
+        assert dropped
+        assert logging.getLogger().level == logging.WARNING
+        get_logger("after.simulate")  # a logger made after the run still works
+    finally:
+        structlog.reset_defaults()
+        logging.getLogger().handlers.clear()

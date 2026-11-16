@@ -31,6 +31,7 @@ from metis.engine.simulation.experiment import (
     trial_end_status,
 )
 from metis.engine.simulation.types import Persona, Scenario, UserAgentOutput
+from tests.unit.engine.project_folders import existing_folder
 from tests.unit.engine.test_runner_ref import StubRunnerFactory
 
 if TYPE_CHECKING:
@@ -153,7 +154,9 @@ def _input_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     input_dir = tmp_path / "input"
     input_dir.mkdir()
     (input_dir / "specification.yaml").write_text(SPECIFICATION)
-    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "project")
+    monkeypatch.setattr(
+        cli, "find_project_root", lambda: existing_folder(tmp_path / "project")
+    )
     return input_dir
 
 
@@ -320,7 +323,9 @@ def test_a_failed_phase_gives_its_reason_and_skips_the_later_phase(
     (input_dir / "specification.yaml").write_text(
         SPECIFICATION.replace(FACTORY, f"{__name__}.UnboundRunnerFactory")
     )
-    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "project")
+    monkeypatch.setattr(
+        cli, "find_project_root", lambda: existing_folder(tmp_path / "project")
+    )
 
     events = _run(tmp_path, "--input-dir", str(input_dir), exit_code=1)
 
@@ -339,7 +344,9 @@ def test_a_simulation_with_no_records_fails_and_skips_evaluation(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     input_dir = _input_dir(monkeypatch, tmp_path)
-    monkeypatch.setattr(cli, "_trial_record_files", lambda _root: [])
+    monkeypatch.setattr(
+        "metis.engine.run._simulation.trial_record_files", lambda _root: []
+    )
 
     events = _run(tmp_path, "--input-dir", str(input_dir), exit_code=1)
 
