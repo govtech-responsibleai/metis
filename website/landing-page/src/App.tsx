@@ -10,7 +10,6 @@ const TraceNodes = () => <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx=
 const Verdict = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12l2 2 4-4" /><circle cx="12" cy="12" r="10" /></svg>;
 const Xmark = () => <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>;
 const Mail = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7" /><rect x="2" y="4" width="20" height="16" rx="2" /></svg>;
-const Spinner = () => <svg className="wt-spin" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 1 10 10" /></svg>;
 
 const GITHUB_URL = 'https://github.com/govtech-responsibleai/metis';
 const DOCS_URL = 'https://govtech-responsibleai.github.io/metis/docs/';
@@ -31,10 +30,10 @@ const RestartIcon = () => (
 
 /* ── Data ── */
 const steps = [
-  { number: '01', label: 'DEFINE', product: 'Wizard', title: 'Start with what good looks like.', text: 'The Wizard interviews your team and turns a description of your agent into a Specification of features, behaviours, and measurable criteria.' },
-  { number: '02', label: 'DESIGN', product: 'Wizard · Library', title: 'Turn expected behaviours into realistic tests.', text: 'Generate personas, everyday and edge-case scenarios, and repeated trials. Each criterion is matched to the grader that measures it.' },
-  { number: '03', label: 'EXECUTE', product: 'Engine', title: 'Test the full trajectory.', text: 'The Engine runs adaptive, multi-turn conversations through your API or a real browser, scoring every step, tool call, and recovery.' },
-  { number: '04', label: 'IMPROVE', product: 'Insights', title: 'Know exactly what to fix.', text: 'Insights rolls scores up through your specification, so you see how behaviours perform across personas, scenarios, and trials.' },
+  { number: '01', label: 'DEFINE', product: 'Wizard', title: 'Specify features and criteria.', text: 'Describe your agent. The Wizard turns it into a structured specification of features, behaviours, and measurable criteria.', anchor: 'stage-wizard' },
+  { number: '02', label: 'DESIGN', product: 'Wizard · Library', title: 'Generate realistic test cases.', text: 'Create personas, scenarios, and trials. Each criterion is matched to the grader that measures it.', anchor: 'stage-engine' },
+  { number: '03', label: 'EXECUTE', product: 'Engine', title: 'Run multi-turn conversations.', text: 'The Engine simulates adaptive conversations through your API, capturing every decision and tool call.', anchor: 'stage-evaluate' },
+  { number: '04', label: 'IMPROVE', product: 'Insights', title: 'See exactly what to fix.', text: 'Scores roll up through your specification so you see how each behaviour performs.', anchor: 'stage-insights' },
 ];
 
 type WizMsg = { role: 'wizard' | 'user'; text: string; files?: string[]; specLines?: number };
@@ -42,11 +41,7 @@ const wizMsgs: WizMsg[] = [
   { role: 'wizard', text: "Tell me about your target: what it does and who it's for." },
   { role: 'user', text: "We've built an AI agent for staff. It searches knowledge bases, drafts replies, and manages documents.", files: ['PRD.pdf', 'User Research.docx', 'Policies.pdf'], specLines: 2 },
   { role: 'wizard', text: "I've read your documents. The assistant handles enterprise search, email drafting, and document management. What should happen when a user asks for information from a restricted source?", specLines: 6 },
-  { role: 'user', text: "It should only search authorised sources and tell the user if it can't access something." },
-  { role: 'wizard', text: "I'll set that as acceptance criteria: Factual Accuracy, Evidence Source Suitability, and Claim Support by Evidence.", specLines: 11 },
-  { role: 'user', text: "What about the drafting side — how do we know the replies are correct?" },
-  { role: 'wizard', text: "I'll add a second behaviour for drafting with Output Correctness, Input Interpretation Accuracy, and Capability Limits Handling. Now let me generate test cases.", specLines: 16 },
-  { role: 'wizard', text: "I've created three personas and two scenarios. Each test case pairs a persona with a scenario and runs multiple trials.", specLines: 24 },
+  { role: 'user', text: "It should only search authorised sources and tell the user if it can't access something.", specLines: 11 },
 ];
 
 const specLines = [
@@ -56,13 +51,6 @@ const specLines = [
   '      - name: Find and use enterprise information',
   '        criteria:', '          - Factual Accuracy', '          - Evidence Source Suitability',
   '          - Claim Support by Evidence',
-  '      - name: Draft and verify responses',
-  '        criteria:', '          - Output Correctness', '          - Input Interpretation Accuracy',
-  '          - Capability Limits Handling', '',
-  'personas:', '  - collaborative knowledge worker',
-  '  - focused questioner', '  - policy seeker',
-  'scenarios:', '  - Draft a reply using a past event record',
-  '  - Retrieve policy details across sources',
 ];
 
 const engMsgs = [
@@ -70,8 +58,6 @@ const engMsgs = [
   { role: 'assistant' as const, text: "Last year's offsite deck shows the team chose Sentosa with 40 attendees and an $18,000 budget. The venue was booked 10 weeks in advance." },
   { role: 'user' as const, text: "Great, draft a reply suggesting we start booking earlier this time." },
   { role: 'assistant' as const, text: "Hi Priya, thanks for kicking this off. Last year we booked Sentosa 10 weeks ahead and the best rooms were already gone. Could we aim for 14 weeks this time?" },
-  { role: 'user' as const, text: "Make it shorter." },
-  { role: 'assistant' as const, text: "Hi Priya, last year we booked 10 weeks out and lost the best rooms. Can we try 14 weeks this time?" },
 ];
 
 const traceSpans = [
@@ -90,7 +76,6 @@ const engStepMap = [
   { chat: [0], trace: [0, 1] }, { chat: [], trace: [2] },
   { chat: [1], trace: [3] }, { chat: [2], trace: [4] },
   { chat: [], trace: [5] }, { chat: [3], trace: [6] },
-  { chat: [4], trace: [7] }, { chat: [5], trace: [8] },
 ];
 
 /* Evaluation pipeline — grader names from taxonomy_v8.csv measure dimension */
@@ -109,9 +94,7 @@ const LUCIDE: Record<string, React.ReactNode> = {
   database: <><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5V19A9 3 0 0 0 21 19V5" /><path d="M3 12A9 3 0 0 0 21 12" /></>,
   file: <><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /><path d="M14 2v4a2 2 0 0 0 2 2h4" /><path d="M10 9H8M16 13H8M16 17H8" /></>,
   pen: <><path d="M12 20h9" /><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z" /></>,
-  merge: <><circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><path d="M6 21V9a9 9 0 0 0 9 9" /></>,
   mail: <><path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7" /><rect x="2" y="4" width="20" height="16" rx="2" /></>,
-  shield: <><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /><path d="m9 12 2 2 4-4" /></>,
   send: <><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z" /><path d="m21.854 2.147-10.94 10.939" /></>,
 };
 const G_W = 1120, G_H = 26;
@@ -124,9 +107,7 @@ const graphNodes: GraphNode[] = [
   { id: 'kb', label: 'search_knowledge_base', kind: 'tool', icon: 'database', col: 3, y: 40 },
   { id: 'doc', label: 'read_document', kind: 'tool', icon: 'file', col: 3, y: 72 },
   { id: 'email', label: 'compose_email', kind: 'tool', icon: 'mail', col: 3, y: 104 },
-  { id: 'sum', label: 'synthesis_agent', kind: 'agent', icon: 'merge', col: 4, y: 56 },
-  { id: 'policy', label: 'check_policy', kind: 'tool', icon: 'shield', col: 4, y: 104 },
-  { id: 'reply', label: 'Reply', kind: 'output', icon: 'send', col: 5, y: 80 },
+  { id: 'reply', label: 'Reply', kind: 'output', icon: 'send', col: 4, y: 72 },
 ];
 /* Pill width from the label length: 12px Inter for plain words, 12px mono for code names. */
 const gSans = (nd: GraphNode) => nd.kind === 'persona' || nd.kind === 'output';
@@ -142,25 +123,11 @@ const gEdge = (from: string, to: string) => {
   const x1 = gx(a) + gw(a), x2 = gx(b) - 3, mx = (x1 + x2) / 2;
   return a.y === b.y ? `M${x1},${a.y} L${x2},${b.y}` : `M${x1},${a.y} C${mx},${a.y} ${mx},${b.y} ${x2},${b.y}`;
 };
-const gMid = (id: string) => gx(gNode(id)) + gw(gNode(id)) / 2;
-type GraphEdge = { d: string; loop?: boolean };
-/* A loop arcs from one node back to an earlier one, above or below the row. */
-const gLoop = (from: string, to: string, side: 1 | -1): GraphEdge => {
-  const x1 = gMid(from), x2 = gMid(to), y = gNode(from).y + side * G_H / 2, peak = y + side * 20;
-  return { d: `M${x1},${y} C${x1},${peak} ${x2},${peak} ${x2},${y + side * 3}`, loop: true };
-};
+type GraphEdge = { d: string };
 const graphEdges: GraphEdge[] = [
   ...[['user', 'orch'], ['orch', 'search'], ['orch', 'draft'], ['search', 'kb'], ['search', 'doc'], ['draft', 'email'],
-    ['kb', 'sum'], ['doc', 'sum'], ['email', 'policy'], ['sum', 'reply'], ['policy', 'reply']].map(([from, to]) => ({ d: gEdge(from, to) })),
-  /* The search subagent reads the results and searches again. */
-  gLoop('kb', 'search', -1),
-  /* A failed policy check sends the draft back to compose_email. */
-  gLoop('policy', 'email', 1),
+    ['kb', 'reply'], ['doc', 'reply'], ['email', 'reply']].map(([from, to]) => ({ d: gEdge(from, to) })),
 ];
-/* The trace nodes each criterion's grader read its evidence from, by pipelineCriteria index. */
-const graphEvidence = [['kb', 'sum', 'reply'], ['search', 'kb', 'doc'], ['draft', 'email', 'policy']];
-/* usePipeline finishes the graders in this order. */
-const GRADE_ORDER = [2, 1, 0];
 
 const insightTree = [
   { depth: 0, label: 'Target AI Agent', value: 80, pass: true },
@@ -200,19 +167,6 @@ function useSequence(total: number, active: boolean, ms: number) {
   return { n, done: n >= total, replay };
 }
 
-function useTimer(active: boolean, max = 72) {
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    if (noMotion()) { setTick(max); return; }
-    if (!active || tick >= max) return;
-    const t = setInterval(() => setTick((v) => v >= max ? (clearInterval(t), v) : v + 1), 500);
-    return () => clearInterval(t);
-  }, [active, tick, max]);
-  const replay = useCallback(() => setTick(0), []);
-  const simSec = tick * 5;
-  return { tick, simSec, mm: pad2(Math.floor(simSec / 60)), ss: pad2(simSec % 60), replay };
-}
-const pad2 = (n: number) => String(n).padStart(2, '0');
 
 /* Keep the newest shown message in view inside a height-capped chat. Scrolls only the chat,
    never the page. `key` changes whenever another message appears. */
@@ -289,18 +243,20 @@ const STACK_DEPTH = 3;
 
 function HeroStack() {
   const [front, setFront] = useState(0);
-  const [paused, setPaused] = useState(false);
   const n = productShots.length;
+  const touchX = useRef<number | null>(null);
 
-  useEffect(() => {
-    if (paused || noMotion()) return;
-    const t = setInterval(() => setFront((i) => (i + 1) % n), 4000);
-    return () => clearInterval(t);
-  }, [paused, n]);
+  const goTo = useCallback((i: number) => setFront(((i % n) + n) % n), [n]);
 
   return (
-    <div className="hero-stack" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
-      onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
+    <div className="hero-stack"
+      onTouchStart={(e) => { touchX.current = e.touches[0].clientX; }}
+      onTouchEnd={(e) => {
+        if (touchX.current === null) return;
+        const dx = e.changedTouches[0].clientX - touchX.current;
+        touchX.current = null;
+        if (Math.abs(dx) > 50) goTo(front + (dx < 0 ? 1 : -1));
+      }}>
       <div className="stack-cards">
         {productShots.map((shot, i) => {
           const depth = (i - front + n) % n;
@@ -370,7 +326,7 @@ export default function App() {
   const refs = useRef<(HTMLDivElement | null)[]>([null, null, null, null]);
 
   // Wizard
-  const [wizPhase, setWizPhase] = useState<'idle' | 'prompt' | 'files' | 'thinking' | 'chat' | 'done'>(() => noMotion() ? 'done' : 'idle');
+  const [wizPhase, setWizPhase] = useState<'idle' | 'prompt' | 'files' | 'chat' | 'done'>(() => noMotion() ? 'done' : 'idle');
   const wizStarted = useRef(false);
   const wizTimers = useRef<number[]>([]);
   const wizChat = useSequence(wizMsgs.length - 2, wizPhase === 'chat' || wizPhase === 'done', 1500);
@@ -379,21 +335,13 @@ export default function App() {
 
   // Engine
   const engStep = useSequence(engStepMap.length, vis.has(1), 1200);
-  const engTimer = useTimer(vis.has(1));
 
-  // Pipeline (new Stage 3)
+  // Pipeline (Stage 3)
   const pipeline = usePipeline(vis.has(2));
-  // While grading, the graph highlights the evidence of the grader that finished last.
-  // After that, hovering a grader card highlights its evidence.
-  const [graphHover, setGraphHover] = useState<number | null>(null);
-  const lastGraded = pipeline.phase === 3 ? GRADE_ORDER.filter((i) => pipeline.gradersDone.has(i)).at(-1) ?? null : null;
-  const graphActive = graphHover ?? lastGraded;
-  const graphActivePass = graphActive !== null && pipelineCriteria[graphActive].score >= pipelineCriteria[graphActive].threshold;
 
   // Insights
   const insVisible = vis.has(3);
   const [insPhase, setInsPhase] = useState(() => noMotion() ? 3 : 0);
-  const [jiggled, setJiggled] = useState<Set<number>>(() => new Set());
   const [insRun, setInsRun] = useState(0);
 
   useEffect(() => {
@@ -435,8 +383,7 @@ export default function App() {
     setWizPhase('prompt');
     wizTimers.current.push(
       window.setTimeout(() => setWizPhase('files'), 1500),
-      window.setTimeout(() => setWizPhase('thinking'), 2200),
-      window.setTimeout(() => setWizPhase('chat'), 4000),
+      window.setTimeout(() => setWizPhase('chat'), 3000),
     );
   }, []);
 
@@ -459,19 +406,11 @@ export default function App() {
     return () => ts.forEach(clearTimeout);
   }, [insVisible, insRun]);
 
-  const barsShown = insPhase >= 2;
-  useEffect(() => {
-    if (!barsShown) return;
-    const ts = insightBars.flatMap((b, i) =>
-      b.pct >= b.threshold ? [setTimeout(() => setJiggled((s) => new Set(s).add(i)), 1400 + i * 200)] : [],
-    );
-    return () => ts.forEach(clearTimeout);
-  }, [barsShown]);
 
   // Compute visible spec lines
   const visibleSpecLines = (() => {
     const p = wizPhase as string;
-    const totalRevealed = p === 'done' ? wizMsgs.length : p === 'chat' ? 2 + wizChat.n : p === 'thinking' || p === 'files' ? 2 : p === 'prompt' ? 1 : 0;
+    const totalRevealed = p === 'done' ? wizMsgs.length : p === 'chat' ? 2 + wizChat.n : p === 'files' ? 2 : p === 'prompt' ? 1 : 0;
     let lines = 0;
     for (let i = 0; i < totalRevealed; i++) { if (wizMsgs[i]?.specLines) lines = wizMsgs[i].specLines!; }
     return lines;
@@ -489,11 +428,9 @@ export default function App() {
     const p = wizPhase as string;
     if (p === 'done') return true;
     if (i === 0) return p !== 'idle';
-    if (i === 1) return p === 'files' || p === 'thinking' || p === 'chat';
-    if (i === 2) return p === 'thinking' || p === 'chat';
+    if (i === 1) return p === 'files' || p === 'chat';
     return p === 'chat' && wizChat.n >= i - 1;
   };
-  const wizMsgIsThinking = (i: number) => wizPhase === 'thinking' && i === 2;
   const wizShown = wizMsgs.filter((_, i) => wizMsgVisible(i)).length;
   useFollowLatest(wizChatRef, `${wizShown}-${wizPhase}`);
   useFollowLatest(engChatRef, engVisChat.size);
@@ -505,7 +442,7 @@ export default function App() {
           <a className="header-brand" href="#top" aria-label="METIS home">
             <img src={asset('metis-logo.png')} alt="" />
             <strong>METIS</strong>
-            <span>{FULL_NAME}</span>
+            <span>Evaluation framework for AI agents</span>
           </a>
           <a className="button secondary header-github" href={GITHUB_URL}><Github /> GitHub</a>
         </div>
@@ -515,13 +452,14 @@ export default function App() {
         <section className="hero container">
           <HeroArt />
           <div className="hero-copy">
+            <div className="hero-kicker">Open-source evaluation framework for AI agents</div>
             <h1>Test your AI agents against <em>what they should actually do.</em></h1>
-            <p className="hero-lede">Most evaluation tools score an agent's final answer. METIS evaluates the full trajectory against structured specifications: every decision, every tool call, every recovery.</p>
+            <p className="hero-lede">Define what your agent should do, simulate real conversations, and get scored results — from the first tool call to the final answer.</p>
             <div className="hero-actions">
               <a className="button primary" href={GITHUB_URL}><Github /> View on GitHub</a>
               <a className="button secondary" href={DOCS_URL}>Read the docs <Arrow /></a>
             </div>
-            <p className="hero-credit">Built by AI Practice, GovTech Singapore · Open source (MIT)</p>
+            <p className="hero-credit">Built by AI Practice, GovTech Singapore</p>
           </div>
           <HeroStack />
         </section>
@@ -529,10 +467,10 @@ export default function App() {
         <section className="methodology" id="methodology"><div className="container">
           <div className="section-heading"><div><div className="section-kicker">The evaluation loop</div><h2>Evaluate your agent against requirements you define.</h2></div><p>Each step ties back to the expectations you set, from how tests are designed to what the results tell you. Read our <a href="https://playbooks.aip.gov.sg/evaluation-playbook/" className="inline-link">Evaluation Playbook</a>.</p></div>
           <div className="steps">{steps.map((s) => (
-            <article key={s.number} className="step">
+            <a key={s.number} className="step" href={`#${s.anchor}`}>
               <div className="step-top"><span>{s.number} · {s.label}</span><b>{s.product}</b></div>
               <h3>{s.title}</h3><p>{s.text}</p>
-            </article>
+            </a>
           ))}</div>
         </div></section>
 
@@ -542,7 +480,7 @@ export default function App() {
           <div className="wt-stages">
 
             {/* ─ Stage 1: Wizard ─ */}
-            <div className={`wt-stage ${seen.has(0) ? 'vis' : ''}`} ref={(el) => { refs.current[0] = el; }}>
+            <div id="stage-wizard" className={`wt-stage ${seen.has(0) ? 'vis' : ''}`} ref={(el) => { refs.current[0] = el; }}>
               <div className="wt-head"><span className="wt-num wizard">01</span><div><h3>Wizard</h3><small>CREATE A SPECIFICATION</small></div>
                 <button className="wt-replay" aria-label="Replay" onClick={() => { wizStarted.current = true; wizChat.replay(); startWizard(); }}><RestartIcon /></button>
               </div>
@@ -555,8 +493,8 @@ export default function App() {
                           <img src={m.role === 'wizard' ? IC_WIZARD : IC_USER} alt="" className="wt-msg-icon" />
                           <span className="wt-msg-role">{m.role === 'wizard' ? 'Wizard' : 'You'}</span>
                         </div>
-                        <div className={`wt-msg-bubble ${wizMsgIsThinking(i) ? 'wt-typing-bubble' : ''}`}>
-                          {wizMsgIsThinking(i) ? <><i /><i /><i /></> : m.text}
+                        <div className="wt-msg-bubble">
+                          {m.text}
                           {m.files && <div className="wt-msg-files">{m.files.map((f) => <span key={f} className="wt-file-chip"><FileDoc />{f}</span>)}</div>}
                         </div>
                       </div>
@@ -577,29 +515,19 @@ export default function App() {
             <div className={`wt-connector ${vis.has(0) ? 'vis' : ''}`}><div className="wt-conn-track" /><div className="wt-conn-runner"><FileDoc /></div><span className="wt-conn-label">specification.yaml</span></div>
 
             {/* ─ Stage 2: Engine ─ */}
-            <div className={`wt-stage ${seen.has(1) ? 'vis' : ''}`} ref={(el) => { refs.current[1] = el; }}>
+            <div id="stage-engine" className={`wt-stage ${seen.has(1) ? 'vis' : ''}`} ref={(el) => { refs.current[1] = el; }}>
               <div className="wt-head"><span className="wt-num engine">02</span><div><h3>Engine</h3><small>SIMULATE & CAPTURE TRACES</small></div>
-                <button className="wt-replay" aria-label="Replay" onClick={() => { engStep.replay(); engTimer.replay(); }}><RestartIcon /></button>
+                <button className="wt-replay" aria-label="Replay" onClick={() => { engStep.replay(); }}><RestartIcon /></button>
               </div>
+              <div className="wt-scenario-banner"><span className="wt-banner-tag">SCENARIO</span><strong>Draft a reply using a past event record</strong><span className="wt-banner-meta">persona: collaborative knowledge worker</span></div>
               <div className="wt-engine-panels">
-                <div className="wt-tui">
-                  <div className="wt-tui-head">METIS Engine Simulate — target-ai-agent</div>
-                  <div className="wt-tui-body">
-                    <div className="wt-tui-row"><span>Elapsed</span><b className="wt-timer">00:{engTimer.mm}:{engTimer.ss}</b></div>
-                    <div className="wt-tui-row"><span>Scenarios</span><div className="wt-tui-bar"><div style={{ width: '33.3%' }} /></div><b>1/3</b></div>
-                    <div className="wt-tui-row"><span>Trials</span><div className="wt-tui-bar"><div style={{ width: '44.4%' }} /></div><b>4/9</b></div>
-                    <div className="wt-tui-workers">
-                      {[{ id: 'TC-001', w: 'w0', name: 'knowledge-worker', start: 5 }, { id: 'TC-002', w: 'w1', name: 'focused-questioner', start: 120 }, { id: 'TC-003', w: 'w2', name: 'policy-seeker', start: 240 }].map((tc) => (
-                        <div key={tc.id}>{tc.id} · <b>[{tc.w}]</b> {tc.name} {engTimer.simSec > tc.start ? <><Spinner /><span className="wt-sim">simulating</span></> : <span className="wt-wait">waiting</span>}</div>
-                      ))}
+                <div className="wt-chat compact capped" ref={engChatRef}>
+                  {engMsgs.map((m, i) => (
+                    <div className={`wt-msg ${m.role} ${engVisChat.has(i) ? 'show' : ''}`} key={i}>
+                      <div className="wt-msg-head"><img src={m.role === 'user' ? IC_BOT_ROSE : IC_BOT_BLUE} alt="" className="wt-msg-icon" /><span className="wt-msg-role">{m.role === 'user' ? 'Simulated user' : 'Target AI Agent'}</span></div>
+                      <div className="wt-msg-bubble">{m.text}</div>
                     </div>
-                    {engTimer.simSec > 10 && <div className="wt-tui-log">
-                      <div>[experiment] RUN: knowledge-worker × S-1</div>
-                      {engTimer.simSec > 30 && <div>[sim] START: knowledge-worker × S-1 (max_turns=10)</div>}
-                      {engTimer.simSec > 120 && <div>[sim] COMPLETE: TC-001 trial 1/3 — 3 turns, 35s</div>}
-                      {engTimer.simSec > 180 && <div>[experiment] RUN: focused-questioner × S-2</div>}
-                    </div>}
-                  </div>
+                  ))}
                 </div>
                 <div className="wt-trace">
                   <div className="wt-trace-head">EXECUTION TRACE</div>
@@ -615,21 +543,12 @@ export default function App() {
                   </div>
                 </div>
               </div>
-              <div className="wt-scenario-banner"><span className="wt-banner-tag">SCENARIO</span><strong>Draft a reply using a past event record</strong><span className="wt-banner-meta">persona: collaborative knowledge worker</span></div>
-              <div className="wt-chat compact capped" ref={engChatRef}>
-                {engMsgs.map((m, i) => (
-                  <div className={`wt-msg ${m.role} ${engVisChat.has(i) ? 'show' : ''}`} key={i}>
-                    <div className="wt-msg-head"><img src={m.role === 'user' ? IC_BOT_ROSE : IC_BOT_BLUE} alt="" className="wt-msg-icon" /><span className="wt-msg-role">{m.role === 'user' ? 'Simulated user' : 'Target AI Agent'}</span></div>
-                    <div className="wt-msg-bubble">{m.text}</div>
-                  </div>
-                ))}
-              </div>
             </div>
 
             <div className={`wt-connector ${vis.has(1) ? 'vis' : ''}`}><div className="wt-conn-track" /><div className="wt-conn-runner"><TraceNodes /></div><span className="wt-conn-label">execution trace</span></div>
 
             {/* ─ Stage 3: Evaluation Pipeline ─ */}
-            <div className={`wt-stage ${seen.has(2) ? 'vis' : ''}`} ref={(el) => { refs.current[2] = el; }}>
+            <div id="stage-evaluate" className={`wt-stage ${seen.has(2) ? 'vis' : ''}`} ref={(el) => { refs.current[2] = el; }}>
               <div className="wt-head"><span className="wt-num graders">03</span><div><h3>Evaluate</h3><small>GRADE AGAINST CRITERIA</small></div>
                 <button className="wt-replay" aria-label="Replay" onClick={pipeline.replay}><RestartIcon /></button>
               </div>
@@ -640,24 +559,21 @@ export default function App() {
                   <div className="wt-pipe-trace-label">CAPTURED TRACE</div>
                   <div className="wt-graph-scroll">
                     <svg className="wt-graph" viewBox={`-2 0 ${G_W + 4} 140`} role="img"
-                      aria-label="Trace graph. The simulated user talks to the orchestrator agent. The orchestrator calls two subagents. search_agent calls search_knowledge_base and read_document, searches again after it reads the results, and synthesis_agent combines them. drafting_agent calls compose_email, and check_policy sends the draft back for revision once. Both branches join in the reply.">
+                      aria-label="Trace graph. The simulated user talks to the orchestrator agent. The orchestrator calls search_agent and drafting_agent. search_agent calls search_knowledge_base and read_document. drafting_agent calls compose_email. All branches join in the reply.">
                       <defs>
-                        {['step', 'loop'].map((k) => (
-                          <marker key={k} id={`wt-arrow-${k}`} className={k} viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
-                            <path d="M0,0 L8,4 L0,8 Z" />
-                          </marker>
-                        ))}
+                        <marker id="wt-arrow-step" className="step" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+                          <path d="M0,0 L8,4 L0,8 Z" />
+                        </marker>
                       </defs>
                       {graphEdges.map((e, i) => (
-                        <g key={i} className={`wt-graph-edge ${e.loop ? 'loop' : ''}`} style={{ transitionDelay: `${400 + i * 110}ms` }}>
-                          <path d={e.d} pathLength={1} markerEnd={`url(#wt-arrow-${e.loop ? 'loop' : 'step'})`} />
+                        <g key={i} className="wt-graph-edge" style={{ transitionDelay: `${400 + i * 110}ms` }}>
+                          <path d={e.d} pathLength={1} markerEnd="url(#wt-arrow-step)" />
                         </g>
                       ))}
                       {graphNodes.map((nd, i) => {
-                        const hit = graphActive !== null && graphEvidence[graphActive].includes(nd.id);
                         const x = gx(nd), y = nd.y;
                         return (
-                          <g key={nd.id} className={`wt-graph-node ${nd.kind} ${hit ? (graphActivePass ? 'pass' : 'fail') : ''}`} style={{ transitionDelay: `${i * 70}ms` }}>
+                          <g key={nd.id} className={`wt-graph-node ${nd.kind}`} style={{ transitionDelay: `${i * 70}ms` }}>
                             <title>{nd.kind}</title>
                             <rect x={x} y={y - G_H / 2} width={gw(nd)} height={G_H} rx={6} />
                             <svg className="icon" x={x + 9} y={y - 6.5} width={13} height={13} viewBox="0 0 24 24">{LUCIDE[nd.icon]}</svg>
@@ -669,22 +585,15 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Fan-out indicator */}
-                <div className={`wt-pipe-fanout ${pipeline.phase >= 3 ? 'vis' : ''}`}>
-                  <div className="wt-fanout-line" /><span>Same trace sent to each criterion</span><div className="wt-fanout-line" />
-                </div>
-
                 {/* Parallel graders */}
                 <div className={`wt-pipe-graders ${pipeline.phase >= 3 ? 'vis' : ''}`}>
                   {pipelineCriteria.map((c, i) => {
                     const done = pipeline.gradersDone.has(i);
                     const pass = c.score >= c.threshold;
                     return (
-                      <div className={`wt-pipe-grader ${done ? (pass ? 'pass' : 'fail') : 'running'} ${graphActive === i ? 'active' : ''}`} key={c.id}
-                        onMouseEnter={() => done && setGraphHover(i)} onMouseLeave={() => setGraphHover(null)}>
+                      <div className={`wt-pipe-grader ${done ? (pass ? 'pass' : 'fail') : 'running'}`} key={c.id}>
                         <div className="wt-pipe-grader-head">
                           <span className="wt-pipe-grader-type">{c.grader}</span>
-                          {!done && <Spinner />}
                         </div>
                         <strong>{c.id}</strong>
                         {done ? (
@@ -694,38 +603,23 @@ export default function App() {
                             <p className="wt-pipe-reason">{c.reason}</p>
                           </>
                         ) : (
-                          <p className="wt-pipe-evaluating">Evaluating trace evidence…</p>
+                          <p className="wt-pipe-evaluating">Evaluating…</p>
                         )}
                       </div>
                     );
                   })}
                 </div>
 
-                {/* Converge indicator */}
-                <div className={`wt-pipe-fanout ${pipeline.phase >= 4 ? 'vis' : ''}`}>
-                  <div className="wt-fanout-line" /><span>Orchestrator applies thresholds</span><div className="wt-fanout-line" />
-                </div>
-
-                {/* Aggregated result */}
-                <div className={`wt-pipe-result ${pipeline.phase >= 4 ? 'vis' : ''}`}>
-                  <div className="wt-pipe-result-head">EVALUATION RESULT</div>
-                  <div className="wt-pipe-result-body">
-                    {pipelineCriteria.map((c) => {
-                      const pass = c.score >= c.threshold;
-                      return <div key={c.id} className={`wt-pipe-result-row ${pass ? 'pass' : 'fail'}`}><span>{c.id}</span><b>{c.score.toFixed(2)}</b><span className={`wt-badge ${pass ? 'pass' : 'fail'}`}>{pass ? 'Passed' : 'Failed'}</span></div>;
-                    })}
-                  </div>
-                  <div className="wt-pipe-result-summary"><strong>1 of 3</strong> criteria passed this trial. Graders scored independently; the orchestrator applied each criterion's threshold.</div>
-                </div>
+                <div className={`wt-pipe-result-summary ${pipeline.phase >= 4 ? 'vis' : ''}`}><strong>1 of 3</strong> criteria passed this trial.</div>
               </div>
             </div>
 
             <div className={`wt-connector ${vis.has(2) ? 'vis' : ''}`}><div className="wt-conn-track" /><div className="wt-conn-runner"><Verdict /></div><span className="wt-conn-label">graded results</span></div>
 
             {/* ─ Stage 4: Insights ─ */}
-            <div className={`wt-stage ${seen.has(3) ? 'vis' : ''}`} ref={(el) => { refs.current[3] = el; }}>
+            <div id="stage-insights" className={`wt-stage ${seen.has(3) ? 'vis' : ''}`} ref={(el) => { refs.current[3] = el; }}>
               <div className="wt-head"><span className="wt-num insights">04</span><div><h3>Insights</h3><small>PRESENT RESULTS</small></div>
-                <button className="wt-replay" aria-label="Replay" onClick={() => { setInsPhase(0); setJiggled(new Set()); setInsRun((r) => r + 1); }}><RestartIcon /></button>
+                <button className="wt-replay" aria-label="Replay" onClick={() => { setInsPhase(0); setInsRun((r) => r + 1); }}><RestartIcon /></button>
               </div>
               <div className="wt-insights">
                 <div className={`wt-ins-panel ${insPhase >= 1 ? 'vis' : ''}`}>
@@ -744,7 +638,7 @@ export default function App() {
                   <div className="wt-bars">{insightBars.map((b, i) => {
                     const passes = b.pct >= b.threshold;
                     return (
-                      <div className={`wt-bar-row ${jiggled.has(i) && passes ? 'jiggle' : ''}`} key={i}>
+                      <div className="wt-bar-row" key={i}>
                         <span className="wt-bar-label">{b.label}</span>
                         <div className="wt-bar-track"><div className="wt-bar-threshold" style={{ left: `${b.threshold}%` }} /><div className={`wt-bar-fill ${passes ? 'pass' : 'fail'}`} style={{ '--pct': `${b.pct}%` } as React.CSSProperties} /></div>
                         <span className={`wt-bar-val ${passes ? 'pass' : 'fail'}`}>{b.pct}%</span>
@@ -754,17 +648,6 @@ export default function App() {
                   })}</div>
                 </div>
 
-                <div className={`wt-ins-panel ${insPhase >= 3 ? 'vis' : ''}`}>
-                  <div className="wt-ins-title">TRIAL TRANSCRIPT & VERDICTS</div>
-                  <div className="wt-mini-chat">
-                    <div className="wt-mini-msg user">Reply about the offsite. What did we decide?</div>
-                    <div className="wt-mini-msg asst">Sentosa, 40 attendees, booked 10 weeks ahead.</div>
-                  </div>
-                  <div className="wt-verdicts">
-                    <div className="wt-verdict fail"><Xmark /><div><strong>Answer correctness</strong><span>Agent response says 40; deck says 42.</span></div></div>
-                    <div className="wt-verdict pass"><Check /><div><strong>Source traceability</strong><span>References deck and thread.</span></div></div>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -775,7 +658,7 @@ export default function App() {
           <div className="cta-panel">
             <div className="cta-copy">
               <h2>Start evaluating with confidence.</h2>
-              <p>Define what your agent should do, test the full trajectory, and know exactly what to fix before you ship.</p>
+              <p>Define what your agent should do, test the full trajectory, and know exactly what to fix before you ship. Used by government teams to evaluate production AI agents.</p>
               <div className="cta-actions">
                 <a className="button primary" href={GITHUB_URL}><Github /> View on GitHub</a>
                 <a className="button secondary" href={DOCS_URL}>Read the docs <Arrow /></a>
