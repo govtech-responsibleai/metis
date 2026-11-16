@@ -411,7 +411,7 @@
 }
 
 .under-box-stack > section:first-of-type > .under-box-close {
-  top: calc(0.625rem + var(--under-box-overlap));
+  top: calc(0.375rem + var(--under-box-overlap));
 }
 
 @media (max-width: 39.999rem) {
@@ -420,7 +420,7 @@
   }
 
   .under-box-stack > section.under-box-sheet > .under-box-close {
-    top: 0.625rem;
+    top: 0.375rem;
   }
 }
 
