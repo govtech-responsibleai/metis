@@ -324,6 +324,24 @@ test("reportPage gives report.html with the name from the header", async () => {
   assert.equal(await page.blob.text(), "<html></html>");
 });
 
+test("the engine reads go to the routes of the experiment", async () => {
+  const paths: string[] = [];
+  globalThis.fetch = async (input) => {
+    paths.push(String(input));
+    return new Response("[]");
+  };
+
+  await store.experiments("t/1");
+  await api.engineStatus("e 1");
+  await api.engineEvents("e 1");
+
+  assert.deepEqual(paths, [
+    "/api/v1/targets/t%2F1/experiments",
+    "/api/v1/engine/e%201",
+    "/api/v1/engine/e%201/events",
+  ]);
+});
+
 test("the exact file name comes before the ASCII fallback", () => {
   assert.equal(dispositionFilename(REPORT_NAME), "run 1-report.html");
   assert.equal(

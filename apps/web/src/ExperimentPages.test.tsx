@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CaseDrawerView, DRAWER_START, type DrawerState } from "./CaseDrawer";
-import { ExperimentView } from "./ExperimentPages";
+import { AllExperimentsView, ExperimentView } from "./ExperimentPages";
 import { at, control, tab, text } from "./markup.test-helper";
 import { experimentScreen, type ReportLoad, type ReportPage } from "./report";
 import { ReportSections, SPEC_START, type SpecState } from "./ReportTab";
@@ -647,4 +647,36 @@ test("a failed report shows the message and a way to try again", () => {
   assert.match(control(failed(true), "Try again"), /^<button/);
   assert.match(tab(failed(true), "Report"), /^<a[^>]*aria-selected="true"/);
   assert.doesNotMatch(failed(false), /Try again/);
+});
+
+test("all experiments shows the Target of each row", () => {
+  const markup = at(
+    paths.experiments(),
+    <AllExperimentsView
+      load={{
+        status: "ready",
+        rows: [
+          {
+            record: {
+              experiment_id: "e2",
+              target_id: "b",
+              started_at: new Date().toISOString(),
+              step: "simulate",
+            },
+            targetTitle: "Shop bot",
+            load: {
+              status: "ready",
+              state: { kind: "waiting", progress: null },
+            },
+          },
+        ],
+      }}
+    />,
+  );
+
+  assert.match(
+    control(markup, "Shop bot"),
+    /href="\/targets\/b\/experiments\/e2"/,
+  );
+  assert.match(text(markup), /Shop botjust nowWaiting for evaluate/);
 });

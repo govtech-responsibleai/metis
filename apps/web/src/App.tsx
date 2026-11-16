@@ -906,7 +906,7 @@ export function App() {
           </div>
         ) : redirect ? null : place.page === "target" &&
           place.tab === "experiments" ? (
-          <ExperimentsTab />
+          <ExperimentsTab targetId={place.targetId} />
         ) : place.page === "experiment" && record ? (
           <ExperimentPage
             targetId={place.targetId}

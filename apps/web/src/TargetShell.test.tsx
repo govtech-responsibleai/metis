@@ -10,7 +10,8 @@ import {
 } from "./LoginGate";
 import { at, control, tab, text } from "./markup.test-helper";
 import { ProfileToolbar } from "./ProfileToolbar";
-import { ExperimentsTab, TargetTabs } from "./TargetPage";
+import type { ListLoad, RowLoad } from "./ExperimentList";
+import { ExperimentsTabView, TargetTabs } from "./TargetPage";
 import { TargetRail } from "./TargetRail";
 
 const startButton = (markup: string) => control(markup, "Start an experiment");
@@ -216,11 +217,66 @@ test("the YAML view and Download wait for the end of the Interview", () => {
   assert.doesNotMatch(control(markup, "Document"), /disabled=""/);
 });
 
+const experimentsTab = (load: ListLoad) =>
+  at("/targets/a/experiments", <ExperimentsTabView load={load} />);
+
+const row = (experimentId: string, minutesAgo: number, load: RowLoad) => ({
+  record: {
+    experiment_id: experimentId,
+    target_id: "a",
+    started_at: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
+    step: "simulate" as const,
+  },
+  load,
+});
+
 test("an empty Experiments tab says so", () => {
   assert.match(
-    at("/targets/a/experiments", <ExperimentsTab />),
+    experimentsTab({ status: "ready", rows: [] }),
     /No experiments yet\./,
   );
+});
+
+test("each Experiment row links to its view and shows its start, state and progress", () => {
+  const markup = experimentsTab({
+    status: "ready",
+    rows: [
+      row("e2", 5, {
+        status: "ready",
+        state: {
+          kind: "simulating",
+          progress: { phase: "simulating", ended: 5, total: 16 },
+        },
+      }),
+      row("e1", 120, {
+        status: "ready",
+        state: { kind: "stopped", progress: null, reason: "Timed out" },
+      }),
+      row("e0", 60 * 48, { status: "failed" }),
+    ],
+  });
+
+  assert.match(
+    control(markup, "5 min ago"),
+    /href="\/targets\/a\/experiments\/e2"/,
+  );
+  assert.match(
+    control(markup, "2 h ago"),
+    /href="\/targets\/a\/experiments\/e1"/,
+  );
+  assert.match(text(markup), /5 min agoSimulating5 of 16 simulated/);
+  assert.match(text(markup), /2 h agoStopped/);
+  assert.match(text(markup), /2 d agoStatus unavailable/);
+});
+
+test("the Experiments tab says when the list does not load", () => {
+  const markup = experimentsTab({
+    status: "failed",
+    message: "Couldn't reach the METIS API.",
+  });
+
+  assert.match(markup, /role="alert"/);
+  assert.match(text(markup), /Couldn&#x27;t reach the METIS API\./);
 });
 
 test("the comparison links back to its Target", () => {

@@ -11,6 +11,11 @@ the current place with `placeOf`. Do not write a path string in a component. The
 `wouter` with the browser location. Render a routed component in a test inside
 `<Router ssrPath="...">`. The shell reads Targets through `src/targets.ts` only.
 
+The Experiments tab and the All experiments page show the rows of the store routes with
+`ExperimentList` (`src/ExperimentList.tsx`). The phase and the progress of a row come from the
+engine status and events routes. Only `experimentState` in `src/experiment-status.ts` changes
+them into the state that the app shows.
+
 The Report tab of an experiment (`ReportTab.tsx`) shows the results of `report.html`. Only
 `src/report.ts` reads report.json. `reportPage` changes it into the `ReportPage` view model, and a
 component shows that model and never the wire `Report` type. Do not compute an average or a rate

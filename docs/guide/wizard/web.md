@@ -95,7 +95,9 @@ A Target page has two tabs:
 
 - **Specification** holds the Interview and its Profile. A new Target opens this tab with the
   opening screen.
-- **Experiments** lists the experiments of the Target. It is off until the Interview is done.
+- **Experiments** lists the experiments of the Target, newest first. Each row shows when the
+  experiment started, its state, and how many trials are done. It is off until the Interview is
+  done.
 
 **Start an experiment**, on the right of the tab row, opens a dialog with the experiment options: the number
 of trials at a time and the trace wait. **Start** in the dialog opens the experiment view. The
