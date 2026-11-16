@@ -12,20 +12,15 @@ report, and both responses are inline. A client that wants a file saves the resp
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
 
-from metis.api.experiment_dirs import find_experiment_dir
+from metis.api.experiment_dirs import find_experiment_dir, request_project_dir
 from metis.api.routes.wizard import ServiceError
-from metis.api.store import user_project_dir
 from metis.core.report import Report
 from metis.insights import ReportBuildError, ReportFiles, ResultsMissing, ensure_report
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 router = APIRouter(prefix="/api/v1/experiments", tags=["reports"])
 
@@ -42,24 +37,8 @@ _RESPONSES = {
 }
 
 
-def _project_dir(request: Request) -> Path:
-    """The project folder that holds the Experiment folders of the request.
-
-    With login off, it is the project folder of the server. With login on, it is the project
-    folder of the user account that the login guard found, so a request reads only the
-    Experiment folders of its own user account.
-    """
-    server: Path = request.app.state.project_dir
-    if not getattr(request.app.state, "login", False):
-        return server
-    account = getattr(request.state, "user_account", None)
-    if account is None:
-        raise RuntimeError("The login guard did not find the user account.")
-    return user_project_dir(server, account.id)
-
-
 def _report_files(request: Request, experiment_id: str) -> ReportFiles | JSONResponse:
-    experiment_dir = find_experiment_dir(_project_dir(request), experiment_id)
+    experiment_dir = find_experiment_dir(request_project_dir(request), experiment_id)
     try:
         return ensure_report(experiment_dir)
     except ResultsMissing as exc:

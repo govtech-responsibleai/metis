@@ -2,7 +2,9 @@
 
 The routes call the ``metis.engine.run`` library functions in the API's own process, on a
 thread of their own, through ``EngineRuns``. They do not use the store. They read and write
-the experiment folders only, as the engine CLI does. Every check of a start runs in the
+the experiment folders only, as the engine CLI does. Each route works in the project folder
+of the request (``request_project_dir``), so with login on a user account reaches only its
+own experiments. Every check of a start runs in the
 request, before the thread starts. A run that fails later, on its thread, ends its events
 log with a ``failed`` line, and the status route reports it.
 """
@@ -14,14 +16,15 @@ from pathlib import Path, PurePath
 from typing import TYPE_CHECKING, Literal
 
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from rich.console import Console
 
 from metis.api.engine_runs import EngineRuns, read_events
 from metis.api.errors import RouteError
-from metis.api.experiment_dirs import find_experiment_dir
+from metis.api.experiment_dirs import find_experiment_dir, request_project_dir
 from metis.api.routes.wizard import ServiceError
+from metis.core import execution_layout
 from metis.core.phase_events import PhaseEvent
 from metis.engine.extractor import TraceWaitSettings
 from metis.engine.run import (
@@ -147,10 +150,6 @@ def _settings(request: Request) -> EngineSettings:
     return request.app.state.engine_settings
 
 
-def _project_dir(request: Request) -> Path:
-    return request.app.state.project_dir
-
-
 def _silent_console() -> Console:
     """A console whose text is kept in memory, for the checks of a request."""
     return Console(file=io.StringIO(), color_system=None, width=10_000, soft_wrap=True)
@@ -183,7 +182,7 @@ def _input_dir(project_dir: Path, text: str) -> Path:
     :raises RouteError: 422 ``input_dir_outside_project`` when ``text`` is absolute, or
         the folder, with its symbolic links resolved, is outside the project folder.
     """
-    if PurePath(text).is_absolute() or Path(text).is_absolute():
+    if "\x00" in text or PurePath(text).is_absolute() or Path(text).is_absolute():
         raise RouteError(
             422,
             "input_dir_outside_project",
@@ -197,6 +196,49 @@ def _input_dir(project_dir: Path, text: str) -> Path:
             f"The input folder {text!r} is outside the project folder.",
         )
     return resolved
+
+
+def _check_specification_id(input_dir: Path) -> None:
+    """Refuse a Specification id that is not one folder name, before any folder is made.
+
+    The experiment folder is ``experiments/execute/<specification id>-<time>/``, so an id with
+    a path separator or ``..`` would name a folder outside the experiments of the request,
+    for example in the project folder of another user account. A file that does not load is
+    left to ``prepare_experiment``, which gives its own error.
+
+    :raises RouteError: 422 ``invalid_inputs``.
+    """
+    from metis.engine.simulation.types import Specification
+
+    try:
+        specification_id = Specification.load_file(input_dir / "specification.yaml").id
+    except Exception:
+        return
+    if specification_id in ("", ".", "..") or any(
+        char in specification_id for char in "/\\\x00"
+    ):
+        raise RouteError(
+            422,
+            "invalid_inputs",
+            f"The Specification id {specification_id!r} must be one folder name, with no "
+            "'/', '\\', or '..'.",
+        )
+
+
+def _inside_executions(project_dir: Path, experiment_dir: Path) -> Path:
+    """The experiment folder, once it is a folder of ``experiments/execute/`` of the request.
+
+    :raises RouteError: 422 ``invalid_inputs`` when it is in another place.
+    """
+    executions = (project_dir / execution_layout.EXECUTIONS).resolve()
+    if experiment_dir.resolve().parent != executions:
+        raise RouteError(
+            422,
+            "invalid_inputs",
+            f"The experiment folder {experiment_dir.name!r} is not in "
+            f"{execution_layout.EXECUTIONS}/ of the project folder.",
+        )
+    return experiment_dir
 
 
 def _resolved_experiment(experiment_dir: Path) -> Path:
@@ -242,19 +284,21 @@ def start_simulation(body: SimulateRequest, request: Request) -> EngineRunAccept
     concurrency = _limit(
         "concurrency", body.concurrency, settings.concurrency, settings.max_concurrency
     )
-    project_dir = _project_dir(request)
+    project_dir = request_project_dir(request)
     input_dir = _input_dir(project_dir, body.input_dir)
     runs = _runs(request)
 
     def prepare() -> Path:
+        _check_specification_id(input_dir)
         try:
-            return runs.functions.prepare_experiment(
+            experiment_dir = runs.functions.prepare_experiment(
                 input_dir, project_dir=project_dir, console=_silent_console()
             )
         except ExperimentExistsError as exc:
             raise RouteError(409, "experiment_exists", str(exc)) from None
         except InvalidInputsError as exc:
             raise RouteError(422, "invalid_inputs", str(exc)) from None
+        return _inside_executions(project_dir, experiment_dir)
 
     def work(experiment_dir: Path, stop: threading.Event, console: Console) -> None:
         runs.functions.simulate(
@@ -262,7 +306,11 @@ def start_simulation(body: SimulateRequest, request: Request) -> EngineRunAccept
         )
 
     experiment_id = runs.start(
-        experiment_id=None, phase="simulating", prepare=prepare, work=work
+        project_dir=project_dir,
+        experiment_id=None,
+        phase="simulating",
+        prepare=prepare,
+        work=work,
     )
     return EngineRunAccepted(experiment_id=experiment_id)
 
@@ -280,7 +328,8 @@ def _start_existing(
     The order of the checks is: the folder, the live run, the layout of the folder, then
     ``check``.
     """
-    experiment_dir = find_experiment_dir(_project_dir(request), experiment_id)
+    project_dir = request_project_dir(request)
+    experiment_dir = find_experiment_dir(project_dir, experiment_id)
     runs = _runs(request)
 
     def prepare() -> Path:
@@ -289,7 +338,13 @@ def _start_existing(
             check(resolved)
         return resolved
 
-    runs.start(experiment_id=experiment_id, phase=phase, prepare=prepare, work=work)
+    runs.start(
+        project_dir=project_dir,
+        experiment_id=experiment_id,
+        phase=phase,
+        prepare=prepare,
+        work=work,
+    )
     return EngineRunAccepted(experiment_id=experiment_id)
 
 
@@ -414,8 +469,9 @@ def stop_run(experiment_id: str, request: Request) -> EngineRunAccepted:
     A simulation ends each trial at its next turn, and an evaluation cancels its sessions
     within a fraction of a second. The events log then ends with interrupted.
     """
-    find_experiment_dir(_project_dir(request), experiment_id)
-    _runs(request).stop(experiment_id)
+    project_dir = request_project_dir(request)
+    find_experiment_dir(project_dir, experiment_id)
+    _runs(request).stop(project_dir, experiment_id)
     return EngineRunAccepted(experiment_id=experiment_id)
 
 
@@ -427,8 +483,9 @@ def stop_run(experiment_id: str, request: Request) -> EngineRunAccepted:
 )
 def experiment_status(experiment_id: str, request: Request) -> EngineStatus:
     """Return the phase, the status, and the counts of the experiment."""
-    experiment_dir = find_experiment_dir(_project_dir(request), experiment_id)
-    run = _runs(request).current(experiment_id)
+    project_dir = request_project_dir(request)
+    experiment_dir = find_experiment_dir(project_dir, experiment_id)
+    run = _runs(request).current(project_dir, experiment_id)
     return _status(experiment_id, experiment_dir, run)
 
 
@@ -498,6 +555,7 @@ def _status(experiment_id: str, experiment_dir: Path, run: Run | None) -> Engine
     "/{experiment_id}/events",
     summary="Get the events of an experiment after a seq",
     response_model=list[PhaseEvent],
+    response_class=JSONResponse,
     responses={404: {"model": ServiceError}, 422: {"model": ServiceError}},
 )
 def experiment_events(
@@ -506,16 +564,38 @@ def experiment_events(
     after: int = Query(
         default=0, ge=0, description="Return the events whose seq is more than this."
     ),
-) -> Response:
+) -> JSONResponse:
     """Return the lines of logs/events.jsonl whose seq is more than `after`, in file order.
 
-    Each element is the line as the engine wrote it, in the format of
-    phase-event.schema.json. A last line that the engine still writes, and a line that does
-    not parse, are skipped. An experiment with no events file returns [].
+    Each element is an event in the format of phase-event.schema.json, with no field that
+    has no value. A last line that the engine still writes, and a line that does not parse,
+    are skipped. An experiment with no events file returns [].
     """
-    experiment_dir = find_experiment_dir(_project_dir(request), experiment_id)
-    lines = [line for event, line in read_events(experiment_dir) if event.seq > after]
-    return Response(f"[{','.join(lines)}]", media_type="application/json")
+    experiment_dir = find_experiment_dir(request_project_dir(request), experiment_id)
+    events = [
+        _event_json(event)
+        for event, _ in read_events(experiment_dir)
+        if event.seq > after
+    ]
+    return JSONResponse(events)
+
+
+_COMMON_FIELDS = ("seq", "at", "phase", "trial", "status")
+"""The fields of every line, ``trial`` as ``null`` on a phase line."""
+
+
+def _event_json(event: PhaseEvent) -> dict[str, object]:
+    """The JSON of ``event`` in the format of phase-event.schema.json.
+
+    It is built from the parsed event, so a field that the schema does not know is left out,
+    and a field with no value is left out unless every line has it.
+    """
+    fields = event.model_dump(mode="json")
+    return {
+        name: value
+        for name, value in fields.items()
+        if name in _COMMON_FIELDS or value is not None
+    }
 
 
 __all__ = ["router"]

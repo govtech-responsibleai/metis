@@ -12,7 +12,7 @@ they act as two browsers of one project.
 Import the fixtures you need into a conftest to register them for that test subtree:
 
     from tests.fixtures.api._shared import (
-        client, make_client, project_dir, project_cwd, store
+        client, make_client, no_engine_setup, project_dir, project_cwd, store
     )
 """
 
@@ -51,6 +51,16 @@ def project_dir(tmp_path: Path) -> Path:
     folder.mkdir()
     (folder / "pyproject.toml").write_text('[project]\nname = "test-project"\n')
     return folder
+
+
+@pytest.fixture(autouse=True)
+def no_engine_setup(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep each app from the process setup of the engine.
+
+    The real setup loads `.env` into `os.environ`, registers a Langfuse client, and sets up
+    logging, for the whole test process. A test that checks the setup calls it itself.
+    """
+    monkeypatch.setattr("metis.api.engine_runs.setup_engine_process", lambda: None)
 
 
 @pytest.fixture(autouse=True)

@@ -133,12 +133,21 @@ The engine routes start, stop, and follow the engine steps of an experiment. The
 their own. They start no child process, and they do not use the store. They read and write
 the experiment folders only, as `metis engine simulate` and `evaluate` do.
 
-The experiment folders on disk are the source of truth. In memory, `EngineRuns` keeps only
-the run that is alive now: its experiment id and folder, its phase, its stop flag (a
-`threading.Event`), its thread, and the last `seq` of `logs/events.jsonl` when it started.
-When the thread ends, the API forgets the run.
+Each engine route works in the project folder of the request, which `request_project_dir` in
+`experiment_dirs.py` gives. The report routes use the same function. With login off, it is the
+project folder of the server. With login on, it is `users/<user id>/`, so a user account
+reaches only its own experiments, and an experiment of another user account gets 404
+`experiment_not_found`. `login_guard` refuses a request with no login session, so the engine
+routes have no login check of their own.
 
-The API runs one engine run at a time, across all experiments. Logging, the Langfuse clients,
+The experiment folders on disk are the source of truth. In memory, `EngineRuns` keeps only
+the run that is alive now: its project folder, its experiment id and folder, its phase, its
+stop flag (a `threading.Event`), its thread, and the last `seq` of `logs/events.jsonl` when it
+started. Two user accounts can have an experiment folder with the same name, so a run is the
+run of a request only when its project folder and its experiment id are both the same. When
+the thread ends, the API forgets the run.
+
+The API runs one engine run at a time, across all experiments of all user accounts. Logging, the Langfuse clients,
 and `LANGFUSE_HOST` are shared by the whole process, so a second run at the same time is not
 safe. A second start gets 503 `engine_busy`, and there is no queue. One lock covers the busy
 check, the checks of the start, and the start of the thread. A refused start therefore creates
@@ -156,9 +165,17 @@ no folder, and two starts at the same time cannot both pass.
 | `GET /api/v1/doctor` | The checks of `metis doctor`. |
 
 Each start and stop returns 202 `{experiment_id}` at once. The `input_dir` of a new
-simulation is relative to the project folder. The API resolves it, symbolic links included,
+simulation is relative to the project folder of the request. The API resolves it, symbolic links included,
 and refuses a path that is absolute or outside the project folder. `concurrency` and
 `langfuse_timeout` take their default from a setting when a request leaves them out.
+
+The id of the Specification is the first part of the name of the experiment folder,
+`experiments/execute/<specification id>-<YYYYmmdd-HHMMSS>/`. The id field accepts any text, so
+an id with `/`, `\`, or `..` would name a folder in another place, for example in the project
+folder of another user account. Before `prepare_experiment` makes a folder, the simulate route
+reads the id and refuses an id that is empty, `.`, `..`, or that holds `/`, `\`, or a NUL
+character. After `prepare_experiment`, the route also checks that the new folder is directly in
+`experiments/execute/` of the request.
 
 Every check of a start runs in the request, before the thread starts. The routes check in
 this order and return the first error:
@@ -173,11 +190,11 @@ this order and return the first error:
 | Status | Code | When |
 |---|---|---|
 | 404 | `experiment_not_found` | No folder in `experiments/execute/` has the id. |
-| 422 | `input_dir_outside_project` | `input_dir` is absolute or outside the project folder. |
-| 422 | `invalid_inputs` | `prepare_experiment` refuses the inputs or the project folder. The message is the engine text. |
+| 422 | `input_dir_outside_project` | `input_dir` is absolute, holds a NUL character, or is outside the project folder. |
+| 422 | `invalid_inputs` | The Specification id is not one folder name, or `prepare_experiment` refuses the inputs or the project folder. For the id, the message is the text of the API; else it is the engine text. |
 | 409 | `experiment_exists` | A run of the same Specification started in the same second. |
 | 409 | `run_in_progress` | A start for the experiment that runs now. |
-| 503 | `engine_busy` | A start while another experiment runs. The message names it. It is the only error with `retryable: true`. |
+| 503 | `engine_busy` | A start while another experiment runs. The message names it when it is in the same project folder, else it says that an experiment of another user account runs. It is the only error with `retryable: true`. |
 | 422 | `invalid_experiment` | The folder has no `inputs/` snapshot, or uses the earlier layout. The message is the text of `resolve_experiment_dir`. |
 | 422 | `invalid_langfuse_timeout` | `TraceWaitSettings.from_env` refuses the timeout. |
 | 409 | `evaluation_complete` | A resume of an evaluation whose `results.json` loads. |
@@ -270,7 +287,7 @@ src/metis/api/
 ├── routes/engine.py   engine routes: start, resume, evaluate, stop, status, and events
 ├── routes/doctor.py   the checks of `metis doctor`
 ├── engine_runs.py     the one live engine run, its thread and console file, and the events reader
-├── experiment_dirs.py finds an experiment folder from its id, for the report and engine routes
+├── experiment_dirs.py the project folder of a request, and an experiment folder from its id
 ├── errors.py          RouteError, which the app maps to the service error shape
 ├── routes/accounts.py user and auth routes, and the login guard of all /api routes
 ├── accounts.py        user accounts and login sessions: credentials, hashes, and rows

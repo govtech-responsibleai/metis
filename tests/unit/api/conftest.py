@@ -4,6 +4,7 @@
 from tests.fixtures.api._shared import (  # noqa: F401  (re-exported as fixtures)
     client,
     make_client,
+    no_engine_setup,
     project_cwd,
     project_dir,
     store,

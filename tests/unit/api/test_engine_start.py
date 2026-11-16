@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from typing import TYPE_CHECKING
 
@@ -10,6 +11,7 @@ import pytest
 from metis.core import execution_layout
 from metis.engine.run import ExperimentExistsError
 from tests.fixtures.api.engine import SPECIFICATION_ID, wait_until, write_input_dir
+from tests.unit.engine.test_cli_simulate import MINIMAL_EXPERIMENT
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -211,3 +213,67 @@ def test_a_start_while_a_run_is_alive_is_engine_busy(
     assert response.json()["retryable"] is True
     assert first in response.json()["message"]
     assert _executions(project_dir) == [first]
+
+
+@pytest.mark.parametrize(
+    "specification_id",
+    ["../escaped", "a/b", "a\\b", "..", ".", "a\u0000b"],
+)
+def test_a_specification_id_that_is_not_one_folder_name_is_refused(
+    engine_client: TestClient,
+    fake_engine: FakeEngine,
+    project_dir: Path,
+    tmp_path: Path,
+    specification_id: str,
+) -> None:
+    folder = write_input_dir(
+        project_dir / "inputs",
+        MINIMAL_EXPERIMENT.replace(
+            "id: test-exp\n", f"id: {json.dumps(specification_id)}\n"
+        ),
+    )
+
+    response = engine_client.post(
+        SIMULATE, json={"input_dir": _relative(project_dir, folder)}
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "invalid_inputs"
+    assert repr(specification_id) in response.json()["message"]
+    assert fake_engine.calls == []
+    assert _executions(project_dir) == []
+    assert not (project_dir / "experiments" / "escaped-").exists()
+    assert sorted(p.name for p in project_dir.parent.iterdir()) == ["project"]
+
+
+def test_a_folder_that_prepare_makes_outside_the_experiments_is_not_run(
+    make_engine_client: Callable[..., TestClient],
+    fake_engine: FakeEngine,
+    project_dir: Path,
+    input_dir: Path,
+    tmp_path: Path,
+) -> None:
+    def prepare(input_dir: Path, *, project_dir: Path, console: object) -> Path:
+        folder = tmp_path / "elsewhere" / "test-exp-20260101-000000"
+        folder.mkdir(parents=True)
+        return folder
+
+    client = make_engine_client(prepare_experiment=prepare)
+
+    response = client.post(
+        SIMULATE, json={"input_dir": _relative(project_dir, input_dir)}
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "invalid_inputs"
+    assert fake_engine.calls == []
+
+
+def test_an_input_dir_with_a_nul_byte_is_refused(
+    engine_client: TestClient, project_dir: Path
+) -> None:
+    response = engine_client.post(SIMULATE, json={"input_dir": "a\u0000b"})
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "input_dir_outside_project"
+    assert _executions(project_dir) == []

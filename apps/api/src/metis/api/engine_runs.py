@@ -2,9 +2,12 @@
 
 The API runs at most one engine function at a time, on its own thread, in its own process.
 Logging, the Langfuse clients, and ``LANGFUSE_HOST`` are shared by the whole process, so a
-second run at the same time is not safe. The run in memory holds only what a live thread
-needs: its experiment id and folder, its phase, its stop flag, and the last ``seq`` of
-``logs/events.jsonl`` when it started. The experiment folders on disk are the source of truth
+second run at the same time is not safe. The limit is for the whole server, so it covers the
+runs of every user account. The run in memory holds only what a live thread needs: its
+project folder, its experiment id and folder, its phase, its stop flag, and the last ``seq`` of
+``logs/events.jsonl`` when it started. Two user accounts can have an experiment folder with the
+same name, so a run is the run of a request only when both its project folder and its
+experiment id are the same. The experiment folders on disk are the source of truth
 for everything else.
 
 The text of a run goes to ``logs/console.log`` of its experiment, never to the stdout of the
@@ -64,19 +67,26 @@ class EngineFunctions:
     resume_simulation: Callable[..., Any] = engine_run.resume_simulation
     evaluate: Callable[..., Any] = engine_run.evaluate
     resume_evaluation: Callable[..., Any] = engine_run.resume_evaluation
-    setup_process: Callable[[], None] = setup_engine_process
+    setup_process: Callable[[], None] = field(
+        default_factory=lambda: setup_engine_process
+    )
 
 
 @dataclass
 class Run:
     """The run that is alive now."""
 
+    project_dir: Path
     experiment_id: str
     experiment_dir: Path
     phase: Phase
     start_seq: int
     """The last ``seq`` of the events log before the run started."""
     stop: threading.Event = field(default_factory=threading.Event)
+
+    def is_of(self, project_dir: Path, experiment_id: str) -> bool:
+        """Whether this is the run of ``experiment_id`` in ``project_dir``."""
+        return self.project_dir == project_dir and self.experiment_id == experiment_id
 
 
 class EngineRuns:
@@ -95,6 +105,7 @@ class EngineRuns:
     def start(
         self,
         *,
+        project_dir: Path,
         experiment_id: str | None,
         phase: Phase,
         prepare: Callable[[], Path],
@@ -102,30 +113,38 @@ class EngineRuns:
     ) -> str:
         """Check that no run is alive, prepare the folder, and start ``work`` on a thread.
 
-        ``experiment_id`` is the folder of a resume or an evaluate, and ``None`` for a new
-        simulation. ``prepare`` makes the checks of the start and returns the experiment
-        folder. It runs under the lock, so an error from it leaves no run.
+        ``project_dir`` is the project folder of the request. ``experiment_id`` is the folder
+        of a resume or an evaluate, and ``None`` for a new simulation. ``prepare`` makes the
+        checks of the start and returns the experiment folder. It runs under the lock, so an
+        error from it leaves no run.
 
         :raises RouteError: 409 ``run_in_progress`` when the run of ``experiment_id`` is
             alive, 503 ``engine_busy`` when another run is alive, or an error of ``prepare``.
+            ``engine_busy`` names the run only when it is in the same project folder.
         """
         with self._lock:
             if self._run is not None:
-                if self._run.experiment_id == experiment_id:
+                if experiment_id is not None and self._run.is_of(
+                    project_dir, experiment_id
+                ):
                     raise RouteError(
                         409,
                         "run_in_progress",
                         f"The experiment {experiment_id!r} runs now.",
                     )
+                if self._run.project_dir == project_dir:
+                    running = f"the experiment {self._run.experiment_id!r}"
+                else:
+                    running = "an experiment of another user account"
                 raise RouteError(
                     503,
                     "engine_busy",
-                    f"The engine runs the experiment {self._run.experiment_id!r} now. "
-                    "Start this run when that run ends.",
+                    f"The engine runs {running}. Start this run when that run ends.",
                     retryable=True,
                 )
             experiment_dir = prepare()
             run = Run(
+                project_dir=project_dir,
                 experiment_id=experiment_dir.name,
                 experiment_dir=experiment_dir,
                 phase=phase,
@@ -141,22 +160,22 @@ class EngineRuns:
             thread.start()
             return run.experiment_id
 
-    def stop(self, experiment_id: str) -> None:
-        """Set the stop flag of the run of ``experiment_id``.
+    def stop(self, project_dir: Path, experiment_id: str) -> None:
+        """Set the stop flag of the run of ``experiment_id`` in ``project_dir``.
 
         :raises RouteError: 409 ``no_run`` when that experiment does not run.
         """
         with self._lock:
-            if self._run is None or self._run.experiment_id != experiment_id:
+            if self._run is None or not self._run.is_of(project_dir, experiment_id):
                 raise RouteError(
                     409, "no_run", f"The experiment {experiment_id!r} does not run."
                 )
             self._run.stop.set()
 
-    def current(self, experiment_id: str) -> Run | None:
-        """The run of ``experiment_id`` when it is alive, else ``None``."""
+    def current(self, project_dir: Path, experiment_id: str) -> Run | None:
+        """The run of ``experiment_id`` in ``project_dir`` when it is alive, else ``None``."""
         with self._lock:
-            if self._run is not None and self._run.experiment_id == experiment_id:
+            if self._run is not None and self._run.is_of(project_dir, experiment_id):
                 return self._run
             return None
 

@@ -89,7 +89,7 @@ def test_a_run_shows_the_counts_of_its_own_started_line(
     assert status["last_seq"] == 1
 
 
-def test_a_stop_gives_stopping_then_interrupted(
+def test_a_stop_gives_stopping_while_the_run_ends(
     engine_client: TestClient, fake_engine: FakeEngine, experiment_dir: Path
 ) -> None:
     fake_engine.mode = "stubborn"

@@ -628,9 +628,9 @@ export interface paths {
          * Get the events of an experiment after a seq
          * @description Return the lines of logs/events.jsonl whose seq is more than `after`, in file order.
          *
-         *     Each element is the line as the engine wrote it, in the format of
-         *     phase-event.schema.json. A last line that the engine still writes, and a line that does
-         *     not parse, are skipped. An experiment with no events file returns [].
+         *     Each element is an event in the format of phase-event.schema.json, with no field that
+         *     has no value. A last line that the engine still writes, and a line that does not parse,
+         *     are skipped. An experiment with no events file returns [].
          */
         get: operations["experiment_events_api_v1_engine__experiment_id__events_get"];
         put?: never;

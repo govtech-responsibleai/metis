@@ -116,3 +116,22 @@ def test_an_after_below_zero_is_a_validation_error(
 
     assert response.status_code == 422
     assert response.json()["code"] == "validation_error"
+
+
+def test_a_line_with_a_value_that_json_does_not_allow_still_gives_valid_json(
+    engine_client: TestClient, experiment_dir: Path
+) -> None:
+    lines = _write_three(experiment_dir)
+    with _events_file(experiment_dir).open("a", encoding="utf-8") as handle:
+        handle.write(lines[-1].replace('"seq":3', '"seq":4')[:-1] + ',"x":NaN}\n')
+
+    response = engine_client.get(f"/api/v1/engine/{experiment_dir.name}/events")
+
+    events = json.loads(response.text, parse_constant=_refuse)
+    assert [e["seq"] for e in events] == [1, 2, 3, 4]
+    assert "x" not in events[-1]
+    assert events[-1]["trial"] is None
+
+
+def _refuse(constant: str) -> None:
+    raise AssertionError(f"the response holds {constant}, which is not JSON")
