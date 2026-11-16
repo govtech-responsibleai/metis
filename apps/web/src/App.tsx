@@ -8,7 +8,7 @@ import {
   useSyncExternalStore,
   type CSSProperties,
 } from "react";
-import { PanelLeft, PanelRight, Puzzle, X } from "lucide-react";
+import { PanelLeft, PanelRight, Puzzle } from "lucide-react";
 import type {
   LoadedInterviewRecord,
   CapabilityConfidence,
@@ -29,6 +29,7 @@ import {
   ReviewSectionActions,
   Transcript,
   UploadContext,
+  acceptsChat,
   type AdmitUploads,
 } from "./Conversation";
 import { ConnectionForm, ModePicker } from "./ConnectionStep";
@@ -38,7 +39,7 @@ import {
   startConnection,
   type ConnectionDraft,
 } from "./connection";
-import { AddDocuments, DocumentTray } from "./DocumentTray";
+import { AddButton, AddOptions, DocumentList } from "./Documents";
 import { Done } from "./Done";
 import {
   START_BLOCKED,
@@ -99,7 +100,17 @@ import {
   targetOf,
   targetRedirect,
 } from "./routes";
-import { admitFiles, type AdmittedFile } from "./fixture-policy";
+import {
+  admitFiles,
+  readmitSavedFile,
+  type AdmittedFile,
+} from "./fixture-policy";
+import {
+  documentsForRequest,
+  documentTextLength,
+  useDocumentIntake,
+  type DocumentReads,
+} from "./document-intake";
 import { specificationHasCriteria } from "./graders";
 import { saveFile } from "./download";
 import { ManualAuthoringEntry, ManualForm } from "./ManualForm";
@@ -112,11 +123,8 @@ import {
 import { InterviewOperations, pendingEntry } from "./wizard/operations";
 
 type WizardConfig = Awaited<ReturnType<typeof api.config>>;
-export type OpeningControl = "perspective" | "capabilities";
-type OpeningDocumentRead =
-  | { status: "reading" | "not_read" | "kept" }
-  | { status: "read"; text: string }
-  | { status: "failed"; message: string };
+const NO_FILES: readonly never[] = [];
+export type OpeningControl = "add" | "perspective" | "capabilities";
 export type WizardConfigState =
   | { status: "loading" }
   | { status: "ready"; config: WizardConfig }
@@ -129,26 +137,6 @@ const emptyCapabilityEvidence = (): CapabilityEvidenceDraft => ({
   known_capability_ids: [],
   confidence: null,
 });
-
-function fileExtension(name: string): string {
-  return name.split(".").at(-1)?.toLowerCase() ?? "";
-}
-
-function unicodeLength(value: string): number {
-  return Array.from(value).length;
-}
-
-async function extractOpeningDocuments(
-  file: File,
-  maxFileBytes: number,
-): Promise<string> {
-  if (file.size > maxFileBytes)
-    throw new Error(`${file.name} is larger than the text-reading limit.`);
-  const result = await api.extractDocuments([file]);
-  const document = result.documents.find((item) => item.name === file.name);
-  if (!document) throw new Error(`No text was returned for ${file.name}.`);
-  return document.text;
-}
 
 // Capabilities are optional. An untouched picker sends no evidence, so the Interview treats
 // capabilities as unspecified. A selection with no confidence may be incomplete, which is what
@@ -237,13 +225,29 @@ export function App() {
   // The default Perspective stays marked until the user first opens the Perspective control.
   const [perspectiveSeen, setPerspectiveSeen] = useState(false);
   const [openingDescription, setOpeningDescription] = useState("");
-  const [openingDocuments, setOpeningDocuments] = useState<AdmittedFile[]>([]);
-  // An extraction response belongs only to the opening session that requested it.
   const openingGeneration = useRef(0);
-  const [documentTrayOpen, setDocumentTrayOpen] = useState(false);
-  const [openingDocumentReads, setOpeningDocumentReads] = useState<
-    Record<string, OpeningDocumentRead>
-  >({});
+  const documentLimits =
+    wizardConfig.status === "ready"
+      ? (wizardConfig.config.document_limits ?? undefined)
+      : undefined;
+  // The documents of the opening message, and the documents of the next message of the open
+  // Interview. Each waits in its own input until the user sends that message.
+  const openingIntake = useDocumentIntake(documentLimits, NO_FILES, setError);
+  const recordFileList = useMemo(
+    () => (record ? recordFiles(record) : NO_FILES),
+    [record],
+  );
+  const turnIntake = useDocumentIntake(
+    documentLimits,
+    recordFileList,
+    setError,
+  );
+  const [turnAddOpen, setTurnAddOpen] = useState(false);
+  const resetTurnIntake = turnIntake.reset;
+  useEffect(() => {
+    resetTurnIntake();
+    setTurnAddOpen(false);
+  }, [targetId, resetTurnIntake]);
   const [capabilityEvidence, setCapabilityEvidence] =
     useState<CapabilityEvidenceDraft>(emptyCapabilityEvidence);
   // The opening owns the connection in run mode. "add" is the Done pane's Connect target.
@@ -436,6 +440,7 @@ export function App() {
     );
   }, [hasCriteria]);
 
+  const resetOpeningIntake = openingIntake.reset;
   const startNew = useCallback(() => {
     openingGeneration.current += 1;
     setOpening(openingGeneration.current);
@@ -443,100 +448,12 @@ export function App() {
     setOpeningControl(null);
     setPerspectiveSeen(false);
     setOpeningDescription("");
-    setOpeningDocuments([]);
-    setDocumentTrayOpen(false);
-    setOpeningDocumentReads({});
+    resetOpeningIntake();
     setCapabilityEvidence(emptyCapabilityEvidence());
     setConnectionStep(null);
     setConnectionDraft(emptyConnectionDraft());
     setConnectionResult(null);
   }, []);
-
-  const addOpeningDocuments = useCallback(
-    (files: readonly File[]) => {
-      try {
-        if (
-          wizardConfig.status !== "ready" ||
-          !wizardConfig.config.document_limits
-        )
-          throw new Error("Document limits are not available yet.");
-        const limits = wizardConfig.config.document_limits;
-        const normalized = admitFiles(files, openingDocuments, limits);
-        const reads: Record<string, OpeningDocumentRead> = {};
-        for (const file of normalized) {
-          const canRead = limits.extraction_extensions?.includes(
-            fileExtension(file.name),
-          );
-          reads[file.name] = !canRead
-            ? { status: "not_read" }
-            : file.size > limits.max_extraction_file_bytes
-              ? {
-                  status: "failed",
-                  message: "This file is larger than the text-reading limit.",
-                }
-              : { status: "reading" };
-        }
-        setOpeningDocuments((current) => [...current, ...normalized]);
-        setOpeningDocumentReads((current) => ({ ...current, ...reads }));
-        setError(null);
-        for (const file of normalized) {
-          if (reads[file.name]?.status !== "reading") continue;
-          const generation = openingGeneration.current;
-          void extractOpeningDocuments(
-            file,
-            limits.max_extraction_file_bytes,
-          ).then(
-            (text) => {
-              if (generation !== openingGeneration.current) return;
-              setOpeningDocumentReads((current) => ({
-                ...current,
-                [file.name]: { status: "read", text },
-              }));
-            },
-            (cause: unknown) => {
-              if (generation !== openingGeneration.current) return;
-              setOpeningDocumentReads((current) => ({
-                ...current,
-                [file.name]: {
-                  status: "failed",
-                  message: errorMessage(cause),
-                },
-              }));
-            },
-          );
-        }
-      } catch (cause) {
-        setError(errorMessage(cause));
-      }
-    },
-    [openingDocuments, wizardConfig, setError],
-  );
-
-  const removeOpeningDocument = useCallback(
-    (name: string) => {
-      setOpeningDocuments((current) =>
-        current.filter((file) => file.name !== name),
-      );
-      setOpeningDocumentReads((current) => {
-        const next = { ...current };
-        delete next[name];
-        return next;
-      });
-      setError(null);
-    },
-    [setError],
-  );
-
-  const keepOpeningDocumentWithoutReading = useCallback(
-    (name: string) => {
-      setOpeningDocumentReads((current) => ({
-        ...current,
-        [name]: { status: "kept" },
-      }));
-      setError(null);
-    },
-    [setError],
-  );
 
   const beginWithMessage = useCallback(
     async (
@@ -549,47 +466,18 @@ export function App() {
       const origin = openingGeneration.current;
       const sent = new Date();
       await operations.run(operationKey, async () => {
-        const limits =
-          wizardConfig.status === "ready"
-            ? wizardConfig.config.document_limits
-            : undefined;
-        if (openingDocuments.length > 0 && !limits)
-          throw new Error("Document limits are not available yet.");
-        const unresolved = openingDocuments.filter((file) => {
-          const status = openingDocumentReads[file.name]?.status;
-          return status === "reading" || status === "failed";
-        });
-        if (unresolved.length > 0) {
+        const ready = documentsForRequest(
+          openingIntake.documents,
+          openingIntake.reads,
+          documentLimits,
+        );
+        if ("blocked" in ready) {
           setConnectionStep(null);
           setOpeningControl(null);
-          setDocumentTrayOpen(true);
-          setError(
-            "Wait for files to finish reading. For a file that could not be read, choose Keep without reading or remove it.",
-          );
+          setError(ready.blocked);
           return;
         }
-        const totalText = openingDocuments.reduce((total, file) => {
-          const read = openingDocumentReads[file.name];
-          return (
-            total + (read?.status === "read" ? unicodeLength(read.text) : 0)
-          );
-        }, 0);
-        if (limits && totalText > limits.max_text_characters_total) {
-          setConnectionStep(null);
-          setOpeningControl(null);
-          setDocumentTrayOpen(true);
-          setError(
-            `Document text is above ${limits.max_text_characters_total.toLocaleString()} characters. Remove a file or keep it without reading.`,
-          );
-          return;
-        }
-        const documents: InterviewDocument[] = openingDocuments.map((file) => {
-          const read = openingDocumentReads[file.name];
-          return {
-            name: file.name,
-            ...(read?.status === "read" ? { text: read.text } : {}),
-          };
-        });
+        const documents = ready.documents;
         const result = await api.start(
           description,
           evidence,
@@ -601,9 +489,13 @@ export function App() {
           interviewId(sent),
           result.state,
           result.stage,
-          startTranscript(description, result.state),
+          startTranscript(
+            description,
+            result.state,
+            documents.map((document) => document.name),
+          ),
         );
-        const record = addFixtures(started, openingDocuments);
+        const record = addFixtures(started, openingIntake.documents);
         const opened = async (saved: LoadedInterviewRecord) => {
           const path = openedPath(
             locationRef.current,
@@ -636,11 +528,11 @@ export function App() {
       navigate,
       operations,
       operationKey,
-      openingDocuments,
-      openingDocumentReads,
+      openingIntake.documents,
+      openingIntake.reads,
+      documentLimits,
       refreshList,
       setError,
-      wizardConfig,
     ],
   );
 
@@ -675,51 +567,73 @@ export function App() {
       response: UserResponse,
       files: readonly AdmittedFile[] = [],
       removedFixtures: readonly string[] = [],
+      documents: readonly InterviewDocument[] = [],
     ) => {
       if (!record) return;
       const key = `${record.id}:${record.state.pending?.request_id ?? ""}`;
-      await operations.send(record, response, files, removedFixtures, () => {
-        if (response.type === "chat") drafts.current.delete(draftKey);
-        if (response.type === "choice" && response.feedback)
-          drafts.current.delete(composerKey);
-        formDrafts.current.delete(key);
-        setDraftRevision((value) => value + 1);
-      });
+      await operations.send(
+        record,
+        response,
+        files,
+        removedFixtures,
+        () => {
+          if (response.type === "chat") drafts.current.delete(draftKey);
+          if (response.type === "choice" && response.feedback)
+            drafts.current.delete(composerKey);
+          formDrafts.current.delete(key);
+          setDraftRevision((value) => value + 1);
+          if (documents.length > 0) resetTurnIntake();
+        },
+        documents,
+      );
     },
-    [operations, record, draftKey, composerKey],
+    [operations, record, draftKey, composerKey, resetTurnIntake],
   );
 
-  // An answer file gets a name that no file of the Interview has, and no file that waits in the
-  // same input. The files of an answer that failed count too, because the store holds them. A
+  // An answer file gets a name that no file of the Interview has, no document that waits in the
+  // composer, and no file that waits in the same input. The files of an answer that failed count too, because the store holds them. A
   // refused file shows its reason and adds nothing.
   const admitUploads = useCallback<AdmitUploads>(
     (files, queued) => {
       try {
         return admitFiles(
           files,
-          [...(record ? recordFiles(record) : []), ...queued],
-          wizardConfig.status === "ready"
-            ? wizardConfig.config.document_limits
-            : undefined,
+          [...recordFileList, ...turnIntake.documents, ...queued],
+          documentLimits,
         );
       } catch (cause) {
         setError(errorMessage(cause));
         return [];
       }
     },
-    [record, wizardConfig, setError],
+    [recordFileList, turnIntake.documents, documentLimits, setError],
   );
 
   // Typed text goes to the pending request. A review takes it as feedback. The package accepts only
   // a form response while a form is open, so text typed then first cancels the form and then goes
   // to the review that the package sends back. The text stays in the composer until the feedback
   // itself is accepted: if the cancel fails, the user retries it and then sends the same text.
+  // The documents that wait in the composer go with the text, so the user says in the same
+  // message what the wizard must do with them.
   const sendText = useCallback(
     async (text: string) => {
       if (!record) return;
-      if (pending?.type === "chat") return send({ type: "chat", text });
+      const ready = documentsForRequest(
+        turnIntake.documents,
+        turnIntake.reads,
+        documentLimits,
+        record.state.context.documents ?? [],
+      );
+      if ("blocked" in ready) {
+        setError(ready.blocked);
+        return;
+      }
+      const files = turnIntake.documents;
+      const documents = ready.documents;
+      if (pending?.type === "chat")
+        return send({ type: "chat", text }, files, [], documents);
       if (pending?.type === "choice")
-        return send({ type: "choice", feedback: text });
+        return send({ type: "choice", feedback: text }, files, [], documents);
       if (pending?.type !== "form" || !pending.cancellable) return;
       await send({ type: "form", cancelled: true, values: {} });
       const latest = operations.latest.get(record.id);
@@ -729,15 +643,28 @@ export function App() {
       await operations.send(
         latest,
         { type: "choice", feedback: text },
-        [],
+        files,
         [],
         () => {
           drafts.current.delete(composerKey);
           setDraftRevision((value) => value + 1);
+          if (documents.length > 0) resetTurnIntake();
         },
+        documents,
       );
     },
-    [record, pending, send, operations, composerKey],
+    [
+      record,
+      pending,
+      send,
+      operations,
+      composerKey,
+      turnIntake.documents,
+      turnIntake.reads,
+      documentLimits,
+      resetTurnIntake,
+      setError,
+    ],
   );
 
   // Back from Run settings or Done reopens the last review of the completed Interview.
@@ -999,16 +926,11 @@ export function App() {
             onDescription={setOpeningDescription}
             perspective={selectedPerspective}
             onPerspective={setSelectedPerspective}
-            documents={openingDocuments}
-            documentTrayOpen={documentTrayOpen}
-            onDocumentTrayOpen={(open) => {
-              if (open) setOpeningControl(null);
-              setDocumentTrayOpen(open);
-            }}
-            documentReads={openingDocumentReads}
-            onAddDocuments={addOpeningDocuments}
-            onRemoveDocument={removeOpeningDocument}
-            onKeepDocumentUnread={keepOpeningDocumentWithoutReading}
+            documents={openingIntake.documents}
+            documentReads={openingIntake.reads}
+            onAddDocuments={openingIntake.add}
+            onRemoveDocument={openingIntake.remove}
+            onKeepDocumentUnread={openingIntake.keepUnread}
             capabilityEvidence={capabilityEvidence}
             onCapabilityEvidence={setCapabilityEvidence}
             onBegin={(description, perspective, evidence) =>
@@ -1029,7 +951,6 @@ export function App() {
             openControl={openingControl}
             onOpenControl={(control) => {
               if (control === "perspective") setPerspectiveSeen(true);
-              if (control !== null) setDocumentTrayOpen(false);
               setOpeningControl(control);
             }}
             perspectiveSeen={perspectiveSeen}
@@ -1065,6 +986,12 @@ export function App() {
                     }}
                     onEdit={() => {
                       if (!record) return;
+                      const outbound = pendingEntry(record)?.outbound;
+                      if (outbound?.documents?.length)
+                        turnIntake.restore(
+                          outbound.files.map(readmitSavedFile),
+                          outbound.documents,
+                        );
                       const response = pendingEntry(record)?.response;
                       if (response?.type === "chat")
                         drafts.current.set(draftKey, response.text);
@@ -1110,6 +1037,46 @@ export function App() {
                 <Composer
                   key={composerKey}
                   request={review ?? pending}
+                  sourceControl={
+                    <AddButton
+                      expanded={turnAddOpen}
+                      controls="turn-add"
+                      disabled={replyBusy || !acceptsChat(review ?? pending)}
+                      onClick={() => setTurnAddOpen(!turnAddOpen)}
+                    />
+                  }
+                  panel={
+                    turnAddOpen &&
+                    acceptsChat(review ?? pending) && (
+                      <UnderBoxSurface
+                        id="turn-add"
+                        label="Add"
+                        compact
+                        above
+                        onClose={() => setTurnAddOpen(false)}
+                      >
+                        <AddOptions
+                          limits={documentLimits}
+                          disabled={replyBusy}
+                          onAdd={turnIntake.add}
+                          onDone={() => setTurnAddOpen(false)}
+                        />
+                      </UnderBoxSurface>
+                    )
+                  }
+                  attachments={
+                    <DocumentList
+                      documents={turnIntake.documents}
+                      reads={turnIntake.reads}
+                      limits={documentLimits}
+                      heldText={documentTextLength(
+                        record?.state.context.documents ?? [],
+                      )}
+                      disabled={replyBusy}
+                      onRemove={turnIntake.remove}
+                      onUseNameOnly={turnIntake.keepUnread}
+                    />
+                  }
                   value={drafts.current.get(composerKey) ?? ""}
                   onValueChange={(value) => {
                     drafts.current.set(composerKey, value);
@@ -1204,9 +1171,7 @@ type OpeningScreenProps = {
   perspective: Perspective;
   onPerspective: (perspective: Perspective) => void;
   documents: File[];
-  documentTrayOpen: boolean;
-  onDocumentTrayOpen: (open: boolean) => void;
-  documentReads: Record<string, OpeningDocumentRead>;
+  documentReads: DocumentReads;
   onAddDocuments: (files: readonly File[]) => void;
   onRemoveDocument: (name: string) => void;
   onKeepDocumentUnread: (name: string) => void;
@@ -1327,8 +1292,9 @@ function AddConnection({
 }
 
 // The opening is one view. The description box holds the setup controls along its bottom edge:
-// documents, the Perspective, the capabilities, and the mode. Each control opens a panel under the
-// box. Enter and Send both start the Interview. In run mode, Send first checks the binding.
+// the plus button, the Perspective, the capabilities, and the mode. Each control opens a panel
+// under the box. The documents show in the box, above the text. Enter and Send both start the
+// Interview. In run mode, Send first checks the binding.
 export function OpeningScreen(props: OpeningScreenProps) {
   const {
     config,
@@ -1337,8 +1303,6 @@ export function OpeningScreen(props: OpeningScreenProps) {
     onDescription,
     perspective,
     documents,
-    documentTrayOpen,
-    onDocumentTrayOpen,
     capabilityEvidence,
     onCapabilityEvidence,
     openControl,
@@ -1354,6 +1318,7 @@ export function OpeningScreen(props: OpeningScreenProps) {
     (item) => item.id === perspective,
   );
   const PerspectiveIcon = PERSPECTIVE_ICONS[perspective];
+  const addOpen = openControl === "add";
   const perspectiveOpen = openControl === "perspective";
   const capabilitiesOpen = openControl === "capabilities";
   const runMode = connectionDraft.mode === "run";
@@ -1393,23 +1358,24 @@ export function OpeningScreen(props: OpeningScreenProps) {
                 placeholder="A support bot for a retail bank…"
                 onSend={start}
                 sendBlockedReason={canStart ? undefined : START_BLOCKED}
+                attachments={
+                  <DocumentList
+                    documents={documents}
+                    reads={props.documentReads}
+                    limits={config.document_limits ?? undefined}
+                    disabled={busy}
+                    onRemove={props.onRemoveDocument}
+                    onUseNameOnly={props.onKeepDocumentUnread}
+                  />
+                }
                 sourceControl={
                   <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                    <AddDocuments
-                      onOpen={() => onDocumentTrayOpen(!documentTrayOpen)}
+                    <AddButton
+                      expanded={addOpen}
+                      controls="opening-add"
                       disabled={busy}
-                      expanded={documentTrayOpen}
+                      onClick={() => onOpenControl(addOpen ? null : "add")}
                     />
-                    {documents.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => onDocumentTrayOpen(true)}
-                        className="text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        {documents.length}{" "}
-                        {documents.length === 1 ? "document" : "documents"}
-                      </button>
-                    )}
                     <FooterChip
                       ariaLabel={`Perspective: ${currentPerspective?.label ?? perspective}`}
                       value={currentPerspective?.label ?? perspective}
@@ -1452,18 +1418,20 @@ export function OpeningScreen(props: OpeningScreenProps) {
             </div>
             {/* The cards under the box share one column. Only the first card starts under the box. */}
             <div className="under-box-stack relative z-0 mx-auto flex w-[95%] flex-col gap-2">
-              {documentTrayOpen && (
-                <DocumentTray onClose={() => onDocumentTrayOpen(false)}>
-                  <InitialDocumentPicker
-                    config={config}
-                    documents={documents}
-                    documentReads={props.documentReads}
+              {addOpen && (
+                <UnderBoxSurface
+                  id="opening-add"
+                  label="Add"
+                  compact
+                  onClose={() => onOpenControl(null)}
+                >
+                  <AddOptions
+                    limits={config.document_limits ?? undefined}
                     disabled={busy}
                     onAdd={props.onAddDocuments}
-                    onRemove={props.onRemoveDocument}
-                    onKeepWithoutReading={props.onKeepDocumentUnread}
+                    onDone={() => onOpenControl(null)}
                   />
-                </DocumentTray>
+                </UnderBoxSurface>
               )}
               {perspectiveOpen && (
                 <UnderBoxSurface
@@ -1539,131 +1507,6 @@ export function OpeningScreen(props: OpeningScreenProps) {
           </div>
           <ManualAuthoringEntry onOpen={props.onManualOpen} />
         </div>
-      </div>
-    </div>
-  );
-}
-
-export function InitialDocumentPicker({
-  config,
-  documents,
-  documentReads,
-  disabled,
-  onAdd,
-  onRemove,
-  onKeepWithoutReading,
-}: {
-  config: WizardConfig;
-  documents: readonly File[];
-  documentReads: Record<string, OpeningDocumentRead>;
-  disabled: boolean;
-  onAdd: (files: readonly File[]) => void;
-  onRemove: (name: string) => void;
-  onKeepWithoutReading: (name: string) => void;
-}) {
-  const limits = config.document_limits;
-  if (!limits || !limits.fixture_extensions || !limits.extraction_extensions)
-    return (
-      <p role="alert" className="text-sm text-destructive">
-        Document limits are not available. Try again before adding files.
-      </p>
-    );
-  const fixtureExtensions = limits.fixture_extensions;
-  const totalText = documents.reduce((total, file) => {
-    const read = documentReads[file.name];
-    return total + (read?.status === "read" ? unicodeLength(read.text) : 0);
-  }, 0);
-  const textLimitExceeded = totalText > limits.max_text_characters_total;
-
-  return (
-    <div className="flex min-w-0 flex-1 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <label
-          className={cn(
-            "relative inline-flex items-center rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-within:ring-2 focus-within:ring-ring",
-            disabled ? "cursor-not-allowed opacity-45" : "cursor-pointer",
-          )}
-        >
-          Choose documents
-          <input
-            type="file"
-            multiple
-            aria-label="Choose documents"
-            disabled={disabled}
-            accept={fixtureExtensions
-              .map((extension) => `.${extension}`)
-              .join(",")}
-            onChange={(event) => {
-              onAdd([...(event.currentTarget.files ?? [])]);
-              event.currentTarget.value = "";
-            }}
-            className="sr-only"
-          />
-        </label>
-        {documents.length === 0 && (
-          <span className="text-xs text-muted-foreground">No files chosen</span>
-        )}
-      </div>
-      {documents.length > 0 && (
-        <ul className="flex flex-col divide-y divide-border">
-          {documents.map((file) => {
-            const read = documentReads[file.name] ?? { status: "not_read" };
-            return (
-              <li
-                key={file.name}
-                className="flex flex-wrap items-center gap-x-4 gap-y-2 py-2"
-              >
-                <span
-                  className="min-w-0 flex-1 truncate text-sm text-foreground"
-                  title={file.name}
-                >
-                  {file.name}
-                </span>
-                <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 text-xs text-muted-foreground">
-                  {read.status === "failed" ? (
-                    <span className="max-w-full text-destructive">
-                      Could not read: {read.message}
-                    </span>
-                  ) : (
-                    <span aria-live="polite">
-                      {read.status === "reading"
-                        ? "Reading…"
-                        : read.status === "read"
-                          ? "Read"
-                          : read.status === "kept"
-                            ? "Kept without reading"
-                            : "Not read"}
-                    </span>
-                  )}
-                  {(read.status === "failed" ||
-                    (textLimitExceeded && read.status === "read")) && (
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => onKeepWithoutReading(file.name)}
-                      className="rounded-md px-2 py-1 text-foreground underline decoration-border underline-offset-2 hover:bg-background disabled:opacity-40"
-                    >
-                      Keep without reading
-                    </button>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  disabled={disabled || read.status === "reading"}
-                  onClick={() => onRemove(file.name)}
-                  aria-label={`Remove ${file.name}`}
-                  className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-background hover:text-foreground disabled:opacity-40"
-                >
-                  <X size={14} strokeWidth={1.75} aria-hidden />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-        <p>Accepted file types: {fixtureExtensions.join(", ")}.</p>
-        <p>File size: {limits.max_initial_bytes / 1_000_000} MB total.</p>
       </div>
     </div>
   );

@@ -252,7 +252,7 @@ export function removeUnreferencedFixtures(
       .flatMap((task) => task.fixtures),
   );
   const removable = new Set(names.filter((name) => !references.has(name)));
-  const openingDocuments = new Set(
+  const documents = new Set(
     (record.state.context.documents ?? []).map((document) =>
       fixtureNameIdentity(document.name),
     ),
@@ -263,7 +263,7 @@ export function removeUnreferencedFixtures(
     fixtures: record.fixtures.filter(
       (fixture) =>
         !removable.has(fixture.name) ||
-        openingDocuments.has(fixtureNameIdentity(fixture.name)),
+        documents.has(fixtureNameIdentity(fixture.name)),
     ),
   };
 }

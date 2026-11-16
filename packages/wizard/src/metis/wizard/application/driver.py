@@ -71,7 +71,7 @@ from metis.wizard.domain.permissions import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from metis.wizard.contracts.interview_state import InterviewMessage
     from metis.wizard.domain.specification import (
@@ -164,6 +164,15 @@ _CLARIFY_TARGET_PATHS = frozenset(
 )
 
 
+def added_documents_note(names: Sequence[str]) -> str:
+    """The line that tells the model which documents came in with the current turn.
+
+    The system message lists every document of the Interview. This line is the only sign of
+    which ones are new, so it goes where the model reads the words of the user.
+    """
+    return f"[The user added documents: {json.dumps(list(names), ensure_ascii=False)}]"
+
+
 def _clarify_questions_asked(history: list[InterviewMessage]) -> int:
     """Count only questions composed by the model, not the package opening line."""
     count = sum(1 for message in history if message.role == "assistant")
@@ -190,6 +199,8 @@ class StepDriver:
     interviewer: Interviewer
     matcher: object | None = None  # a GraderMatcher; None leaves criteria unmatched
     pending_warnings: list[Warning] = field(default_factory=list)
+    # The names of the documents that came in with the turn in progress.
+    added_documents: tuple[str, ...] = ()
     model_error: InterviewerOutputError | None = field(default=None, repr=False)
     # True once this turn stored the reply to the user's own message. A follow-up model call
     # in the same turn must not replace it.
@@ -398,11 +409,18 @@ class StepDriver:
         # that item, so a chat on one card cannot rewrite another.
         target = request.target
         scope = _chat_scope(state, target)
+        # Only the model reads the note. The text of the user stays as typed for the rest of
+        # the turn.
+        said = (
+            f"{text}\n\n{added_documents_note(self.added_documents)}"
+            if self.added_documents
+            else text
+        )
         try:
             result = self.interviewer.chat(
                 state.specification,
                 str(state.step),
-                text,
+                said,
                 target,
                 context=state.context,
                 scope=scope,

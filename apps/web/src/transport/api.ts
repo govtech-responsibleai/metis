@@ -353,6 +353,8 @@ export interface InitialDescriptionEntry {
   kind: "initial_description";
   id: string;
   description: string;
+  // The names of the documents that the user added with the opening message.
+  documents?: string[];
 }
 export interface InteractionEntry {
   kind: "interaction";
@@ -360,10 +362,14 @@ export interface InteractionEntry {
   request: WizardRequest;
   response?: UserResponse;
   status: "pending" | "sending" | "failed" | "answered" | "ended_unanswered";
+  // The names of the documents that the user added to the Interview with this answer.
+  documents?: string[];
   outbound?: {
     files: LoadedFixture[];
     removedFixtures: string[];
     attempt: number;
+    // The documents that go to the Interview with this answer. `files` holds their bytes.
+    documents?: InterviewDocument[];
   };
   failure?: {
     message: string;
@@ -607,8 +613,14 @@ export const api = {
     state: InterviewState,
     request_id: string,
     response: UserResponse,
+    documents: readonly InterviewDocument[] = [],
   ) => {
-    const body: TurnRequest = { state: wireState(state), request_id, response };
+    const body: TurnRequest = {
+      state: wireState(state),
+      request_id,
+      response,
+      ...(documents.length > 0 ? { documents: [...documents] } : {}),
+    };
     return result(
       await call<TurnResponse>("/api/v1/wizard/interview/turn", {
         ...JSON_POST,

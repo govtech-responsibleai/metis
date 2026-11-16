@@ -125,7 +125,8 @@ export interface paths {
          * @description Apply one typed response to the client's complete current Interview state.
          *
          *     Send the latest full state and its pending request id. Replace the saved state with the state
-         *     from each successful response.
+         *     from each successful response. `documents` adds new documents to the Interview with the
+         *     answer. They join `state.context.documents` under the limits of the start request.
          */
         post: operations["turn_api_v1_wizard_interview_turn_post"];
         delete?: never;
@@ -1935,7 +1936,7 @@ export interface components {
         };
         /**
          * InterviewDocument
-         * @description One opening file, with extracted text when a reader supplied it.
+         * @description One file that the user gave to the Interview, with extracted text when a reader supplied it.
          */
         InterviewDocument: {
             /** Name */
@@ -2137,6 +2138,9 @@ export interface components {
         /**
          * InterviewTurnRequest
          * @description Answer the one pending request with its typed response.
+         *
+         *     `documents` are files that the user adds with this answer. They join the documents in
+         *     `state.context.documents`, and the full set must stay inside the same limits as at start.
          */
         InterviewTurnRequest: {
             state: components["schemas"]["InterviewState-Input"];
@@ -2144,6 +2148,8 @@ export interface components {
             request_id: string;
             /** Response */
             response: components["schemas"]["ChatResponse"] | components["schemas"]["ChoiceResponse"] | components["schemas"]["FormResponse"];
+            /** Documents */
+            documents?: components["schemas"]["InterviewDocument"][];
         };
         JsonValue: unknown;
         /**

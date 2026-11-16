@@ -18,7 +18,7 @@ The files of a Target are in `<project>/experiments/design/<target_id>/`, in the
   and writes the same file. The Interview row holds the other parts of the web record: the
   transcript, the times, and the file references.
 - `inputs/documents/` holds the files of the Interview record, by name. The user uploads these
-  files: the opening documents, the files for the Test Cases, and the files of an answer that
+  files: the documents of the Interview, the files for the Test Cases, and the files of an answer that
   the wizard has not accepted yet. The wizard CLI keeps its opening documents in the same folder.
 - `outputs/` is the input folder of the Specification. Give it to
   `metis engine simulate --input-dir`. It holds `specification.yaml`, `fixtures/`, and
