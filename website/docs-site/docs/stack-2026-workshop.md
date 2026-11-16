@@ -366,7 +366,7 @@ prints the output folder and the `evaluate` command.
 **Checkpoint:** six trials finish, and each has a `record.json` file:
 
 ```bash
-ls experiments/execute/<your-run>/outputs/trials/*/record.json
+ls experiments/execute/<your-experiment>/outputs/trials/*/record.json
 ```
 
 ## Step 5: Inspect the traces in Langfuse (5 min) {#step-5}
@@ -447,13 +447,13 @@ it chose, and you can open a `search_knowledge_base` step to see what it was cal
 [Run the graders](run-graders.md). Use the output folder that `simulate` printed:
 
 ```bash
-uv run metis engine evaluate --experiment-dir experiments/execute/<your-run>
+uv run metis engine evaluate --experiment-dir experiments/execute/<your-experiment>
 ```
 
 Each <Term>trial</Term> is graded in turn, with a progress bar for each trial. It ends with a summary:
 
 <TerminalOutput
-  command="uv run metis engine evaluate --experiment-dir experiments/execute/<your-run>"
+  command="uv run metis engine evaluate --experiment-dir experiments/execute/<your-experiment>"
   output={`Selected experiment: /path/to/metis/experiments/execute/toyapp-workshop-lite-20261102-004033
   Loaded 6 trial record(s)
 Models: Judge bedrock.claude-sonnet-5-5
@@ -490,7 +490,7 @@ If the command reports missing traces, wait a little and run it again. Langfuse 
 show a trace.
 
 **Checkpoint:** the output ends with "EVALUATION COMPLETE", and
-`experiments/execute/<your-run>/outputs/reports/results.json` exists. The goal is `0 failed`. If a
+`experiments/execute/<your-experiment>/outputs/reports/results.json` exists. The goal is `0 failed`. If a
 trial failed, run the command again.
 
 ## Step 7: Read the report (5 min) {#step-7}
@@ -514,7 +514,7 @@ packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/outputs/reports/
 Make the report from the results of step 6:
 
 ```bash
-uv run metis insights report --results-file experiments/execute/<your-run>/outputs/reports/results.json
+uv run metis insights report --results-file experiments/execute/<your-experiment>/outputs/reports/results.json
 ```
 
 Open `outputs/reports/report.html` in the same experiment folder, in your browser.
