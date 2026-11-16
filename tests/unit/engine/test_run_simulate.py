@@ -16,6 +16,7 @@ from rich.console import Console
 from metis.core import execution_layout
 from metis.core.logging import configure_logging
 from metis.engine.run import (
+    EvaluationInputError,
     RunError,
     RunStopped,
     prepare_experiment,
@@ -189,6 +190,35 @@ def test_a_folder_with_no_snapshot_raises_a_run_error(tmp_path: Path, function) 
 
     assert "no 'inputs/' snapshot" in text.getvalue()
     assert list(folder.iterdir()) == []
+
+
+@pytest.mark.parametrize("function", [simulate, resume_simulation])
+@pytest.mark.parametrize(
+    "snapshot",
+    ["schema_version: 1\nid: [not, a, string\n", "schema_version: 1\nid: test-exp\n"],
+    ids=["not-yaml", "not-a-specification"],
+)
+def test_a_snapshot_that_does_not_load_raises_and_writes_nothing(
+    monkeypatch, tmp_path: Path, function, snapshot: str
+) -> None:
+    experiment_dir = _experiment(tmp_path)
+    plans = _fake_trials(monkeypatch)
+    simulate(
+        experiment_dir, concurrency=1, stop=threading.Event(), console=_console()[0]
+    )
+    events = experiment_dir / execution_layout.LOGS / execution_layout.EVENTS_FILE
+    before = events.read_bytes()
+    outputs = sorted(p for p in (experiment_dir / "outputs").rglob("*"))
+    (experiment_dir / execution_layout.SPECIFICATION).write_text(snapshot)
+    console, text = _console()
+
+    with pytest.raises(EvaluationInputError):
+        function(experiment_dir, concurrency=1, stop=threading.Event(), console=console)
+
+    assert "failed to load experiment snapshot" in text.getvalue()
+    assert len(plans) == 1
+    assert events.read_bytes() == before
+    assert sorted(p for p in (experiment_dir / "outputs").rglob("*")) == outputs
 
 
 def test_resume_with_nothing_to_redo_completes_even_if_stop_is_set(

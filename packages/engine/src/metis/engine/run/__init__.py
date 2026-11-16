@@ -21,6 +21,7 @@ from metis.engine.run._evaluation import (
     resume_evaluation,
 )
 from metis.engine.run._inputs import (
+    load_snapshot,
     prepare_experiment,
     resolve_experiment_dir,
     validate_inputs,
@@ -44,6 +45,7 @@ __all__ = [
     "evaluate",
     "evaluate_command",
     "evaluation_is_complete",
+    "load_snapshot",
     "prepare_experiment",
     "resolve_experiment_dir",
     "resume_command",
