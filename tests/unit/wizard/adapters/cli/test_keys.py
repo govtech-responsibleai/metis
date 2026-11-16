@@ -244,7 +244,7 @@ def test_right_opens_details_and_left_closes_them() -> None:
         (
             "criteria",
             0,
-            "Esc back | ↑↓ move | → details | Enter Continue | Tab feedback",
+            "Esc back | ↑↓ move | → details | Enter Accept Criteria | Tab feedback",
         ),
     ],
     ids=["item-with-tick", "table-row", "item-with-details"],

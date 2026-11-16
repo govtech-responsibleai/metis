@@ -200,6 +200,9 @@ class CardDivider(CardComponent):
 class CardDetails(CardComponent):
     type: Literal[CardComponentType.DETAILS] = CardComponentType.DETAILS
     title: str
+    # The id of the item that this block shows, such as a Criterion. A door draws it beside the
+    # title. None when the block is supporting detail of its card, such as Grader settings.
+    id: str | None = None
     components: list[AnyCardComponent] = Field(default_factory=list)
     expanded: bool = False
 
@@ -261,6 +264,9 @@ class Card(BaseModel):
     options: list[Option] = Field(default_factory=list)  # actions scoped to this card
     note: str | None = None  # an empty-state message — "not selected, no actions"
     blocking: bool = False  # this card is why Continue is disabled
+    # The item is out of the current step, such as a Behaviour that is not measured. It stays on
+    # view so the user can see what is left out, and a door draws it quieter.
+    inactive: bool = False
 
     @model_validator(mode="after")
     def _checkbox_needs_a_toggle(self) -> Card:

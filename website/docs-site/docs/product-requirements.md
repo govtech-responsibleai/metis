@@ -21,13 +21,13 @@ also ask in the chat. Select **Continue**.
 
 ## 3. Edit the Criteria
 
-The Wizard writes Criteria for each selected Behaviour and picks a grader for each one. Select
-**Grader:** under a Criterion to see the grader and its settings.
+The Wizard writes Criteria for each selected Behaviour and picks a grader for each one. Select a
+Criterion to read it, then select **Grader:** to see the grader and its settings.
 
 ![The Criteria review, with the grader of one Criterion open](./assets/wizard-criteria.png)
 
 To change a Criterion, select the pen. To add one, select **+** on a Behaviour. Select
-**Continue**.
+**Accept Criteria**.
 
 ### When no grader fits
 
@@ -45,7 +45,7 @@ Each review step has **← Back**. It opens the step before, with your changes k
 ![The Behaviours review in the terminal](./assets/wizard-cli-behaviours.png)
 
 Press Space to select, Enter to continue, Tab to type a request, and Esc to go back. On the
-Criteria review, press the right arrow to see the grader of a Criterion.
+Criteria review, press the right arrow to see the Criteria of a Behaviour and their graders.
 
 </details>
 

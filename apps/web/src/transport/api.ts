@@ -102,7 +102,7 @@ export type CardComponent =
   | CardDetails;
 export type Card = Defaulted<
   Omit<Schema["BehaviourCard-Input"], "components" | "options" | "columns">,
-  "show_id"
+  "show_id" | "inactive"
 > & {
   components: CardComponent[];
   options: Option[];
@@ -110,7 +110,7 @@ export type Card = Defaulted<
 };
 export type ScenarioCard = Defaulted<
   Omit<Schema["ScenarioCard-Input"], "components" | "options" | "columns">,
-  "show_id"
+  "show_id" | "inactive"
 > & {
   components: CardComponent[];
   options: Option[];

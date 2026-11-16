@@ -281,10 +281,33 @@ def test_criteria_cards_carry_no_grader_annotation() -> None:
     )
 
 
-def test_criteria_keep_feature_groups_and_expandable_grader_controls() -> None:
+def test_criteria_review_puts_measured_behaviours_first_with_closed_criteria() -> None:
+    from metis.wizard.application import screens
     from metis.wizard.contracts.conversation import CardDetails, CardText, options_of
 
+    specification = research_assistant()
+    # F-1 has EB-1 (not measured here) and EB-2 (measured). F-2 has EB-3 (not measured).
+    specification.behaviour("EB-1").measured = False  # type: ignore[union-attr]
+    specification.behaviour("EB-2").measured = True  # type: ignore[union-attr]
+    specification.behaviour("EB-3").measured = False  # type: ignore[union-attr]
+    request = screens.criteria_screen(specification, "Review.")
+
+    # Measured Behaviours come first in a Feature, and a Feature with none comes last.
+    assert [card.id for card in request.cards] == ["EB-2", "EB-1", "EB-3"]
+    headings = [s.id for s in request.sections if s.parent is not None]
+    assert headings == ["F-1", "F-2"]
+    # A Behaviour that is not measured keeps its Criteria on view, with no actions.
+    dormant = next(card for card in request.cards if card.id == "EB-1")
+    assert dormant.options == [] and dormant.inactive
+    assert not next(card for card in request.cards if card.id == "EB-2").inactive
+    # Each Criterion row carries its id, with or without actions.
+    rows = [c for c in dormant.components if isinstance(c, CardDetails)]
+    assert [row.id for row in rows] == ["AC-1-1", "AC-1-2"]
+    offered = options_of(request)
+    assert not {"edit:EB-1", "add:EB-1", "edit:AC-1-1"} & set(offered)
+
     request = _compose_at(InterviewStep.CRITERIA)
+    specification = research_assistant()
     card = next(card for card in request.cards if card.id == "EB-1")
     assert card.section_id == "F-1"
     criteria = [
@@ -292,14 +315,18 @@ def test_criteria_keep_feature_groups_and_expandable_grader_controls() -> None:
     ]
     assert len(criteria) == 2
     first, grader, _actions = criteria[0].components
-    assert criteria[0].expanded
+    assert not criteria[0].expanded
     assert isinstance(first, CardText)
-    assert first.text == research_assistant().criterion("AC-1-1").description
+    assert first.text == specification.criterion("AC-1-1").description
     assert isinstance(grader, CardDetails)
     assert not grader.expanded and grader.muted
     assert any(getattr(item, "label", None) == "Grader" for item in grader.components)
     offered = options_of(request)
     assert {"edit:AC-1-1", "remove:AC-1-1", "add:EB-1"} <= set(offered)
+    # Continue names what it accepts.
+    assert next(o for o in request.options if o.id.action == "continue").label == (
+        "Accept Criteria"
+    )
     # The Criteria review has no checkboxes: a selected Behaviour supplies all its Criteria.
     assert all(card.selected is None for card in request.cards)
 
