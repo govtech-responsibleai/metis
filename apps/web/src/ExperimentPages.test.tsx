@@ -276,6 +276,7 @@ function view(
 
 const trial = (fields: Partial<TrialRow> & { trial: string }): TrialRow => ({
   taskId: "case-1",
+  index: Number(fields.trial.at(-1)),
   persona: "New customer",
   scenario: "Opens an account",
   status: "waiting",
@@ -360,10 +361,10 @@ test("the Trials tab shows the progress and one row for each trial in plan order
   );
   assert.match(shown, /25%2 of 4 simulatedSimulate.*EvaluateSimulating/);
   assert.match(markup, /aria-current="step"[^>]*>.*Simulate</);
-  assert.match(shown, /TrialPersonaScenarioStatusReason/);
+  assert.match(shown, /Test CaseTrialPersonaScenarioStatusReason/);
   assert.match(
     shown,
-    /case-1-p1-1New customerOpens an accountSimulated.*case-1-p1-2New customerOpens an accountFailedTarget returned HTTP 502.*case-2-p2-1Old customerCloses an accountSimulating.*case-2-p2-2Old customerCloses an accountWaiting/,
+    /case-11New customerOpens an accountSimulated.*case-12New customerOpens an accountFailedTarget returned HTTP 502.*case-21Old customerCloses an accountSimulating.*case-22Old customerCloses an accountWaiting/,
   );
   assert.doesNotMatch(shown, /Graded|Passed|%\(/);
 });
@@ -374,8 +375,8 @@ test("the trials of one Test Case show only its rows", () => {
   );
 
   assert.match(shown, /case-2Show all trials/);
-  assert.match(shown, /p2-1.*p2-2/);
-  assert.doesNotMatch(shown, /p1-1|New customer/);
+  assert.match(shown, /case-21Old customer.*case-22Old customer/);
+  assert.doesNotMatch(shown, /case-1|New customer/);
 });
 
 test("a live Experiment can stop and cannot be deleted", () => {

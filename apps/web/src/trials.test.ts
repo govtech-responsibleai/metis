@@ -41,6 +41,7 @@ test("the plan names each trial folder as the engine does, with its Persona and 
   assert.deepEqual(plan[0], {
     trial: "t1-p1-1",
     taskId: "t1",
+    index: 1,
     persona: "New customer",
     scenario: "Opens an account",
   });
@@ -127,7 +128,7 @@ test("a run that ended with no line leaves no trial in flight", () => {
   assert.equal(statusOf(events, false)["t1-p1-1"], "stopped");
 });
 
-test("evaluate grades the simulated trials, and a trial with no grade shows no reason", () => {
+test("evaluate grades the simulated trials, and a trial with no grade shows why", () => {
   const rows = trialRows(
     plan,
     [
@@ -152,7 +153,7 @@ test("evaluate grades the simulated trials, and a trial with no grade shows no r
     rows.slice(0, 2).map((row) => [row.status, row.reason]),
     [
       ["graded", null],
-      ["grading-failed", null],
+      ["grading-failed", "No traces"],
     ],
   );
 });
@@ -191,6 +192,7 @@ test("a trial that the plan does not name gets its own row at the end", () => {
   assert.deepEqual(rows.at(-1), {
     trial: "old-p9-1",
     taskId: null,
+    index: null,
     persona: null,
     scenario: null,
     status: "simulated",

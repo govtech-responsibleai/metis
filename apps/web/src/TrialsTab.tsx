@@ -14,7 +14,7 @@ import {
   Square,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { Link } from "wouter";
 import {
   isLive,
@@ -71,6 +71,9 @@ const STEP_STROKE: Record<StepPhase, string> = {
 // The length of one half of the ring, out of 100. The rest of the half is the gap between halves.
 const HALF = 47;
 
+// The longest reach of the tail that grows from the end of the fill in the live half.
+const REACH = 14;
+
 // The right half of the ring is Simulate and the left half is Evaluate.
 function ProgressRing({
   state,
@@ -123,6 +126,21 @@ function ProgressRing({
               strokeDasharray={`${filled} ${100 - filled}`}
               strokeDashoffset={offset}
             />
+            {half.phase === "live" && filled < HALF && (
+              <circle
+                cx={32}
+                cy={32}
+                r={28}
+                pathLength={100}
+                className="ring-reach stroke-accent"
+                strokeDashoffset={offset - filled}
+                style={
+                  {
+                    "--reach": `${Math.min(REACH, HALF - filled)}`,
+                  } as CSSProperties
+                }
+              />
+            )}
           </g>
         );
       })}
@@ -160,15 +178,19 @@ function PhaseSteps({ state }: { state: ExperimentState }) {
             <span
               className={cn(
                 "flex items-center gap-1.5 rounded-md border px-2 py-0.5",
-                phase === "live"
-                  ? "border-accent/40 bg-accent/8 font-medium"
-                  : "border-border text-muted-foreground",
+                phase === "live" && "border-accent/40 bg-accent/8 font-medium",
+                phase === "done" && "border-success/40 bg-success/8",
+                (phase === "next" || phase === "paused") &&
+                  "border-border text-muted-foreground",
               )}
               aria-current={phase === "live" ? "step" : undefined}
             >
               <Icon
                 size={13}
-                className={cn(phase === "live" && "text-accent")}
+                className={cn(
+                  phase === "live" && "run-turn text-accent",
+                  phase === "done" && "text-success",
+                )}
                 aria-hidden
               />
               {label}
@@ -181,18 +203,18 @@ function PhaseSteps({ state }: { state: ExperimentState }) {
 }
 
 // A trial that did not run is an app error, so it has the destructive colour. A trial with no
-// grade is skipped. The other icons are neutral, because this tab shows no grades.
+// grade is skipped. A trial that ends a phase has the colour of a done phase, as on the ring.
 function TrialIcon({ status }: { status: TrialStatus }) {
   switch (status) {
     case "waiting":
       return <Minus size={14} className="text-skipped" aria-hidden />;
     case "simulating":
     case "grading":
-      return <Loader size={14} className="text-accent" aria-hidden />;
+      return <Loader size={14} className="run-turn text-accent" aria-hidden />;
     case "simulated":
-      return <Clock size={14} className="text-muted-foreground" aria-hidden />;
+      return <Clock size={14} className="text-success" aria-hidden />;
     case "graded":
-      return <CircleCheck size={14} aria-hidden />;
+      return <CircleCheck size={14} className="text-success" aria-hidden />;
     case "failed":
       return <X size={14} className="text-destructive" aria-hidden />;
     case "grading-failed":
@@ -202,11 +224,7 @@ function TrialIcon({ status }: { status: TrialStatus }) {
   }
 }
 
-const QUIET: ReadonlySet<TrialStatus> = new Set([
-  "waiting",
-  "simulated",
-  "stopped",
-]);
+const QUIET: ReadonlySet<TrialStatus> = new Set(["waiting", "stopped"]);
 
 function StatusFilter({
   rows,
@@ -325,15 +343,17 @@ export function TrialsTab({
         <Panel className="overflow-hidden">
           <table className="w-full table-fixed text-sm">
             <colgroup>
-              <col className="w-[24%]" />
-              <col className="w-[18%]" />
-              <col className="w-[20%]" />
+              <col className="w-[6.5rem]" />
+              <col className="w-[3.5rem]" />
+              <col className="w-[27%]" />
+              <col className="w-[29%]" />
               <col className="w-[9rem]" />
               <col />
             </colgroup>
             <thead>
               <tr className="border-b border-border bg-muted/60 text-left text-muted-foreground">
-                <th className="px-4 py-2.5 font-medium">Trial</th>
+                <th className="px-4 py-2.5 font-medium">Test Case</th>
+                <th className="px-2 py-2.5 font-medium">Trial</th>
                 <th className="px-2 py-2.5 font-medium">Persona</th>
                 <th className="px-2 py-2.5 font-medium">Scenario</th>
                 <th className="px-2 py-2.5 font-medium">Status</th>
@@ -348,8 +368,11 @@ export function TrialsTab({
                 >
                   <td className="px-4 py-2.5 break-all">
                     <span className="font-mono text-xs tracking-tight">
-                      {row.trial}
+                      {row.taskId ?? row.trial}
                     </span>
+                  </td>
+                  <td className="px-2 py-2.5 font-mono text-xs tabular-nums">
+                    {row.index}
                   </td>
                   <td className="truncate px-2 py-2.5">{row.persona}</td>
                   <td className="truncate px-2 py-2.5">{row.scenario}</td>

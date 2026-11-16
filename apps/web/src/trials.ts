@@ -32,13 +32,16 @@ export interface PlannedTrial {
   trial: string;
   // Null for a trial that the Specification does not name.
   taskId: string | null;
+  // The number of the trial in its Test Case, from 1. Null for a trial that the Specification
+  // does not name.
+  index: number | null;
   persona: string | null;
   scenario: string | null;
 }
 
 export interface TrialRow extends PlannedTrial {
   status: TrialStatus;
-  // Why the trial did not run. Null for every other status.
+  // Why the trial did not run, or why evaluate could not grade it. Null for every other status.
   reason: string | null;
 }
 
@@ -52,6 +55,7 @@ export function trialPlan(specification: Specification): PlannedTrial[] {
     return Array.from({ length: task.num_trials }, (_, offset) => ({
       trial: `${task.id}-${task.persona_ref}-${String(offset + 1).padStart(pad, "0")}`,
       taskId: task.id,
+      index: offset + 1,
       persona: personas.get(task.persona_ref) ?? task.persona_ref,
       scenario: scenarios.get(task.scenario_ref) ?? task.scenario_ref,
     }));
@@ -85,6 +89,11 @@ const HAS_EVALUATION: ReadonlySet<TrialStatus> = new Set([
   "grading-failed",
 ]);
 
+const HAS_REASON: ReadonlySet<TrialStatus> = new Set([
+  "failed",
+  "grading-failed",
+]);
+
 const settled = (row: TrialRow, status: TrialStatus): TrialRow => ({
   ...row,
   status,
@@ -102,6 +111,7 @@ function unplanned(trial: string): TrialRow {
   return {
     trial,
     taskId: null,
+    index: null,
     persona: null,
     scenario: null,
     status: "waiting",
@@ -135,7 +145,7 @@ export function applyEvent(
   next.set(event.trial, {
     ...row,
     status,
-    reason: status === "failed" ? (event.reason ?? null) : null,
+    reason: HAS_REASON.has(status) ? (event.reason ?? null) : null,
   });
   return next;
 }
