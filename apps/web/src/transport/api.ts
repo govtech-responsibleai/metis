@@ -48,12 +48,15 @@ type ConnectionOperation =
   operations["update_target_connection_api_v1_wizard_connection_post"];
 type PackageWireRequest = Schema["Body_package_api_v1_wizard_package_post"];
 type TargetsOperation = operations["list_targets_api_v1_targets_get"];
+type CurrentUserOperation = operations["current_user_api_v1_auth_me_get"];
 type InterviewReadOperation =
   operations["read_interview_api_v1_targets__target_id__interview_get"];
 type InterviewWireRecord = JsonResponse<InterviewReadOperation>;
 type ReportOperation =
   operations["experiment_report_api_v1_experiments__experiment_id__report_get"];
 
+export type CurrentUser = JsonResponse<CurrentUserOperation>;
+export type UserAccount = Schema["UserAccountBody"];
 export type InterviewStep = Schema["InterviewStep"];
 export type Perspective = Schema["Perspective"];
 export type InterviewDocument = Schema["InterviewDocument"];
@@ -457,6 +460,16 @@ function route<P extends keyof ApiPaths>(
   }) as RoutedPath;
 }
 
+// The API returns 401 `login_required` when login is on and the request has no login session.
+// The login gate listens here, so each request of the app can bring the login page back.
+const loginRequiredListeners = new Set<() => void>();
+export function onLoginRequired(listener: () => void): () => void {
+  loginRequiredListeners.add(listener);
+  return () => {
+    loginRequiredListeners.delete(listener);
+  };
+}
+
 async function responseFor(
   path: keyof ApiPaths | RoutedPath,
   init?: RequestInit,
@@ -471,12 +484,15 @@ async function responseFor(
     });
   }
   if (!response.ok) {
-    let detail: Partial<InterviewFailure> = {};
+    // Each failure of the API has this shape. The codes differ by route.
+    let detail: { message?: string; code?: string; retryable?: boolean } = {};
     try {
-      detail = (await response.json()) as Partial<InterviewFailure>;
+      detail = (await response.json()) as typeof detail;
     } catch {
       /* status is enough */
     }
+    if (response.status === 401 && detail.code === "login_required")
+      for (const listener of loginRequiredListeners) listener();
     throw new TransportError(
       detail.message ?? `The METIS API returned HTTP ${response.status}.`,
       {
@@ -683,6 +699,19 @@ export const api = {
 
 // The store routes keep each Target: its Interview record, the record files, and the
 // Specification. A file is a reference in the record, and its bytes are a separate request.
+// The login session of the browser. The API keeps it in an HTTP-only cookie.
+export const auth = {
+  me: () => call<CurrentUser>("/api/v1/auth/me"),
+  login: (username: string, password: string) =>
+    call<CurrentUser>("/api/v1/auth/login", {
+      ...JSON_POST,
+      body: JSON.stringify({ username, password }),
+    }),
+  logout: async (): Promise<void> => {
+    await responseFor("/api/v1/auth/logout", { method: "POST" });
+  },
+};
+
 export const store = {
   targets: () => call<TargetList>("/api/v1/targets"),
   interview: async (id: string): Promise<StoredInterviewRecord> => {
