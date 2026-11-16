@@ -57,7 +57,7 @@ class DocumentExtractionResult(BaseModel):
 
 
 class InterviewDocument(BaseModel):
-    """One opening file, with extracted text when a reader supplied it."""
+    """One file that the user gave to the Interview, with extracted text when a reader supplied it."""
 
     model_config = ConfigDict(extra="forbid")
 

@@ -106,6 +106,43 @@ def test_resume_reports_the_pending_request_stage(
     assert "Resuming at the criteria step." in result.output
 
 
+def test_a_folder_is_complete_only_when_its_saved_state_is_done(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """An Interview that is open again keeps its last Specification, and `resume` continues it."""
+    from typer.testing import CliRunner
+
+    from metis.wizard.adapters.cli import render as render_module
+    from metis.wizard.bootstrap import create_cli_app
+
+    done = InterviewState(
+        specification=research_assistant(),
+        context=interview_context(),
+        behaviours_confirmed=True,
+        confirmed=True,
+    )
+    cli._write_outputs(done, tmp_path)
+    app = create_cli_app()
+
+    complete = CliRunner().invoke(app, ["resume", "--out-dir", str(tmp_path)])
+    assert "This export is complete." in complete.output
+
+    cli._save(_state_pending_at(InterviewStep.CRITERIA), tmp_path)
+    assert (tmp_path / "outputs/specification.yaml").is_file()
+    monkeypatch.setattr(cli, "_load_env", lambda: None)
+    monkeypatch.setattr(cli, "_new_interviewer", StubInterviewer)
+
+    def stop_after_heading(*_args, **_kwargs):
+        raise RuntimeError("stop after resume heading")
+
+    monkeypatch.setattr(render_module, "render", stop_after_heading)
+
+    resumed = CliRunner().invoke(app, ["resume", "--out-dir", str(tmp_path)])
+    assert "Resuming at the criteria step." in resumed.output
+    started = CliRunner().invoke(app, ["init", "--out-dir", str(tmp_path)])
+    assert "already in progress" in started.output
+
+
 def test_a_retryable_failure_is_resent_when_the_user_agrees(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:

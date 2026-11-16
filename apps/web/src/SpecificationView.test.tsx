@@ -233,6 +233,36 @@ test("Grader details name the grader and describe it when the grader list has it
   assert.doesNotMatch(visible, /metis\.graders\.answer_quality/);
 });
 
+test("a message shows the documents that the user added with it", () => {
+  const request = {
+    type: "chat" as const,
+    prompt: "Who uses it?",
+    state: "resolved" as const,
+    request_id: "req-1",
+    stage: "clarify" as const,
+    multiline: true,
+    answer: "Policy staff. The handbook is attached.",
+  };
+  const markup = renderToStaticMarkup(
+    <Transcript
+      requests={[request]}
+      entries={[
+        {
+          kind: "interaction",
+          request_id: "req-1",
+          request,
+          status: "answered",
+          documents: ["handbook.pdf"],
+        },
+      ]}
+      busy={false}
+      onRespond={() => undefined}
+    />,
+  );
+  assert.match(markup, /Added documents/);
+  assert.match(markup, /handbook\.pdf/);
+});
+
 test("the generic form renderer transports names, descriptions, and opaque targets", () => {
   const markup = renderToStaticMarkup(
     <Transcript

@@ -13,7 +13,7 @@ from metis.wizard import (
 )
 
 
-def test_the_route_table_is_exactly_health_catalogues_wizard_store_and_report_routes(
+def test_the_route_table_is_exactly_the_documented_routes(
     client: TestClient,
 ) -> None:
     paths = client.get("/openapi.json").json()["paths"]
@@ -26,6 +26,9 @@ def test_the_route_table_is_exactly_health_catalogues_wizard_store_and_report_ro
         "/api/v1/targets/{target_id}",
         "/api/v1/targets/{target_id}/interview",
         "/api/v1/targets/{target_id}/interview/files/{name}",
+        "/api/v1/targets/{target_id}/specification",
+        "/api/v1/targets/{target_id}/experiments",
+        "/api/v1/experiments/{experiment_id}",
         "/api/v1/wizard/config",
         "/api/v1/wizard/connection",
         "/api/v1/wizard/connection/check",
@@ -37,6 +40,10 @@ def test_the_route_table_is_exactly_health_catalogues_wizard_store_and_report_ro
         "/api/v1/wizard/compile",
         "/api/v1/experiments/{experiment_id}/report",
         "/api/v1/experiments/{experiment_id}/report.html",
+        "/api/v1/users",
+        "/api/v1/auth/login",
+        "/api/v1/auth/logout",
+        "/api/v1/auth/me",
     }
 
 

@@ -19,11 +19,12 @@ test("each path builder gives a path that reads back as its place", () => {
     targetId: "a",
     tab: "experiments",
   });
-  assert.deepEqual(placeOf(paths.experiment("a", NEW_EXPERIMENT)), {
+  assert.deepEqual(placeOf(paths.experiment("a", "e1", "trials")), {
     page: "experiment",
     targetId: "a",
-    experimentId: "new",
+    experimentId: "e1",
     tab: "trials",
+    taskId: null,
   });
   assert.deepEqual(placeOf(paths.experiment("a", "e1", "report")), {
     page: "experiment",
@@ -36,6 +37,29 @@ test("each path builder gives a path that reads back as its place", () => {
     targetId: "a",
   });
   assert.deepEqual(placeOf(paths.experiments()), { page: "experiments" });
+});
+
+test("a bare experiment path has no tab", () => {
+  assert.equal(
+    paths.experiment("a", NEW_EXPERIMENT),
+    "/targets/a/experiments/new",
+  );
+  assert.deepEqual(placeOf(paths.experiment("a", NEW_EXPERIMENT)), {
+    page: "experiment",
+    targetId: "a",
+    experimentId: "new",
+    tab: null,
+  });
+});
+
+test("a test case path opens the Trials tab at that test case", () => {
+  assert.deepEqual(placeOf(paths.testCase("a", "e1", "case 1/2")), {
+    page: "experiment",
+    targetId: "a",
+    experimentId: "e1",
+    tab: "trials",
+    taskId: "case 1/2",
+  });
 });
 
 test("the root path opens a new Target", () => {
@@ -67,6 +91,7 @@ test("an unfinished Target sends every place but its Specification tab there", (
     paths.target("a", "experiments"),
     paths.experiment("a", NEW_EXPERIMENT),
     paths.experiment("a", "e1", "report"),
+    paths.testCase("a", "e1", "c1"),
     paths.compare("a"),
   ])
     assert.equal(
@@ -84,7 +109,9 @@ test("a done Target stays on the place that its URL names", () => {
   for (const path of [
     paths.target("a", "specification"),
     paths.target("a", "experiments"),
+    paths.experiment("a", "e1"),
     paths.experiment("a", "e1", "report"),
+    paths.testCase("a", "e1", "c1"),
     paths.compare("a"),
   ])
     assert.equal(targetRedirect(placeOf(path), true), null, path);
@@ -96,7 +123,9 @@ test("an unknown path is not found", () => {
     "/targets",
     "/targets/new/specification",
     "/targets/a/interview",
-    "/targets/a/experiments/e1/trials",
+    "/targets/a/experiments/e1/results",
+    "/targets/a/experiments/e1/report/c1",
+    "/targets/a/experiments/e1/trials/c1/x",
     "/targets/a/compare/x",
     "/targets/%E0%A4%A",
   ])

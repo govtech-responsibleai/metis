@@ -51,9 +51,17 @@ DEFAULT_HOST = "127.0.0.1"
 
 _LOCAL_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 
+LOGIN_ENV = "METIS_LOGIN"
+"""`1` turns login on. Then each `/api` route needs a login session, except the login route, the
+logout route, and the user routes that the admin token protects. Login is off when the variable is unset or `0`."""
+
+ADMIN_TOKEN_ENV = "METIS_ADMIN_TOKEN"
+"""The token of the routes that make and list user accounts. Those routes are off when it is
+unset. It can do nothing else: it reads no record of a user account and starts no login session."""
+
 DATABASE_URL_ENV = "METIS_DATABASE_URL"
 """The SQLAlchemy URL of the store database. The default is
-`sqlite:///<project>/experiments/metis.db`."""
+`sqlite:///<project>/metis.db`."""
 
 
 def connection_check_from_env() -> bool:
@@ -71,7 +79,32 @@ def connection_check_from_env() -> bool:
     flag = os.environ.get(CONNECTION_CHECK_ENV, "").strip()
     if flag in ("0", "1"):
         return flag == "1"
+    return is_local_host()
+
+
+def is_local_host() -> bool:
+    """Whether the API listens only on this computer, from ``HOST``."""
     return os.environ.get("HOST", DEFAULT_HOST).strip() in _LOCAL_HOSTS
+
+
+def login_from_env() -> tuple[bool, str]:
+    """Whether login is on, and the admin token. An unset token is the empty text.
+
+    Raises ``SettingsError`` for an admin token with login off. The token makes user accounts,
+    and a user account has a purpose only when login is on. A server in that state is open to
+    all, which the person who set the token did not intend.
+    """
+    flag = os.environ.get(LOGIN_ENV, "").strip()
+    if flag not in ("", "0", "1"):
+        raise SettingsError(f"{LOGIN_ENV} must be 1 or 0, but it is '{flag}'.")
+    login = flag == "1"
+    admin_token = os.environ.get(ADMIN_TOKEN_ENV, "").strip()
+    if admin_token and not login:
+        raise SettingsError(
+            f"{ADMIN_TOKEN_ENV} is set, but login is off. Set {LOGIN_ENV}=1 to turn login on, "
+            f"or remove {ADMIN_TOKEN_ENV}."
+        )
+    return login, admin_token
 
 
 @dataclass(frozen=True)
@@ -82,7 +115,11 @@ class Settings:
     listens on this computer. See ``connection_check_from_env``.
 
     ``env`` is a copy of the process environment, so it holds keys. ``repr`` leaves it out.
-    ``database_url`` can hold a password, so ``repr`` leaves it out too.
+    ``database_url`` can hold a password, so ``repr`` leaves it out too. ``repr`` also leaves
+    out ``admin_token``.
+
+    ``login`` and ``admin_token`` come from ``login_from_env``. ``secure_cookie`` is on for an
+    API that other computers can reach, so the browser sends the login cookie only over HTTPS.
     """
 
     env: Mapping[str, str] = field(repr=False)
@@ -90,6 +127,9 @@ class Settings:
     connection_check: bool = False
     project_dir: Path = field(default_factory=find_project_root)
     database_url: str = field(default="", repr=False)
+    login: bool = False
+    admin_token: str = field(default="", repr=False)
+    secure_cookie: bool = False
 
     @classmethod
     def from_env(
@@ -99,7 +139,10 @@ class Settings:
 
         ``project_dir`` comes from `metis-api --project-dir`. Without it, the project folder is
         the one that ``find_project_root`` finds.
+
+        Raises ``SettingsError`` when the login settings disagree. See ``login_from_env``.
         """
+        login, admin_token = login_from_env()
         project_dir = (project_dir or find_project_root()).resolve()
         database_url = (
             os.environ.get(DATABASE_URL_ENV, "").strip()
@@ -111,6 +154,9 @@ class Settings:
             connection_check=connection_check_from_env(),
             project_dir=project_dir,
             database_url=database_url,
+            login=login,
+            admin_token=admin_token,
+            secure_cookie=not is_local_host(),
         )
 
     def role(self, role: ModelRole) -> RoleSettings:
@@ -160,7 +206,9 @@ def build_dependencies(settings: Settings) -> WizardDependencies:
 
 
 __all__ = [
+    "ADMIN_TOKEN_ENV",
     "DEFAULT_HOST",
+    "LOGIN_ENV",
     "API_ROLES",
     "CONNECTION_CHECK_ENV",
     "DATABASE_URL_ENV",
@@ -170,4 +218,6 @@ __all__ = [
     "WizardDependencies",
     "build_dependencies",
     "connection_check_from_env",
+    "is_local_host",
+    "login_from_env",
 ]

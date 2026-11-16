@@ -6,8 +6,8 @@ IMPORTANT: Always talk in ASD-STE100 Simplified Technical English.
 
 ## Package Purpose
 
-A thin HTTP door over the wizard's public Interview interface, plus a store of Interview
-records and their files. The wizard routes translate request and response JSON
+A thin HTTP door over the wizard's public Interview interface, plus a store of Targets,
+Interview records, Specifications, and Experiments. The wizard routes translate request and response JSON
 and status codes and hold no user state. Every interview rule stays inside metis-wizard; this
 package must not learn any of them.
 
@@ -25,22 +25,42 @@ returned `InterviewState`, not on the app.
 
 ## The store
 
-The database has one `interviews` table. Each row holds the existing Interview record as JSON,
-with its id and save time. The state contains the Target details and Specification.
-The `targets` route name identifies these saved Interviews. It does not require a separate Target
-table. Saving an Interview does not compile its Specification or prepare an engine input folder.
-The compile and package routes keep their existing roles.
+The store prepares a missing completed Specification on its first read.
+An Interview that cannot compile gives a per-record error and remains available for editing.
+
+A saved record has two parts: rows in the database and files in a project folder. `Store`
+writes the two parts together. A `Store` object works for one user account, `Store.user_id`:
+it reads and writes only the Targets of that user account. `Store(url, project_dir)` works for
+the local user account, which owns each record when login is off. `Store.for_user` gives a
+`Store` for a different user account on the same database and lock. Its files are in
+`users/<user id>/` of the server project folder, with the layout of a project folder inside.
+A route gets its store from `get_store` only, which gives the `Store` for the user account that
+the login guard found. Do not read `app.state.store` in a route.
+
+The `targets` table is the one table that names the user account. The other tables link to
+`targets.id`. `Store._owns` is the one place that finds a Target for a request, and it reads
+only the Targets of its user account. Thus a record of another user account gets 404
+`not_found`, as a record that does not exist. A save with the Target id of another user account
+gets 409 `target_exists`. Two user accounts can have an Experiment folder with the same name,
+so the key of an Experiment row is its Target and its folder name together. The report routes read the
+Experiment folders of the project folder of the user account.
+
+The store starts from a new database. It has no step that changes the tables of an earlier
+version.
 
 The store routes save what a client wants to keep. They do not call the wizard routes, and the
 wizard routes do not use the store.
 
 | Route | Purpose |
 |---|---|
-| `GET /api/v1/targets` | List saved Interview summaries, newest first, and unreadable rows. |
-| `DELETE /api/v1/targets/{target_id}` | Delete the Interview record and its files. |
+| `GET /api/v1/targets` | List the Targets, newest first, and the rows that cannot be read. |
+| `DELETE /api/v1/targets/{target_id}` | Delete the rows and the store folder of a Target. |
 | `GET /api/v1/targets/{target_id}/interview` | Read the Interview record. |
 | `PUT /api/v1/targets/{target_id}/interview` | Save the record and its new files. |
 | `GET /api/v1/targets/{target_id}/interview/files/{name}` | Read one file of the record. |
+| `GET /api/v1/targets/{target_id}/specification` | Read the last Specification and its input folder. |
+| `GET /api/v1/targets/{target_id}/experiments` | List the Experiments of a Target. |
+| `GET`, `PUT`, `DELETE /api/v1/experiments/{experiment_id}` | Read, save, or delete one Experiment row. |
 
 The PUT of an Interview is a multipart form. The `record` part is a file that contains the
 record JSON. Each new file is a part named `files`, and its file name is the name in the record.
@@ -53,8 +73,8 @@ so keep the two rules the same. A file that the store already has needs no part.
 the store keeps only the files that the record refers to.
 
 `put_interview` does three steps in a fixed order. It writes the new files into the fixture
-folder, saves the row, and then deletes the files that the record no longer refers to. Thus a
-saved record always has all its files. The store has no recovery step. A save that stops before
+folder, saves the rows, and then deletes the files that the record no longer refers to. Thus a
+saved record always has all its files. The fixture folder has no recovery step. A save that stops before
 its last step can leave a file that no record refers to, and the next save of that Interview
 deletes it. The store writes each upload under a temporary name first. A new file with the name
 of a file in the folder moves that file to a backup name, then takes the name. A save that fails
@@ -66,8 +86,13 @@ media type is the type in the record when a header can hold it, else `applicatio
 Each Store holds a thread lock for the full time of a save or a delete, so the owner check and
 the write stay together. The store has no lock between processes.
 
-Before a first save, the store checks both the row and the Target folder. A folder with no row is
-already owned by another tool, so PUT returns 409 `target_exists` and leaves it unchanged. When a
+A folder in `experiments/design/` with a state file that validates is an Interview of the wizard
+CLI. The store adds its rows when it opens and at each Target list. Such a row has no transcript,
+and its file references are the files in `inputs/documents/`.
+
+Before a first save, the store checks both the row and the Target folder. A folder with no row
+has no Interview state that the store can read, so PUT returns 409 `target_exists` and leaves it
+unchanged. When a
 first save fails, the store removes the folder that it made. DELETE requires a row. When no row
 exists, it returns 404 `not_found` and leaves any folder unchanged. A delete removes the row and
 then the Target folder.
@@ -79,7 +104,7 @@ Settings:
   working directory that has a `pyproject.toml`, else the working directory.
   The rule is `metis.core.execution_layout.find_project_root`, which the engine also calls.
 - `METIS_DATABASE_URL` is a SQLAlchemy URL. The default is
-  `sqlite:///<project>/experiments/metis.db`. The tables use only portable SQL, so do not add
+  `sqlite:///<project>/metis.db`. The tables use only portable SQL, so do not add
   SQLite-only types, JSON1 functions, or `INSERT OR REPLACE`.
 
 `cli.py` gives Uvicorn the app object from `create_app(project_dir=...)`, so the app keeps the
@@ -87,12 +112,52 @@ project folder of the command. The store builds its paths from the constants in 
 
 The files of a Target are in the layout that `metis wizard init` writes, under
 `<project>/experiments/design/<target_id>/`. The web app gives a new Target the id
-`YYYYMMDD-HHMMSS-interview`, which is the name of a `metis wizard init` folder. When the id is
+`YYYYMMDD-HHMMSS-interview-<random>`, the same form as a `metis wizard init` folder. The random
+part is five characters, so two people who start in the same second get different ids. When the id is
 taken, the web app adds `-2`, `-3`, and so on. The `created_at` of the record tells one Interview
 from another. A save with the id of another Interview gets 409 `target_exists` and changes
-nothing. `inputs/fixtures/` holds the files that the user uploads. A missing row or file gets 404
+nothing. `inputs/interview_state.json` holds the state of the Interview, in the file that the
+wizard CLI uses. The Interview row holds the other parts of the record, and each read takes the
+state from the file. `inputs/documents/` holds the files that the user uploads, in the folder of the CLI opening documents. `outputs/` is the folder for `metis engine simulate --input-dir`.
+Each save of a done Interview compiles the Specification, then writes the Specification row and
+`outputs/` again. `outputs/` comes from the `outputs/` files of the package archive, and a new
+folder replaces the old one in two renames. A save is all or nothing: a
+compile failure gets 400 `compilation_failed` and changes nothing. A missing row or file gets 404
 `not_found`. A row that this version cannot read gets 409 `unreadable_record` and shows in the
 `problems` list of `GET /api/v1/targets`.
+
+## User accounts and login
+
+Login is off by default, and then the API has no user accounts. `METIS_LOGIN=1` turns login on.
+Use the glossary terms "user account" and "login session".
+
+| Route | Purpose |
+|---|---|
+| `POST /api/v1/users` | Make a user account and return its credentials. Needs the admin token. |
+| `GET /api/v1/users` | List the user accounts. Needs the admin token. |
+| `POST /api/v1/auth/login` | Check the credentials and set the login cookie. |
+| `POST /api/v1/auth/logout` | End the login session. |
+| `GET /api/v1/auth/me` | Tell if login is on, and name the current user account. |
+
+`routes/accounts.py` holds `login_guard`, the one place that decides if a request can reach a
+route. When login is on, each `/api` route needs a login session, except the paths in
+`_OPEN_PATHS`. A new router gets this rule with no code of its own. Do not add a login check to
+a route. Add a path to `_OPEN_PATHS` only when another secret protects it, or when the route
+changes only the login session of its own cookie, as logout does. The guard also
+refuses a request that changes data from a page of another origin. It reads `Sec-Fetch-Site`,
+and `Origin` for a browser that does not send it. Do not compare with `Host` when
+`Sec-Fetch-Site` is present, because a proxy can change `Host`.
+
+`accounts.py` makes the credentials. A username is an adjective and an animal. A password is
+ten characters from an alphabet with no characters that look alike. A person cannot choose or
+change them, so each password is random and login needs no rate limit. Keep that rule, or add
+a rate limit. The `users` table keeps a scrypt hash. The `password_hash` column can be empty, for
+a user account of a later login method. The `login_sessions` table keeps the SHA-256 of the
+cookie value, never the value. Records link to the id of a user account, never to its username.
+
+The admin token in `METIS_ADMIN_TOKEN` can only make and list user accounts. Do not give it
+another power, because a website outside this repository holds it. The user routes return 404
+when the token is unset. The API does not start with an admin token and login off.
 
 ## Module layout
 
@@ -103,10 +168,14 @@ src/metis/api/
 ├── routes/models.py   read-only model role status route
 ├── routes/reports.py  experiment report routes, as JSON and as the HTML page
 ├── routes/wizard.py   client config, Interview lifecycle, compile, and package routes
-├── routes/targets.py  store routes for Interview records and files
+├── routes/targets.py  store routes for Targets, Interview records, files, and Specifications
+├── routes/experiments.py  store routes for Experiment rows
+├── routes/accounts.py user and auth routes, and the login guard of all /api routes
+├── accounts.py        user accounts and login sessions: credentials, hashes, and rows
 ├── records.py         the wire models of the store routes
 ├── store.py           the store: rows through SQLAlchemy, files in experiments/design/
 ├── tables.py          the portable tables of the store
+├── input_folder.py    builds, stages, and swaps the input folder of a Specification
 ├── settings.py        environment-backed settings and the production dependency composition
 ├── cli.py             the `metis-api` executable and its --project-dir option
 └── __init__.py        version and the re-exported core version
@@ -153,7 +222,8 @@ injects the scripted dependency pair, so no test builds the real gateway or reac
 It also gives each test a store in its own project folder under `tmp_path`.
 
 Cover the door contract with representative cases: status mapping, the stable failure body,
-a wizard Interview across two app instances that writes no file, the store routes, shared Interview saves across two app instances, the generated OpenAPI discriminators, package archive
+a wizard Interview across two app instances that writes no file, the store routes, the input
+folder through the engine gate, the generated OpenAPI discriminators, package archive
 contents and validation, and one offline Interview start/turn/end-to-`/compile` end-to-end validated
 through the engine gate. Do not repeat every driver example.
 

@@ -54,7 +54,10 @@ def test_each_concrete_request_rebuilds_from_json() -> None:
             ],
         ),
         InterviewTurnRequest(
-            state=_state(), request_id="req-1", response=ChoiceResponse(selected=[])
+            state=_state(),
+            request_id="req-1",
+            response=ChoiceResponse(selected=[]),
+            documents=[InterviewDocument(name="late.md", text="Late")],
         ),
         InterviewEndRequest(state=_state()),
     ]
@@ -116,6 +119,35 @@ def test_start_rejects_unsafe_or_oversized_document_context(
             known_capability_ids=[],
             capability_confidence="low",
             documents=documents,
+        )
+
+
+@pytest.mark.parametrize(
+    ("held", "added"),
+    [
+        ([{"name": "Policy.pdf"}], [{"name": "policy.PDF"}]),
+        (
+            [{"name": f"file-{i}.txt"} for i in range(15)],
+            [{"name": f"late-{i}.txt"} for i in range(6)],
+        ),
+        (
+            [{"name": f"policy-{i}.txt", "text": "x" * 400_000} for i in range(2)],
+            [{"name": "late.txt", "text": "x" * 400_000}],
+        ),
+    ],
+)
+def test_turn_documents_and_the_state_documents_share_one_set_of_limits(
+    held: list[dict], added: list[dict]
+) -> None:
+    state = _state()
+    state.context.documents = [InterviewDocument(**document) for document in held]
+
+    with pytest.raises(ValidationError):
+        InterviewTurnRequest(
+            state=state,
+            request_id="req-1",
+            response=ChoiceResponse(selected=[]),
+            documents=added,
         )
 
 

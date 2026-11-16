@@ -4,7 +4,7 @@ See root [AGENTS.md](../../AGENTS.md) for monorepo-wide instructions.
 
 ## Package Purpose
 
-Core data models and abstractions for the METIS suite. Zero workspace dependencies — only Pydantic v2, python-dotenv, and stdlib.
+Core data models and abstractions for the METIS suite. Zero workspace dependencies — only Pydantic v2, httpx, python-dotenv, and stdlib.
 
 ## Shared schemas
 
@@ -17,7 +17,7 @@ Private runtime models and API models stay in their owning packages. See the
 
 ## Package-Specific Notes
 
-- Dependencies: Pydantic v2, structlog, Rich, python-dotenv (plus stdlib). Zero workspace dependencies.
+- Dependencies: Pydantic v2, httpx, structlog, Rich, python-dotenv (plus stdlib). Zero workspace dependencies.
 - Public logging API: `from metis.core.logging import get_logger, configure_logging`
 - Public console API: `from metis.core.console import console`
 

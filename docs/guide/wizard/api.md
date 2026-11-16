@@ -64,7 +64,8 @@ Use the returned IDs in the start request. An empty capability selection is vali
 
 ### Extract document text
 
-`POST /documents/extract` is optional. Call it before `/interview/start`.
+`POST /documents/extract` is optional. Call it before `/interview/start`, or before a turn that
+adds documents.
 
 ```bash
 curl --fail-with-body http://localhost:8001/api/v1/wizard/documents/extract \
@@ -73,7 +74,7 @@ curl --fail-with-body http://localhost:8001/api/v1/wizard/documents/extract \
 
 The response contains a `documents` list with canonical file names and extracted text. The route
 supports UTF-8 TXT, Markdown, YAML, JSON, CSV, PDF text layers, and DOCX files. It does not run OCR. Add the returned
-list to the start request. The opening document list cannot change after start.
+list to the start request, or to the `documents` field of a turn.
 
 Keep each original file. If a Scenario uses it, send the original bytes to `/package`.
 
@@ -210,6 +211,27 @@ Do not rebuild state from the visible Specification or from an abbreviated respo
 | `state` | Complete `state` from `interview.json`. |
 | `request_id` | Exact ID from `state.pending.request_id`. |
 | `response` | Typed answer that matches `state.pending.type`. |
+| `documents` | Optional. New documents to add with this answer, in the format of the start request. |
+
+### Add documents on a turn
+
+A turn can add documents at any stage. The API appends them to `state.context.documents` in the
+returned state, and each later model call can read them. The full list has the limits of the
+start request: the document count, the text size, and one name for each document. A turn that
+breaks a limit gets 422 and changes nothing.
+
+```json
+{
+  "state": {"...": "the complete state from interview.json"},
+  "request_id": "req-...",
+  "response": {"type": "chat", "text": "Use the escalation policy for the Criteria."},
+  "documents": [{"name": "escalation.md", "text": "Escalate a complaint within one day."}]
+}
+```
+
+The wizard tells the model which documents are new on that turn. A new document alone changes
+no Specification content. To use it, say so in the text of a `chat` response or in the
+`feedback` of a `choice` response. The new names are also available as Test Case files.
 
 Read the next screen with:
 
@@ -497,11 +519,12 @@ its id, title, stage, times, `state`, display `transcript`, and `fixtures` file 
 
 | Route | Purpose |
 |---|---|
-| `GET /api/v1/targets` | List saved Interview summaries, newest first, and unreadable rows. |
+| `GET /api/v1/targets` | List the saved Targets, newest first, and the rows that cannot be read. |
 | `PUT /api/v1/targets/{target_id}/interview` | Save the record and its new files. |
 | `GET /api/v1/targets/{target_id}/interview` | Read the record. |
 | `GET /api/v1/targets/{target_id}/interview/files/{name}` | Read one saved file. |
-| `DELETE /api/v1/targets/{target_id}` | Delete the Interview record and its files. |
+| `GET /api/v1/targets/{target_id}/specification` | Read the last Specification and its input folder. |
+| `DELETE /api/v1/targets/{target_id}` | Delete the Target, its record, and its files. |
 
 The save is a multipart form. The `record` part is a file that contains the record JSON. Send each new file as a part
 named `files`, with the file name from the record. A file that the store already
@@ -526,22 +549,123 @@ curl --fail-with-body -X PUT \
 ```
 
 The Target id is also the name of its folder. It has 1 to 64 letters, digits, `-` or `_`. The
-web client uses `YYYYMMDD-HHMMSS-interview`, in the local time of the first message. A
-`metis wizard init` folder has the same name. The `created_at` of the record tells one Interview
+web client uses `YYYYMMDD-HHMMSS-interview-<random>`, in the local time of the first message,
+for example `20261112-101500-interview-k7mwp`. A `metis wizard init` folder has a name of the
+same form. The `created_at` of the record tells one Interview
 from another. A save with the id of another Interview gets 409 `target_exists` and the store does
 not change. The web client then saves again with `-2`, `-3`, and so on at the end of the id.
 
-The store saves the whole Interview record. Its state contains the Target details and
-Specification. Saving a done Interview does not compile it or write an engine input folder.
-Use the compile and package routes to prepare a download. A missing record or file gets 404
-`not_found`.
+For an existing saved Interview, the store keeps the record and its files. It prepares a missing
+completed Specification when you first read its Specification route. A compilation error affects
+that request; you can still read and edit the Interview.
+
+When the saved state is done, the API compiles the Specification. It writes the Specification
+and an input folder for `metis engine simulate --input-dir`. If the Specification does not
+compile, the save gets 400 `compilation_failed` and the store does not change. A missing Target
+or file gets 404 `not_found`.
 
 The API keeps its store in the project folder. Start the API with
 `metis-api --project-dir PATH` to choose that folder. Without the option, the project folder is
 the nearest folder at or above the working directory that has a `pyproject.toml`. When no such
 folder is found, it is the working directory. `metis engine simulate` uses the same rule.
 
-- The database is `experiments/metis.db` in the project folder. Set `METIS_DATABASE_URL` to use
+- The database is `metis.db` in the project folder. Set `METIS_DATABASE_URL` to use
   another database.
 - The files of each Target are in `experiments/design/<target_id>/`, the same layout as the CLI
-  wizard. `inputs/` holds the files that you upload.
+  wizard. `inputs/interview_state.json` holds the state of the Interview, and
+  `inputs/documents/` holds the files that you upload.
+- `outputs/` holds the Specification. Give this folder to `metis engine simulate --input-dir`.
+  The `input_dir` field of the Specification response is its path.
+
+## Turn on login for a shared server
+
+Login is off by default. Then each route is open, which is correct for an API on your own
+computer. Turn login on when many people use one METIS server, for example in a workshop.
+
+Set these variables in the environment of the API, then start it:
+
+```bash
+METIS_LOGIN=1
+METIS_ADMIN_TOKEN=<a long random value>
+```
+
+Make the admin token with a tool such as `openssl rand -hex 32`. The API does not start when
+`METIS_ADMIN_TOKEN` is set and `METIS_LOGIN` is not `1`.
+
+When login is on, each route under `/api` needs a login session. A request without one gets 401
+`login_required`. The exceptions are `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`,
+and the user routes. `/health` is always open.
+
+### Make a user account
+
+The admin token protects the user routes. Send it in an `Authorization: Bearer` header, over
+HTTPS. Do not put it in a URL or in a web page. When the server has no admin token, the user
+routes return 404 `not_found`.
+
+| Route | Purpose |
+|---|---|
+| `POST /api/v1/users` | Make a user account and return its credentials. |
+| `GET /api/v1/users` | List the user accounts with their id, username, and creation time. |
+
+```bash
+curl -X POST https://metis.example/api/v1/users \
+  -H "Authorization: Bearer $METIS_ADMIN_TOKEN"
+```
+
+```json
+{
+  "id": "3f6c2a9d5b7e4c1e8a0f2d4b6c8e0a1c",
+  "username": "curious-otter",
+  "password": "k7mwp-3xr9t",
+  "created_at": "2026-11-14T08:30:00Z"
+}
+```
+
+METIS makes the username and the password. This response is the only one that has the password,
+because METIS keeps only a hash of it. Each request makes one more user account. A user account
+has no end date, and a person cannot change its credentials.
+
+The admin token can only make and list user accounts. It does not open another route, and it
+cannot read the records of a user account. A website that gives credentials to its visitors can
+thus hold the token on its server. That website must decide who gets a user account, and how many.
+
+### Records of each user account
+
+When login is on, each person sees only the records of their own user account: the Targets,
+with their Interviews, files, Specifications, and Experiments. A record of another user account
+gets 404 `not_found`, as a record that does not exist. A save with the Target id of another
+user account gets 409 `target_exists`. Two user accounts can use the same Experiment folder name.
+
+Each user account has its own project folder at `users/<user id>/` in the project folder of
+the server. The layout inside it is the same as on your own computer, for example
+`users/<user id>/experiments/design/<target_id>/`. The database stays at `metis.db` in the
+project folder of the server.
+
+Records that a server saved with login off belong to the local user account. A user account of
+a login does not see them.
+
+### Log in and log out
+
+| Route | Purpose |
+|---|---|
+| `POST /api/v1/auth/login` | Check a username and a password, and start a login session. |
+| `POST /api/v1/auth/logout` | End the login session. |
+| `GET /api/v1/auth/me` | Tell if login is on, and name the current user account. |
+
+`POST /api/v1/auth/login` takes `{"username": "...", "password": "..."}`. Correct credentials
+return the user account and set the `metis_login` cookie. The cookie is HTTP-only and
+`SameSite=Lax`. It is also `Secure` when `HOST` is not an address of the same computer, so serve
+a shared server over HTTPS. Wrong credentials get 401 `invalid_credentials`. The check ignores
+the case of the letters and space around each value.
+
+A login session ends at logout, or 30 days after the login. Then the person logs in again with
+the same credentials.
+
+`GET /api/v1/auth/me` returns `{"login": true, "user": {...}}` in a login session. With login
+off it returns `{"login": false, "user": null}`. A browser client calls it first. A 401
+`login_required` from this route, or from another route, means "show the login page".
+
+When login is on, a request that changes data must come from a page of the METIS server. A
+browser request from a page of another website gets 403 `cross_site_request`. The API reads
+the `Sec-Fetch-Site` header that the browser sets, and the `Origin` header for a browser that
+does not set it. A request from a program has neither header and is not affected.

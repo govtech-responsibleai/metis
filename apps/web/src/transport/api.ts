@@ -48,10 +48,15 @@ type ConnectionOperation =
   operations["update_target_connection_api_v1_wizard_connection_post"];
 type PackageWireRequest = Schema["Body_package_api_v1_wizard_package_post"];
 type TargetsOperation = operations["list_targets_api_v1_targets_get"];
+type CurrentUserOperation = operations["current_user_api_v1_auth_me_get"];
 type InterviewReadOperation =
   operations["read_interview_api_v1_targets__target_id__interview_get"];
 type InterviewWireRecord = JsonResponse<InterviewReadOperation>;
+type ReportOperation =
+  operations["experiment_report_api_v1_experiments__experiment_id__report_get"];
 
+export type CurrentUser = JsonResponse<CurrentUserOperation>;
+export type UserAccount = Schema["UserAccountBody"];
 export type InterviewStep = Schema["InterviewStep"];
 export type Perspective = Schema["Perspective"];
 export type InterviewDocument = Schema["InterviewDocument"];
@@ -348,6 +353,8 @@ export interface InitialDescriptionEntry {
   kind: "initial_description";
   id: string;
   description: string;
+  // The names of the documents that the user added with the opening message.
+  documents?: string[];
 }
 export interface InteractionEntry {
   kind: "interaction";
@@ -355,10 +362,14 @@ export interface InteractionEntry {
   request: WizardRequest;
   response?: UserResponse;
   status: "pending" | "sending" | "failed" | "answered" | "ended_unanswered";
+  // The names of the documents that the user added to the Interview with this answer.
+  documents?: string[];
   outbound?: {
     files: LoadedFixture[];
     removedFixtures: string[];
     attempt: number;
+    // The documents that go to the Interview with this answer. `files` holds their bytes.
+    documents?: InterviewDocument[];
   };
   failure?: {
     message: string;
@@ -393,6 +404,8 @@ export interface InterviewSummary {
 export type FileRef = Schema["FileRef"];
 export type StorageProblem = Schema["TargetProblem"];
 export type TargetList = JsonResponse<TargetsOperation>;
+// report.json as the route gives it. Only `src/report.ts` reads it.
+export type Report = JsonResponse<ReportOperation>;
 // The record as the store keeps it: each file is a reference to bytes in the store.
 export type StoredInterviewRecord = Omit<
   LoadedInterviewRecord,
@@ -453,6 +466,16 @@ function route<P extends keyof ApiPaths>(
   }) as RoutedPath;
 }
 
+// The API returns 401 `login_required` when login is on and the request has no login session.
+// The login gate listens here, so each request of the app can bring the login page back.
+const loginRequiredListeners = new Set<() => void>();
+export function onLoginRequired(listener: () => void): () => void {
+  loginRequiredListeners.add(listener);
+  return () => {
+    loginRequiredListeners.delete(listener);
+  };
+}
+
 async function responseFor(
   path: keyof ApiPaths | RoutedPath,
   init?: RequestInit,
@@ -467,12 +490,15 @@ async function responseFor(
     });
   }
   if (!response.ok) {
-    let detail: Partial<InterviewFailure> = {};
+    // Each failure of the API has this shape. The codes differ by route.
+    let detail: { message?: string; code?: string; retryable?: boolean } = {};
     try {
-      detail = (await response.json()) as Partial<InterviewFailure>;
+      detail = (await response.json()) as typeof detail;
     } catch {
       /* status is enough */
     }
+    if (response.status === 401 && detail.code === "login_required")
+      for (const listener of loginRequiredListeners) listener();
     throw new TransportError(
       detail.message ?? `The METIS API returned HTTP ${response.status}.`,
       {
@@ -494,15 +520,50 @@ async function call<T>(
   )) as T;
 }
 
-async function callBlob(
-  path: keyof ApiPaths,
+// A file from the API with the name that the server gave it.
+export interface NamedFile {
+  blob: Blob;
+  filename: string;
+}
+
+// The file name of a `Content-Disposition` header (RFC 6266), or null when it has none.
+// `filename*` holds the exact name, so it comes before the ASCII fallback in `filename`.
+export function dispositionFilename(header: string | null): string | null {
+  if (!header) return null;
+  const exact = header.match(/filename\*\s*=\s*UTF-8''([^;\s]+)/iu)?.[1];
+  if (exact !== undefined) {
+    try {
+      return decodeURIComponent(exact);
+    } catch {
+      /* the fallback is enough */
+    }
+  }
+  const fallback = header.match(/filename\s*=\s*"((?:[^"\\]|\\.)*)"/iu)?.[1];
+  return fallback === undefined ? null : fallback.replace(/\\(.)/gu, "$1");
+}
+
+type FileExtension = ".zip" | ".html";
+
+// The name goes to the `download` attribute of a link, so it must be a plain file name.
+function safeFilename(filename: string, extension: FileExtension): boolean {
+  return (
+    filename.length > extension.length &&
+    filename.endsWith(extension) &&
+    !/[/\\\p{Cc}]/u.test(filename)
+  );
+}
+
+async function callFile(
+  path: keyof ApiPaths | RoutedPath,
+  extension: FileExtension,
   init?: RequestInit,
-): Promise<{ blob: Blob; filename: string }> {
+): Promise<NamedFile> {
   const response = await responseFor(path, init);
-  const filename = response.headers
-    .get("Content-Disposition")
-    ?.match(/^attachment; filename="([a-z0-9-]+\.zip)"$/)?.[1];
-  if (!filename) throw new Error("The export response has no valid filename.");
+  const filename = dispositionFilename(
+    response.headers.get("Content-Disposition"),
+  );
+  if (!filename || !safeFilename(filename, extension))
+    throw new Error("The response has no valid file name.");
   return { blob: await response.blob(), filename };
 }
 
@@ -552,8 +613,14 @@ export const api = {
     state: InterviewState,
     request_id: string,
     response: UserResponse,
+    documents: readonly InterviewDocument[] = [],
   ) => {
-    const body: TurnRequest = { state: wireState(state), request_id, response };
+    const body: TurnRequest = {
+      state: wireState(state),
+      request_id,
+      response,
+      ...(documents.length > 0 ? { documents: [...documents] } : {}),
+    };
     return result(
       await call<TurnResponse>("/api/v1/wizard/interview/turn", {
         ...JSON_POST,
@@ -620,15 +687,43 @@ export const api = {
         form.append("connection", JSON.stringify(source.connection));
     }
     for (const file of files) form.append("files", file.blob, file.name);
-    return callBlob("/api/v1/wizard/package", {
+    return callFile("/api/v1/wizard/package", ".zip", {
       method: "POST",
       body: form,
     });
   },
+  // report.json of the experiment. The API builds the report when it is missing or old.
+  report: (experimentId: string) =>
+    call<Report>(
+      route("/api/v1/experiments/{experiment_id}/report", {
+        experiment_id: experimentId,
+      }),
+    ),
+  // report.html of the experiment, the same page as `metis insights report` writes.
+  reportPage: (experimentId: string) =>
+    callFile(
+      route("/api/v1/experiments/{experiment_id}/report.html", {
+        experiment_id: experimentId,
+      }),
+      ".html",
+    ),
 };
 
 // The store routes keep each Target: its Interview record, the record files, and the
 // Specification. A file is a reference in the record, and its bytes are a separate request.
+// The login session of the browser. The API keeps it in an HTTP-only cookie.
+export const auth = {
+  me: () => call<CurrentUser>("/api/v1/auth/me"),
+  login: (username: string, password: string) =>
+    call<CurrentUser>("/api/v1/auth/login", {
+      ...JSON_POST,
+      body: JSON.stringify({ username, password }),
+    }),
+  logout: async (): Promise<void> => {
+    await responseFor("/api/v1/auth/logout", { method: "POST" });
+  },
+};
+
 export const store = {
   targets: () => call<TargetList>("/api/v1/targets"),
   interview: async (id: string): Promise<StoredInterviewRecord> => {

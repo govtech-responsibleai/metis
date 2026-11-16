@@ -115,7 +115,9 @@ required field asks again until you type a value. In **More information**, a bla
 keeps the current details, and `-` removes them all.
 
 Enter `/feedback` to give a written change request for the review. The chat can also select
-Behaviours and set Trials when you ask it to. Clear corrections update the content automatically.
+Behaviours, set Trials, and set grader settings when you ask it to. See
+[What the chat can change](../wizard.md#what-the-chat-can-change). When a change is not made, the
+reply at the top of the review says what did not change and why. Clear corrections update the content automatically.
 Form-written content and unrelated selections are preserved. Enter `/cancel` in a form field to
 return without saving, or `/back` to close the form and go to the step before.
 
@@ -193,7 +195,7 @@ answer, for example "The target is for staff only." To change the capabilities, 
 `init --restart`.
 
 The CLI saves state after each accepted turn in
-`experiments/design/YYYYMMDD-HHMMSS-interview/inputs/interview_state.json`. The date and time are local to the
+`experiments/design/YYYYMMDD-HHMMSS-interview-<random>/inputs/interview_state.json`. The random part is five characters. The date and time are local to the
 machine when `init` starts. Use `--out-dir` to select an exact experiment root:
 
 ```bash
@@ -296,8 +298,9 @@ The CLI removes a file from `outputs/fixtures/` when the file is a copy of a doc
 document. Other files in `outputs/fixtures/` stay there.
 
 The CLI publishes `outputs/specification.yaml` after the other export files are saved.
-Its presence marks a completed export. `resume` reports completion even though the final state
-is retained. Use `--restart` to start again in the same directory. If export fails before the
+An export is complete when this file is present and the saved state is done. `resume` reports
+completion even though the final state is retained. An Interview that the web app opened again
+keeps its last `outputs/specification.yaml`, and `resume` continues that Interview. Use `--restart` to start again in the same directory. If export fails before the
 Specification is published, `resume` can retry from the saved final state.
 
 The CLI also shows the total trial count. For an Interview started on 2026-10-16 at 22:30:45, run the result with:

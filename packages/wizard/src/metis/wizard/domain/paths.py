@@ -26,6 +26,10 @@ class PathError(Exception):
     """The path is malformed, or names a node that is not there."""
 
 
+class OperationError(PathError):
+    """The path names a real node, but the operation does not fit it."""
+
+
 @dataclass(frozen=True)
 class Segment:
     field: str

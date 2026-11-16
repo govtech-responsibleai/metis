@@ -65,7 +65,7 @@ features:
       description: The answer cites a source for each policy claim.
       grader_fqn: metis.library.graders.CriterionJudgeGrader
       grader_args:
-        threshold: 0.5
+        threshold: 0.8
 personas:
 - id: policy-analyst
   name: Policy analyst

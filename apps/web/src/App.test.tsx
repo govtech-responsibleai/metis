@@ -10,7 +10,6 @@ import {
 } from "react";
 import {
   conversationScrollRevision,
-  InitialDocumentPicker,
   openedPath,
   OpeningConfigurationState,
   OpeningRoute,
@@ -18,7 +17,7 @@ import {
   type CapabilityEvidenceDraft,
   type OpeningControl,
 } from "./App";
-import { AddDocuments } from "./DocumentTray";
+import { AddButton, DocumentList } from "./Documents";
 import {
   CapabilityConfidencePicker,
   CapabilityPicker,
@@ -151,8 +150,6 @@ test("blocks the opening form until configuration is ready and offers retry", ()
     perspective: "end_user" as const,
     onPerspective: () => undefined,
     documents: [],
-    documentTrayOpen: false,
-    onDocumentTrayOpen: () => undefined,
     documentReads: {},
     onAddDocuments: () => undefined,
     onRemoveDocument: () => undefined,
@@ -292,8 +289,6 @@ function openingHarness(
           perspective = next;
         },
         documents: [],
-        documentTrayOpen: false,
-        onDocumentTrayOpen: () => undefined,
         documentReads: {},
         onAddDocuments: () => undefined,
         onRemoveDocument: () => undefined,
@@ -628,13 +623,11 @@ test("the opening controls are inside the Composer box", () => {
   const footer = composerOf(opening.render()).props.sourceControl as ReactNode;
   const controls = findElements(
     footer,
-    (element) => element.type === FooterChip || element.type === AddDocuments,
+    (element) => element.type === FooterChip || element.type === AddButton,
   );
   assert.deepEqual(
-    controls.map((element) =>
-      element.type === AddDocuments ? "documents" : element.props.controls,
-    ),
-    ["documents", "opening-perspective", "opening-capabilities"],
+    controls.map((element) => element.props.controls),
+    ["opening-add", "opening-perspective", "opening-capabilities"],
   );
 });
 
@@ -717,52 +710,32 @@ test("loads opening choices and sends complete start evidence on begin", async (
   ]);
 });
 
-test("opening documents show unread status and let users keep a file unread", () => {
-  const config = {
-    opening_question: "What are you building?",
-    working_status: "Working…",
-    perspectives: [],
-    capability_categories: [],
-    document_limits: {
-      max_documents: 20,
-      max_initial_bytes: 100_000_000,
-      max_extraction_file_bytes: 10_000_000,
-      max_extraction_request_bytes: 20_000_000,
-      max_text_characters_per_document: 40_000,
-      max_text_characters_total: 80_000,
-      max_docx_expanded_bytes: 50_000_000,
-      max_docx_archive_entries: 2_000,
-      max_pdf_expanded_bytes: 50_000_000,
-      fixture_extensions: ["txt", "pdf"],
-      extraction_extensions: ["txt", "md", "pdf", "docx"],
-    },
-  } satisfies React.ComponentProps<typeof InitialDocumentPicker>["config"];
+test("a document that could not be read shows the reason and can go by name only", () => {
   const file = new File(["evidence"], "policy.txt", { type: "text/plain" });
-  let keptName: string | undefined;
-  const picker = InitialDocumentPicker({
-    config,
+  let namedOnly: string | undefined;
+  const list = DocumentList({
     documents: [file],
-    documentReads: {
+    reads: {
       "policy.txt": {
         status: "failed",
         message: "The file could not be read.",
       },
     },
+    limits: undefined,
     disabled: false,
-    onAdd: () => undefined,
     onRemove: () => undefined,
-    onKeepWithoutReading: (name) => {
-      keptName = name;
+    onUseNameOnly: (name) => {
+      namedOnly = name;
     },
   });
-  const keepButton = findElement(
-    picker,
-    (element) => element.props.children === "Keep without reading",
+  const nameOnlyButton = findElement(
+    list,
+    (element) => element.props.children === "Use name only",
   );
 
-  assert.match(JSON.stringify(picker), /Could not read/);
-  (keepButton.props.onClick as () => void)();
-  assert.equal(keptName, "policy.txt");
+  assert.match(JSON.stringify(list), /Could not read/);
+  (nameOnlyButton.props.onClick as () => void)();
+  assert.equal(namedOnly, "policy.txt");
 });
 
 test("Scenario review exposes early fixture suggestions for user selection", () => {
@@ -977,8 +950,6 @@ test("the mode toggle above the box shows the connection card only in run mode",
       perspective: "end_user",
       onPerspective: () => undefined,
       documents: [],
-      documentTrayOpen: false,
-      onDocumentTrayOpen: () => undefined,
       documentReads: {},
       onAddDocuments: () => undefined,
       onRemoveDocument: () => undefined,

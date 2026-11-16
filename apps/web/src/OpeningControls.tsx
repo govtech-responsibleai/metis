@@ -69,17 +69,23 @@ function moveRadio<T>(
 
 // The surface that opens under the opening box. It is attached to the box, so it reads as part of
 // the same control group. On a small screen, a `sheet` surface becomes a full-width bottom sheet.
+// An `above` surface opens over the top edge of a message box at the foot of the page.
 export function UnderBoxSurface({
   id,
   label,
   onClose,
   sheet = false,
+  above = false,
+  compact = false,
   children,
 }: {
   id: string;
   label: string;
   onClose: () => void;
   sheet?: boolean;
+  above?: boolean;
+  // A short list of rows needs little space around it.
+  compact?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -97,7 +103,9 @@ export function UnderBoxSurface({
         id={id}
         aria-label={label}
         className={cn(
-          "animate-open-under-box relative flex flex-col gap-3 rounded-2xl border border-border bg-card px-4 py-4",
+          "relative flex flex-col gap-3 rounded-2xl border border-border bg-card",
+          compact ? "under-box-compact p-1.5" : "px-4 py-4",
+          above ? "animate-open-above-box" : "animate-open-under-box",
           sheet &&
             "under-box-sheet max-sm:quiet-scrollbar max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:z-30 max-sm:max-h-[80vh] max-sm:w-full max-sm:overflow-y-auto max-sm:rounded-b-none max-sm:pt-4 max-sm:shadow-[0_-8px_24px_hsl(0_0%_0%/0.08)]",
         )}

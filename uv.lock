@@ -624,7 +624,7 @@ wheels = [
 
 [[package]]
 name = "metis"
-version = "1.0.0b1"
+version = "1.0.0b3"
 source = { editable = "." }
 dependencies = [
     { name = "metis-api" },
@@ -667,7 +667,7 @@ dev = [
 
 [[package]]
 name = "metis-api"
-version = "1.0.0b1"
+version = "1.0.0b3"
 source = { editable = "apps/api" }
 dependencies = [
     { name = "fastapi" },
@@ -703,9 +703,10 @@ provides-extras = ["test"]
 
 [[package]]
 name = "metis-core"
-version = "1.0.0b1"
+version = "1.0.0b3"
 source = { editable = "packages/core" }
 dependencies = [
+    { name = "httpx" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "rich" },
@@ -714,6 +715,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = ">=0.27" },
     { name = "pydantic", specifier = ">=2" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "rich", specifier = ">=13.0.0" },
@@ -722,7 +724,7 @@ requires-dist = [
 
 [[package]]
 name = "metis-engine"
-version = "1.0.0b1"
+version = "1.0.0b3"
 source = { editable = "packages/engine" }
 dependencies = [
     { name = "httpx" },
@@ -760,7 +762,7 @@ provides-extras = ["playwright"]
 
 [[package]]
 name = "metis-insights"
-version = "1.0.0b1"
+version = "1.0.0b3"
 source = { editable = "packages/insights" }
 dependencies = [
     { name = "metis-core" },
@@ -781,7 +783,7 @@ requires-dist = [
 
 [[package]]
 name = "metis-library"
-version = "1.0.0b1"
+version = "1.0.0b3"
 source = { editable = "packages/library" }
 dependencies = [
     { name = "jsonschema" },
@@ -798,7 +800,7 @@ requires-dist = [
 
 [[package]]
 name = "metis-testbed"
-version = "1.0.0b1"
+version = "1.0.0b3"
 source = { editable = "packages/testbed" }
 dependencies = [
     { name = "metis-core" },
@@ -819,7 +821,7 @@ requires-dist = [
 
 [[package]]
 name = "metis-wizard"
-version = "1.0.0b1"
+version = "1.0.0b3"
 source = { editable = "packages/wizard" }
 dependencies = [
     { name = "httpx" },

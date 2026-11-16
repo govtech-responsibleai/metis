@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { synthesizeManualSpecification } from "../manual.ts";
-import { api, TransportError, type InterviewState } from "./api.ts";
+import {
+  api,
+  auth,
+  dispositionFilename,
+  onLoginRequired,
+  store,
+  TransportError,
+  type InterviewState,
+  type Report,
+} from "./api.ts";
 
 const originalFetch = globalThis.fetch;
 
@@ -279,6 +288,77 @@ test("package failures preserve the API error shape", async () => {
   );
 });
 
+const REPORT_NAME =
+  "inline; filename=\"run_1-report.html\"; filename*=UTF-8''run%201-report.html";
+
+test("report reads report.json of the experiment", async () => {
+  const report = { target: "Bank bot" } as Report;
+  let path = "";
+  globalThis.fetch = async (input) => {
+    path = String(input);
+    return new Response(JSON.stringify(report), {
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  assert.deepEqual(await api.report("run 1/a"), report);
+  assert.equal(path, "/api/v1/experiments/run%201%2Fa/report");
+});
+
+test("reportPage gives report.html with the name from the header", async () => {
+  let path = "";
+  globalThis.fetch = async (input) => {
+    path = String(input);
+    return new Response("<html></html>", {
+      headers: {
+        "content-type": "text/html",
+        "Content-Disposition": REPORT_NAME,
+      },
+    });
+  };
+
+  const page = await api.reportPage("run 1");
+
+  assert.equal(path, "/api/v1/experiments/run%201/report.html");
+  assert.equal(page.filename, "run 1-report.html");
+  assert.equal(await page.blob.text(), "<html></html>");
+});
+
+test("the exact file name comes before the ASCII fallback", () => {
+  assert.equal(dispositionFilename(REPORT_NAME), "run 1-report.html");
+  assert.equal(
+    dispositionFilename('attachment; filename="a \\"b\\".zip"'),
+    'a "b".zip',
+  );
+  assert.equal(
+    dispositionFilename(
+      "inline; filename=\"a.html\"; filename*=UTF-8''%E0%A4%A",
+    ),
+    "a.html",
+  );
+  assert.equal(dispositionFilename("inline"), null);
+  assert.equal(dispositionFilename(null), null);
+});
+
+test("a file with no safe name is refused", async () => {
+  for (const disposition of [
+    null,
+    'inline; filename="report.txt"',
+    'inline; filename=".html"',
+    "inline; filename*=UTF-8''..%2Freport.html",
+  ]) {
+    globalThis.fetch = async () =>
+      new Response("<html></html>", {
+        headers: disposition ? { "Content-Disposition": disposition } : {},
+      });
+    await assert.rejects(
+      api.reportPage("e1"),
+      /no valid file name/,
+      String(disposition),
+    );
+  }
+});
+
 for (const status of [400, 422, 500, 503]) {
   test(`turn failures preserve HTTP ${status} and retry metadata`, async () => {
     globalThis.fetch = async () =>
@@ -319,4 +399,82 @@ test("typed failures in a successful HTTP response are still surfaced", async ()
       cause.code === "invalid_response" &&
       !cause.retryable,
   );
+});
+
+function failure(status: number, code: string, message: string): Response {
+  return new Response(
+    JSON.stringify({ type: "failure", code, message, retryable: false }),
+    { status, headers: { "content-type": "application/json" } },
+  );
+}
+
+test("a request without a login session tells the login gate", async () => {
+  let asked = 0;
+  const stop = onLoginRequired(() => {
+    asked += 1;
+  });
+  globalThis.fetch = async () =>
+    failure(401, "login_required", "Log in to use this METIS server.");
+
+  await assert.rejects(store.targets(), (error: unknown) => {
+    assert.ok(error instanceof TransportError);
+    assert.equal(error.status, 401);
+    assert.equal(error.code, "login_required");
+    return true;
+  });
+  assert.equal(asked, 1);
+
+  stop();
+  await assert.rejects(store.targets());
+  assert.equal(asked, 1);
+});
+
+test("wrong credentials do not tell the login gate", async () => {
+  let asked = 0;
+  const stop = onLoginRequired(() => {
+    asked += 1;
+  });
+  globalThis.fetch = async () =>
+    failure(
+      401,
+      "invalid_credentials",
+      "The username or the password is not correct.",
+    );
+
+  await assert.rejects(auth.login("curious-otter", "wrong"), {
+    message: "The username or the password is not correct.",
+  });
+  assert.equal(asked, 0);
+  stop();
+});
+
+test("login sends the credentials as JSON and logout sends a POST", async () => {
+  const calls: Array<{ path: string; method?: string; body: unknown }> = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push({
+      path: String(input),
+      method: init?.method,
+      body:
+        init?.body === undefined ? undefined : JSON.parse(String(init.body)),
+    });
+    return new Response(
+      init?.body === undefined
+        ? null
+        : JSON.stringify({ login: true, user: { username: "curious-otter" } }),
+      { status: init?.body === undefined ? 204 : 200 },
+    );
+  };
+
+  const current = await auth.login("curious-otter", "k7mwp-3xr9t");
+  await auth.logout();
+
+  assert.equal(current.user?.username, "curious-otter");
+  assert.deepEqual(calls, [
+    {
+      path: "/api/v1/auth/login",
+      method: "POST",
+      body: { username: "curious-otter", password: "k7mwp-3xr9t" },
+    },
+    { path: "/api/v1/auth/logout", method: "POST", body: undefined },
+  ]);
 });

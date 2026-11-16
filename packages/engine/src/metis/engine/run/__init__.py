@@ -1,0 +1,57 @@
+"""Run ``simulate`` and ``evaluate`` from Python, with no CLI.
+
+The functions here do no terminal or process work. They never exit, never set a signal
+handler, and write text only to the ``console`` that the caller gives. The caller sets up
+the process before it calls one: it loads ``.env``, registers the METIS-internal Langfuse
+client (``metis.engine.tracing.tracing_key``), and sets up process logging.
+
+Only one run at a time is safe in one process. Logging, the Langfuse clients, and
+``LANGFUSE_HOST`` in ``os.environ`` are shared by the whole process.
+"""
+
+from metis.engine.run._common import (
+    evaluate_command,
+    resume_command,
+    trial_record_files,
+)
+from metis.engine.run._evaluation import (
+    EvaluationOutcome,
+    evaluate,
+    evaluation_is_complete,
+    resume_evaluation,
+)
+from metis.engine.run._inputs import (
+    load_snapshot,
+    prepare_experiment,
+    resolve_experiment_dir,
+    validate_inputs,
+)
+from metis.engine.run._simulation import resume_simulation, simulate
+from metis.engine.run.errors import (
+    EvaluationInputError,
+    ExperimentExistsError,
+    InvalidInputsError,
+    RunError,
+    RunStopped,
+)
+
+__all__ = [
+    "EvaluationInputError",
+    "EvaluationOutcome",
+    "ExperimentExistsError",
+    "InvalidInputsError",
+    "RunError",
+    "RunStopped",
+    "evaluate",
+    "evaluate_command",
+    "evaluation_is_complete",
+    "load_snapshot",
+    "prepare_experiment",
+    "resolve_experiment_dir",
+    "resume_command",
+    "resume_evaluation",
+    "resume_simulation",
+    "simulate",
+    "trial_record_files",
+    "validate_inputs",
+]

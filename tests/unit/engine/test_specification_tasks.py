@@ -9,8 +9,8 @@ from pydantic import ValidationError
 
 from metis.core.traces import GradingInput, Observation, Trace
 from metis.core.trials import TrialConfig, TrialOutcome, TrialRecord
-from metis.engine.cli import _classify_resume_trials
 from metis.engine.evaluation import SessionFacts, build_grader, grade_session
+from metis.engine.run._simulation import _classify_resume_trials
 from metis.engine.simulation.experiment import expand_trial_plan, trial_folder_name
 from metis.engine.simulation.types import Specification
 from metis.library.grader import LLMSettings
@@ -178,7 +178,7 @@ def test_task_records_keep_criterion_configuration_and_trial_identity(
     assert by_criterion["AC-UNI-22"].results[0].outcome == "failed"
     assert by_criterion["AC-LONG"].results[0].outcome == "passed"
     assert by_criterion["AC-TWIN"].results[0].outcome == "failed"
-    assert by_criterion["AC-LONG"].grader_args == {"threshold": 0.5, "score": 0.9}
+    assert by_criterion["AC-LONG"].grader_args == {"threshold": 0.8, "score": 0.9}
     assert [(r.task_id, r.trial_index) for r in records] == [
         ("TC-001", 1),
         ("TC-001", 1),

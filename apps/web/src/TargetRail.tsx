@@ -1,9 +1,11 @@
-// The left rail: "New target", the list of Targets, and at its foot the colour theme. The
-// selected row follows the URL.
+// The left rail: "New target", the list of Targets, and at its foot the colour theme. With
+// login on, the foot also has the current user and the logout control. The selected row
+// follows the URL.
 
 import {
   CirclePlus,
   FolderClosed,
+  LogOut,
   Monitor,
   Moon,
   PanelLeft,
@@ -11,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Link } from "wouter";
+import { useLoginSession } from "./LoginGate";
 import type { TargetSummary } from "./targets";
 import { useThemeChoice, type ThemeChoice } from "./theme";
 import type { StorageProblem } from "./storage/repository";
@@ -163,10 +166,37 @@ export function TargetRail({
           </li>
         ))}
       </ul>
-      <div className="border-t border-border p-3">
+      <div className="flex flex-col gap-2 border-t border-border p-3">
+        <CurrentUser />
         <ThemeSwitch />
       </div>
     </nav>
+  );
+}
+
+// The user account of the login session and the logout control. With login off, the app has
+// no user account and this shows nothing.
+function CurrentUser() {
+  const session = useLoginSession();
+  if (!session) return null;
+  return (
+    <span className="flex min-w-0 items-center justify-between gap-1">
+      <span
+        className="min-w-0 truncate text-sm text-foreground"
+        title={session.user.username}
+      >
+        {session.user.username}
+      </span>
+      <button
+        type="button"
+        aria-label="Log out"
+        title="Log out"
+        onClick={session.logout}
+        className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <LogOut size={14} strokeWidth={1.75} aria-hidden />
+      </button>
+    </span>
   );
 }
 

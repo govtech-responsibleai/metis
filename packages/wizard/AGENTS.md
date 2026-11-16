@@ -150,7 +150,7 @@ Keep prompt tests lean so wording can change quickly:
 Two integration tests are gates rather than unit tests:
 
 - **`tests/integration/wizard/test_slice_a_gate.py`** — a hand-written specification compiles to a `specification.yaml` the
-  engine actually loads, via the engine's own `_validate_inputs`. No model call anywhere in it.
+  engine actually loads, via the engine's own `validate_inputs`. No model call anywhere in it.
 - **`tests/integration/wizard/test_slice_b_gate.py`** — the whole interview walks to DONE on `ScriptedInterviewer`,
   with no network. That stand-in in `tests/fixtures/wizard/scripted.py` is **not a throwaway**: it is
   the offline regression suite for Interview flow and matching. It does not test whether a live model
@@ -208,14 +208,46 @@ of the library.
 - **Paths resolve by real id only.** Paths address by id (`behaviours[EB-1]`); a numeric bracket
   such as `behaviours[0]` is rejected rather than treated as a positional fallback. This keeps
   references attached to the same items when lists are reordered.
-- **`ADD` addresses the container** (`features`, `scenarios`), `SET`/`REMOVE` an element
-  (`features[F-1]`). `StepPermissions` must list both or half the operations are silently
-  forbidden.
+- **`ADD` addresses the container** (`features`, `scenarios`), and `REMOVE` an element
+  (`features[F-1]`). `SET` changes a field. A `SET` on a whole element is refused, because it
+  would create an item around the draft and materializer boundary. The form of an address in
+  `StepPermissions` decides the operations that it allows.
 - **Strict drafts own the boundary.** Provider JSON is parsed into strict, model-only draft
   models (`extra="forbid"`) before any persisted specification object exists. The application
   materializer then assigns ids, authorship, defaults and references. The old recursive value
   filter was only a compatibility guard for hand-built runtime patches; it never protected the
   real typed provider path.
+
+## Model results
+
+A model changes the Specification only through the patches in its result. Three parts decide
+what happens to them.
+
+**The permission tables.** `domain/permissions.py` has four plain tables. `StepPermissions`
+gives each step the addresses that it owns. `PROTECTED` gives the fields that no model call may
+write, each with a reason key. `ON_REQUEST` gives the user decisions, such as `measured`,
+`num_trials` and the grader settings, which allow a SET only from a chat that answers the user's
+own message. `KEPT_ON_REWORD` names the grader settings that keep their values across a reword.
+An address in none of the first three is not writable. To protect a new field, add a line to
+`PROTECTED` and the sentence for its reason under `patch_reasons` in `prompts.yaml`. The loader
+requires a sentence for each `PatchReason`.
+
+**The patch review.** `review_patches` in `application/patch_review.py` takes the Specification,
+the patches, and a `PatchScope`: the part of the Specification that the call may write, whether
+it answers a user message, the items whose text it must not change, and the files it may name.
+It normalises each path, checks the scope and the rule table, applies the patch to a copy, and
+checks the result for grader settings, Task references and duplicates. It returns the accepted
+patches, the candidate Specification, and one problem with a reason key for each refused patch.
+The gateway runs it on every attempt and feeds the problems back to the model. The driver runs
+the same function with the same scope and applies only the accepted patches.
+
+**The reply.** `StepDriver._reply` stores the text of the step by one rule. With no problem in
+any attempt, it is the model's message. With a problem in an earlier attempt only, it is the
+rewritten message and one `Not changed:` sentence from the reason sentences. With problems in
+the final result, it is a default reply and the same sentence. A drafting call keeps the step's
+default text, and adds the sentence only for a protected field or a value that does not fit. A
+follow-up call in the same turn never replaces the reply, and an empty reply clears an older
+one. Rejected patches give no warnings.
 
 ## Package-Specific Notes
 

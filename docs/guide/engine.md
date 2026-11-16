@@ -127,7 +127,7 @@ metis engine simulate --resume --experiment-dir experiments/execute/toyapp-http-
 metis engine run --resume --experiment-dir experiments/execute/toyapp-http-simple-20260820-143000/
 ```
 
-Resume reads the experiment and the fixtures from the frozen `inputs/` snapshot in the named directory, not from the source directory. It retries only missing, invalid, or `system_error` records, and appends to the experiment-level simulation log. Extra run folders are ignored. A valid record is complete even if an artifact file is missing. Passing `--resume` with `--input-dir` is an error: the message lists the outputs that exist for the experiment `id` and names the correct flag.
+Resume reads the experiment and the fixtures from the frozen `inputs/` snapshot in the named directory, not from the source directory. It runs again only the trials that did not end: a record that is missing, unreadable, or not valid, or a record with stop reason `interrupted`. A trial that ended is not run again, whatever its result, so a `system_error` trial stays failed. Some system errors are retried up to the trial's retry limit, and others, such as a failed user-agent LLM call or `fixture_never_uploaded`, end the trial on the first try; resume runs neither again. To run failed trials again, start a new experiment with `simulate --input-dir`, which runs every trial again, not only the failed ones. Resume appends to the experiment-level simulation log. Extra run folders are ignored. A valid record is complete even if an artifact file is missing. Passing `--resume` with `--input-dir` is an error: the message lists the outputs that exist for the experiment `id` and names the correct flag.
 
 ### What You'll See
 
@@ -438,7 +438,7 @@ criteria:
 
 `grader_args` is validated before anything runs: an unknown key, a wrong type or a
 `threshold` outside 0–1 stops the run and names the Criterion. Use `grader_args: {}` to take
-every default. Every grader accepts `threshold` (default 0.5): a scored result passes when its
+every default. Every grader accepts `threshold` (default 0.8): a scored result passes when its
 score is at least the threshold.
 
 For a model-based grader, set the judge model once for the experiment and override it per
@@ -885,14 +885,20 @@ The engine performs these checks at experiment load time:
 3. Get `class_name` from the module — raises `ImportError` if the attribute doesn't exist
 4. Verify the class has callable `start`, `create`, and `close` methods — raises `TypeError` if any are missing
 
-At simulation time (`packages/engine/src/metis/engine/cli.py:557-563`):
+At simulation time (`_simulate_in` in `packages/engine/src/metis/engine/run/_simulation.py`):
 
 ```python
-factory_cls = resolve_runner_factory(experiment.runner_factory_ref)
-runner_factory = factory_cls()
+factory_cls = resolve_runner_factory(specification.runner_factory_ref)
+from_specification = getattr(factory_cls, "from_specification", None)
+runner_factory = (
+    from_specification(specification, experiment_dir / execution_layout.INPUTS)
+    if from_specification is not None
+    else factory_cls()
+)
 ```
 
-The engine calls your factory's constructor with no arguments. All configuration (credentials, URLs, feature flags) should come from environment variables read inside `__init__`.
+A factory with a `from_specification` class method is built from the Specification and its
+inputs folder. Any other factory is built with no arguments. All configuration (credentials, URLs, feature flags) should come from environment variables read inside `__init__`.
 
 #### Removing Playwright Dependencies
 

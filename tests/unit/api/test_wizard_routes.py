@@ -110,6 +110,27 @@ def test_extract_returns_text_in_upload_order_without_server_state(
         {"name": "second.txt", "text": "Second document"}
     ]
 
+    # A later turn adds a document under the limits of the whole Interview.
+    turn = {
+        "state": state,
+        "request_id": state["pending"]["request_id"],
+        "response": {"type": "chat", "text": "It answers policy questions."},
+    }
+    added = make_client().post(
+        "/api/v1/wizard/interview/turn",
+        json={**turn, "documents": [extracted.json()["documents"][1]]},
+    )
+    assert added.status_code == 200
+    assert added.json()["state"]["context"]["documents"] == [
+        {"name": "second.txt", "text": "Second document"},
+        {"name": "first.md", "text": "# First document"},
+    ]
+    repeated = make_client().post(
+        "/api/v1/wizard/interview/turn",
+        json={**turn, "documents": [{"name": "SECOND.txt"}]},
+    )
+    assert repeated.status_code == 422
+
 
 def test_extract_returns_typed_file_error_and_no_partial_result(
     client: TestClient,
@@ -204,7 +225,7 @@ def test_pending_request_metadata_is_required_and_non_null_over_http(
 
 def test_an_exhausted_model_is_a_503_retryable_failure(make_client) -> None:
     class ClarifyUnavailable(ScriptedInterviewer):
-        def clarify(self, specification, history, context=None):
+        def clarify(self, specification, history, context=None, scope=None):
             raise InterviewerOutputError("three attempts, all failed")
 
     client = make_client(ClarifyUnavailable())
@@ -218,7 +239,7 @@ def test_an_exhausted_model_is_a_503_retryable_failure(make_client) -> None:
 
 def test_an_exhausted_model_during_turn_is_a_503_with_safe_state(make_client) -> None:
     class ClarifyUnavailable(ScriptedInterviewer):
-        def clarify(self, specification, history, context=None):
+        def clarify(self, specification, history, context=None, scope=None):
             raise InterviewerOutputError("three attempts, all failed")
 
     opening = (
@@ -243,7 +264,7 @@ def test_an_exhausted_model_during_turn_is_a_503_with_safe_state(make_client) ->
 
 def test_an_exhausted_model_during_end_is_a_503_with_safe_state(make_client) -> None:
     class DraftUnavailable(ScriptedInterviewer):
-        def draft_behaviours(self, specification, history, context=None):
+        def draft_behaviours(self, specification, history, context=None, scope=None):
             raise InterviewerOutputError("three attempts, all failed")
 
     state = InterviewState(
@@ -270,7 +291,7 @@ def test_an_exhausted_model_during_end_is_a_503_with_safe_state(make_client) -> 
 
 def test_an_unexpected_interview_fault_is_a_stable_500_failure(make_client) -> None:
     class BrokenInterviewer(ScriptedInterviewer):
-        def clarify(self, specification, history, context=None):
+        def clarify(self, specification, history, context=None, scope=None):
             raise RuntimeError("unexpected provider bug")
 
     client = make_client(BrokenInterviewer())

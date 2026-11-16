@@ -86,7 +86,7 @@ def test_one_call_matches_every_unmatched_criterion_with_its_suggestion() -> Non
     assert BUDGET.description in user
     assert str(first.description) in user
     assert first.grader_fqn == TRACE_BUDGET
-    assert first.grader_args == {"threshold": 0.5, "max_traces": 10}
+    assert first.grader_args == {"threshold": 0.8, "max_traces": 10}
     assert {c.grader_fqn for c in others} == {CRITERION_JUDGE_FQN}
     assert not matcher.degraded
 
@@ -141,17 +141,17 @@ def test_rematch_keeps_settings_for_the_same_grader_and_resets_them_for_a_new_on
         name="Criterion",
         description="It names a source.",
         grader_fqn=CRITERION_JUDGE_FQN,
-        grader_args={"model": "chosen-judge", "threshold": 0.8},
+        grader_args={"model": "chosen-judge", "threshold": 0.6},
     )
 
     rematch(criterion, GraderMatcher(FakeSelector({}), specs=[BUDGET]))
-    assert criterion.grader_args == {"model": "chosen-judge", "threshold": 0.8}
+    assert criterion.grader_args == {"model": "chosen-judge", "threshold": 0.6}
 
     rematch(
         criterion, GraderMatcher(FakeSelector({"AC-1-1": TRACE_BUDGET}), specs=[BUDGET])
     )
     assert criterion.grader_fqn == TRACE_BUDGET
-    assert criterion.grader_args == {"threshold": 0.5, "max_traces": 10}
+    assert criterion.grader_args == {"threshold": 0.8, "max_traces": 10}
 
 
 @pytest.mark.parametrize(

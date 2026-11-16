@@ -1,12 +1,13 @@
 """The app composition root.
 
-`main.py` creates the FastAPI app, keeps `/health`, includes the wizard, store, and report
-routers, and installs the handlers that give every failure one stable JSON shape. The wizard
-routes keep no state: each request carries the whole Interview state in its body. The store
-routes keep the Interview records and their files in the `Store` that the app composes at
-startup. The report routes read the experiment folders. The store and the experiment folders
-are in the project folder that `create_app` gets, or the default project folder that
-`find_project_root` finds.
+`main.py` creates the FastAPI app, keeps `/health`, includes the wizard, store, experiment,
+report, user, and auth routers, and installs the handlers that give every failure one stable
+JSON shape. When login is on, `login_guard` lets a request reach an `/api` route only with a
+login session. The wizard routes keep no state: each request carries the whole Interview state
+in its body. The store routes keep the Targets, Interviews, Specifications, and Experiments in
+the `Store` that the app composes at startup. The report routes read the experiment folders.
+The store and the experiment folders are in the project folder that `create_app` gets, or the
+default project folder that `find_project_root` finds.
 """
 
 from __future__ import annotations
@@ -19,6 +20,15 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from metis.api import __version__, core_version
+from metis.api.accounts import Accounts
+from metis.api.routes.accounts import (
+    AccountError,
+    account_error_response,
+    auth_router,
+    login_guard,
+    users_router,
+)
+from metis.api.routes.experiments import router as experiments_router
 from metis.api.routes.graders import router as graders_router
 from metis.api.routes.models import router as models_router
 from metis.api.routes.reports import router as reports_router
@@ -57,8 +67,31 @@ _OPENAPI_TAGS = [
     {
         "name": "targets",
         "description": (
-            "Keep complete Interview records and their uploaded files on the server. "
-            "The Specification and Target details stay inside the Interview state."
+            "Keep the Interview of each Target, its files, and its Specification in the store. "
+            "A save of a done Interview writes the Specification and its input folder."
+        ),
+    },
+    {
+        "name": "experiments",
+        "description": (
+            "Keep one row for each Experiment folder under experiments/execute/. "
+            "A delete removes the row. The Experiment folder stays on disk."
+        ),
+    },
+    {
+        "name": "users",
+        "description": (
+            "Make and list user accounts. Each request needs the admin token of the server "
+            "in an Authorization: Bearer header. The routes are off when the server has no "
+            "admin token."
+        ),
+    },
+    {
+        "name": "auth",
+        "description": (
+            "Start and end a login session, and read the current user account. When login "
+            "is on, each other route under /api returns 401 login_required without the "
+            "cookie of a login session."
         ),
     },
     {
@@ -80,7 +113,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     reports the missing roles, and each Interview route returns 503 `model_unavailable`. The
     connection check, compile, and package routes call no model, so they work without keys.
 
-    The app builds the store from the settings when the caller did not give one.
+    The app builds the store from the settings when the caller did not give one. The user
+    accounts use the database of the store.
+
+    Login settings that disagree stop the start. See ``login_from_env``.
     """
     owned: Store | None = None
     settings = Settings.from_env(project_dir=app.state.project_dir)
@@ -95,6 +131,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     if getattr(app.state, "store", None) is None:
         owned = Store(settings.database_url, settings.project_dir)
         app.state.store = owned
+    app.state.login = settings.login
+    app.state.admin_token = settings.admin_token
+    app.state.secure_cookie = settings.secure_cookie
+    app.state.accounts = Accounts(app.state.store.engine)
     try:
         yield
     finally:
@@ -138,7 +178,15 @@ def create_app(
     app.include_router(graders_router)
     app.include_router(models_router)
     app.include_router(targets_router)
+    app.include_router(experiments_router)
     app.include_router(reports_router)
+    app.include_router(users_router)
+    app.include_router(auth_router)
+    app.middleware("http")(login_guard)
+
+    @app.exception_handler(AccountError)
+    def _on_account_error(_request: Request, exc: AccountError) -> JSONResponse:
+        return account_error_response(exc)
 
     @app.exception_handler(StoreError)
     def _on_store_error(_request: Request, exc: StoreError) -> JSONResponse:

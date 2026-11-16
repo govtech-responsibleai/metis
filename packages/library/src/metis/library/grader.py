@@ -63,7 +63,7 @@ class GraderArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    threshold: float = Field(default=0.5, ge=0, le=1, strict=True)
+    threshold: float = Field(default=0.8, ge=0, le=1, strict=True)
     """A scored result passes when ``score >= threshold``. The default also separates the
     ``0.0``/``1.0`` scores of a binary grader, so only graders with graded scores need it set."""
     scope: Scope | None = Field(default=None, exclude_if=lambda value: value is None)

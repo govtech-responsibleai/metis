@@ -1,4 +1,4 @@
-"""HTTP routes for the Targets in the store: the Interview and its files.
+"""HTTP routes for the Targets in the store: the Interview, its files, and the Specification.
 
 An Interview save is a multipart request. The `record` part is the record as a JSON file, so
 that the size limit of a text field does not apply to it. Each file that the store does not have
@@ -15,7 +15,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import ValidationError
 
-from metis.api.records import InterviewRecord, TargetList
+from metis.api.records import (
+    ExperimentList,
+    InterviewRecord,
+    SpecificationRecord,
+    TargetList,
+)
 from metis.api.routes.wizard import ServiceError
 from metis.api.store import Store, Upload
 
@@ -30,11 +35,21 @@ _ERRORS: dict[int | str, dict[str, object]] = {
 
 
 def get_store(request: Request) -> Store:
-    """Return the store that the app composed at startup."""
+    """Return a store that works only for the user account of the request.
+
+    With login off, that is the local user account, and the store is the one that the app
+    composed at startup. With login on, it is a copy for the user account that the login guard
+    found. A route gets no other store, so it cannot read a record of another user account.
+    """
     store: Store | None = getattr(request.app.state, "store", None)
     if store is None:
         raise RuntimeError("The store was not composed at application startup.")
-    return store
+    if not getattr(request.app.state, "login", False):
+        return store
+    account = getattr(request.state, "user_account", None)
+    if account is None:
+        raise RuntimeError("The login guard did not find the user account.")
+    return store.for_user(account.id)
 
 
 @router.get("", summary="List the Targets", response_model=TargetList)
@@ -52,7 +67,10 @@ def list_targets(store: Annotated[Store, Depends(get_store)]) -> TargetList:
 def delete_target(
     target_id: str, store: Annotated[Store, Depends(get_store)]
 ) -> Response:
-    """Delete the saved Interview and its uploaded files."""
+    """Delete the Target, its Interview, its Specification, and its Experiment rows.
+
+    The Experiment folders under `experiments/execute/` stay on disk.
+    """
     store.delete_target(target_id)
     return Response(status_code=204)
 
@@ -92,7 +110,8 @@ def put_interview(
     in this request nor in the store gives 400. The store deletes the files of the Target that
     the record no longer refers to.
 
-    The save keeps the complete Interview state. Compile and package are separate requests.
+    When the Interview is done, the save also writes the Specification and its input folder. A
+    Specification that does not compile gives 400 `compilation_failed` and changes nothing.
     """
     parts = [Upload(name=part.filename or "", stream=part.file) for part in files or []]
     try:
@@ -135,6 +154,35 @@ def read_interview_file(
         filename=name,
         headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"},
     )
+
+
+@router.get(
+    "/{target_id}/specification",
+    summary="Read the Specification of a Target",
+    response_model=SpecificationRecord,
+    responses=_ERRORS,
+)
+def read_specification(
+    target_id: str, store: Annotated[Store, Depends(get_store)]
+) -> SpecificationRecord:
+    """Return the Specification and the input folder for `metis engine simulate --input-dir`.
+
+    A Target has a Specification after its Interview is done. Before that, the route gives 404.
+    """
+    return store.read_specification(target_id)
+
+
+@router.get(
+    "/{target_id}/experiments",
+    summary="List the Experiments of a Target",
+    response_model=ExperimentList,
+    responses=_ERRORS,
+)
+def list_target_experiments(
+    target_id: str, store: Annotated[Store, Depends(get_store)]
+) -> ExperimentList:
+    """Return the Experiment rows of the Target, newest first."""
+    return ExperimentList(experiments=store.list_experiments(target_id))
 
 
 __all__ = ["get_store", "router"]

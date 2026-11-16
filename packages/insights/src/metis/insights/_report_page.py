@@ -30,6 +30,18 @@ const pct=rate=>rate===null||rate===undefined?"—":`${rate}%`;
 const isLow=(V,rate)=>rate!==null&&rate!==undefined&&rate<V.passRateTarget;
 const lowClass=(V,rate)=>isLow(V,rate)?" low":"";
 const tip=text=>`<span class="ibtn" tabindex="0" aria-label="About this">i<span class="tip">${text}</span></span>`;
+const ERRORED_TITLE="The grader could not score these runs. This says nothing about the target.";
+const COUNTED="Skipped and errored runs are in no score. A warning icon beside a score means that some grader runs behind it errored. The grader could not score those runs. A criterion with no score because its runs errored shows Not graded.";
+// A grader run completed (passed, failed or skipped) or errored.
+const runsOf=k=>(k.pass||0)+(k.fail||0)+(k.skip||0)+(k.error||0);
+const erroredText=k=>`${k.error} of ${runsOf(k)} grader runs errored`;
+const WARN_PATHS='<path d="M9 2.5 16 15H2Z"/><path d="M9 7.2v3.6"/><circle cx="9" cy="12.9" r=".5" fill="currentColor"/>';
+const warnSvg=(attrs,title="")=>`<svg ${attrs} viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${title}${WARN_PATHS}</svg>`;
+// A problem is marked once, at the lowest level that is visible: a node shows the icon only
+// when its children are hidden. A Feature and the Target carry the mini icon, which is
+// smaller and quieter. A criterion with no rate because its runs errored shows only Not graded.
+const notGraded=k=>(k.rate===null||k.rate===undefined)&&(k.blank||{}).cause==="grader error";
+const warnIcon=(k,mini)=>`<span class="warn${mini?" mini":""}" role="img" aria-label="${erroredText(k)}" title="${erroredText(k)}. ${ERRORED_TITLE}">${warnSvg('aria-hidden="true"')}</span>`;
 // The report palette, from `PALETTE` in _report_styles.py.
 const C=__PALETTE__;
 // The pass-rate scale: soft rose at 0%, neutral at 50%, soft teal at 100%.
@@ -41,11 +53,12 @@ function renderHeader(V){
  return `<div class="head"><h1>Evaluation report</h1><div class="meta"><b>${esc(V.target)}</b><span>${esc(V.date)}</span></div></div>`;
 }
 function renderScore(V){
- const rate=V.scores.graderPassRate.rate,graded=behaviourList(V).filter(b=>b.rate!==null&&b.rate!==undefined);
+ const g=V.scores.graderPassRate,rate=g.rate,graded=behaviourList(V).filter(b=>b.rate!==null&&b.rate!==undefined);
  const below=graded.filter(b=>isLow(V,b.rate)).length,trials=V.trials||{};
- return `<div class="score"><div><div class="label">Average pass rate ${tip(`The average of the feature scores below. Each score is the average of the level under it. A criterion's score is its passed results ÷ its graded results. Skipped and errored results are not counted. The default pass-rate target is ${V.passRateTarget}%. Scores below it are shown in red.`)}</div>
- <div class="big${lowClass(V,rate)}">${pct(rate)}</div></div>
+ return `<div class="score"><div><div class="label">Average pass rate ${tip(`The average of the feature scores below. Each score is the average of the level under it. A criterion's score is its passed results ÷ its graded results. ${COUNTED} The default pass-rate target is ${V.passRateTarget}%. Scores below it are shown in red.`)}</div>
+ <div class="big${lowClass(V,rate)}">${pct(rate)}</div>${g.error?`<div class="warn-line" title="${ERRORED_TITLE}">${warnSvg('aria-hidden="true"')}<span>${erroredText(g)}</span></div>`:""}</div>
  <div class="facts"><div><span>Behaviours below the target</span><b>${graded.length?`${below} of ${graded.length}`:"—"}</b></div>
+ <div><span>Grader runs completed</span><b>${runsOf(g)-(g.error||0)} of ${runsOf(g)}</b></div>
  <div><span>Trials that reached their goal</span><b>${trials.attempted?`${trials.successful} of ${trials.attempted}`:"—"}</b></div>
  <div><span>Test cases</span><b>${(V.plan.tasks||[]).length}</b></div></div></div>`;
 }
@@ -55,16 +68,18 @@ const LIST_ICON='<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stro
 const TREE_ICON='<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="7" width="4" height="4" rx="1"/><rect x="12.5" y="1.5" width="4" height="4" rx="1"/><rect x="12.5" y="12.5" width="4" height="4" rx="1"/><path d="M5.5 9H9v-5.5h3.5M9 9v5.5h3.5"/></svg>';
 function renderSpecHead(V,S){
  const button=(view,label,icon)=>`<button type="button" data-view="${view}" aria-pressed="${S.view===view}">${icon}${label}</button>`;
- return `<div class="sechead"><h2 id="spec-title">Specification results</h2>${tip("<b>Every score here is an average.</b> A criterion's score is its passed results ÷ its graded results, over all test cases. A behaviour is the average of its criteria. A feature is the average of its behaviours. Skipped and errored results are not counted.")}
+ return `<div class="sechead"><h2 id="spec-title">Specification results</h2>${tip(`<b>Every score here is an average.</b> A criterion's score is its passed results ÷ its graded results, over all test cases. A behaviour is the average of its criteria. A feature is the average of its behaviours. ${COUNTED}`)}
  <div class="seg" role="group" aria-label="View">${button("list","List",LIST_ICON)}${button("tree","Tree",TREE_ICON)}</div></div>`;
 }
 function renderList(V,S){
- const score=rate=>`<span class="score-val${lowClass(V,rate)}">${pct(rate)}</span>`;
+ const score=(k,{hidden=true,mini=false}={})=>{if(notGraded(k))return '<span class="not-graded">Not graded</span>';
+  const val=`<span class="score-val${lowClass(V,k.rate)}">${pct(k.rate)}</span>`;
+  return k.error&&hidden?`<span class="score-cell">${warnIcon(k,mini)}${val}</span>`:val};
  const closed=S.closed||new Set();
- return (V.features||[]).map(f=>`<button type="button" class="feat${closed.has(f.id)?"":" open"}" data-toggle-feature="${esc(f.id)}" aria-expanded="${!closed.has(f.id)}"><span><span class="car">▸</span> ${esc(f.name)}</span>${score(f.rate)}</button>`+(closed.has(f.id)?"":f.behaviours.map(id=>{
+ return (V.features||[]).map(f=>`<button type="button" class="feat${closed.has(f.id)?"":" open"}" data-toggle-feature="${esc(f.id)}" aria-expanded="${!closed.has(f.id)}"><span><span class="car">▸</span> ${esc(f.name)}</span>${score(f,{hidden:closed.has(f.id),mini:true})}</button>`+(closed.has(f.id)?"":f.behaviours.map(id=>{
   const b=V.behaviours[id];if(!b)return "";const open=S.open.has(id);
-  const head=`<button type="button" class="row b${open?" open":""}${S.selected===id?" sel":""}" data-behaviour="${esc(id)}" aria-expanded="${open}" title="${esc(b.label)}"><span class="car">${b.criteria.length?"▸":""}</span><span class="name">${esc(b.label)}</span>${measured(b)?score(b.rate):'<span class="n" style="text-align:right">Not measured</span>'}</button>`;
-  const rows=open?b.criteria.map(cid=>`<button type="button" class="row c${S.selected===cid?" sel":""}" data-criterion="${esc(cid)}" title="${esc(criterionName(V,cid))}"><span></span><span class="name">${esc(criterionName(V,cid))}</span>${score((V.criteria[cid]||{}).rate)}</button>`).join(""):"";
+  const head=`<button type="button" class="row b${open?" open":""}${S.selected===id?" sel":""}" data-behaviour="${esc(id)}" aria-expanded="${open}" title="${esc(b.label)}"><span class="car">${b.criteria.length?"▸":""}</span><span class="name">${esc(b.label)}</span>${measured(b)?score(b,{hidden:!open}):'<span class="n" style="text-align:right">Not measured</span>'}</button>`;
+  const rows=open?b.criteria.map(cid=>`<button type="button" class="row c${S.selected===cid?" sel":""}" data-criterion="${esc(cid)}" title="${esc(criterionName(V,cid))}"><span></span><span class="name">${esc(criterionName(V,cid))}</span>${score(V.criteria[cid]||{})}</button>`).join(""):"";
   return head+rows}).join(""))).join("");
 }
 function renderTree(V,S){
@@ -74,19 +89,19 @@ function renderTree(V,S){
   const ys=[],fopen=!closed.has(f.id);
   if(fopen)for(const id of f.behaviours){const b=V.behaviours[id];if(!b)continue;
    const cys=[],bopen=S.open.has(id);
-   if(bopen)for(const cid of b.criteria){cys.push(y);nodes.push({x:X[3],y,name:criterionName(V,cid),rate:(V.criteria[cid]||{}).rate,id:cid,attr:`data-criterion="${esc(cid)}"`});y+=BH+GAP}
+   if(bopen)for(const cid of b.criteria){cys.push(y);nodes.push({x:X[3],y,name:criterionName(V,cid),rate:(V.criteria[cid]||{}).rate,runs:V.criteria[cid]||{},notGraded:notGraded(V.criteria[cid]||{}),id:cid,attr:`data-criterion="${esc(cid)}"`});y+=BH+GAP}
    if(!cys.length)y+=BH+GAP;
    const by=cys.length?(cys[0]+cys[cys.length-1])/2:y-BH-GAP;ys.push(by);
-   nodes.push({x:X[2],y:by,name:b.label,rate:b.rate,unmeasured:!measured(b),id,attr:`data-behaviour="${esc(id)}"`,toggle:b.criteria.length?{attr:`data-toggle-behaviour="${esc(id)}"`,open:bopen}:null});
+   nodes.push({x:X[2],y:by,name:b.label,rate:b.rate,runs:b,warn:!bopen,unmeasured:!measured(b),id,attr:`data-behaviour="${esc(id)}"`,toggle:b.criteria.length?{attr:`data-toggle-behaviour="${esc(id)}"`,open:bopen}:null});
    cys.forEach((cy,k)=>links.push([X[2]+BW,by,X[3],cy,b.criteria[k]]));
   }
   if(!ys.length)y+=BH+GAP;
   const fy=ys.length?(ys[0]+ys[ys.length-1])/2:y-BH-GAP;featureYs.push(fy);
-  nodes.push({x:X[1],y:fy,name:f.name,rate:f.rate,id:f.id,attr:"",toggle:f.behaviours.length?{attr:`data-toggle-feature="${esc(f.id)}"`,open:fopen}:null});
+  nodes.push({x:X[1],y:fy,name:f.name,rate:f.rate,runs:f,warn:!fopen,mini:true,id:f.id,attr:"",toggle:f.behaviours.length?{attr:`data-toggle-feature="${esc(f.id)}"`,open:fopen}:null});
   ys.forEach((by,k)=>links.push([X[1]+BW,fy,X[2],by,f.behaviours[k]]));y+=10;
  }
  const ty=featureYs.length?(featureYs[0]+featureYs[featureYs.length-1])/2:TOP;
- nodes.push({x:X[0],y:ty,name:V.target,rate:V.scores.graderPassRate.rate,id:null,attr:""});
+ nodes.push({x:X[0],y:ty,name:V.target,rate:V.scores.graderPassRate.rate,runs:V.scores.graderPassRate,warn:(V.features||[]).every(f=>!f.error||closed.has(f.id)),mini:true,id:null,attr:""});
  featureYs.forEach((fy,k)=>links.push([X[0]+BW,ty,X[1],fy,(V.features[k]||{}).id]));
  const sel=S.selected,onPath=new Set();
  if(sel){onPath.add(sel);const bc=behaviourOf(V,sel);const bid=V.behaviours[sel]?sel:bc?bc[0]:null;if(bid){onPath.add(bid);const f=featureOf(V,bid);if(f)onPath.add(f.id)}}
@@ -94,15 +109,21 @@ function renderTree(V,S){
  const dot=rate=>rate===null||rate===undefined?C.faint:isLow(V,rate)?C.red:C.green;
  const path=([x1,y1,x2,y2,to])=>`<path d="M${x1} ${y1+BH/2} C ${x1+20} ${y1+BH/2}, ${x2-20} ${y2+BH/2}, ${x2} ${y2+BH/2}" fill="none" stroke="${onPath.has(to)?C.accent:C.edge}" stroke-width="${onPath.has(to)?2:1.3}"/>`;
  const box=n=>{const picked=n.id&&n.id===sel,lit=picked||(n.id&&onPath.has(n.id));
+  const shown=n.rate===null||n.rate===undefined?(n.unmeasured?"Not measured":"Not graded"):n.rate+"%";
+  // The rate is set in a monospace face, so its width follows from its length.
+  const size=n.mini?11:15;
+  const warn=n.runs.error&&n.warn!==false&&!n.notGraded?warnSvg(`class="warn${n.mini?" mini":""}" x="${32+shown.length*7.8}" y="${31.5-size/2}" width="${size}" height="${size}" color="${C.amber}" role="img" aria-label="${erroredText(n.runs)}"`,`<title>${erroredText(n.runs)}. ${ERRORED_TITLE}</title>`):"";
   const toggle=n.toggle?`<g class="tree-toggle" ${n.toggle.attr} transform="translate(${BW},${BH/2})" role="button" tabindex="0" aria-label="${n.toggle.open?"Close":"Open"}"><circle r="8" fill="${n.toggle.open?C["accent-wash"]:"#fff"}" stroke="${n.toggle.open?C.accent:C.edge}" stroke-width="1.3"/><path d="M-4 0H4${n.toggle.open?"":"M0 -4V4"}" stroke="${n.toggle.open?C.accent:C.muted}" stroke-width="1.4" stroke-linecap="round"/></g>`:"";
-  return `<g class="tree-node" transform="translate(${n.x},${n.y})" ${n.attr} role="button" tabindex="0"><title>${esc(n.name)}</title><rect width="${BW}" height="${BH}" rx="8" fill="${lit?C["accent-wash"]:"#fff"}" stroke="${lit?C.accent:C.line}" stroke-width="${picked?1.8:1.3}"/><circle cx="14" cy="16" r="4" fill="${dot(n.rate)}"/><text x="26" y="20" font-size="13" font-weight="700" fill="${C.ink}">${esc(fit(n.name))}</text><text x="26" y="36" font-size="13" font-weight="700" font-family="JetBrains Mono,SFMono-Regular,Consolas,monospace" fill="${isLow(V,n.rate)?C.red:C.muted}">${n.rate===null||n.rate===undefined?(n.unmeasured?"Not measured":"Not graded"):n.rate+"%"}</text>${toggle}</g>`};
+  return `<g class="tree-node" transform="translate(${n.x},${n.y})" ${n.attr} role="button" tabindex="0"><title>${esc(n.name)}</title><rect width="${BW}" height="${BH}" rx="8" fill="${lit?C["accent-wash"]:"#fff"}" stroke="${lit?C.accent:C.line}" stroke-width="${picked?1.8:1.3}"/><circle cx="14" cy="16" r="4" fill="${dot(n.rate)}"/><text x="26" y="20" font-size="13" font-weight="700" fill="${C.ink}">${esc(fit(n.name))}</text><text x="26" y="36" font-size="13" font-weight="700" font-family="JetBrains Mono,SFMono-Regular,Consolas,monospace" ${n.notGraded?'class="not-graded" ':""}fill="${n.notGraded?C.amber:isLow(V,n.rate)?C.red:C.muted}">${shown}</text>${warn}${toggle}</g>`};
  const labels=["Target","Feature","Behaviour","Criterion"].map((l,k)=>`<text x="${X[k]+4}" y="16" font-size="12" font-weight="700" letter-spacing=".05em" fill="${C.muted}">${l.toUpperCase()}</text>`).join("");
  return `<svg width="${X[3]+BW+16}" height="${y}" font-family="Lato,Helvetica Neue,Arial,sans-serif" aria-label="Specification tree">${labels}${links.map(path).join("")}${nodes.map(box).join("")}</svg>`;
 }
 const WORDS={pass:"Passed",fail:"Failed",skip:"Skipped",error:"Errored"};
 const outcomeOf=r=>!r?null:r.pass?"passed":r.fail?"failed":r.error?"errored":r.skip?"skipped":null;
 const countsLine=k=>{const graded=(k.pass||0)+(k.fail||0);
- return `${k.pass||0} of ${graded} graded results passed${k.skip?` · ${k.skip} skipped`:""}${k.error?` · <span class="probs"><span class="e">${k.error} errored</span></span>`:""}`};
+ return `${k.pass||0} of ${graded} graded results passed${k.skip?` · ${k.skip} skipped`:""}`};
+// The squares of the test case rows, with the same classes, so the colours always match.
+const SQUARE_LEGEND=[["passed","Passed"],["failed","Failed"],["errored","Errored"],["skipped","Skipped"]].map(([o,word])=>`<span><i class="q ${o}"></i>${word}</span>`).join("");
 const meanText=m=>m===null||m===undefined?"—":Number(m).toFixed(2);
 const featureOf=(V,bid)=>(V.features||[]).find(f=>f.behaviours.includes(bid));
 const behaviourOf=(V,cid)=>Object.entries(V.behaviours||{}).find(([,b])=>b.criteria.includes(cid));
@@ -120,7 +141,7 @@ function renderPanel(V,S){
   <div style="margin-top:10px;display:flex;gap:12px;align-items:baseline;flex-wrap:wrap">${big(c.rate)}<span class="n">${countsLine(c)}</span></div>
   <p class="desc">${esc(c.description)}</p>
   <div class="kv"><span>Grader</span><b>${esc(c.grader_name)}</b><span>Judge model</span><b>${esc((c.judge_models||[]).join(", ")||"None")}</b><span>Pass mark</span><b>${mark}</b><span>Mean score</span><b class="mono">${meanText(c.mean_score)}</b><span>Criterion ID</span><span class="mono">${esc(sel)}</span></div>
-  <b>By test case</b><p class="n" style="margin:2px 0 4px">Click a test case to open it in the results below.</p>${rows}`}
+  <b>By test case</b><p class="n" style="margin:2px 0 4px">Click a test case to open it in the results below.</p>${rows}${rows?`<div class="legend">${SQUARE_LEGEND}</div>`:""}`}
  return `<div class="empty"><b style="color:var(--ink)">Pick a criterion</b><span>Open a behaviour, then click one of its criteria.</span></div>`;
 }
 function rowCounts(row){return Object.values(row.results||{}).reduce((a,r)=>({skip:a.skip+(r.skip||0),error:a.error+(r.error||0)}),{skip:0,error:0})}

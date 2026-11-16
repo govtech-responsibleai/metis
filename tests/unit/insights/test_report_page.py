@@ -66,6 +66,122 @@ def test_specification_shows_as_list_and_tree(experiment: Path) -> None:
     assert 'data-criterion="C-1"' in tree
 
 
+def _node(html: str, start: str, mark: str) -> str:
+    """The one node of ``html`` that starts with ``start`` and holds ``mark``."""
+    return next(part for part in html.split(start) if mark in part)
+
+
+def test_the_headline_warns_how_many_grader_runs_errored(experiment: Path) -> None:
+    """Seven grader runs: one errored, one skipped, five graded."""
+    score = render_js(build(experiment), "renderScore(V)")
+    warning = score.split('<div class="warn-line"', 1)[1].split("</div>", 1)[0]
+    assert 'aria-hidden="true"' in warning
+    assert "<span>1 of 7 grader runs errored</span>" in warning
+    assert "<span>Grader runs completed</span><b>6 of 7</b>" in score
+
+
+def _state(*, closed: tuple[str, ...] = (), opened: tuple[str, ...] = ()) -> str:
+    """A view state with the Features ``closed`` and the Behaviours ``opened``."""
+    return (
+        f"{{open:new Set({list(opened)}),closed:new Set({list(closed)}),selected:null}}"
+    )
+
+
+def _views(report: dict, state: str) -> list[tuple[str, str]]:
+    """The list view and the tree view, each with the text that starts one node."""
+    return [
+        (render_js(report, f"renderList(V,{state})"), "<button"),
+        (render_js(report, f"renderTree(V,{state})"), '<g class="tree-node"'),
+    ]
+
+
+def test_a_closed_feature_with_errored_runs_shows_the_mini_icon(
+    experiment: Path,
+) -> None:
+    report = build(experiment)
+    feature = ('data-toggle-feature="F-1"', "<title>Feature one</title>")
+    for (html, start), mark in zip(
+        _views(report, _state(closed=("F-1",))), feature, strict=True
+    ):
+        node = _node(html, start, mark)
+        assert 'class="warn mini"' in node
+        assert 'aria-label="1 of 7 grader runs errored"' in node
+    for (html, start), mark in zip(_views(report, _state()), feature, strict=True):
+        assert "grader runs errored" not in _node(html, start, mark)
+
+
+def test_the_target_node_shows_the_mini_icon_when_errored_features_are_closed(
+    experiment: Path,
+) -> None:
+    report = build(experiment)
+    target = "<title>Target</title>"
+    closed = render_js(report, f"renderTree(V,{_state(closed=('F-1',))})")
+    assert 'class="warn mini"' in _node(closed, '<g class="tree-node"', target)
+    opened = render_js(report, f"renderTree(V,{_state()})")
+    assert "grader runs errored" not in _node(opened, '<g class="tree-node"', target)
+
+
+def test_a_closed_behaviour_with_errored_runs_shows_the_icon(
+    experiment: Path,
+) -> None:
+    report = build(experiment)
+    for html, start in _views(report, _state()):
+        behaviour = _node(html, start, 'data-behaviour="B-2"')
+        assert 'class="warn"' in behaviour
+        assert 'aria-label="1 of 2 grader runs errored"' in behaviour
+        assert "grader runs errored" not in _node(html, start, 'data-behaviour="B-1"')
+    for html, start in _views(report, _state(opened=("B-2",))):
+        assert "grader runs errored" not in _node(html, start, 'data-behaviour="B-2"')
+
+
+def test_a_criterion_with_no_rate_from_errored_runs_is_not_graded(
+    experiment: Path,
+) -> None:
+    """C-3 has one errored and one skipped run, so it has no rate."""
+    for html, start in _views(build(experiment), _state(opened=("B-2",))):
+        criterion = _node(html, start, 'data-criterion="C-3"')
+        assert "Not graded" in criterion
+        assert 'class="not-graded"' in criterion
+        assert "grader runs errored" not in criterion
+
+
+def test_a_criterion_with_a_rate_and_errored_runs_shows_the_icon(
+    experiment: Path,
+) -> None:
+    records = [*grader_records(), grader_record("T-2", 1, "C-2", "errored")]
+    report = build(experiment, records)
+    for html, start in _views(report, _state(opened=("B-1",))):
+        criterion = _node(html, start, 'data-criterion="C-2"')
+        assert 'aria-label="1 of 2 grader runs errored"' in criterion
+        assert "grader runs errored" not in _node(html, start, 'data-criterion="C-1"')
+
+
+def test_no_errored_run_adds_no_warning(experiment: Path) -> None:
+    records = [r for r in grader_records() if r.results[0].outcome != "errored"]
+    report = build(experiment, records)
+    score = render_js(report, "renderScore(V)")
+    assert "warn-line" not in score
+    assert "<span>Grader runs completed</span><b>6 of 6</b>" in score
+    for state in (_state(opened=("B-1", "B-2")), _state(closed=("F-1",))):
+        for html, _start in _views(report, state):
+            assert "grader runs errored" not in html
+
+
+def test_criterion_panel_counts_graded_results_and_explains_the_squares(
+    experiment: Path,
+) -> None:
+    """C-3 has one errored and one skipped run. The squares show the errored run."""
+    html = render_js(build(experiment), "renderPanel(V,{selected:'C-3'})")
+    assert "0 of 0 graded results passed" in html
+    assert "1 skipped" in html
+    assert "1 errored" not in html
+    legend = html.split('<div class="legend">', 1)[1].split("</div>", 1)[0]
+    assert legend == "".join(
+        f'<span><i class="q {outcome.lower()}"></i>{outcome}</span>'
+        for outcome in ("Passed", "Failed", "Errored", "Skipped")
+    )
+
+
 def test_results_table_shows_the_rates(experiment: Path) -> None:
     html = render_js(build(experiment), f"renderTable(V,{TABLE})")
     assert "Results by test case" in html

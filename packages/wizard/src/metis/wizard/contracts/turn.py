@@ -80,10 +80,20 @@ class _InterviewStateRequest(BaseModel):
 
 
 class InterviewTurnRequest(_InterviewStateRequest):
-    """Answer the one pending request with its typed response."""
+    """Answer the one pending request with its typed response.
+
+    `documents` are files that the user adds with this answer. They join the documents in
+    `state.context.documents`, and the full set must stay inside the same limits as at start.
+    """
 
     request_id: str
     response: AnyResponse
+    documents: list[InterviewDocument] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _validate_documents(self) -> InterviewTurnRequest:
+        validate_interview_documents([*self.state.context.documents, *self.documents])
+        return self
 
 
 class InterviewEndRequest(_InterviewStateRequest):
