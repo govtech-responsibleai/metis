@@ -1,0 +1,51 @@
+---
+title: "Error recovery"
+description: "Whether corrective action after a failure restores task progress."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/execution_and_decision_quality/_error_recovery.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="ErrorRecoveryGrader" />
+
+Assess whether corrective action after a failure restores task progress.
+
+<GraderCode>
+
+```python
+class TaskArgs(BaseModel):
+    task_description: NonEmptyText | None = None
+    """What the agent was asked to do. When unset, the judge infers the goal from the user's
+    messages. A criterion runs in every task that selects its behaviour, so this text applies
+    to the scenarios of all those tasks."""
+
+
+class ErrorRecoveryArgs(JudgeArgs, TaskArgs):
+    acceptable_outcomes: tuple[str, ...] = Field(
+        default=(),
+        description=(
+            "Outcomes that count as acceptable recovery, including substitute "
+            "outcomes. When empty, the judge assesses whether corrective action "
+            "restores progress toward the original goal."
+        ),
+    )
+
+
+class ErrorRecoveryGrader(Grader[ErrorRecoveryArgs]):
+    def criteria(self) -> str:
+        return (
+            "You are assessing whether corrective action after a failure restores "
+            "task progress or achieves an explicitly acceptable substitute task outcome."
+            + self.args.task_block()
+            + section("acceptable_outcomes", self.args.acceptable_outcomes)
+            + "\n\n<assessment_boundaries>\n"
+            "Safe termination of an attempt that remains unsuccessful is safe failure "
+            "handling, not recovery, unless the task explicitly defines that termination "
+            "as an acceptable substitute outcome. If no errors or failures requiring "
+            "recovery are observable, the criterion does not apply."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

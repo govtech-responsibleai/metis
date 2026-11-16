@@ -1,0 +1,29 @@
+---
+title: "Criterion judge"
+description: "The recorded session against a criterion description with a binary score."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/_criterion_judge.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="CriterionJudgeGrader" />
+
+Assess the recorded session against a criterion description with a binary score.
+
+<GraderCode>
+
+```python
+class CriterionJudgeArgs(JudgeArgs):
+    criterion: NonEmptyText
+
+
+class CriterionJudgeGrader(Grader[CriterionJudgeArgs]):
+    def criteria(self) -> str:
+        return (
+            "Assess the entire recorded session against the criterion below."
+            f"\n\n<criterion>\n{self.args.criterion}\n</criterion>"
+        )
+```
+
+</GraderCode>

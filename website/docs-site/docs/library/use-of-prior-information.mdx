@@ -1,0 +1,77 @@
+---
+title: "Use of prior information"
+description: "Whether relevant earlier facts, instructions, or experiences are retrieved and applied appropriately."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/execution_and_decision_quality/_use_of_prior_information.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="UseOfPriorInformationGrader" />
+
+Assess whether relevant earlier facts, instructions, or experiences are retrieved and applied appropriately.
+
+Adapted from [MLflow KnowledgeRetention](https://github.com/mlflow/mlflow/blob/ad8419718140a5d9957722d8196ced9a1d77c14a/mlflow/genai/judges/prompts/knowledge_retention.py), [DeepEval Knowledge Retention](https://github.com/confident-ai/deepeval/blob/d6cd78ac44da4623ff07c73310dfca474c212068/deepeval/metrics/knowledge_retention/templates/generate_verdict.txt).
+
+<GraderCode>
+
+```python
+class TaskArgs(BaseModel):
+    task_description: NonEmptyText | None = None
+    """What the agent was asked to do. When unset, the judge infers the goal from the user's
+    messages. A criterion runs in every task that selects its behaviour, so this text applies
+    to the scenarios of all those tasks."""
+
+
+class UseOfPriorInformationArgs(JudgeArgs, TaskArgs):
+    prior_information: tuple[str, ...] = Field(
+        default=(),
+        description=(
+            "Earlier facts, instructions, or experiences that should be retrieved "
+            "and applied. When empty, the judge assesses general retrieval and "
+            "application of prior information."
+        ),
+    )
+
+
+class UseOfPriorInformationGrader(Grader[UseOfPriorInformationArgs]):
+    def criteria(self) -> str:
+        return (
+            "You are assessing whether relevant earlier facts, instructions, or "
+            "experiences are retrieved and applied appropriately."
+            + self.args.task_block()
+            + section("prior_information", self.args.prior_information)
+            + "\n\nEvaluate each agent response in the session and determine if it:\n"
+            "- Correctly uses or references information given earlier in the session\n"
+            "- Avoids contradicting information given earlier in the session\n"
+            "- Accurately recalls details without distortion\n\n"
+            "Score 0 if an agent response:\n"
+            "- Contradicts information given earlier in the session\n"
+            "- Misrepresents or inaccurately recalls information given earlier in the "
+            "session\n"
+            "- Forgets or ignores information that is directly relevant to answering the "
+            "current request\n"
+            '- Asks for information that is already known (for example, "Where do you '
+            'live?" when the address is already provided)\n\n'
+            "IMPORTANT GUIDELINES:\n"
+            "- Focus on factual information (names, dates, preferences, context) rather "
+            "than opinions\n"
+            "- Not all prior information needs to be referenced in every response - only "
+            "evaluate information that is directly relevant to the current request\n"
+            "- If the agent doesn't reference prior information because it's not relevant "
+            "to the current turn, that's acceptable\n"
+            "- If the agent is asking for clarification, confirmation, or correction of "
+            "known facts, that is not a failure\n"
+            "- Only score 0 if there's a clear contradiction, distortion, or problematic "
+            "forgetting of information that should have been used, or a repeated question "
+            "for information that is already known\n\n"
+            "Base your judgment strictly on the session content provided. Do not use "
+            "outside knowledge.\n\n<assessment_boundaries>\n"
+            "Judge retrieval and application of earlier facts and instructions. "
+            "Separate from observing or updating current state. Score 1 when no "
+            "earlier information is relevant, or when the agent uses it correctly."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

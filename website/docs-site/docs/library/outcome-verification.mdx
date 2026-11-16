@@ -1,0 +1,49 @@
+---
+title: "Outcome verification"
+description: "Whether the agent checks relevant results before claiming success."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/execution_and_decision_quality/_outcome_verification.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="OutcomeVerificationGrader" />
+
+Assess whether the agent checks relevant results before claiming success.
+
+<GraderCode>
+
+```python
+class TaskArgs(BaseModel):
+    task_description: NonEmptyText | None = None
+    """What the agent was asked to do. When unset, the judge infers the goal from the user's
+    messages. A criterion runs in every task that selects its behaviour, so this text applies
+    to the scenarios of all those tasks."""
+
+
+class OutcomeVerificationArgs(JudgeArgs, TaskArgs):
+    verification_requirements: tuple[str, ...] = Field(
+        default=(),
+        description=(
+            "Specific results or states the agent should check before claiming "
+            "success. When empty, the judge assesses general verification behaviour."
+        ),
+    )
+
+
+class OutcomeVerificationGrader(Grader[OutcomeVerificationArgs]):
+    def criteria(self) -> str:
+        return (
+            "You are assessing whether the agent checks relevant results before "
+            "claiming success or taking a dependent action."
+            + self.args.task_block()
+            + section("verification_requirements", self.args.verification_requirements)
+            + "\n\n<assessment_boundaries>\n"
+            "Verification is the checking action; error detection is recognition "
+            "of an error. A successful claim is not evidence that verification "
+            "occurred."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

@@ -1,0 +1,71 @@
+---
+title: "Appropriate handling of capability limits"
+description: "Whether choices to seek information, abstain, or escalate are appropriate."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/execution_and_decision_quality/_appropriate_handling_of_capability_limits.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="AppropriateHandlingOfCapabilityLimitsGrader" />
+
+Assess whether choices to seek information, abstain, or escalate are appropriate.
+
+<GraderCode>
+
+```python
+class ToolListArgs(BaseModel):
+    available_tools: tuple[NonEmptyText, ...] = Field(
+        default=(),
+        description=(
+            'Tool descriptions, such as "search(query): Searches the index", for when the '
+            "person writing the specification or the wizard knows them. When empty, the "
+            "grader reads the tools that the session offered."
+        ),
+    )
+
+
+class TaskArgs(BaseModel):
+    task_description: NonEmptyText | None = None
+    """What the agent was asked to do. When unset, the judge infers the goal from the user's
+    messages. A criterion runs in every task that selects its behaviour, so this text applies
+    to the scenarios of all those tasks."""
+
+
+class AppropriateHandlingOfCapabilityLimitsArgs(JudgeArgs, TaskArgs, ToolListArgs):
+    known_limits: tuple[str, ...] = Field(
+        default=(),
+        description=(
+            "Known capability limitations to assess against. When empty, "
+            "the judge infers limits from the observed session."
+        ),
+    )
+
+
+class AppropriateHandlingOfCapabilityLimitsGrader(
+    Grader[AppropriateHandlingOfCapabilityLimitsArgs],
+):
+    def criteria(self, tools: tuple[str, ...]) -> str:
+        return (
+            "You are assessing whether observable choices to seek information, abstain, "
+            "or escalate are appropriate when the agent cannot reliably proceed."
+            + self.args.task_block()
+            + section("known_limits", self.args.known_limits)
+            + available_tools_block(
+                tools,
+                "Use available_tools to check whether a limit that the agent states is "
+                "true. A limit that one of these tools could overcome is not a real "
+                "capability limit.",
+            )
+            + "\n\n<assessment_boundaries>\n"
+            "Assess choices made when the agent cannot reliably proceed within its "
+            "known capability limits. Do not count missing task information as a "
+            "capability limit — that is clarification appropriateness. Do not count "
+            "a mandatory human gate — that is oversight and safeguards. If the agent "
+            "does not encounter capability limits during the session, the criterion "
+            "does not apply."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

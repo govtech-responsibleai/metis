@@ -1,0 +1,65 @@
+---
+title: "Content fidelity"
+description: "Whether a transformation preserves the meaning of its source."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/task_and_output_quality/_content_fidelity.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="ContentFidelityGrader" />
+
+Assess whether a transformation preserves the meaning of its source.
+
+<GraderCode>
+
+```python
+class ArtifactArgs(BaseModel):
+    artifact: NonEmptyText | None = None
+    """The name of the file to judge. When the target revised the file, the judge reads the
+    latest version."""
+
+
+class TraceArgs(BaseModel):
+    turn: Literal["each", "last"] = "each"
+    """``each`` judges every recorded turn, each on its own. ``last`` judges only the final
+    recorded turn."""
+
+
+class ContentFidelityArgs(JudgeArgs, TraceArgs, ArtifactArgs):
+    turn: Literal["each", "last"] = "last"
+    """``last`` judges only the final reply. ``each`` judges every reply."""
+    fidelity_requirements: tuple[str, ...] = Field(
+        default=(),
+        description=(
+            "Specific requirements about coverage, additions, or omissions. "
+            "When empty, the judge assesses general meaning preservation."
+        ),
+    )
+
+
+class ContentFidelityGrader(Grader[ContentFidelityArgs]):
+    def criteria(self) -> str:
+        return (
+            "You are assessing whether a transformation preserves the meaning or content "
+            "of its source."
+            + sources_block(
+                self.scope,
+                "Find the source content that the assessed output transforms, and compare "
+                "the output with it. If the session has no source content for the output, "
+                "the criterion does not apply.",
+            )
+            + section("fidelity_requirements", self.args.fidelity_requirements)
+            + "\n\n<assessment_boundaries>\n"
+            "Compare preservation against the source, not truth against the world. "
+            "A summary can have fully supported claims yet lose essential meaning through "
+            "omission. Assess whether the assessed output preserves the source's main "
+            "meaning and qualifications, including required coverage and restrictions on "
+            "additions or omissions. A legitimate omission failure should not be "
+            "suppressed merely because completeness is a related criterion — this "
+            "criterion checks preservation relative to the source."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

@@ -1,0 +1,26 @@
+---
+title: "Monetary cost"
+description: "The session stayed within the allowed monetary cost."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/resource_use/_monetary_cost.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="MonetaryCostGrader" />
+
+The session stayed within the allowed monetary cost.
+
+<GraderCode>
+
+```python
+class MonetaryCostArgs(GraderArgs):
+    max_cost: float = Field(
+        gt=0,
+        strict=True,
+        description="Maximum monetary cost in USD allowed for the session.",
+    )
+    """The most the session may cost (USD) and still pass."""
+```
+
+</GraderCode>

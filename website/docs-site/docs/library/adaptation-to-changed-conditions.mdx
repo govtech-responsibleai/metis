@@ -1,0 +1,52 @@
+---
+title: "Adaptation to changed conditions"
+description: "Whether the agent appropriately revises its approach when conditions change."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/execution_and_decision_quality/_adaptation_to_changed_conditions.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="AdaptationToChangedConditionsGrader" />
+
+Assess whether the agent appropriately revises its approach when conditions change.
+
+<GraderCode>
+
+```python
+class TaskArgs(BaseModel):
+    task_description: NonEmptyText | None = None
+    """What the agent was asked to do. When unset, the judge infers the goal from the user's
+    messages. A criterion runs in every task that selects its behaviour, so this text applies
+    to the scenarios of all those tasks."""
+
+
+class AdaptationToChangedConditionsArgs(JudgeArgs, TaskArgs):
+    changed_conditions: tuple[str, ...] = Field(
+        default=(),
+        description=(
+            "Specific changes in goals, information, or operating conditions "
+            "to assess adaptation against. When empty, the judge identifies "
+            "changes from the session evidence."
+        ),
+    )
+
+
+class AdaptationToChangedConditionsGrader(Grader[AdaptationToChangedConditionsArgs]):
+    def criteria(self) -> str:
+        return (
+            "You are assessing whether the agent appropriately revises its approach "
+            "when goals, information, or operating conditions change."
+            + self.args.task_block()
+            + section("changed_conditions", self.args.changed_conditions)
+            + "\n\n<assessment_boundaries>\n"
+            "Do not assess repair after an identified failure — that is error "
+            "recovery, not adaptation. This criterion assesses whether the agent "
+            "revises its approach when goals, information, or operating conditions "
+            "change. If the session contains no observable changes in goals, "
+            "information, or operating conditions, the criterion does not apply."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

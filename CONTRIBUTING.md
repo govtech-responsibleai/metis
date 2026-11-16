@@ -119,7 +119,7 @@ When you change a wizard HTTP request or response, update the Pydantic contract 
 ### Running the Landing Page and Docs
 
 The public site has two parts, each with its own Node project: the landing page in
-`website/landing-page/` and the docs in `website/`. The docs need Node.js 22 or later and use npm, which
+`website/landing-page/` and the docs in `website/docs-site/`. The docs need Node.js 22 or later and use npm, which
 comes with Node. The landing page uses [pnpm](https://pnpm.io/), which Node does not include, so
 install it first with `corepack enable pnpm` or `brew install pnpm`. CI uses pnpm 11. If pnpm is
 missing, the landing page targets stop and say so.
@@ -131,7 +131,7 @@ make build-landing      # production build into website/landing-page/dist
 
 make install-docs       # once: install docs dependencies
 make run-docs           # docs dev server on port 3000
-make build-docs         # production build into website/build
+make build-docs         # production build into website/docs-site/build
 make check-docs         # build the docs and check links
 
 make run-site           # both dev servers together
@@ -139,7 +139,7 @@ make build-site         # both builds, laid out into _site/ as GitHub Pages serv
 ```
 
 `make install-extras` installs both sets of dependencies, along with Playwright. See
-[`website/README.md`](website/README.md) for more on previewing the docs.
+[`website/docs-site/README.md`](website/docs-site/README.md) for more on previewing the docs.
 
 ### Commit Messages
 

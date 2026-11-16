@@ -1,0 +1,67 @@
+---
+title: "Format and schema compliance"
+description: "Whether an output satisfies specified structural and syntactic requirements."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/task_and_output_quality/_format_schema_compliance.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="FormatSchemaComplianceGrader" />
+
+Assess whether an output satisfies specified structural and syntactic requirements.
+
+<GraderCode>
+
+```python
+class ArtifactArgs(BaseModel):
+    artifact: NonEmptyText | None = None
+    """The name of the file to judge. When the target revised the file, the judge reads the
+    latest version."""
+
+
+class TraceArgs(BaseModel):
+    turn: Literal["each", "last"] = "each"
+    """``each`` judges every recorded turn, each on its own. ``last`` judges only the final
+    recorded turn."""
+
+
+class FormatSchemaComplianceArgs(JudgeArgs, TraceArgs, ArtifactArgs):
+    turn: Literal["each", "last"] = "last"
+    """``last`` judges only the final reply. ``each`` judges every reply."""
+    format_requirements: tuple[str, ...] = Field(
+        default=(),
+        description="Prose structural or syntactic requirements the output must satisfy.",
+    )
+    json_schema_spec: str | None = Field(
+        default=None,
+        description=(
+            "JSON Schema as a JSON string. When provided, the reply or file is validated "
+            "deterministically against the schema. Invalid JSON or a schema violation "
+            "scores 0 without an LLM call."
+        ),
+    )
+
+
+class FormatSchemaComplianceGrader(Grader[FormatSchemaComplianceArgs]):
+    def criteria(self) -> str:
+        schema_note = (
+            "\n\nThe output has already passed deterministic JSON Schema validation. "
+            "Do not re-check JSON validity or schema structure."
+            if self.args.json_schema_spec is not None
+            else ""
+        )
+        return (
+            "You are assessing whether the target response satisfies specified "
+            "structural and syntactic requirements."
+            + section("format_requirements", self.args.format_requirements)
+            + schema_note
+            + "\n\n<assessment_boundaries>\n"
+            "Assess syntax and structure. This criterion covers format compliance even "
+            "when the requirement comes from a policy or task instruction. "
+            "Do not assess substantive correctness or content quality."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

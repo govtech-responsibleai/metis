@@ -4,12 +4,11 @@
 
 `website/` contains everything that is published to GitHub Pages:
 
-- **`docs/`** — the Docusaurus documentation site, served at `/metis/docs/`. Content pages
-  (Markdown/MDX), custom React components, CSS, data files, and static images all live here.
+- **`docs-site/`** — the Docusaurus documentation site, served at `/metis/docs/`.
 - **`landing-page/`** — the marketing landing page (Vite + React + Tailwind), served at `/metis/`.
 
-Config files for the Docusaurus site (`docusaurus.config.js`, `sidebars.js`, `package.json`)
-live at the `website/` root.
+Each sub-project has its own `package.json` and its own package manager (npm for the docs,
+pnpm for the landing page).
 
 ## Design guide
 
@@ -20,21 +19,23 @@ govern both the documentation site and the landing page.
 
 ```
 website/
-├── docusaurus.config.js   # Docusaurus config (plugins, theme, navbar)
-├── sidebars.js            # Sidebar structure
-├── package.json           # Docs dependencies (npm)
-├── docs/                  # Documentation content + site source
-│   ├── *.md / *.mdx       # Documentation pages
-│   ├── library/           # Grader reference pages
-│   ├── assets/            # Images used in docs
-│   ├── src/               # Custom components, CSS, theme overrides
-│   │   ├── theme/         # Swizzled Docusaurus components
-│   │   ├── components/    # Custom React components
-│   │   ├── css/           # Site-wide tokens (custom.css)
-│   │   ├── data/          # graders.json
-│   │   └── glossary/      # Glossary parsing logic + tests
-│   └── static/            # Static assets (images served at site root)
-└── landing-page/          # Marketing landing page (pnpm)
+├── AGENTS.md
+├── docs-site/                 # Docusaurus project root
+│   ├── docusaurus.config.js   # Plugins, theme, navbar
+│   ├── sidebars.js            # Sidebar structure
+│   ├── package.json           # Docs dependencies (npm)
+│   ├── src/                   # Custom components, CSS, theme overrides
+│   │   ├── theme/             # Swizzled Docusaurus components
+│   │   ├── components/        # Custom React components
+│   │   ├── css/               # Site-wide tokens (custom.css)
+│   │   ├── data/              # graders.json
+│   │   └── glossary/          # Glossary parsing logic + tests
+│   ├── static/                # Static assets (images served at site root)
+│   └── docs/                  # Documentation content
+│       ├── *.md / *.mdx       # Documentation pages
+│       ├── assets/            # Images used in docs
+│       └── library/           # Grader reference pages
+└── landing-page/              # Marketing landing page (pnpm)
     ├── AGENTS.md
     ├── src/
     └── public/
@@ -42,18 +43,13 @@ website/
 
 ## Import conventions
 
-Components and data in `docs/src/` are imported with the `@site` Docusaurus alias:
+Components and data in `src/` are imported with the `@site` Docusaurus alias:
 
 ```js
-import Glossary from '@site/docs/src/components/Glossary';
+import Glossary from '@site/src/components/Glossary';
 ```
 
 The `@examples` alias maps to `packages/engine/examples/` for importing example YAML files.
-
-## Theme overrides
-
-Docusaurus expects swizzled theme components at `src/theme/`. Thin proxy files there
-re-export from the actual implementations in `docs/src/theme/`.
 
 ## Commands
 

@@ -1,0 +1,26 @@
+---
+title: "Tool call count"
+description: "The session stayed within the allowed number of tool calls."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/resource_use/_tool_call_count.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="ToolCallCountGrader" />
+
+The session stayed within the allowed number of tool calls.
+
+<GraderCode>
+
+```python
+class ToolCallCountArgs(GraderArgs):
+    max_calls: int = Field(
+        ge=1,
+        strict=True,
+        description="Maximum number of tool calls allowed in the session.",
+    )
+    """The most tool calls the session may make and still pass."""
+```
+
+</GraderCode>

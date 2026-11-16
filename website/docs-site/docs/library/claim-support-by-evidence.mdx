@@ -1,0 +1,71 @@
+---
+title: "Claim support by evidence"
+description: "Whether claims in the output are supported by the evidence in the session."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/task_and_output_quality/_claim_support_by_evidence.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="ClaimSupportByEvidenceGrader" />
+
+Assess whether claims in the output are supported by the evidence in the session.
+
+Adapted from [DeepEval Faithfulness](https://github.com/confident-ai/deepeval/blob/d6cd78ac44da4623ff07c73310dfca474c212068/deepeval/metrics/faithfulness/templates/generate_claims.txt), [Braintrust Faithfulness](https://github.com/braintrustdata/autoevals/blob/586cc167eb625d84b11581936b1e11619ec0d15a/py/autoevals/ragas.py).
+
+<GraderCode>
+
+```python
+class ArtifactArgs(BaseModel):
+    artifact: NonEmptyText | None = None
+    """The name of the file to judge. When the target revised the file, the judge reads the
+    latest version."""
+
+
+class TraceArgs(BaseModel):
+    turn: Literal["each", "last"] = "each"
+    """``each`` judges every recorded turn, each on its own. ``last`` judges only the final
+    recorded turn."""
+
+
+class ClaimSupportByEvidenceArgs(JudgeArgs, TraceArgs, ArtifactArgs):
+    turn: Literal["each", "last"] = "last"
+    """``last`` judges only the final reply. ``each`` judges every reply."""
+
+
+class ClaimSupportByEvidenceGrader(Grader[ClaimSupportByEvidenceArgs]):
+    def criteria(self) -> str:
+        return (
+            "You are assessing whether claims in the assessed output are supported by "
+            "the sources."
+            + sources_block(
+                self.scope,
+                "Match each claim in the assessed output to the source content that "
+                "supports it.",
+            )
+            + "\n\nFirst, extract the factual claims in the assessed output. Only include "
+            "claims that are factual, BUT IT DOESN'T MATTER IF THEY ARE FACTUALLY CORRECT. "
+            "The claims you extract should include the full context it was presented in, "
+            "NOT cherry picked facts. You should NOT include any prior knowledge, and take "
+            "the text at face value when extracting claims.\n\n"
+            "Then judge the faithfulness of the series of claims based on the sources. For "
+            "each claim you must decide the verdict as 1 if the claim can be verified based "
+            "on the sources or 0 if the claim can not be verified based on the sources.\n\n"
+            "Score 1 only when every claim can be verified based on the sources. Score 0 "
+            "when any claim can not be verified based on the sources, and name that claim "
+            "in the reason.\n\n<assessment_boundaries>\n"
+            "Assess whether each claim in the assessed output is actually supported by "
+            "the sources — not merely non-contradicted. A supported "
+            "claim need not be true in the world; support and truth are independent. "
+            "Whether the evidence source is authoritative, relevant, or current is a "
+            "separate concern (Evidence Source Suitability). An omission of essential "
+            "source meaning is Content Fidelity, not lack of support. Assess attribution "
+            "separately when required.\n\n"
+            "If the assessed output contains no factual claims that can be checked "
+            "against the sources, or the session has no source content, the criterion "
+            "does not apply."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

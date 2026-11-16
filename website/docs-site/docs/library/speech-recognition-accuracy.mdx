@@ -1,0 +1,88 @@
+---
+title: "Speech recognition accuracy"
+description: "Whether recognized words accurately represent the spoken input."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/task_and_output_quality/_speech_recognition_accuracy.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="SpeechRecognitionAccuracyGrader" />
+
+Assess whether recognized words accurately represent the spoken input.
+
+Adapted from [DeepEval Transcription Accuracy](https://github.com/confident-ai/deepeval/blob/d6cd78ac44da4623ff07c73310dfca474c212068/deepeval/metrics/transcription_accuracy/templates/generate_verdicts.txt).
+
+<GraderCode>
+
+```python
+class TraceArgs(BaseModel):
+    turn: Literal["each", "last"] = "each"
+    """``each`` judges every recorded turn, each on its own. ``last`` judges only the final
+    recorded turn."""
+
+
+class SpeechRecognitionAccuracyArgs(JudgeArgs, TraceArgs):
+    turn: Literal["each", "last"] = "last"
+    """``last`` judges only the final reply. ``each`` judges every reply."""
+    reference_transcript: NonEmptyText = Field(
+        description="Human-verified reference transcript to compare against.",
+    )
+    transcript_provenance: str = Field(
+        default="",
+        description="How the reference transcript was obtained (e.g., 'human transcription of call recording').",
+    )
+
+
+class SpeechRecognitionAccuracyGrader(Grader[SpeechRecognitionAccuracyArgs]):
+    def criteria(self) -> str:
+        provenance_note = (
+            f"\n\nReference provenance: {self.args.transcript_provenance}"
+            if self.args.transcript_provenance
+            else ""
+        )
+        return (
+            "You are assessing whether recognized words accurately represent the "
+            "spoken input by comparing a recognized transcript against a human-verified "
+            "reference transcript."
+            f"\n\n<reference_transcript>\n{self.args.reference_transcript}"
+            "\n</reference_transcript>"
+            + provenance_note
+            + "\n\n<assessment_boundaries>\n"
+            "Compare the recognition output (in the assessed evidence) against the "
+            "reference transcript above. The assessed evidence must be the actual "
+            "recognition output, not a conversational answer about the audio. Assess "
+            "word-level accuracy.\n\n"
+            "Do NOT count any of these as errors — they are the same utterance written "
+            "differently:\n"
+            '- Punctuation, capitalisation, and sentence splitting ("Yes, could you" vs '
+            '"Yes. Could you").\n'
+            '- Numbers written as digits or as words ("fifteen years" vs "15 years", '
+            '"thirty days" vs "30 days").\n'
+            "- Filler words, stutters, or backchannels that were dropped "
+            '("um", "uh", "you know").\n'
+            "- Spelling variants of the same word, contractions, and obvious formatting "
+            "of dates, times, money or units.\n"
+            "- The same words repeated twice, which some speech-to-text engines emit for "
+            "one utterance.\n\n"
+            "DO count these as errors — they change what the agent was told:\n"
+            "- A name, place, company or other proper noun heard as a different word "
+            '("Kavanagh" heard as "Cavanaugh").\n'
+            "- A number, quantity, date or duration that differs in value "
+            '("fifteen" heard as "fifty", "two weeks" heard as "two months").\n'
+            '- A negation gained or lost ("I can\'t start" heard as "I can start").\n'
+            "- Words or whole clauses missing or invented such that the meaning changes.\n"
+            "- An empty recognition output when something was spoken, which means the "
+            "agent heard nothing at all.\n\n"
+            "Score 1 when the recognition output faithfully captures the reference "
+            "transcript. Score 0 when it does not. When the score is 0, the reason "
+            "quotes what was spoken and what was heard instead, and says what it "
+            "changed.\n\n"
+            "This is an LLM-based qualitative "
+            "assessment of accuracy, not a computed word error rate. "
+            "Language identification and interpretation are separate concerns."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

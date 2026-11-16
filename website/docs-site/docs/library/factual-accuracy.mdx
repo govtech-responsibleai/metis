@@ -1,0 +1,76 @@
+---
+title: "Factual accuracy"
+description: "Whether factual claims agree with the designated authoritative ground truth."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/task_and_output_quality/_factual_accuracy.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="FactualAccuracyGrader" />
+
+Assess whether factual claims agree with the designated authoritative ground truth.
+
+Adapted from [Braintrust Factuality](https://github.com/braintrustdata/autoevals/blob/586cc167eb625d84b11581936b1e11619ec0d15a/templates/factuality.yaml), [OpenAI Evals fact](https://github.com/openai/evals/blob/8eac7a7de5215c907fbddc30efdaf316913eccdd/evals/registry/modelgraded/fact.yaml).
+
+<GraderCode>
+
+```python
+class ArtifactArgs(BaseModel):
+    artifact: NonEmptyText | None = None
+    """The name of the file to judge. When the target revised the file, the judge reads the
+    latest version."""
+
+
+class TraceArgs(BaseModel):
+    turn: Literal["each", "last"] = "each"
+    """``each`` judges every recorded turn, each on its own. ``last`` judges only the final
+    recorded turn."""
+
+
+class FactualAccuracyArgs(JudgeArgs, TraceArgs, ArtifactArgs):
+    turn: Literal["each", "last"] = "last"
+    """``last`` judges only the final reply. ``each`` judges every reply."""
+    ground_truth: tuple[NonEmptyText, ...] = Field(
+        min_length=1,
+        description="Authoritative facts to check claims against.",
+    )
+
+
+class FactualAccuracyGrader(Grader[FactualAccuracyArgs]):
+    def criteria(self) -> str:
+        return (
+            "You are comparing a submitted answer to an expert answer. The submitted "
+            "answer is the assessed evidence. The expert answer is the ground truth below."
+            + section("ground_truth", self.args.ground_truth)
+            + "\n\nCompare the factual content of the submitted answer with the expert "
+            "answer. Ignore any differences in style, grammar, or punctuation.\n"
+            "The submitted answer may either be a subset or superset of the expert "
+            "answer, or it may conflict with it. Determine which case applies. Answer "
+            "by selecting one of the following options:\n"
+            "(A) The submitted answer is a subset of the expert answer and is fully "
+            "consistent with it.\n"
+            "(B) The submitted answer is a superset of the expert answer and is fully "
+            "consistent with it.\n"
+            "(C) The submitted answer contains all the same details as the expert "
+            "answer.\n"
+            "(D) There is a disagreement between the submitted answer and the expert "
+            "answer.\n"
+            "(E) The answers differ, but these differences don't matter from the "
+            "perspective of factuality.\n\n"
+            "Name the option that applies in your reason. Score 1 for option A, B, C or "
+            "E. Score 0 for option D."
+            "\n\n<assessment_boundaries>\n"
+            "Compare factual claims with the designated ground truth above ONLY. Do not "
+            "substitute your own knowledge or unsupported recollection. A claim that the "
+            "ground truth does not address is outside the scope of this assessment; note "
+            "partial coverage in your reason when some claims could not be checked. A claim "
+            "contradicted by the ground truth is inaccurate. A response can be complete and "
+            "well-structured but still contain an incorrect fact. If the assessed evidence "
+            "contains no factual claims assessable against the ground truth, the criterion "
+            "does not apply."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

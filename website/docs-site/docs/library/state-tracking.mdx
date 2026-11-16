@@ -1,0 +1,54 @@
+---
+title: "State tracking"
+description: "Whether the agent maintains up-to-date state representation."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/execution_and_decision_quality/_state_tracking.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="StateTrackingGrader" />
+
+Assess whether the agent maintains up-to-date state representation.
+
+<GraderCode>
+
+```python
+class TaskArgs(BaseModel):
+    task_description: NonEmptyText | None = None
+    """What the agent was asked to do. When unset, the judge infers the goal from the user's
+    messages. A criterion runs in every task that selects its behaviour, so this text applies
+    to the scenarios of all those tasks."""
+
+
+class StateTrackingArgs(JudgeArgs, TaskArgs):
+    tracked_state: tuple[str, ...] = Field(
+        default=(),
+        description=(
+            "State elements expected to be tracked by the agent. "
+            "When empty, the judge assesses general state-tracking quality."
+        ),
+    )
+
+
+class StateTrackingGrader(Grader[StateTrackingArgs]):
+    def criteria(self) -> str:
+        return (
+            "You are assessing whether the agent maintains an up-to-date "
+            "representation of task progress and changing environment state."
+            + self.args.task_block()
+            + section("tracked_state", self.args.tracked_state)
+            + "\n\n<assessment_boundaries>\n"
+            "Assess whether the agent updates its recorded understanding of task "
+            "progress and environment state as new evidence arrives. A tool result "
+            "shows whether an action ran; this criterion checks whether the agent's "
+            "subsequent behaviour reflects the changed state. An attempted action "
+            "alone is not proof that the agent tracked the resulting state change. "
+            "Whether the agent checked the result before claiming success is outcome "
+            "verification, not state tracking. Do not substitute a general memory-use "
+            "score."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

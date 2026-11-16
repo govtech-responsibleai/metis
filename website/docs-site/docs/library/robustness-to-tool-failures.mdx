@@ -1,0 +1,107 @@
+---
+title: "Robustness to tool failures"
+description: "Whether the required result or an acceptable fallback holds when a tool fails."
+---
+
+{/* Generated from packages/library/src/metis/library/graders/reliability_and_robustness/_robustness_to_tool_failures.py by make generate-grader-docs. Do not edit. */}
+
+import {GraderCode, GraderTags} from '@site/src/components/Graders';
+
+<GraderTags name="RobustnessToToolFailuresGrader" />
+
+Assess whether the required result or an acceptable fallback holds when a tool fails.
+
+Adapted from [Phoenix tool_response_handling](https://github.com/Arize-ai/phoenix/blob/d5f5e054756e98d05172a1651c6ffa3fc6f2ff27/js/packages/phoenix-evals/src/__generated__/default_templates/TOOL_RESPONSE_HANDLING_CLASSIFICATION_EVALUATOR_CONFIG.ts), for the error-handling rules only.
+
+<GraderCode>
+
+```python
+class TraceArgs(BaseModel):
+    turn: Literal["each", "last"] = "each"
+    """``each`` judges every recorded turn, each on its own. ``last`` judges only the final
+    recorded turn."""
+
+
+class TaskArgs(BaseModel):
+    task_description: NonEmptyText | None = None
+    """What the agent was asked to do. When unset, the judge infers the goal from the user's
+    messages. A criterion runs in every task that selects its behaviour, so this text applies
+    to the scenarios of all those tasks."""
+
+
+class RobustnessToToolFailuresArgs(JudgeArgs, TaskArgs, TraceArgs):
+    acceptable_fallbacks: tuple[str, ...] = Field(
+        default=(),
+        description=(
+            "Fallback behaviours that count as acceptable when a tool fails, such as "
+            "telling the user the service is down. When empty, the judge decides what "
+            "fallback is acceptable."
+        ),
+    )
+
+
+class RobustnessToToolFailuresGrader(Grader[RobustnessToToolFailuresArgs]):
+    def criteria(self) -> str:
+        return (
+            "You are an impartial judge evaluating whether an AI agent maintains the "
+            "required performance, or an acceptable fallback, when tool responses are "
+            "malformed, missing, delayed, or erroneous."
+            + self.args.task_block()
+            + section("acceptable_fallbacks", self.args.acceptable_fallbacks)
+            + "\n\nThe evidence shows each tool call with a `Tool result [status]:` line. "
+            "A status of error or warning shows a failure that was recorded. A result can "
+            "also show a failure in its text while its status is ok, such as an error "
+            "message, an empty result, a timeout notice, or data in the wrong form. Count "
+            "both as tool failures.\n\n"
+            "IMPORTANT - Multi-Tool Handling:\n"
+            "- The agent may make MULTIPLE tool calls. This is valid and expected.\n"
+            "- Evaluate how the agent handled ALL failed tool results together.\n\n"
+            "IMPORTANT - Error Response Handling:\n"
+            "- Tool results may contain errors (rate limits, timeouts, not found, invalid "
+            "arguments, etc.).\n"
+            "- The agent's output may include retries, follow-up tool calls, or a final "
+            "response to the user.\n"
+            "- Evaluate the ENTIRE handling sequence: the retries, the follow-up calls, "
+            "and the final message.\n"
+            "- Appropriate error handling includes:\n"
+            "  - Retrying on transient errors (rate limits, timeouts)\n"
+            "  - Correcting arguments after invalid argument errors\n"
+            "  - Informing the user appropriately when errors are not recoverable\n"
+            "  - NOT making repeated identical calls that continue to fail\n\n"
+            "Score 1 only when ALL of the following are true:\n"
+            "- The agent still reaches the required result, or it gives an acceptable "
+            "fallback, such as a partial result that it labels as partial, or a clear "
+            "statement of what failed and what the user can do next.\n"
+            "- Error responses are handled appropriately (retries for transient errors, "
+            "corrections for invalid arguments).\n"
+            "- No repeated identical calls after non-retryable errors.\n"
+            "- The agent does not invent data in place of a failed or missing result.\n\n"
+            "Score 0 if ANY of the following are true:\n"
+            "- Lost outcome: the agent neither reaches the required result nor gives an "
+            "acceptable fallback.\n"
+            "- Missing retry: the agent did not retry on retryable errors (rate limits, "
+            "timeouts).\n"
+            "- Missing correction: the agent did not correct arguments after invalid "
+            "argument errors.\n"
+            "- Futile retries: repeated identical calls that continue to fail.\n"
+            "- Invented data: the reply gives data that a failed or missing result did "
+            "not return.\n"
+            "- Hidden failure: the reply presents the task as complete when a failure "
+            "stopped it.\n\n"
+            "Before providing your final judgment, explain your reasoning and consider:\n"
+            "- Which tool responses failed, and how?\n"
+            "- Were errors handled appropriately?\n"
+            "- Are there any fabricated details in place of a failed result?\n"
+            "- Did the agent still reach the required result or an acceptable fallback?"
+            "\n\n<assessment_boundaries>\n"
+            "If no tool response in the evidence was malformed, missing, delayed, or "
+            "erroneous, the criterion does not apply. Error Detection and Error Recovery "
+            "judge the particular response to a failure. This criterion judges whether "
+            "the outcome holds when tools fail. Do not judge whether the right tool was "
+            "selected, whether the arguments were correct before the failure, or whether "
+            "the agent disclosed sensitive information."
+            "\n</assessment_boundaries>"
+        )
+```
+
+</GraderCode>

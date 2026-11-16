@@ -82,7 +82,7 @@ def site_services() -> list[Service]:
     return [
         Service(
             "docs",
-            [npm, "--prefix", str(REPO_ROOT / "website"), "start"],
+            [npm, "--prefix", str(REPO_ROOT / "website" / "docs-site"), "start"],
             ready_url="http://127.0.0.1:3000/metis/docs/",
         ),
         Service(
