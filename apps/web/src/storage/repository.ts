@@ -148,27 +148,41 @@ export class InterviewRepository {
   }
 }
 
-// The Target id of a new Interview, which is also its folder name. It has the format of a
-// `metis wizard init` folder, in local time. A later attempt adds `-2`, `-3`, and so on.
-export function interviewId(now: Date, attempt = 1): string {
+// Lower-case letters and digits, without `i`, `l`, `o`, `0`, and `1`, which look alike.
+const RANDOM_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
+const RANDOM_LENGTH = 5;
+
+// The random part of a Target id. With it, two people who start an Interview in the same
+// second get different ids.
+export function randomPart(): string {
+  const values = crypto.getRandomValues(new Uint32Array(RANDOM_LENGTH));
+  return Array.from(
+    values,
+    (value) => RANDOM_ALPHABET[value % RANDOM_ALPHABET.length],
+  ).join("");
+}
+
+// The Target id of a new Interview, which is also its folder name. It has the form of a
+// `metis wizard init` folder: the local time, the word `interview`, and a random part.
+export function interviewId(now: Date, random = randomPart()): string {
   const two = (value: number) => String(value).padStart(2, "0");
   const date = `${now.getFullYear()}${two(now.getMonth() + 1)}${two(now.getDate())}`;
   const time = `${two(now.getHours())}${two(now.getMinutes())}${two(now.getSeconds())}`;
-  return `${date}-${time}-interview${attempt > 1 ? `-${attempt}` : ""}`;
+  return `${date}-${time}-interview-${random}`;
 }
 
 const CREATE_ATTEMPTS = 5;
 
-// Save a new Interview under the id of `started`. When another Interview has the id, save it
-// under the next id. The record keeps its `created_at`, so a resend of a save that the store
-// already has does not make a second Interview.
+// Save a new Interview under its id. When another Interview has the id, save it with `-2`,
+// `-3`, and so on at the end. The record keeps its `created_at`, so a resend of a save that the
+// store already has does not make a second Interview.
 export async function putNew(
   repository: Pick<InterviewRepository, "put">,
   record: LoadedInterviewRecord,
-  started: Date,
 ): Promise<LoadedInterviewRecord> {
   for (let attempt = 1; ; attempt++) {
-    const next = { ...record, id: interviewId(started, attempt) };
+    const id = attempt > 1 ? `${record.id}-${attempt}` : record.id;
+    const next = { ...record, id };
     try {
       await repository.put(next);
       return next;
@@ -238,7 +252,7 @@ export function removeUnreferencedFixtures(
       .flatMap((task) => task.fixtures),
   );
   const removable = new Set(names.filter((name) => !references.has(name)));
-  const openingDocuments = new Set(
+  const documents = new Set(
     (record.state.context.documents ?? []).map((document) =>
       fixtureNameIdentity(document.name),
     ),
@@ -249,7 +263,7 @@ export function removeUnreferencedFixtures(
     fixtures: record.fixtures.filter(
       (fixture) =>
         !removable.has(fixture.name) ||
-        openingDocuments.has(fixtureNameIdentity(fixture.name)),
+        documents.has(fixtureNameIdentity(fixture.name)),
     ),
   };
 }

@@ -56,19 +56,34 @@ or above the folder where you start the API that has a `pyproject.toml`. For `ma
 the repository folder. To use another folder, start the API with
 `metis-api --project-dir PATH`.
 
-- The database is `experiments/metis.db` in the project folder. To use another database, set
+- The database is `metis.db` in the project folder. To use another database, set
   `METIS_DATABASE_URL` to a SQLAlchemy URL.
 - The files of each Interview are in `experiments/design/<id>/`, the same layout as the CLI
   wizard. `inputs/documents/` holds the files that you upload, and
   `inputs/interview_state.json` holds the state of the Interview. An Interview that you start
   with `metis wizard init` in this folder also shows in the web app, without a conversation.
-- The `<id>` is `YYYYMMDD-HHMMSS-interview`, in the local time when you send the first message.
-  For example, `20261112-101500-interview`. A `metis wizard init` folder has the same name. When
-  another Interview already has the id, the web app adds `-2`, `-3`, and so on.
+- The `<id>` is `YYYYMMDD-HHMMSS-interview-<random>`, in the local time when you send the first
+  message. For example, `20261112-101500-interview-k7mwp`. The random part is five characters,
+  so two people who start an Interview in the same second get different ids. A
+  `metis wizard init` folder has a name of the same form. When another Interview
+  already has the id, the web app adds `-2`, `-3`, and so on.
 - When an Interview is done, the API also writes its Specification to
   `experiments/design/<id>/outputs/`. Give that folder to `metis engine simulate --input-dir`.
 
 The repository ignores `experiments/`, so Git does not save it.
+
+### Log in to a shared server
+
+On your own computer, the web app has no login. A server that many people use can have login
+on. Then the web app opens on a login page. Type the username and the password that you got for
+that server, and select **Log in**.
+
+The foot of the left rail shows your username. Select the icon beside it to log out. A login
+lasts 30 days. After that, the login page shows again, and you log in with the same username
+and password.
+
+To turn login on and to make a user account, see
+[Turn on login for a shared server](api.md#turn-on-login-for-a-shared-server).
 
 ## Targets and their pages
 
@@ -253,25 +268,43 @@ download. Continue with no selected Test Case shows "Select at least one Test Ca
 
 A row shows its values only. To change a Test Case, select the pen. The row then shows the
 Persona and Scenario dropdowns, the Behaviour ID chips, the Trials number, and the Files cell. In
-the Files cell, open **Add file**. Choose **Upload a file**, or choose an opening document. Select
+the Files cell, open **Add file**. Choose **Upload a file**, or choose a document of the Interview. Select
 **Save** to keep the changes. Each pair can have one Test Case only, so a pair
 that is in use is not available. The **+** on Test Cases adds a row for a pair that has no Test
 Case yet.
 
 ## Add documents
 
-1. Select the plus button in the opening message.
+1. Select the plus button in the opening message. A panel opens under the box. Select
+   **Upload files**, and choose the files. The box shows each document above the text.
 2. If a file name does not make the purpose of a document clear, explain it in the same message.
-3. Check the reading status of each file. Remove an unreadable file, or keep it without extracted
+3. Check the status of each document. A document with no status was read. **Name only** shows
+   that the wizard gets the name of the file, without its text. For a file that could not be read,
+   select **Use name only**, or select the X to remove it.
+
+You can also add a document at each later step of the Interview:
+
+1. Select the plus button in the message box of the conversation. A panel opens above the box.
+2. Select **Upload files**. Choose the files and check the status of each document above the
    text.
+3. Type a message that says what the wizard must do with the documents, for example "Add
+   Criteria from the escalation policy". Then select **Send**.
+
+The documents go with that message, and the conversation shows their names under it. The
+conversation also shows the documents of the opening message under that message. From that
+message on, the wizard uses them together with the earlier documents. A new document alone does
+not change the Specification. The wizard makes only the change that your message asks for. The
+plus button is not available while a form is open or after the Interview is done.
 
 Document facts:
 
-- The browser shows the accepted file types and size limits.
+- **Upload files** shows the accepted file types and size limits when the pointer is on it.
 - The API extracts text from UTF-8 TXT, Markdown, YAML, JSON, CSV, PDF text layers, and DOCX files.
 - The API does not run OCR. Scanned PDFs give no text.
-- A Test Case has no files at first. Select its pen to add an opening document or upload a file
-  in its **Files** cell.
+- A Test Case has no files at first. Select its pen to add a document of the Interview or upload
+  a file in its **Files** cell.
+- All the documents of an Interview share the limits for the number of files and the size of the
+  text.
 - The browser never replaces a file. When you add a file with the name of a file that the
   Interview already has, the new file gets a number before its extension, for example
   `policy (2).pdf`. Names that differ only by case are the same name, so `POLICY.pdf` also gets a

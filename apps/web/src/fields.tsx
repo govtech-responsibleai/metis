@@ -84,6 +84,8 @@ export function TextInput({
   type = "text",
   step,
   autoFocus,
+  name,
+  autoComplete,
   density = "form",
   className,
   form,
@@ -102,9 +104,12 @@ export function TextInput({
   invalid?: boolean;
   disabled?: boolean;
   required?: boolean;
-  type?: "text" | "number";
+  type?: "text" | "number" | "password";
   step?: number | "any";
   autoFocus?: boolean;
+  // The name and the autofill hint of the control, for a password manager on the login page.
+  name?: string;
+  autoComplete?: string;
   density?: FieldDensity;
   className?: string;
   onChange: (value: string) => void;
@@ -115,6 +120,8 @@ export function TextInput({
       id={id}
       ref={inputRef}
       type={type}
+      name={name}
+      autoComplete={autoComplete}
       step={step}
       aria-label={ariaLabel}
       aria-invalid={invalid}

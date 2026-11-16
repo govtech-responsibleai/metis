@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from metis.wizard import compile_specification
 from metis.wizard.adapters.cli import commands
+from metis.wizard.application import export_layout
 from metis.wizard.bootstrap import create_cli_app
 from metis.wizard.contracts import InterviewState, Specification
 from tests.fixtures.wizard.connections import (
@@ -31,11 +32,12 @@ def test_init_happy_path_writes_specification_and_review(
     # This test is about the terminal corridor, not matching, so it uses the scripted
     # matcher's runnable grader.
     monkeypatch.setattr(commands, "_matcher", lambda _interviewer: ScriptedMatcher())
+    monkeypatch.setattr(export_layout, "random_part", lambda: "k7mwp")
     monkeypatch.chdir(tmp_path)
     root = (
         tmp_path / "chosen folder"
         if explicit
-        else tmp_path / "experiments/design/20261016-223045-interview"
+        else tmp_path / "experiments/design/20261016-223045-interview-k7mwp"
     )
     arguments = ["--out-dir", str(root)] if explicit else []
     app = create_cli_app(ScriptedInterviewer)
@@ -86,7 +88,8 @@ def test_init_happy_path_writes_specification_and_review(
         assert another.exit_code == 0, another.output
         assert (
             tmp_path
-            / "experiments/design/20261016-223046-interview/outputs/specification.yaml"
+            / "experiments/design/20261016-223046-interview-k7mwp"
+            / "outputs/specification.yaml"
         ).is_file()
         assert (
             specification_path.read_text()

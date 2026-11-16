@@ -1,13 +1,14 @@
 """The app composition root.
 
 `main.py` creates the FastAPI app, keeps `/health`, includes the wizard, store, experiment,
-report, engine, and doctor routers, and installs the handlers that give every failure one stable JSON shape. The
-wizard routes keep no state: each request carries the whole Interview state in its body. The
-store routes keep the Targets, Interviews, Specifications, and Experiments in the `Store` that
-the app composes at startup. The report routes read the experiment folders. The engine routes
-run one engine run at a time, on a thread, in this process. The store and the
-experiment folders are in the project folder that `create_app` gets, or the default project
-folder that `find_project_root` finds.
+report, engine, doctor, user, and auth routers, and installs the handlers that give every
+failure one stable JSON shape. When login is on, `login_guard` lets a request reach an `/api`
+route only with a login session. The wizard routes keep no state: each request carries the
+whole Interview state in its body. The store routes keep the Targets, Interviews,
+Specifications, and Experiments in the `Store` that the app composes at startup. The report
+routes read the experiment folders. The engine routes run one engine run at a time, on a
+thread, in this process. The store and the experiment folders are in the project folder that
+`create_app` gets, or the default project folder that `find_project_root` finds.
 """
 
 from __future__ import annotations
@@ -20,8 +21,16 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from metis.api import __version__, core_version
+from metis.api.accounts import Accounts
 from metis.api.engine_runs import EngineFunctions, EngineRuns
 from metis.api.errors import RouteError
+from metis.api.routes.accounts import (
+    AccountError,
+    account_error_response,
+    auth_router,
+    login_guard,
+    users_router,
+)
 from metis.api.routes.doctor import router as doctor_router
 from metis.api.routes.engine import router as engine_router
 from metis.api.routes.experiments import router as experiments_router
@@ -87,6 +96,22 @@ _OPENAPI_TAGS = [
         "description": "Check the environment of the API before a run.",
     },
     {
+        "name": "users",
+        "description": (
+            "Make and list user accounts. Each request needs the admin token of the server "
+            "in an Authorization: Bearer header. The routes are off when the server has no "
+            "admin token."
+        ),
+    },
+    {
+        "name": "auth",
+        "description": (
+            "Start and end a login session, and read the current user account. When login "
+            "is on, each other route under /api returns 401 login_required without the "
+            "cookie of a login session."
+        ),
+    },
+    {
         "name": "reports",
         "description": (
             "Read the report of an experiment folder in the project folder, as JSON or "
@@ -105,7 +130,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     reports the missing roles, and each Interview route returns 503 `model_unavailable`. The
     connection check, compile, and package routes call no model, so they work without keys.
 
-    The app builds the store from the settings when the caller did not give one.
+    The app builds the store from the settings when the caller did not give one. The user
+    accounts use the database of the store.
+
+    Login settings that disagree stop the start. See ``login_from_env``.
 
     Before it accepts a request, the app sets up the process for the engine one time. At
     shutdown it stops the engine run and waits for it, for at most the stop time limit.
@@ -123,6 +151,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     if getattr(app.state, "store", None) is None:
         owned = Store(settings.database_url, settings.project_dir)
         app.state.store = owned
+    app.state.login = settings.login
+    app.state.admin_token = settings.admin_token
+    app.state.secure_cookie = settings.secure_cookie
+    app.state.accounts = Accounts(app.state.store.engine)
     runs: EngineRuns = app.state.engine_runs
     app.state.engine_settings = settings.engine
     runs.functions.setup_process()
@@ -184,6 +216,14 @@ def create_app(
             code=exc.code, message=exc.message, retryable=exc.retryable
         )
         return JSONResponse(error.model_dump(), status_code=exc.status)
+
+    app.include_router(users_router)
+    app.include_router(auth_router)
+    app.middleware("http")(login_guard)
+
+    @app.exception_handler(AccountError)
+    def _on_account_error(_request: Request, exc: AccountError) -> JSONResponse:
+        return account_error_response(exc)
 
     @app.exception_handler(StoreError)
     def _on_store_error(_request: Request, exc: StoreError) -> JSONResponse:

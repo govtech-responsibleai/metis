@@ -1,38 +1,65 @@
-"""The store of Targets, Interviews, Specifications, and Experiments.
+"""Save and load Targets, Interviews, Specifications, and Experiments.
 
-The store keeps its rows in a database that SQLAlchemy opens from a URL. The default is the
-SQLite file `<project>/experiments/metis.db`. The tables use only portable SQL, so a PostgreSQL
-URL also works.
+A saved record has two parts: rows in a database and files in a project folder. `Store` writes
+the two parts together. The routes call `Store`, and they do not use the database or the files
+themselves.
 
-The store keeps the files of each Target in the layout that `metis wizard init` writes, under
-`<project>/experiments/design/<target_id>/`:
+Where the records are
+---------------------
+
+The rows are in a database that SQLAlchemy opens from a URL. The default is the SQLite file
+`metis.db` in the project folder of the server, beside the `experiments` folder. The tables use
+only portable SQL, so a PostgreSQL URL also works.
+
+The files of a Target are in `<project>/experiments/design/<target_id>/`, in the layout that
+`metis wizard init` writes:
 
 - `inputs/interview_state.json` holds the state of the Interview. `metis wizard resume` reads
   and writes the same file. The Interview row holds the other parts of the web record: the
   transcript, the times, and the file references.
 - `inputs/documents/` holds the files of the Interview record, by name. The user uploads these
-  files: the opening documents, the files for the Test Cases, and the files of an answer that
+  files: the documents of the Interview, the files for the Test Cases, and the files of an answer that
   the wizard has not accepted yet. The wizard CLI keeps its opening documents in the same folder.
 - `outputs/` is the input folder of the Specification. Give it to
   `metis engine simulate --input-dir`. It holds `specification.yaml`, `fixtures/`, and
   `target-binding.yaml` when the Interview has a target connection.
 
+An Experiment is a folder that the engine writes under `<project>/experiments/execute/`. The
+engine copies the input folder into each Experiment folder, so a new Specification does not
+change an earlier Experiment.
+
+Who owns a record
+-----------------
+
+Each Target belongs to one user account. Its Interview, its Specification, and its Experiments
+belong to that user account through the Target. A `Store` object works for one user account: it
+reads and writes only the Targets of that user account, and `<project>` is the project folder of
+that user account.
+
+- With login off, the user account is the local user account, and `<project>` is the project
+  folder of the server.
+- With login on, the user account is the one of the request, and `<project>` is
+  `users/<user id>/` in the project folder of the server.
+
+How a save works
+----------------
+
 A save puts the new files and the state file in place, then saves the rows, then deletes the
-files that the record no longer refers to. Thus a saved record always has all its files. A save that stops before its
-last step can leave a file that no record refers to. The next save of that Interview deletes it.
+files that the record no longer refers to. Thus a saved record always has all its files. A save
+that stops before its last step can leave a file that no record refers to. The next save of
+that Interview deletes it.
 
 A save writes each upload under a temporary name first, so a read never gets a part of a file.
 An upload with the name of a file in the folder moves that file to a backup name, then takes the
 name. A save that fails puts each backup back. Thus it changes no file of the saved record.
 
 Each save of a done Interview writes the Specification row and `outputs/` again. A save of an
-Interview that is not done keeps the last Specification. An Experiment is a folder that the
-engine writes under `<project>/experiments/execute/`. The engine copies the input folder into
-each Experiment folder, so a new Specification does not change an earlier Experiment.
+Interview that is not done keeps the last Specification.
 """
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import mimetypes
@@ -65,7 +92,14 @@ from metis.api.records import (
     file_name_identity,
     record_problem,
 )
-from metis.api.tables import experiments, interviews, metadata, specifications, targets
+from metis.api.tables import (
+    experiments,
+    interviews,
+    metadata,
+    specifications,
+    targets,
+    users,
+)
 from metis.core import execution_layout
 from metis.wizard import (
     CompilationError,
@@ -80,12 +114,13 @@ if TYPE_CHECKING:
     from typing import BinaryIO
 
     from sqlalchemy import Table
-    from sqlalchemy.engine import Connection, RowMapping
+    from sqlalchemy.engine import Connection, Engine, RowMapping
 
 EXPERIMENTS = execution_layout.EXECUTIONS.parent
-"""The folder in the project that holds the database, the Target folders, and the Experiment folders."""
-DATABASE = EXPERIMENTS / "metis.db"
-"""The default SQLite file of the store, relative to the project folder."""
+"""The folder in the project that holds the Target folders and the Experiment folders."""
+DATABASE = Path("metis.db")
+"""The default SQLite file of the store, relative to the project folder. It is beside
+``EXPERIMENTS``, so that folder holds only the files of the Targets and the Experiments."""
 DESIGN = EXPERIMENTS / "design"
 """The folder of the Target folders. `metis wizard init` writes to the same folder."""
 FILES = Path("inputs") / "documents"
@@ -94,6 +129,13 @@ STATE = Path("inputs") / "interview_state.json"
 """The file of a Target that holds the state of its Interview. The wizard CLI uses the same file."""
 OUTPUTS = "outputs"
 """The folder of a Target that `metis engine simulate --input-dir` reads."""
+USERS = Path("users")
+"""The folder of the server project folder that holds the project folder of each user account,
+on a server with login on."""
+LOCAL_USER_ID = "local"
+"""The id of the local user account. With login off, each record belongs to it."""
+_USER_ID = re.compile(r"[0-9a-f]{32}")
+"""The id of a user account that the store made. It is a safe folder name."""
 
 
 class StoreError(Exception):
@@ -181,11 +223,35 @@ class StoredFile:
     media_type: str
 
 
+def user_project_dir(server_dir: Path, user_id: str) -> Path:
+    """The project folder of a user account of a server with login on.
+
+    It is `users/<user id>/` in the server project folder. The layout inside it is the layout
+    of a project folder, so the engine and the reports use it as one.
+    """
+    if not _USER_ID.fullmatch(user_id):
+        raise ValueError("A user account id is 32 hexadecimal digits.")
+    return server_dir / USERS / user_id
+
+
 class Store:
-    """The rows in the database and the Target files under the project folder."""
+    """Save and load the records of one user account.
+
+    ``user_id`` is that user account. A Target of another user account gets the same answer as
+    a Target that does not exist.
+
+    `Store(url, project_dir)` works for the local user account, which owns each record when
+    login is off. ``for_user`` gives a `Store` for a different user account on the same
+    database.
+
+    A Target id is the name of the Target folder. The web app puts a random part in it, so the
+    Targets of two user accounts have different ids.
+    """
 
     def __init__(self, url: str, project_dir: Path) -> None:
-        self.project_dir = project_dir.resolve()
+        self._server_dir = project_dir.resolve()
+        self.project_dir = self._server_dir
+        self.user_id = LOCAL_USER_ID
         database = make_url(url)
         if database.get_backend_name() == "sqlite" and database.database not in (
             None,
@@ -197,10 +263,19 @@ class Store:
         metadata.create_all(self._engine)
         # One save or delete at a time, so the owner check and the write stay together.
         self._lock = threading.Lock()
-        self._move_files()
-        self._move_states()
-        self._fill_targets()
         self._add_cli_interviews()
+
+    def for_user(self, user_id: str) -> Store:
+        """A `Store` for the user account ``user_id`` of a server with login on.
+
+        It uses the database and the lock of this store. Its project folder is
+        `users/<user id>/` in the server project folder, with the layout of a project folder
+        inside.
+        """
+        store = copy.copy(self)
+        store.user_id = user_id
+        store.project_dir = user_project_dir(self._server_dir, user_id)
+        return store
 
     @property
     def executions_dir(self) -> Path:
@@ -211,6 +286,11 @@ class Store:
 
     def files_dir(self, target_id: str) -> Path:
         return self.target_dir(target_id) / FILES
+
+    @property
+    def engine(self) -> Engine:
+        """The database engine. The user accounts use the same database as the records."""
+        return self._engine
 
     def state_path(self, target_id: str) -> Path:
         return self.target_dir(target_id) / STATE
@@ -223,18 +303,23 @@ class Store:
 
     def list_targets(self) -> TargetList:
         self._add_cli_interviews()
-        query = select(interviews).order_by(interviews.c.updated_at.desc())
+        query = (
+            select(targets.c.id, interviews.c.record, interviews.c.updated_at)
+            .join(targets, interviews.c.target_id == targets.c.id)
+            .where(targets.c.user_id == self.user_id)
+            .order_by(interviews.c.updated_at.desc())
+        )
         summaries: list[TargetSummary] = []
         problems: list[TargetProblem] = []
         with self._engine.connect() as connection:
             for row in connection.execute(query):
-                message = record_problem(self._with_state(row.target_id, row.record))
+                message = record_problem(self._with_state(row.id, row.record))
                 if message is not None:
-                    problems.append(TargetProblem(id=row.target_id, message=message))
+                    problems.append(TargetProblem(id=row.id, message=message))
                     continue
                 summaries.append(
                     TargetSummary(
-                        id=row.target_id,
+                        id=row.id,
                         title=str(row.record["title"]),
                         updated_at=_utc(row.updated_at),
                     )
@@ -353,28 +438,35 @@ class Store:
         target_id = _target_id(target_id)
         with self._lock:
             with self._engine.begin() as connection:
-                for table in (experiments, specifications):
-                    connection.execute(
-                        delete(table).where(table.c.target_id == target_id)
-                    )
-                deleted = connection.execute(
-                    delete(interviews).where(interviews.c.target_id == target_id)
-                ).rowcount
-                connection.execute(delete(targets).where(targets.c.id == target_id))
-            if not deleted:
+                owned = self._owns(connection, target_id)
+                if owned:
+                    for table in (experiments, specifications, interviews):
+                        connection.execute(
+                            delete(table).where(table.c.target_id == target_id)
+                        )
+                    connection.execute(delete(targets).where(targets.c.id == target_id))
+            if not owned:
                 raise _not_found(f"The store has no Target {target_id}.")
             shutil.rmtree(self.target_dir(target_id), ignore_errors=True)
 
     # Specifications.
 
     def read_specification(self, target_id: str) -> SpecificationRecord:
-        query = select(specifications).where(specifications.c.target_id == target_id)
         with self._lock:
             outputs = self.input_dir(target_id)
             input_folder.recover(outputs)
             document = outputs / input_folder.SPECIFICATION
             with self._engine.connect() as connection:
-                row = connection.execute(query).first()
+                owned = self._owns(connection, target_id)
+                row = (
+                    None
+                    if not owned
+                    else connection.execute(
+                        select(specifications).where(
+                            specifications.c.target_id == target_id
+                        )
+                    ).first()
+                )
             if (
                 row is None
                 or not document.is_file()
@@ -382,7 +474,8 @@ class Store:
             ):
                 record = self.read_interview(target_id)
                 if (
-                    derive_stage(record.state) != InterviewStep.DONE
+                    not owned
+                    or derive_stage(record.state) != InterviewStep.DONE
                     or record.state.pending is not None
                 ):
                     raise _not_found(
@@ -400,7 +493,11 @@ class Store:
                     raise
                 input_folder.swap(self.input_dir(target_id), staged)
                 with self._engine.connect() as connection:
-                    row = connection.execute(query).one()
+                    row = connection.execute(
+                        select(specifications).where(
+                            specifications.c.target_id == target_id
+                        )
+                    ).one()
         return SpecificationRecord(
             target_id=target_id,
             specification_yaml=row.specification_yaml,
@@ -414,15 +511,15 @@ class Store:
     def list_experiments(self, target_id: str) -> list[ExperimentRecord]:
         self._require_target(target_id)
         query = (
-            select(experiments)
-            .where(experiments.c.target_id == target_id)
+            self._experiment_rows()
+            .where(targets.c.id == target_id)
             .order_by(experiments.c.started_at.desc())
         )
         with self._engine.connect() as connection:
             return [_experiment(row._mapping) for row in connection.execute(query)]
 
     def read_experiment(self, experiment_id: str) -> ExperimentRecord:
-        query = select(experiments).where(
+        query = self._experiment_rows().where(
             experiments.c.experiment_id == _experiment_id(experiment_id)
         )
         with self._engine.connect() as connection:
@@ -436,10 +533,15 @@ class Store:
     ) -> ExperimentRecord:
         """Save the last step of an Experiment. The first save checks the Experiment folder."""
         folder = self.executions_dir / _experiment_id(experiment_id)
-        self._require_target(body.target_id)
+        target_id = _target_id(body.target_id)
         with self._lock, self._engine.begin() as connection:
+            owned = self._owns(connection, target_id)
+            if not owned:
+                raise _not_found(f"The store has no Target {target_id}.")
             row = connection.execute(
-                select(experiments).where(experiments.c.experiment_id == experiment_id)
+                self._experiment_rows().where(
+                    experiments.c.experiment_id == experiment_id
+                )
             ).first()
             if row is None:
                 if not folder.is_dir():
@@ -449,56 +551,39 @@ class Store:
                     )
                 connection.execute(
                     insert(experiments).values(
+                        target_id=target_id,
                         experiment_id=experiment_id,
-                        target_id=body.target_id,
                         started_at=datetime.now(UTC),
                         step=body.step.value,
                     )
                 )
-            elif row.target_id != body.target_id:
+            elif row.target_id != target_id:
                 raise _invalid(
                     f"The Experiment {experiment_id} belongs to another Target."
                 )
             else:
                 connection.execute(
                     update(experiments)
-                    .where(experiments.c.experiment_id == experiment_id)
+                    .where(
+                        experiments.c.target_id == target_id,
+                        experiments.c.experiment_id == experiment_id,
+                    )
                     .values(step=body.step.value)
                 )
         return self.read_experiment(experiment_id)
 
     def delete_experiment(self, experiment_id: str) -> None:
         """Delete the row of an Experiment. The Experiment folder stays on disk."""
+        own = select(targets.c.id).where(targets.c.user_id == self.user_id)
         with self._engine.begin() as connection:
             connection.execute(
                 delete(experiments).where(
-                    experiments.c.experiment_id == _experiment_id(experiment_id)
+                    experiments.c.experiment_id == _experiment_id(experiment_id),
+                    experiments.c.target_id.in_(own),
                 )
             )
 
     # Internals.
-
-    def _fill_targets(self) -> None:
-        """Add Target metadata for saved Interviews that have no Target row."""
-        query = (
-            select(interviews)
-            .outerjoin(targets, interviews.c.target_id == targets.c.id)
-            .where(targets.c.id.is_(None))
-        )
-        with self._engine.begin() as connection:
-            for row in connection.execute(query).all():
-                saved = self._with_state(row.target_id, row.record)
-                if record_problem(saved) is not None:
-                    continue
-                record = InterviewRecord.model_validate(saved)
-                connection.execute(
-                    insert(targets).values(
-                        id=row.target_id,
-                        name=record.state.specification.target.name,
-                        created_at=row.updated_at,
-                        updated_at=row.updated_at,
-                    )
-                )
 
     def _add_cli_interviews(self) -> None:
         """Add rows for the Interview folders of the wizard CLI that have no row.
@@ -512,9 +597,8 @@ class Store:
             return
         with self._lock:
             with self._engine.connect() as connection:
-                known = set(
-                    connection.execute(select(interviews.c.target_id)).scalars()
-                )
+                # The ids of all user accounts, because a Target id is the key of the table.
+                known = set(connection.execute(select(targets.c.id)).scalars())
             for folder in sorted(design.iterdir()):
                 target_id = folder.name
                 if target_id in known or not TARGET_ID.fullmatch(target_id):
@@ -564,47 +648,6 @@ class Store:
             )
         return list(refs.values())
 
-    def _move_files(self) -> None:
-        """Rename the file folder of each Target that a store of an earlier version wrote."""
-        with self._engine.connect() as connection:
-            ids = connection.execute(select(interviews.c.target_id)).scalars().all()
-        for target_id in ids:
-            if not TARGET_ID.fullmatch(target_id):
-                continue
-            earlier = self.target_dir(target_id) / "inputs" / "fixtures"
-            if earlier.is_dir() and not self.files_dir(target_id).exists():
-                earlier.rename(self.files_dir(target_id))
-
-    def _move_states(self) -> None:
-        """Move the state of each row that holds one into the state file of its Target.
-
-        A store of an earlier version kept the state in the Interview row.
-        """
-        with self._engine.begin() as connection:
-            for row in connection.execute(select(interviews)).all():
-                saved = row.record
-                if (
-                    not isinstance(saved, dict)
-                    or "state" not in saved
-                    or not TARGET_ID.fullmatch(row.target_id)
-                ):
-                    continue
-                path = self.state_path(row.target_id)
-                if not path.is_file():
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    temporary = path.with_name(f".{uuid.uuid4().hex}.part")
-                    temporary.write_text(json.dumps(saved["state"]), encoding="utf-8")
-                    temporary.replace(path)
-                connection.execute(
-                    update(interviews)
-                    .where(interviews.c.target_id == row.target_id)
-                    .values(
-                        record={
-                            key: value for key, value in saved.items() if key != "state"
-                        }
-                    )
-                )
-
     def _with_state(self, target_id: str, saved: Any) -> Any:
         """The saved JSON of a row with the state from the state file of the Target.
 
@@ -625,9 +668,41 @@ class Store:
 
     def _saved_record(self, target_id: str) -> Any:
         """The saved JSON of the row of a Target, or ``None`` when the store has no row for it."""
-        query = select(interviews.c.record).where(interviews.c.target_id == target_id)
+        query = (
+            select(interviews.c.record)
+            .join(targets, interviews.c.target_id == targets.c.id)
+            .where(targets.c.user_id == self.user_id, targets.c.id == target_id)
+        )
         with self._engine.connect() as connection:
             return connection.execute(query).scalar_one_or_none()
+
+    def _owns(self, connection: Connection, target_id: str) -> bool:
+        """Whether this user account has the Target.
+
+        This is the one place that finds a Target for a request. A Target of another user
+        account gives ``False``, as a Target that does not exist.
+        """
+        return (
+            connection.execute(
+                select(targets.c.id).where(
+                    targets.c.user_id == self.user_id, targets.c.id == target_id
+                )
+            ).first()
+            is not None
+        )
+
+    def _experiment_rows(self) -> Any:
+        """The Experiment rows of this user account."""
+        return (
+            select(
+                experiments.c.experiment_id,
+                experiments.c.target_id,
+                experiments.c.started_at,
+                experiments.c.step,
+            )
+            .join(targets, experiments.c.target_id == targets.c.id)
+            .where(targets.c.user_id == self.user_id)
+        )
 
     def _check_owner(self, target_id: str, record: InterviewRecord) -> bool:
         """Return whether this is the first save. Refuse an id that something else uses.
@@ -637,6 +712,15 @@ class Store:
         """
         saved = self._saved_record(target_id)
         if saved is None:
+            with self._engine.connect() as connection:
+                taken = connection.execute(
+                    select(targets.c.id).where(targets.c.id == target_id)
+                ).first()
+            if taken is not None:
+                # The Target of another user account. The answer does not show its record.
+                raise _exists(
+                    f"Another Interview already uses the Target id {target_id}."
+                )
             if os.path.lexists(self.target_dir(target_id)):
                 raise _exists(f"A folder already uses the Target id {target_id}.")
             return True
@@ -653,14 +737,26 @@ class Store:
     ) -> None:
         """Write the Target, Interview, and Specification rows in one transaction."""
         now = now or datetime.now(UTC)
+        name = record.state.specification.target.name
         with self._engine.begin() as connection:
-            _upsert(
-                connection,
-                targets,
-                targets.c.id == target_id,
-                {"name": record.state.specification.target.name, "updated_at": now},
-                {"id": target_id, "created_at": now},
-            )
+            owned = self._owns(connection, target_id)
+            if not owned:
+                self._add_local_user(connection, now)
+                connection.execute(
+                    insert(targets).values(
+                        id=target_id,
+                        user_id=self.user_id,
+                        name=name,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+            else:
+                connection.execute(
+                    update(targets)
+                    .where(targets.c.id == target_id)
+                    .values(name=name, updated_at=now)
+                )
             _upsert(
                 connection,
                 interviews,
@@ -670,6 +766,26 @@ class Store:
             )
             if specification is not None:
                 self._save_specification(connection, target_id, specification, now)
+
+    def _add_local_user(self, connection: Connection, now: datetime) -> None:
+        """Add the row of the local user account before its first Target.
+
+        The local user account has no password hash, so no person can log in to it.
+        """
+        if self.user_id != LOCAL_USER_ID:
+            return
+        known = connection.execute(
+            select(users.c.id).where(users.c.id == LOCAL_USER_ID)
+        ).first()
+        if known is None:
+            connection.execute(
+                insert(users).values(
+                    id=LOCAL_USER_ID,
+                    username=LOCAL_USER_ID,
+                    password_hash=None,
+                    created_at=now,
+                )
+            )
 
     @staticmethod
     def _save_specification(
@@ -737,15 +853,18 @@ def _experiment(row: RowMapping) -> ExperimentRecord:
 
 
 __all__ = [
-    "DATABASE",
-    "DESIGN",
-    "EXPERIMENTS",
-    "FILES",
-    "OUTPUTS",
-    "STATE",
     "Store",
     "StoreError",
     "StoredFile",
     "Upload",
     "safe_name",
+    "user_project_dir",
+    "DATABASE",
+    "DESIGN",
+    "EXPERIMENTS",
+    "FILES",
+    "LOCAL_USER_ID",
+    "OUTPUTS",
+    "STATE",
+    "USERS",
 ]

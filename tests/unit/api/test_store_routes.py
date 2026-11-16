@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import create_engine
 
 from metis.api.settings import Settings
-from metis.api.store import STATE, Store
+from metis.api.store import LOCAL_USER_ID, STATE, Store
 from metis.api.tables import interviews, targets
 from metis.wizard import InterviewState
 from metis.wizard.application import export_layout
@@ -50,17 +50,15 @@ def _saved(client: TestClient) -> None:
     assert response.status_code == 204, response.text
 
 
-def test_the_store_defaults_to_a_sqlite_file_in_the_experiments_folder(
+def test_the_store_defaults_to_a_sqlite_file_in_the_project_folder(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     settings = Settings.from_env(project_dir=tmp_path)
     assert settings.project_dir == tmp_path.resolve()
-    assert (
-        settings.database_url == f"sqlite:///{tmp_path.resolve()}/experiments/metis.db"
-    )
+    assert settings.database_url == f"sqlite:///{tmp_path.resolve()}/metis.db"
 
     Store(settings.database_url, settings.project_dir).close()
-    assert (tmp_path / "experiments" / "metis.db").is_file()
+    assert (tmp_path / "metis.db").is_file()
 
     monkeypatch.setenv("METIS_DATABASE_URL", "postgresql://metis:secret@db/metis")
     named = Settings.from_env()
@@ -457,7 +455,11 @@ def test_a_row_that_no_longer_validates_is_a_problem_in_the_list(
     with create_engine(database_url(project_dir)).begin() as connection:
         connection.execute(
             targets.insert().values(
-                id="broken", name="old", created_at=now, updated_at=now
+                id="broken",
+                user_id=LOCAL_USER_ID,
+                name="old",
+                created_at=now,
+                updated_at=now,
             )
         )
         connection.execute(

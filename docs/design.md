@@ -53,6 +53,15 @@ Dark mode uses neutral black and grey. The user picks System, Light or Dark at t
 rail. The docs site follows the system setting, and its navbar switch changes it. The report has no
 dark mode yet.
 
+The login page is the one place where the web app shows the brand. The form takes half of the
+window and follows the theme. The other half is a navy panel with a trace, and it is the same
+in light and dark mode. When the page opens, a gold line moves once across the trace and each
+observation gets its result. Then the trace is still. On a phone the panel becomes a banner at
+the top, and the form is a sheet that lies over its lower edge. The panel uses the landing page colours through the `--brand-*`
+tokens: navy and navy-soft for the surface, paper `#FAF8F3` and mist `#B8C8CC` for text, and
+`#7C86D6`, `#8CA0A6` and `#C46E80` for the links, the waiting observations and the failed
+observations of the trace. Gold marks a pass there, as it does in the landing page art.
+
 The tables below give the colours for the surfaces, the result states and the data.
 
 ### Surfaces and text

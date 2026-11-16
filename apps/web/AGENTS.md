@@ -29,6 +29,13 @@ the drawer of `report.html` inside the `Modal` of `ui.tsx`. `CaseDrawerView` dra
 the drawer. `ReportSections` draws one state of the list, the tree and the Criterion panel, so a
 test can render each state.
 
+`LoginGate.tsx` wraps the app in `main.tsx`. It reads `GET /api/v1/auth/me` first. With login
+off, it shows the app with no login UI. With login on, it shows the login page until the person
+has a login session. `responseFor` in `src/transport/api.ts` tells the gate when a request gets
+401 `login_required`, so do not handle that status in a component. A component reads the current
+user and the logout action with `useLoginSession`, which gives null when login is off. The
+browser never reads the login cookie.
+
 The YAML view of the Profile pane sends `exportedSpecification(state)` (`src/export.ts`) to the
 compile route. That function mirrors the export steps of the package route, so the YAML matches
 the download. Change it when those steps change.
@@ -45,9 +52,23 @@ never replaced by name. A new file whose name is taken gets ` (n)` before its ex
 Interview or library, and the files that wait to be sent in the same input. `App.tsx` gives the
 Conversation upload controls this rule through `UploadContext`.
 
+The user adds documents to an Interview in two places: the opening message, and the composer of
+an open Interview. Both use `useDocumentIntake` in `src/document-intake.ts`, which admits each
+file, reads its text through the extract route, and holds the files until the user sends the
+message. `documentsForRequest` makes the `documents` of the start request or the turn request.
+The documents of the composer go only with a typed message (`sendText` in `App.tsx`), so the user
+says in the same message what the wizard must do with them. `InterviewOperations.send` keeps them
+in `outbound.documents` until the wizard accepts the answer. Then the transcript entry keeps
+their names in `documents` for display. The opening entry of the transcript keeps the names of
+the opening documents in the same way. `src/Documents.tsx` has the plus menu of the composer and
+the document chips. The file upload of the Test Case form is a different
+control: it adds a file for one Test Case and no document.
+
 The id of an Interview is its Target id and the name of its folder in `experiments/design/`.
 `interviewId` makes it from the local time when the user sends the first message:
-`YYYYMMDD-HHMMSS-interview`, the same name as a `metis wizard init` folder. When the store
+`YYYYMMDD-HHMMSS-interview-<random>`, the same form as a `metis wizard init` folder. The random
+part is the five characters of `randomPart`, so two people who start in the same second get different
+ids. When the store
 gives 409 `target_exists` on the first save, `putNew` saves again as `-2`, `-3`, and so on.
 
 The client has two authoring paths. The Interview is the guided path. The manual form

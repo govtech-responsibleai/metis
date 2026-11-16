@@ -39,6 +39,7 @@ from metis.wizard.application.driver import (
     PREVIOUS_STEP,
     DriverState,
     StepDriver,
+    added_documents_note,
 )
 from metis.wizard.application.interviewer import (
     InterviewContextBudgetError,
@@ -217,11 +218,18 @@ def handle_interview(
     # From here every path is a transaction: the operation runs on a deep copy, and the caller's
     # own state is returned untouched on any retryable failure.
     working = _lift(state, _effective_stage(state))
-    driver = StepDriver(interviewer=interviewer, matcher=resolved_matcher)
     before = working.specification.model_copy(deep=True)
 
     if isinstance(request, InterviewEndRequest):
         return _finish(working, state, interviewer, resolved_matcher)
+
+    # Documents that come with a turn join the Interview context before anything else runs,
+    # so each model call of this turn can read them. They change no Specification content.
+    added = tuple(document.name for document in request.documents)
+    working.context.documents = [*working.context.documents, *request.documents]
+    driver = StepDriver(
+        interviewer=interviewer, matcher=resolved_matcher, added_documents=added
+    )
 
     if reopen:
         # Back from a completed Interview reopens its last review. Nothing in the
@@ -239,13 +247,22 @@ def handle_interview(
         return _awaiting(working)
 
     try:
-        if isinstance(request.response, ChatResponse):
+        # The history keeps one user message for the turn: the words of the user, then the
+        # note about new documents. A turn with documents and no words keeps the note alone.
+        response = request.response
+        words = (
+            response.text
+            if isinstance(response, ChatResponse)
+            else response.feedback
+            if isinstance(response, ChoiceResponse)
+            else ""
+        )
+        note = added_documents_note(added) if added else ""
+        if isinstance(response, ChatResponse) or words or note:
             working.history.append(
-                InterviewMessage(role="user", text=request.response.text)
-            )
-        if isinstance(request.response, ChoiceResponse) and request.response.feedback:
-            working.history.append(
-                InterviewMessage(role="user", text=request.response.feedback)
+                InterviewMessage(
+                    role="user", text="\n\n".join(filter(None, [words, note]))
+                )
             )
         # Bound the history now. A failure below projects this working state as its
         # diagnostic, and the state model refuses a history longer than the limit.

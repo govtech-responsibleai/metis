@@ -25,9 +25,28 @@ returned `InterviewState`, not on the app.
 
 ## The store
 
-The store adds missing Target rows for existing saved Interviews when it opens. It keeps their
-save times and file paths. It prepares a missing completed Specification on its first read.
+The store prepares a missing completed Specification on its first read.
 An Interview that cannot compile gives a per-record error and remains available for editing.
+
+A saved record has two parts: rows in the database and files in a project folder. `Store`
+writes the two parts together. A `Store` object works for one user account, `Store.user_id`:
+it reads and writes only the Targets of that user account. `Store(url, project_dir)` works for
+the local user account, which owns each record when login is off. `Store.for_user` gives a
+`Store` for a different user account on the same database and lock. Its files are in
+`users/<user id>/` of the server project folder, with the layout of a project folder inside.
+A route gets its store from `get_store` only, which gives the `Store` for the user account that
+the login guard found. Do not read `app.state.store` in a route.
+
+The `targets` table is the one table that names the user account. The other tables link to
+`targets.id`. `Store._owns` is the one place that finds a Target for a request, and it reads
+only the Targets of its user account. Thus a record of another user account gets 404
+`not_found`, as a record that does not exist. A save with the Target id of another user account
+gets 409 `target_exists`. Two user accounts can have an Experiment folder with the same name,
+so the key of an Experiment row is its Target and its folder name together. The report routes read the
+Experiment folders of the project folder of the user account.
+
+The store starts from a new database. It has no step that changes the tables of an earlier
+version.
 
 The store routes save what a client wants to keep. They do not call the wizard routes, and the
 wizard routes do not use the store.
@@ -85,7 +104,7 @@ Settings:
   working directory that has a `pyproject.toml`, else the working directory.
   The rule is `metis.core.execution_layout.find_project_root`, which the engine also calls.
 - `METIS_DATABASE_URL` is a SQLAlchemy URL. The default is
-  `sqlite:///<project>/experiments/metis.db`. The tables use only portable SQL, so do not add
+  `sqlite:///<project>/metis.db`. The tables use only portable SQL, so do not add
   SQLite-only types, JSON1 functions, or `INSERT OR REPLACE`.
 
 `cli.py` gives Uvicorn the app object from `create_app(project_dir=...)`, so the app keeps the
@@ -93,7 +112,8 @@ project folder of the command. The store builds its paths from the constants in 
 
 The files of a Target are in the layout that `metis wizard init` writes, under
 `<project>/experiments/design/<target_id>/`. The web app gives a new Target the id
-`YYYYMMDD-HHMMSS-interview`, which is the name of a `metis wizard init` folder. When the id is
+`YYYYMMDD-HHMMSS-interview-<random>`, the same form as a `metis wizard init` folder. The random
+part is five characters, so two people who start in the same second get different ids. When the id is
 taken, the web app adds `-2`, `-3`, and so on. The `created_at` of the record tells one Interview
 from another. A save with the id of another Interview gets 409 `target_exists` and changes
 nothing. `inputs/interview_state.json` holds the state of the Interview, in the file that the
@@ -203,6 +223,39 @@ stops the start.
 `GET /api/v1/doctor` returns each `DoctorResult` of `metis.core.doctor.run_doctor()` as
 `{name, status, detail, fix}`, in display order. It holds no check rule.
 
+## User accounts and login
+
+Login is off by default, and then the API has no user accounts. `METIS_LOGIN=1` turns login on.
+Use the glossary terms "user account" and "login session".
+
+| Route | Purpose |
+|---|---|
+| `POST /api/v1/users` | Make a user account and return its credentials. Needs the admin token. |
+| `GET /api/v1/users` | List the user accounts. Needs the admin token. |
+| `POST /api/v1/auth/login` | Check the credentials and set the login cookie. |
+| `POST /api/v1/auth/logout` | End the login session. |
+| `GET /api/v1/auth/me` | Tell if login is on, and name the current user account. |
+
+`routes/accounts.py` holds `login_guard`, the one place that decides if a request can reach a
+route. When login is on, each `/api` route needs a login session, except the paths in
+`_OPEN_PATHS`. A new router gets this rule with no code of its own. Do not add a login check to
+a route. Add a path to `_OPEN_PATHS` only when another secret protects it, or when the route
+changes only the login session of its own cookie, as logout does. The guard also
+refuses a request that changes data from a page of another origin. It reads `Sec-Fetch-Site`,
+and `Origin` for a browser that does not send it. Do not compare with `Host` when
+`Sec-Fetch-Site` is present, because a proxy can change `Host`.
+
+`accounts.py` makes the credentials. A username is an adjective and an animal. A password is
+ten characters from an alphabet with no characters that look alike. A person cannot choose or
+change them, so each password is random and login needs no rate limit. Keep that rule, or add
+a rate limit. The `users` table keeps a scrypt hash. The `password_hash` column can be empty, for
+a user account of a later login method. The `login_sessions` table keeps the SHA-256 of the
+cookie value, never the value. Records link to the id of a user account, never to its username.
+
+The admin token in `METIS_ADMIN_TOKEN` can only make and list user accounts. Do not give it
+another power, because a website outside this repository holds it. The user routes return 404
+when the token is unset. The API does not start with an admin token and login off.
+
 ## Module layout
 
 ```
@@ -219,6 +272,8 @@ src/metis/api/
 ├── engine_runs.py     the one live engine run, its thread and console file, and the events reader
 ├── experiment_dirs.py finds an experiment folder from its id, for the report and engine routes
 ├── errors.py          RouteError, which the app maps to the service error shape
+├── routes/accounts.py user and auth routes, and the login guard of all /api routes
+├── accounts.py        user accounts and login sessions: credentials, hashes, and rows
 ├── records.py         the wire models of the store routes
 ├── store.py           the store: rows through SQLAlchemy, files in experiments/design/
 ├── tables.py          the portable tables of the store

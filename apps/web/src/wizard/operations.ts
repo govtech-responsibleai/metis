@@ -1,5 +1,6 @@
 import type {
   InteractionEntry,
+  InterviewDocument,
   LoadedInterviewRecord,
   UserResponse,
 } from "../transport/api.ts";
@@ -132,12 +133,15 @@ export class InterviewOperations {
     }
     return next;
   }
+  // `documents` are the files of `files` that join the documents of the Interview with this
+  // answer. A file of `files` that is not a document is a file for a Test Case.
   async send(
     record: LoadedInterviewRecord,
     response: UserResponse,
     files: readonly AdmittedFile[] = [],
     removedFixtures: readonly string[] = [],
     accepted?: () => void,
+    documents: readonly InterviewDocument[] = [],
   ): Promise<void> {
     if (
       !record.state.pending ||
@@ -172,6 +176,7 @@ export class InterviewOperations {
         files: staged,
         removedFixtures: [...removedFixtures],
         attempt: (entry.outbound?.attempt ?? 0) + 1,
+        ...(documents.length > 0 ? { documents: [...documents] } : {}),
       };
       entry.status = "sending";
       delete entry.failure;
@@ -185,6 +190,7 @@ export class InterviewOperations {
           sending.state,
           entry.request_id,
           response,
+          documents,
         );
         next = removeUnreferencedFixtures(
           applyTurn(addFixtures(sending, files), result, response),
@@ -257,6 +263,8 @@ export class InterviewOperations {
       entry.response,
       files,
       entry.outbound?.removedFixtures,
+      undefined,
+      entry.outbound?.documents,
     );
   }
 }

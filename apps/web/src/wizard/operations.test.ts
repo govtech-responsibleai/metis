@@ -141,7 +141,7 @@ test("saves a reply with its sender while another Interview remains operable", a
   assert.deepEqual((await repository.read(b.id))?.state, b.state);
 });
 
-test("failed replies retain exact files and retry once without duplicate receipts", async () => {
+test("failed replies retain exact files and documents and retry once without duplicate receipts", async () => {
   const repository = new InterviewRepository();
   let current = record("retry-files");
   const operations = new InterviewOperations(repository, (next) => {
@@ -154,7 +154,8 @@ test("failed replies retain exact files and retry once without duplicate receipt
   api.respond = async () => {
     throw new TransportError("Unavailable", { retryable: true });
   };
-  await operations.send(current, reply, [file!]);
+  const documents = [{ name: "policy.txt", text: "policy" }];
+  await operations.send(current, reply, [file!], [], undefined, documents);
   assert.equal(pendingEntry(current)?.status, "failed");
   assert.equal(current.fixtures.length, 0);
   assert.deepEqual(current.state, state);
@@ -164,10 +165,11 @@ test("failed replies retain exact files and retry once without duplicate receipt
     "policy",
   );
   let calls = 0;
-  api.respond = async (_state, id, response) => {
+  api.respond = async (_state, id, response, sent) => {
     calls++;
     assert.equal(id, "req-1");
     assert.deepEqual(response, reply);
+    assert.deepEqual(sent, documents);
     return result();
   };
   await operations.retry(reloaded);
@@ -179,10 +181,12 @@ test("failed replies retain exact files and retry once without duplicate receipt
     1,
   );
   assert.equal(await current.fixtures[0]?.blob.text(), "policy");
-  assert.equal(
-    current.transcript[1]?.kind === "interaction" &&
-      current.transcript[1].status,
-    "answered",
+  const answered = current.transcript[1];
+  assert.equal(answered?.kind === "interaction" && answered.status, "answered");
+  // The answered entry keeps the names for display and drops the text.
+  assert.deepEqual(
+    answered?.kind === "interaction" && [answered.documents, answered.outbound],
+    [["policy.txt"], undefined],
   );
 });
 

@@ -261,27 +261,43 @@ lifecycle routes; they MUST NOT embed the wizard.
 **The store.** The store routes under `/api/v1/targets` and `/api/v1/experiments` keep
 Targets, Interview records, Specifications, and Experiments. They do not change the wizard routes. The rows are in
 a database that SQLAlchemy opens from `METIS_DATABASE_URL`. The default is a SQLite file at
-`<project>/experiments/metis.db`. `metis-api --project-dir` names the project folder. Without it,
+`<project>/metis.db`. `metis-api --project-dir` names the project folder. Without it,
 the API finds the project folder with the rule of `metis engine simulate`: the nearest folder at
 or above the working directory that has a `pyproject.toml`, else the working directory. The
 tables use portable SQL types. PostgreSQL support is later work.
 
 | Table | One row holds |
 |---|---|
-| `targets` | The Target id, its name, and its times. |
+| `targets` | The Target id, its user account, its name, and its times. |
 | `interviews` | The web parts of the Interview record, as JSON: the transcript, the times, and the file references. |
 | `specifications` | The last Specification of the Target and its SHA-256 hash. |
-| `experiments` | An Experiment folder name, its Target, its start time, and its last engine step. |
+| `experiments` | An Experiment folder name, its Target, its start time, and its last engine step. The key is the Target and the folder name together. |
 
-When the store opens, it adds missing Target metadata for existing Interview rows. It preserves
-their save times and file paths. It prepares a missing completed Specification and input folder
+Each Target belongs to one user account, and the `targets` table is the one table that names
+it. An Interview, a Specification, and an Experiment belong to a user account through their
+Target. A Target id has a random part, so the Targets of two user accounts have different
+ids. Two user accounts can have an Experiment folder with the same name, so the key of an
+Experiment row is its Target and its folder name together. With login
+off, each Target belongs to the local user account, which has the id `local` and no password.
+A request reads only the records of its own user account. A record of another user account gets
+the same 404 `not_found` as a record that does not exist. A save with the Target id of another
+user account gets 409 `target_exists` and changes nothing.
+
+On a server with login on, each user account has its own project folder at `users/<user id>/`
+in the project folder of the server. The layout inside it is the layout of a project folder,
+for example `users/<user id>/experiments/execute/`. The database stays in the project folder
+of the server. With login off, the files are in the project folder itself.
+
+The store prepares a missing completed Specification and input folder
 on the first Specification read. An unrunnable Interview gives a per-record compilation error;
 it does not prevent startup or ordinary Interview reads. Unreadable records remain in the
 Target list as problems.
 
 The files of a Target are in the layout that `metis wizard init` writes, under
 `<project>/experiments/design/<target_id>/`. The web app gives a new Target the id
-`YYYYMMDD-HHMMSS-interview` in local time, the same name as a `metis wizard init` folder. When
+`YYYYMMDD-HHMMSS-interview-<random>` in local time, the same form as a `metis wizard init`
+folder. The random part is five characters, so two people who start in the same second get
+different ids. When
 the id is taken, it adds `-2`, `-3`, and so on. The `created_at` of the record tells one
 Interview from another, so a save with the id of another Interview gets 409 `target_exists` and
 changes nothing. `inputs/interview_state.json` holds the state of the Interview. It is the file
@@ -319,6 +335,12 @@ Interview state that the store can read. The save returns 409
 gets 404 `not_found`, and its folder stays in place. A delete removes the rows of the Target and
 then its folder in `experiments/design/`. Experiment folders in `experiments/execute/` stay on
 disk.
+
+**Login.** Login is off by default. `METIS_LOGIN=1` turns it on for a server that many people
+use. The `users` table holds the user accounts, with a hash of each password. The
+`login_sessions` table holds a hash of the cookie value of each login session. One guard in the
+app lets a request reach an `/api` route only with a login session. The routes under
+`/api/v1/users` make and list user accounts, and need the token in `METIS_ADMIN_TOKEN`.
 
 ---
 

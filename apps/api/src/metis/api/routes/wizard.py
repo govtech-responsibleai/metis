@@ -494,7 +494,8 @@ def turn(
     """Apply one typed response to the client's complete current Interview state.
 
     Send the latest full state and its pending request id. Replace the saved state with the state
-    from each successful response.
+    from each successful response. `documents` adds new documents to the Interview with the
+    answer. They join `state.context.documents` under the limits of the start request.
     """
     result = dependencies.interview_handler(body)
     return _result_response(result)

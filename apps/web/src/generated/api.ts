@@ -125,7 +125,8 @@ export interface paths {
          * @description Apply one typed response to the client's complete current Interview state.
          *
          *     Send the latest full state and its pending request id. Replace the saved state with the state
-         *     from each successful response.
+         *     from each successful response. `documents` adds new documents to the Interview with the
+         *     answer. They join `state.context.documents` under the limits of the start request.
          */
         post: operations["turn_api_v1_wizard_interview_turn_post"];
         delete?: never;
@@ -654,6 +655,99 @@ export interface paths {
          *     The checks report variable and service names, never values.
          */
         get: operations["run_doctor_api_v1_doctor_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the user accounts
+         * @description Return each user account with its id, username, and creation time.
+         */
+        get: operations["list_users_api_v1_users_get"];
+        put?: never;
+        /**
+         * Make a user account
+         * @description Make a user account and return its username and password.
+         *
+         *     METIS makes both values. This response is the only one that has the password. Each request
+         *     makes one more user account.
+         */
+        post: operations["create_user_api_v1_users_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a login session
+         * @description Check the credentials and give the browser the cookie of a new login session.
+         *
+         *     Wrong credentials get 401 `invalid_credentials`, with one message for an unknown username
+         *     and for a wrong password. A server with login off gets 404 `not_found`.
+         */
+        post: operations["login_api_v1_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * End the login session
+         * @description End the login session of the request and remove its cookie.
+         */
+        post: operations["logout_api_v1_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the current user account
+         * @description Tell if login is on, and name the user account of the login session.
+         *
+         *     With login on and no login session, the guard gives 401 `login_required`, as for each
+         *     other route. A client reads that as "show the login page".
+         */
+        get: operations["current_user_api_v1_auth_me_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1423,6 +1517,18 @@ export interface components {
             error: number;
         };
         /**
+         * CurrentUser
+         * @description Whether login is on, and the user account of the request.
+         *
+         *     With login off, ``login`` is false and ``user`` is null. With login on, ``user`` is the user
+         *     account of the login session.
+         */
+        CurrentUser: {
+            /** Login */
+            login: boolean;
+            user: components["schemas"]["UserAccountBody"] | null;
+        };
+        /**
          * Dimension
          * @description Measure subdimensions, in display order.
          * @enum {string}
@@ -2091,7 +2197,7 @@ export interface components {
         };
         /**
          * InterviewDocument
-         * @description One opening file, with extracted text when a reader supplied it.
+         * @description One file that the user gave to the Interview, with extracted text when a reader supplied it.
          */
         InterviewDocument: {
             /** Name */
@@ -2293,6 +2399,9 @@ export interface components {
         /**
          * InterviewTurnRequest
          * @description Answer the one pending request with its typed response.
+         *
+         *     `documents` are files that the user adds with this answer. They join the documents in
+         *     `state.context.documents`, and the full set must stay inside the same limits as at start.
          */
         InterviewTurnRequest: {
             state: components["schemas"]["InterviewState-Input"];
@@ -2300,6 +2409,8 @@ export interface components {
             request_id: string;
             /** Response */
             response: components["schemas"]["ChatResponse"] | components["schemas"]["ChoiceResponse"] | components["schemas"]["FormResponse"];
+            /** Documents */
+            documents?: components["schemas"]["InterviewDocument"][];
         };
         JsonValue: unknown;
         /**
@@ -2338,6 +2449,16 @@ export interface components {
              * @description The environment variables holding the secrets the note types.
              */
             secrets?: string[];
+        };
+        /**
+         * LoginRequest
+         * @description The credentials of one user account.
+         */
+        LoginRequest: {
+            /** Username */
+            username: string;
+            /** Password */
+            password: string;
         };
         /**
          * Measure
@@ -2387,6 +2508,23 @@ export interface components {
             affects_scores: boolean;
             /** Missing Vars */
             missing_vars: string[];
+        };
+        /**
+         * NewUserAccountBody
+         * @description A new user account with its password. No later response gives the password again.
+         */
+        NewUserAccountBody: {
+            /** Id */
+            id: string;
+            /** Username */
+            username: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Password */
+            password: string;
         };
         /**
          * Option
@@ -3557,6 +3695,29 @@ export interface components {
              * @default
              */
             why: string;
+        };
+        /**
+         * UserAccountBody
+         * @description One user account. It never holds a password or a password hash.
+         */
+        UserAccountBody: {
+            /** Id */
+            id: string;
+            /** Username */
+            username: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * UserAccountList
+         * @description The user accounts of the server, oldest first.
+         */
+        UserAccountList: {
+            /** Users */
+            users: components["schemas"]["UserAccountBody"][];
         };
         /** ValidationError */
         ValidationError: {
@@ -5258,6 +5419,288 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DoctorCheck"][];
+                };
+            };
+        };
+    };
+    list_users_api_v1_users_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAccountList"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    create_user_api_v1_users_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewUserAccountBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    login_api_v1_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurrentUser"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    logout_api_v1_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    current_user_api_v1_auth_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurrentUser"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
                 };
             };
         };

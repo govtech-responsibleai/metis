@@ -50,9 +50,17 @@ export function withPendingEntry(
 export function startTranscript(
   description: string,
   state: InterviewState,
+  documents: readonly string[] = [],
 ): TranscriptEntry[] {
   return withPendingEntry(
-    [{ kind: "initial_description", id: localId(), description }],
+    [
+      {
+        kind: "initial_description",
+        id: localId(),
+        description,
+        ...(documents.length > 0 ? { documents: [...documents] } : {}),
+      },
+    ],
     state,
   );
 }
@@ -141,6 +149,17 @@ function refreshesCurrentChoice(
   });
 }
 
+// The names of the documents that the user added to the Interview with the message of an entry.
+export function addedDocuments(entry: TranscriptEntry | undefined): string[] {
+  if (!entry) return [];
+  if (entry.kind !== "interaction") return entry.documents ?? [];
+  return (
+    entry.documents ??
+    entry.outbound?.documents?.map((document) => document.name) ??
+    []
+  );
+}
+
 export function applyTurn(
   record: LoadedInterviewRecord,
   result: InterviewResult,
@@ -180,6 +199,9 @@ export function applyTurn(
     pending.request = resolvedRequest(pending.request, response);
     pending.response = response;
     pending.status = "answered";
+    // The text of a document is in the state now. The transcript keeps the names for display.
+    const added = addedDocuments(pending);
+    if (added.length > 0) pending.documents = added;
     delete pending.outbound;
     delete pending.failure;
   }
