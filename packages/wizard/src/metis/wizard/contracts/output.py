@@ -8,12 +8,16 @@ ids, authorship, defaults and matcher-owned fields afterwards.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
 from metis.core.profile import CriterionDescription
 from metis.wizard.domain.patch import Patch, PatchOp
+from metis.wizard.domain.permissions import PatchReason
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 class _StrictDraft(BaseModel):
@@ -137,6 +141,7 @@ class StepResultPatch(BaseModel):
         | TaskDraft
         | str
         | int
+        | float
         | bool
         | list[str]
         | None
@@ -208,6 +213,19 @@ class StepResult(BaseModel):
 
     message: str
     patches: list[StepResultPatch] = Field(default_factory=list)
+    # The reasons of the problems that the patch review found in any attempt of the call that
+    # gave this result. The gateway records them. A private attribute is not in the provider
+    # schema, so a model cannot set it.
+    _problem_reasons: frozenset[PatchReason] = PrivateAttr(default=frozenset())
+
+    @property
+    def problem_reasons(self) -> frozenset[PatchReason]:
+        return self._problem_reasons
+
+    def with_problem_reasons(self, reasons: Iterable[PatchReason]) -> Self:
+        """Record the reasons of the problems that the attempts of this call had."""
+        self._problem_reasons = frozenset(reasons)
+        return self
 
 
 class ClarifyResult(StepResult):

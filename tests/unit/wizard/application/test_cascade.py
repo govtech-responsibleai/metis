@@ -8,12 +8,13 @@ from metis.wizard import (
     InterviewTurnRequest,
     handle_interview,
 )
+from metis.wizard.application import prompts
 from metis.wizard.application.driver import DriverState, StepDriver
 from metis.wizard.application.interviewer import InterviewerOutputError
 from metis.wizard.contracts import ChatRequest, ChatResponse, Patch, PatchOp, StepResult
 from metis.wizard.contracts.interview_state import InterviewState
 from metis.wizard.domain.cascade import impacts_for
-from metis.wizard.domain.permissions import InterviewStep
+from metis.wizard.domain.permissions import InterviewStep, PatchReason
 from tests.fixtures.wizard.context import interview_context
 from tests.fixtures.wizard.scripted import ScriptedInterviewer
 from tests.fixtures.wizard.specifications import research_assistant
@@ -28,7 +29,7 @@ def edit(path: str, value: str = "Updated wording") -> Patch:
 
 
 class CorrectingInterviewer(ScriptedInterviewer):
-    def chat(self, specification, step, text, target, context=None):
+    def chat(self, specification, step, text, target, context=None, scope=None):
         self.calls.append("chat")
         if text == "Correct the behaviour":
             return StepResult(
@@ -91,7 +92,7 @@ def test_correction_updates_related_content_and_preserves_user_work() -> None:
 
 def test_dependent_model_failure_preserves_the_complete_input_state() -> None:
     class Unavailable(CorrectingInterviewer):
-        def chat(self, specification, step, text, target, context=None):
+        def chat(self, specification, step, text, target, context=None, scope=None):
             if text != "Correct the behaviour":
                 raise InterviewerOutputError("Service unavailable")
             return super().chat(specification, step, text, target, context)
@@ -116,7 +117,7 @@ def test_automatic_corrections_add_missing_criteria_for_selected_behaviours(
     measured: bool,
 ) -> None:
     class AddingCriteria(ScriptedInterviewer):
-        def chat(self, specification, step, text, target, context=None):
+        def chat(self, specification, step, text, target, context=None, scope=None):
             if text == "Change the Feature":
                 return StepResult(
                     message="Updated the Feature.",
@@ -167,7 +168,7 @@ def test_scoped_corrections_apply_only_inside_the_selected_item(
     stage, target, allowed
 ) -> None:
     class Scoped(ScriptedInterviewer):
-        def chat(self, specification, step, text, target, context=None):
+        def chat(self, specification, step, text, target, context=None, scope=None):
             if text != "Change":
                 return StepResult(message="Updated.")
             return StepResult(
@@ -196,7 +197,10 @@ def test_scoped_corrections_apply_only_inside_the_selected_item(
         != before.criterion("AC-1-2").description
     ) == (CRITERION in allowed)
     assert state.specification.personas == before.personas
-    assert driver.pending_warnings
+    # The reply names what did not change, once, and no warning repeats it.
+    reply = state.step_messages[stage]
+    assert reply.endswith(prompts.not_changed({PatchReason.OUTSIDE_SCOPE}))
+    assert not driver.pending_warnings
 
 
 def test_impact_groups_follow_target_feature_and_behaviour_context() -> None:

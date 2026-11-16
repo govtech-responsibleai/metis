@@ -115,7 +115,9 @@ required field asks again until you type a value. In **More information**, a bla
 keeps the current details, and `-` removes them all.
 
 Enter `/feedback` to give a written change request for the review. The chat can also select
-Behaviours and set Trials when you ask it to. Clear corrections update the content automatically.
+Behaviours, set Trials, and set grader settings when you ask it to. See
+[What the chat can change](../wizard.md#what-the-chat-can-change). When a change is not made, the
+reply at the top of the review says what did not change and why. Clear corrections update the content automatically.
 Form-written content and unrelated selections are preserved. Enter `/cancel` in a form field to
 return without saving, or `/back` to close the form and go to the step before.
 

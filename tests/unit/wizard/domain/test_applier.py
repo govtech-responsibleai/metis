@@ -1,16 +1,18 @@
-"""Patches, permissions, and the two things the model can never write."""
+"""Applying patches: origin, materialization, and the mechanics of each operation."""
+
+import json
 
 import pytest
 
 from metis.wizard.contracts import Patch, PatchOp, PatchOrigin
 from metis.wizard.domain import cascade, materializer, paths
 from metis.wizard.domain.applier import apply, sanitise
-from metis.wizard.domain.permissions import InterviewStep, StepPermissions, owner_of
+from metis.wizard.domain.permissions import InterviewStep, PatchReason, owner_of
 from tests.fixtures.wizard.specifications import research_assistant
 
 EB1_MEASURED = "features[F-1].behaviours[EB-1].measured"
 EB1_DESCRIPTION = "features[F-1].behaviours[EB-1].description"
-AC1_GRADER = "features[F-1].behaviours[EB-1].criteria[AC-1-1].grader_fqn"
+AC1_THRESHOLD = "features[F-1].behaviours[EB-1].criteria[AC-1-1].grader_args.threshold"
 
 
 def patch(path: str, value=None, *, op=PatchOp.SET, origin=PatchOrigin.MODEL) -> Patch:
@@ -39,18 +41,6 @@ def test_the_users_tick_is_applied_and_the_models_is_not() -> None:
     assert specification.behaviour("EB-1").measured is True  # type: ignore[union-attr]
 
 
-def test_rejecting_a_tick_says_whose_call_it_is() -> None:
-    """The one message where the wizard must say *I chose not to*."""
-    specification = research_assistant()
-
-    result = apply(specification, [patch(EB1_MEASURED, True)])
-
-    message = result.rejected[0].message
-    assert "your call" in message
-    assert "wrong" not in message.lower()  # not the user's fault
-    assert "error" not in message.lower()  # not an outage
-
-
 def test_the_model_cannot_claim_wizard_origin() -> None:
     """Origin is stamped by the code that builds a patch, never carried in model output."""
     claimed = [patch(EB1_MEASURED, True, origin=PatchOrigin.WIZARD)]
@@ -61,13 +51,6 @@ def test_the_model_cannot_claim_wizard_origin() -> None:
     specification = research_assistant()
     specification.behaviour("EB-1").measured = False  # type: ignore[union-attr]
     assert apply(specification, cleaned).applied == []
-
-
-def test_measured_is_owned_by_no_step() -> None:
-    """The path appears in no entry — that is the structural half of the rule."""
-    assert owner_of(EB1_MEASURED) is None
-    for globs in StepPermissions.values():
-        assert not any("measured" in g for g in globs)
 
 
 def test_strict_model_drafts_materialize_ids_and_scenario_defaults() -> None:
@@ -134,30 +117,6 @@ def test_model_whole_entity_set_is_refused() -> None:
     assert result.applied == []
     assert result.rejected
     assert specification.scenario("S-1").description.startswith("Ask for")  # type: ignore[union-attr]
-
-
-# ── the grader is the matcher's, not the model's ────────────────────────────
-
-
-def test_grader_fqn_is_owned_by_no_step() -> None:
-    """Like measured, it appears in no entry — the matcher resolves it, never the model."""
-    assert owner_of(AC1_GRADER) is None
-    for globs in StepPermissions.values():
-        assert not any("grader_fqn" in g for g in globs)
-
-
-def test_rejecting_a_grader_write_points_at_rewording() -> None:
-    """A stray model write is refused with wording help, not the raw internal path."""
-    specification = research_assistant()
-
-    result = apply(specification, [patch(AC1_GRADER, "some.other.Grader")])
-
-    assert result.applied == []
-    message = result.rejected[0].message
-    assert "reword" in message.lower()
-    assert "grader_fqn" not in message  # the raw field name never surfaces
-    assert AC1_GRADER not in message  # nor the raw path
-    assert specification.behaviour("EB-1").criteria[0].grader_fqn != "some.other.Grader"  # type: ignore[union-attr]
 
 
 # ── the fields inside a bundled value ──────────────────────────────────────
@@ -273,23 +232,6 @@ def test_user_task_settings_are_preserved() -> None:
     assert specification.tasks[0].fixtures == ["uploaded.csv"]
 
 
-def test_trials_and_files_are_owned_by_no_step() -> None:
-    """The other half, mirroring measured: the targeted SET the field filter cannot see."""
-    assert owner_of("tasks[TC-001].num_trials") is None
-    assert owner_of("tasks[TC-001].fixtures") is None
-    for globs in StepPermissions.values():
-        assert not any("num_trials" in g or "fixtures" in g for g in globs)
-
-
-def test_an_unowned_address_is_refused_without_leaking_its_path() -> None:
-    """The generic refusal names 'part of that change', never the bookkeeping address."""
-    result = apply(research_assistant(), [patch("target.invented_field", "x")])
-
-    message = result.rejected[0].message
-    assert "invented_field" not in message
-    assert "isn't mine to write" in message
-
-
 # ── permission follows the address, not the step ───────────────────────────
 
 
@@ -308,27 +250,6 @@ def test_a_behaviour_edit_from_the_criteria_step_is_applied() -> None:
         owner_of(EB1_DESCRIPTION) is InterviewStep.BEHAVIOURS
     )  # a different step owns it
     assert step is InterviewStep.CRITERIA  # and the current step never changed
-
-
-def test_an_address_no_step_owns_is_writable_nowhere() -> None:
-    specification = research_assistant()
-
-    result = apply(specification, [patch("target.invented_field", "x")])
-
-    assert result.applied == []
-    assert owner_of("target.invented_field") is None
-
-
-def test_clarify_owns_the_target_prose_and_measured_is_owned_nowhere() -> None:
-    """Clarify owns the target prose. The measurement flag is the user's only real decision,
-    so no step owns it: the model can write it at no point, and only a WIZARD-origin tick can."""
-    assert StepPermissions[InterviewStep.CLARIFY] == [
-        "target.name",
-        "target.users",
-        "target.description",
-        "target.detail",
-    ]
-    assert owner_of(EB1_MEASURED) is None
 
 
 # ── the mechanics ──────────────────────────────────────────────────────────
@@ -359,20 +280,6 @@ def test_add_remove_and_set() -> None:
         [patch("personas[P-9]", op=PatchOp.REMOVE, origin=PatchOrigin.WIZARD)],
     )
     assert specification.persona("P-9") is None
-
-
-def test_a_patch_at_a_missing_node_is_reported_not_raised() -> None:
-    specification = research_assistant()
-
-    # A behaviour id no feature owns stays unreachable — a wrong *feature* ancestor is corrected
-    # against the behaviour id (see `test_a_wrong_feature_ancestor_is_corrected`), but a wrong
-    # behaviour id is a genuinely missing node.
-    result = apply(
-        specification, [patch("features[F-404].behaviours[EB-404].description", "x")]
-    )
-
-    assert result.applied == []
-    assert result.any_rejected
 
 
 def test_a_wrong_feature_ancestor_is_corrected() -> None:
@@ -426,29 +333,64 @@ def test_a_positional_path_is_resolved_to_ids() -> None:
     assert first_behaviour.description == "Cites a source for every claim"
 
 
-def test_a_malformed_value_is_reported_not_raised() -> None:
-    """A model can send an ADD whose value won't build the object its list holds — a bad
-    enum, or behaviours as bare id strings instead of objects. That is a patch that didn't
-    happen, not a crash four answers into an interview. The module's contract is that a
-    rejected patch is never silent; a value that won't validate is one of them.
-    """
-    specification = research_assistant()
-
-    result = apply(
-        specification,
-        [
+@pytest.mark.parametrize(
+    ("failed", "reason"),
+    [
+        # A wrong *feature* ancestor is corrected against the behaviour id (see
+        # `test_a_wrong_feature_ancestor_is_corrected`), but a wrong behaviour id is a
+        # genuinely missing node.
+        (
+            patch("features[F-404].behaviours[EB-404].description", "x"),
+            PatchReason.UNKNOWN_ADDRESS,
+        ),
+        # A value that will not build the object its list holds: behaviours as bare id
+        # strings. Even a trusted patch must not crash on a bad value.
+        (
             patch(
                 "features",
                 {"id": "F-9", "behaviours": ["EB-1", "EB-2"]},
                 op=PatchOp.ADD,
-                origin=PatchOrigin.WIZARD,  # even a trusted patch must not crash on a bad value
-            )
-        ],
-    )
+                origin=PatchOrigin.WIZARD,
+            ),
+            PatchReason.BAD_VALUE,
+        ),
+        (
+            patch("personas", op=PatchOp.REMOVE, origin=PatchOrigin.WIZARD),
+            PatchReason.WRONG_OPERATION,
+        ),
+    ],
+)
+def test_a_patch_that_cannot_apply_is_reported_with_its_reason(failed, reason) -> None:
+    """A patch that did not happen is a rejection with a reason, never a crash four answers
+    into an interview."""
+    specification = research_assistant()
+    before = specification.model_copy(deep=True)
+
+    result = apply(specification, [failed])
 
     assert result.applied == []
-    assert result.any_rejected
-    assert not any(e.id == "F-9" for e in specification.features)
+    assert [rejection.reason for rejection in result.rejected] == [reason]
+    assert specification == before
+
+
+@pytest.mark.parametrize("value", [0.85, 1, True])
+def test_a_grader_setting_is_set_inside_grader_args_with_its_type(value) -> None:
+    """A grader setting is a key in a mapping. The provider JSON keeps a number, a whole
+    number and a flag as they are, and the applier sets the key in place."""
+    from metis.wizard.contracts import StepResultPatch
+
+    specification = research_assistant()
+    sent = StepResultPatch.model_validate_json(
+        json.dumps({"op": "set", "path": AC1_THRESHOLD, "value": value})
+    )
+    trusted = sanitise([sent])[0].model_copy(update={"origin": PatchOrigin.WIZARD})
+
+    result = apply(specification, [trusted])
+
+    assert result.applied
+    stored = specification.criterion("AC-1-1").grader_args["threshold"]  # type: ignore[union-attr]
+    assert stored == value
+    assert type(stored) is type(value)
 
 
 def test_paths_address_by_id_not_index() -> None:
@@ -511,15 +453,6 @@ def test_criteria_added_by_positional_index_actually_land() -> None:
 
     assert len(result.applied) == 1
     assert specification.behaviour("EB-1").criteria[0].id == "AC-1-1"  # type: ignore[union-attr]
-
-
-def test_a_glob_does_not_span_a_dot() -> None:
-    """`features[*].behaviours[*]` must not match something nested deeper under it."""
-    assert owner_of("features[F-1].behaviours[EB-1]") is InterviewStep.BEHAVIOURS
-    assert (
-        owner_of("features[F-1].behaviours[EB-1].criteria[AC-1-1]")
-        is InterviewStep.CRITERIA
-    )
 
 
 def test_materializer_uses_dot_free_ids_for_every_specification_node() -> None:
