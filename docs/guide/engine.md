@@ -127,7 +127,7 @@ metis engine simulate --resume --experiment-dir experiments/execute/toyapp-http-
 metis engine run --resume --experiment-dir experiments/execute/toyapp-http-simple-20260820-143000/
 ```
 
-Resume reads the experiment and the fixtures from the frozen `inputs/` snapshot in the named directory, not from the source directory. It runs again only the trials that did not end: a record that is missing, unreadable, or not valid, or a record with stop reason `interrupted`. A trial that ended is not run again, whatever its result, so a `system_error` trial stays failed. Some system errors are retried up to the trial's retry limit, and others, such as a failed user-agent LLM call or `fixture_never_uploaded`, end the trial on the first try; resume runs neither again. To run failed trials again, start a new experiment with `simulate --input-dir`, which runs every trial again, not only the failed ones. Resume appends to the experiment-level simulation log. Extra run folders are ignored. A valid record is complete even if an artifact file is missing. Passing `--resume` with `--input-dir` is an error: the message lists the outputs that exist for the experiment `id` and names the correct flag.
+Resume reads the experiment and the fixtures from the frozen `inputs/` snapshot in the named directory, not from the source directory. It runs again only the trials that did not end: a record that is missing, unreadable, or not valid, or a record with stop reason `interrupted`. A trial that ended is not run again, whatever its result, so a `system_error` trial stays failed. Some system errors are retried up to the trial's retry limit, and others, such as a failed user-agent LLM call or `fixture_never_uploaded`, end the trial on the first try; resume runs neither again. To run failed trials again, start a new experiment with `simulate --input-dir`, which runs every trial again, not only the failed ones. Resume appends to the experiment-level simulation log. Extra trial folders are ignored. A valid record is complete even if an artifact file is missing. Passing `--resume` with `--input-dir` is an error: the message lists the outputs that exist for the experiment `id` and names the correct flag.
 
 ### What You'll See
 
@@ -490,7 +490,7 @@ The flags below are optional and apply to both modes:
 | `--no-tui` | `false` | Disable TUI dashboard (force linear log output) |
 | `--log-format` | `text` | Log file format: `text` or `json` |
 | `--log-dir` | co-located with results | Override the log output directory |
-| `--project-dir` | nearest folder with a `pyproject.toml` | Existing project folder that holds `experiments/execute/`. New runs go under it, from any working directory. `~` expands to the home folder. A resume without `--experiment-dir` lists the runs in this folder. A resume with `--experiment-dir` continues in that run folder, and a warning shows when the run folder is not in this folder |
+| `--project-dir` | nearest folder with a `pyproject.toml` | Existing project folder that holds `experiments/execute/`. New experiments go under it, from any working directory. `~` expands to the home folder. A resume without `--experiment-dir` lists the experiments in this folder. A resume with `--experiment-dir` continues in that experiment folder, and a warning shows when the experiment folder is not in this folder |
 
 ### Evaluation options
 

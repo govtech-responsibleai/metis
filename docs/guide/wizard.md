@@ -29,13 +29,10 @@ Example evaluation details for a research assistant:
 | Scenario | Ask how a new leave policy applies to a part-time employee. |
 | Grader | A check that compares the answer with its cited sources. |
 
-The Interview produces one Specification with these related concepts:
-
-| Concept | Contents |
-|---|---|
-| Profile | The target and its users, Features, Behaviours, Criteria, and their grader settings |
-| Specification | The Profile and the configuration needed to conduct an Experiment |
-| Experiment | A collection of Runs used to evaluate one or more targets across a set of Test Cases |
+The Interview produces one Specification: the specification document `specification.yaml`, the
+fixtures its Tasks select, and the target binding when there is one. Each Experiment runs a frozen
+copy of it. The [glossary](../../GLOSSARY.md) defines Profile, Specification, Experiment, and the
+other terms.
 
 The interface guides give the exact files or archive that each interface produces.
 
