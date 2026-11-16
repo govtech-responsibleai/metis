@@ -358,6 +358,15 @@ h2 { font-size: clamp(32px,3.8vw,48px); line-height: 1.08; letter-spacing: -.03e
 .cta-install pre { margin: 0; padding: 16px; font: 14px/1.7 var(--mono); color: var(--gold); white-space: pre-wrap; overflow-wrap: break-word }
 .cta-install pre span { color: #6A8090 }
 
+/* ── Contact ── */
+.contact-section { background: var(--paper); padding: 48px 0; border-top: 1px solid var(--line) }
+.contact-inner { display: flex; flex-direction: column; align-items: center; text-align: center }
+.contact-inner h2 { font-size: clamp(28px,3vw,36px); margin-bottom: 12px }
+.contact-inner p { color: var(--muted); font-size: 15px; line-height: 1.7; max-width: 440px; margin: 0 0 24px }
+.contact-email { display: inline-flex; align-items: center; gap: 10px; font: 600 16px var(--sans); color: var(--navy); padding: 12px 28px; border: 1px solid var(--line); border-radius: 10px; background: white; transition: border-color .2s, transform .2s }
+.contact-email:hover { border-color: var(--gold-dark); transform: translateY(-2px) }
+.contact-email svg { width: 20px; height: 20px; fill: none; stroke: var(--gold-dark); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: 0 0 auto }
+
 /* ── Footer ── */
 footer { background: var(--paper); border-top: 1px solid var(--line) }
 .footer-inner { padding: 48px 0; display: flex; flex-direction: column; gap: 24px }

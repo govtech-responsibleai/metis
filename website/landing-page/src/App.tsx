@@ -9,6 +9,7 @@ const FileDoc = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2
 const TraceNodes = () => <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="4" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="20" r="2" /><path d="M12 6v4M12 14v4" /></svg>;
 const Verdict = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12l2 2 4-4" /><circle cx="12" cy="12" r="10" /></svg>;
 const Xmark = () => <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>;
+const Mail = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7" /><rect x="2" y="4" width="20" height="16" rx="2" /></svg>;
 const Spinner = () => <svg className="wt-spin" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 1 10 10" /></svg>;
 
 const GITHUB_URL = 'https://github.com/govtech-responsibleai/metis';
@@ -782,6 +783,12 @@ export default function App() {
             </div>
             <CopyCommand command={INSTALL_CMD} />
           </div>
+        </div></section>
+
+        <section className="contact-section" id="contact"><div className="container contact-inner">
+          <h2>Get in touch</h2>
+          <p>Have questions about METIS or want to collaborate? Reach out to the AI Practice team.</p>
+          <a className="contact-email" href="mailto:aipractice@tech.gov.sg"><Mail /> aipractice@tech.gov.sg</a>
         </div></section>
 
       </main>
