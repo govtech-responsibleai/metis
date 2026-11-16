@@ -553,3 +553,81 @@ folder is found, it is the working directory. `metis engine simulate` uses the s
   `inputs/documents/` holds the files that you upload.
 - `outputs/` holds the Specification. Give this folder to `metis engine simulate --input-dir`.
   The `input_dir` field of the Specification response is its path.
+
+## Turn on login for a shared server
+
+Login is off by default. Then each route is open, which is correct for an API on your own
+computer. Turn login on when many people use one METIS server, for example in a workshop.
+
+Set these variables in the environment of the API, then start it:
+
+```bash
+METIS_LOGIN=1
+METIS_ADMIN_TOKEN=<a long random value>
+```
+
+Make the admin token with a tool such as `openssl rand -hex 32`. The API does not start when
+`METIS_ADMIN_TOKEN` is set and `METIS_LOGIN` is not `1`.
+
+When login is on, each route under `/api` needs a login session. A request without one gets 401
+`login_required`. The exceptions are `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`,
+and the user routes. `/health` is always open.
+
+### Make a user account
+
+The admin token protects the user routes. Send it in an `Authorization: Bearer` header, over
+HTTPS. Do not put it in a URL or in a web page. When the server has no admin token, the user
+routes return 404 `not_found`.
+
+| Route | Purpose |
+|---|---|
+| `POST /api/v1/users` | Make a user account and return its credentials. |
+| `GET /api/v1/users` | List the user accounts with their id, username, and creation time. |
+
+```bash
+curl -X POST https://metis.example/api/v1/users \
+  -H "Authorization: Bearer $METIS_ADMIN_TOKEN"
+```
+
+```json
+{
+  "id": "3f6c2a9d5b7e4c1e8a0f2d4b6c8e0a1c",
+  "username": "curious-otter",
+  "password": "k7mwp-3xr9t",
+  "created_at": "2026-11-14T08:30:00Z"
+}
+```
+
+METIS makes the username and the password. This response is the only one that has the password,
+because METIS keeps only a hash of it. Each request makes one more user account. A user account
+has no end date, and a person cannot change its credentials.
+
+The admin token can only make and list user accounts. It does not open another route, and it
+cannot read the records of a user account. A website that gives credentials to its visitors can
+thus hold the token on its server. That website must decide who gets a user account, and how many.
+
+### Log in and log out
+
+| Route | Purpose |
+|---|---|
+| `POST /api/v1/auth/login` | Check a username and a password, and start a login session. |
+| `POST /api/v1/auth/logout` | End the login session. |
+| `GET /api/v1/auth/me` | Tell if login is on, and name the current user account. |
+
+`POST /api/v1/auth/login` takes `{"username": "...", "password": "..."}`. Correct credentials
+return the user account and set the `metis_login` cookie. The cookie is HTTP-only and
+`SameSite=Lax`. It is also `Secure` when `HOST` is not an address of the same computer, so serve
+a shared server over HTTPS. Wrong credentials get 401 `invalid_credentials`. The check ignores
+the case of the letters and space around each value.
+
+A login session ends at logout, or 30 days after the login. Then the person logs in again with
+the same credentials.
+
+`GET /api/v1/auth/me` returns `{"login": true, "user": {...}}` in a login session. With login
+off it returns `{"login": false, "user": null}`. A browser client calls it first. A 401
+`login_required` from this route, or from another route, means "show the login page".
+
+When login is on, a request that changes data must come from a page of the METIS server. A
+browser request from a page of another website gets 403 `cross_site_request`. The API reads
+the `Sec-Fetch-Site` header that the browser sets, and the `Origin` header for a browser that
+does not set it. A request from a program has neither header and is not affected.

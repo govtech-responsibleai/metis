@@ -50,7 +50,7 @@ def _saved(client: TestClient) -> None:
     assert response.status_code == 204, response.text
 
 
-def test_the_store_defaults_to_a_sqlite_file_in_the_experiments_folder(
+def test_the_store_defaults_to_a_sqlite_file_in_the_project_folder(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     settings = Settings.from_env(project_dir=tmp_path)

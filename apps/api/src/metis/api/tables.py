@@ -41,5 +41,33 @@ experiments = Table(
     Column("step", String(16), nullable=False),
 )
 
+users = Table(
+    "users",
+    metadata,
+    Column("id", String(32), primary_key=True),
+    Column("username", String(64), nullable=False, unique=True),
+    # A user account of a later login method has no password, so this column can be empty.
+    Column("password_hash", Text, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
 
-__all__ = ["interviews", "experiments", "metadata", "specifications", "targets"]
+login_sessions = Table(
+    "login_sessions",
+    metadata,
+    # The SHA-256 of the cookie value. The store never keeps the cookie value.
+    Column("token_hash", String(64), primary_key=True),
+    Column("user_id", String(32), ForeignKey("users.id"), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+)
+
+
+__all__ = [
+    "experiments",
+    "interviews",
+    "login_sessions",
+    "metadata",
+    "specifications",
+    "targets",
+    "users",
+]

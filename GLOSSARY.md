@@ -94,3 +94,10 @@ supports (see `GraderType`, and the [grader guide](docs/guide/library/graders.md
 
 A `hybrid` grader uses both kinds. `human` grading is out of scope in v1, because it needs a
 live human-review workflow.
+
+## Login
+
+| Term | Definition |
+|------|------------|
+| User account | One person who can log in to a METIS server. It has a username and a password. |
+| Login session | The time from a login to a logout, or to the end of its lifetime. The browser holds a cookie for it. Note: not to be mistaken for the **session** of a **trial** (see [Scope](#scope)). |

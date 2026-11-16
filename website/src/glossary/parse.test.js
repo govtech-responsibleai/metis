@@ -14,10 +14,11 @@ test('slugify turns a combined name into a url-safe slug', () => {
 });
 
 test('every term in a "Term" table is found, and no other table adds terms', () => {
-  // 30 terms in the opening table and 5 in the Scope table. The "Kind" table is not a term table.
-  assert.equal(glossary.terms.length, 35);
+  // 30 terms in the opening table, 5 in the Scope table, and 2 in the Login table. The "Kind"
+  // table is not a term table.
+  assert.equal(glossary.terms.length, 37);
   assert.equal(glossary.terms[0].name, 'Target');
-  assert.equal(glossary.terms.at(-1).name, 'Observation');
+  assert.equal(glossary.terms.at(-1).name, 'Login session');
 });
 
 test('a term keeps its definition as written, with inline markdown intact', () => {
@@ -53,6 +54,8 @@ test('blocks keep the file order: terms, note, headings, paragraphs, lists, tabl
     'paragraph',
     'table',
     'paragraph',
+    'h2:Login',
+    'table',
   ]);
 });
 
@@ -73,8 +76,7 @@ test('a list nests items by two spaces', () => {
 });
 
 test('the non-term table keeps its header and rows', () => {
-  const kind = glossary.blocks.filter((b) => b.type === 'table').at(-1);
-  assert.equal(kind.isTermTable, false);
+  const kind = glossary.blocks.filter((b) => b.type === 'table' && !b.isTermTable).at(-1);
   assert.deepEqual(kind.header, ['Kind', 'Grader type values']);
   assert.equal(kind.rows.length, 2);
 });
