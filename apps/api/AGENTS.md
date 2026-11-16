@@ -175,7 +175,8 @@ an id with `/`, `\`, or `..` would name a folder in another place, for example i
 folder of another user account. Before `prepare_experiment` makes a folder, the simulate route
 reads the id and refuses an id that is empty, `.`, `..`, or that holds `/`, `\`, or a NUL
 character. After `prepare_experiment`, the route also checks that the new folder is directly in
-`experiments/execute/` of the request.
+`experiments/execute/` of the request. #174 gives the id field this rule in metis-core, for the
+wizard and the CLI too.
 
 Every check of a start runs in the request, before the thread starts. The routes check in
 this order and return the first error:
