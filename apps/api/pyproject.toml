@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "metis-api"
-version = "1.0.0b2"
+version = "1.0.0b3"
 description = "METIS REST API service"
 requires-python = ">=3.11"
 dependencies = [

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "metis"
-version = "1.0.0b2"
+version = "1.0.0b3"
 description = "Measurement and Evaluation of Trustworthy Intelligent Systems"
 requires-python = ">=3.11"
 dependencies = [
