@@ -150,7 +150,7 @@ Keep prompt tests lean so wording can change quickly:
 Two integration tests are gates rather than unit tests:
 
 - **`tests/integration/wizard/test_slice_a_gate.py`** — a hand-written specification compiles to a `specification.yaml` the
-  engine actually loads, via the engine's own `_validate_inputs`. No model call anywhere in it.
+  engine actually loads, via the engine's own `validate_inputs`. No model call anywhere in it.
 - **`tests/integration/wizard/test_slice_b_gate.py`** — the whole interview walks to DONE on `ScriptedInterviewer`,
   with no network. That stand-in in `tests/fixtures/wizard/scripted.py` is **not a throwaway**: it is
   the offline regression suite for Interview flow and matching. It does not test whether a live model

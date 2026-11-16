@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from typer.testing import CliRunner
 
+from metis.core.console import console
 from metis.core.grading import RecordedResult
 from metis.core.reporting import EvaluationResults, GraderRecord
 from metis.engine import cli
@@ -24,6 +25,12 @@ from metis.engine.evaluation.trial_files import (
 )
 from metis.engine.extractor import TraceWaitSettings
 from metis.engine.extractor.langfuse import NO_TRACES
+from metis.engine.run import (
+    _evaluation,
+    evaluate_command,
+    resume_command,
+    trial_record_files,
+)
 from tests.unit.engine.test_cli_evaluate import (
     _patch_evaluation,
     _session,
@@ -136,15 +143,16 @@ async def test_an_interrupted_run_saves_finished_trials_and_resume_grades_only_t
     monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
     task = asyncio.create_task(
-        cli._evaluate_records(
+        _evaluation._evaluate_records(
             output,
-            cli._load_evaluation_specification(output),
+            _evaluation._load_evaluation_specification(output, console=console),
             [
                 (p.parent.name, TrialRecord.load_file(p))
-                for p in cli._trial_record_files(output)
+                for p in trial_record_files(output)
             ],
             evaluation_log=EvaluationLogger(output / "logs"),
             trace_wait=TraceWaitSettings(timeout_seconds=90),
+            console=console,
             concurrency=concurrency,
         )
     )
@@ -231,7 +239,7 @@ def test_resume_counts_failures_from_before_the_interrupt(
     assert _fetched(calls) == ["session-2"]
     out = _one_line(result.output)
     assert "2 run(s), 1 failed" in out
-    assert f"Grade every trial again: {cli._evaluate_command(output.resolve())}" in out
+    assert f"Grade every trial again: {evaluate_command(output.resolve())}" in out
 
 
 def test_resume_does_not_retry_failed_or_errored_trials(
@@ -502,15 +510,16 @@ async def test_the_interrupt_message_names_the_resume_command(
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
     log = EvaluationLogger(output / "logs")
     task = asyncio.create_task(
-        cli._evaluate_records(
+        _evaluation._evaluate_records(
             output,
-            cli._load_evaluation_specification(output),
+            _evaluation._load_evaluation_specification(output, console=console),
             [
                 (p.parent.name, TrialRecord.load_file(p))
-                for p in cli._trial_record_files(output)
+                for p in trial_record_files(output)
             ],
             evaluation_log=log,
             trace_wait=TraceWaitSettings(timeout_seconds=90),
+            console=console,
             command=command,  # type: ignore[arg-type]
         )
     )
@@ -523,7 +532,7 @@ async def test_the_interrupt_message_names_the_resume_command(
 
     out = _one_line(capsys.readouterr().out)
     assert "Interrupted. 0 of 3 trials are saved." in out
-    assert f"To continue, run: {cli._resume_command(output.resolve(), command)}" in out
+    assert f"To continue, run: {resume_command(output.resolve(), command)}" in out
     assert "EVALUATION INTERRUPTED" in log.path.read_text()
     assert not (output / "outputs" / "reports" / "results.json").exists()
 
@@ -552,7 +561,9 @@ def test_the_progress_bar_of_a_resume_starts_at_the_trials_already_evaluated(
             return None
 
     monkeypatch.setattr(cli.sys.stderr, "isatty", lambda: True)
-    monkeypatch.setattr(cli, "_create_evaluation_progress", Bar)
+    monkeypatch.setattr(
+        _evaluation, "_create_evaluation_progress", lambda _console: Bar()
+    )
 
     _evaluate(output, resume=True)
 
