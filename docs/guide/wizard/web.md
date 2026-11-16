@@ -275,14 +275,16 @@ Case yet.
 
 ## Add documents
 
-1. Select the plus button in the opening message.
+1. Select the plus button in the opening message. A panel opens under the box. Select
+   **Upload files**, and choose the files. The box shows each document above the text.
 2. If a file name does not make the purpose of a document clear, explain it in the same message.
-3. Check the reading status of each file. Remove an unreadable file, or keep it without extracted
-   text.
+3. Check the status of each document. A document with no status was read. **Name only** shows
+   that the wizard gets the name of the file, without its text. For a file that could not be read,
+   select **Use name only**, or select the X to remove it.
 
 Document facts:
 
-- The browser shows the accepted file types and size limits.
+- **Upload files** shows the accepted file types and size limits when the pointer is on it.
 - The API extracts text from UTF-8 TXT, Markdown, YAML, JSON, CSV, PDF text layers, and DOCX files.
 - The API does not run OCR. Scanned PDFs give no text.
 - A Test Case has no files at first. Select its pen to add an opening document or upload a file

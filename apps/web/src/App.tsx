@@ -8,7 +8,7 @@ import {
   useSyncExternalStore,
   type CSSProperties,
 } from "react";
-import { PanelLeft, PanelRight, Puzzle, X } from "lucide-react";
+import { PanelLeft, PanelRight, Puzzle } from "lucide-react";
 import type {
   LoadedInterviewRecord,
   CapabilityConfidence,
@@ -37,7 +37,7 @@ import {
   startConnection,
   type ConnectionDraft,
 } from "./connection";
-import { AddDocuments, DocumentTray } from "./DocumentTray";
+import { AddButton, AddOptions, DocumentList } from "./Documents";
 import { Done } from "./Done";
 import {
   START_BLOCKED,
@@ -101,7 +101,6 @@ import {
 import { admitFiles, type AdmittedFile } from "./fixture-policy";
 import {
   documentsForRequest,
-  unicodeLength,
   useDocumentIntake,
   type DocumentReads,
 } from "./document-intake";
@@ -118,7 +117,7 @@ import { InterviewOperations, pendingEntry } from "./wizard/operations";
 
 type WizardConfig = Awaited<ReturnType<typeof api.config>>;
 const NO_FILES: readonly never[] = [];
-export type OpeningControl = "perspective" | "capabilities";
+export type OpeningControl = "add" | "perspective" | "capabilities";
 export type WizardConfigState =
   | { status: "loading" }
   | { status: "ready"; config: WizardConfig }
@@ -226,7 +225,6 @@ export function App() {
       : undefined;
   // The documents of the opening message. They wait until the user sends that message.
   const openingIntake = useDocumentIntake(documentLimits, NO_FILES, setError);
-  const [documentTrayOpen, setDocumentTrayOpen] = useState(false);
   const [capabilityEvidence, setCapabilityEvidence] =
     useState<CapabilityEvidenceDraft>(emptyCapabilityEvidence);
   // The opening owns the connection in run mode. "add" is the Done pane's Connect target.
@@ -428,7 +426,6 @@ export function App() {
     setPerspectiveSeen(false);
     setOpeningDescription("");
     resetOpeningIntake();
-    setDocumentTrayOpen(false);
     setCapabilityEvidence(emptyCapabilityEvidence());
     setConnectionStep(null);
     setConnectionDraft(emptyConnectionDraft());
@@ -454,7 +451,6 @@ export function App() {
         if ("blocked" in ready) {
           setConnectionStep(null);
           setOpeningControl(null);
-          setDocumentTrayOpen(true);
           setError(ready.blocked);
           return;
         }
@@ -869,11 +865,6 @@ export function App() {
             perspective={selectedPerspective}
             onPerspective={setSelectedPerspective}
             documents={openingIntake.documents}
-            documentTrayOpen={documentTrayOpen}
-            onDocumentTrayOpen={(open) => {
-              if (open) setOpeningControl(null);
-              setDocumentTrayOpen(open);
-            }}
             documentReads={openingIntake.reads}
             onAddDocuments={openingIntake.add}
             onRemoveDocument={openingIntake.remove}
@@ -898,7 +889,6 @@ export function App() {
             openControl={openingControl}
             onOpenControl={(control) => {
               if (control === "perspective") setPerspectiveSeen(true);
-              if (control !== null) setDocumentTrayOpen(false);
               setOpeningControl(control);
             }}
             perspectiveSeen={perspectiveSeen}
@@ -1073,8 +1063,6 @@ type OpeningScreenProps = {
   perspective: Perspective;
   onPerspective: (perspective: Perspective) => void;
   documents: File[];
-  documentTrayOpen: boolean;
-  onDocumentTrayOpen: (open: boolean) => void;
   documentReads: DocumentReads;
   onAddDocuments: (files: readonly File[]) => void;
   onRemoveDocument: (name: string) => void;
@@ -1196,8 +1184,9 @@ function AddConnection({
 }
 
 // The opening is one view. The description box holds the setup controls along its bottom edge:
-// documents, the Perspective, the capabilities, and the mode. Each control opens a panel under the
-// box. Enter and Send both start the Interview. In run mode, Send first checks the binding.
+// the plus button, the Perspective, the capabilities, and the mode. Each control opens a panel
+// under the box. The documents show in the box, above the text. Enter and Send both start the
+// Interview. In run mode, Send first checks the binding.
 export function OpeningScreen(props: OpeningScreenProps) {
   const {
     config,
@@ -1206,8 +1195,6 @@ export function OpeningScreen(props: OpeningScreenProps) {
     onDescription,
     perspective,
     documents,
-    documentTrayOpen,
-    onDocumentTrayOpen,
     capabilityEvidence,
     onCapabilityEvidence,
     openControl,
@@ -1223,6 +1210,7 @@ export function OpeningScreen(props: OpeningScreenProps) {
     (item) => item.id === perspective,
   );
   const PerspectiveIcon = PERSPECTIVE_ICONS[perspective];
+  const addOpen = openControl === "add";
   const perspectiveOpen = openControl === "perspective";
   const capabilitiesOpen = openControl === "capabilities";
   const runMode = connectionDraft.mode === "run";
@@ -1262,23 +1250,24 @@ export function OpeningScreen(props: OpeningScreenProps) {
                 placeholder="A support bot for a retail bank…"
                 onSend={start}
                 sendBlockedReason={canStart ? undefined : START_BLOCKED}
+                attachments={
+                  <DocumentList
+                    documents={documents}
+                    reads={props.documentReads}
+                    limits={config.document_limits ?? undefined}
+                    disabled={busy}
+                    onRemove={props.onRemoveDocument}
+                    onUseNameOnly={props.onKeepDocumentUnread}
+                  />
+                }
                 sourceControl={
                   <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                    <AddDocuments
-                      onOpen={() => onDocumentTrayOpen(!documentTrayOpen)}
+                    <AddButton
+                      expanded={addOpen}
+                      controls="opening-add"
                       disabled={busy}
-                      expanded={documentTrayOpen}
+                      onClick={() => onOpenControl(addOpen ? null : "add")}
                     />
-                    {documents.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => onDocumentTrayOpen(true)}
-                        className="text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        {documents.length}{" "}
-                        {documents.length === 1 ? "document" : "documents"}
-                      </button>
-                    )}
                     <FooterChip
                       ariaLabel={`Perspective: ${currentPerspective?.label ?? perspective}`}
                       value={currentPerspective?.label ?? perspective}
@@ -1321,18 +1310,20 @@ export function OpeningScreen(props: OpeningScreenProps) {
             </div>
             {/* The cards under the box share one column. Only the first card starts under the box. */}
             <div className="under-box-stack relative z-0 mx-auto flex w-[95%] flex-col gap-2">
-              {documentTrayOpen && (
-                <DocumentTray onClose={() => onDocumentTrayOpen(false)}>
-                  <InitialDocumentPicker
-                    config={config}
-                    documents={documents}
-                    documentReads={props.documentReads}
+              {addOpen && (
+                <UnderBoxSurface
+                  id="opening-add"
+                  label="Add"
+                  compact
+                  onClose={() => onOpenControl(null)}
+                >
+                  <AddOptions
+                    limits={config.document_limits ?? undefined}
                     disabled={busy}
                     onAdd={props.onAddDocuments}
-                    onRemove={props.onRemoveDocument}
-                    onKeepWithoutReading={props.onKeepDocumentUnread}
+                    onDone={() => onOpenControl(null)}
                   />
-                </DocumentTray>
+                </UnderBoxSurface>
               )}
               {perspectiveOpen && (
                 <UnderBoxSurface
@@ -1408,131 +1399,6 @@ export function OpeningScreen(props: OpeningScreenProps) {
           </div>
           <ManualAuthoringEntry onOpen={props.onManualOpen} />
         </div>
-      </div>
-    </div>
-  );
-}
-
-export function InitialDocumentPicker({
-  config,
-  documents,
-  documentReads,
-  disabled,
-  onAdd,
-  onRemove,
-  onKeepWithoutReading,
-}: {
-  config: WizardConfig;
-  documents: readonly File[];
-  documentReads: DocumentReads;
-  disabled: boolean;
-  onAdd: (files: readonly File[]) => void;
-  onRemove: (name: string) => void;
-  onKeepWithoutReading: (name: string) => void;
-}) {
-  const limits = config.document_limits;
-  if (!limits || !limits.fixture_extensions || !limits.extraction_extensions)
-    return (
-      <p role="alert" className="text-sm text-destructive">
-        Document limits are not available. Try again before adding files.
-      </p>
-    );
-  const fixtureExtensions = limits.fixture_extensions;
-  const totalText = documents.reduce((total, file) => {
-    const read = documentReads[file.name];
-    return total + (read?.status === "read" ? unicodeLength(read.text) : 0);
-  }, 0);
-  const textLimitExceeded = totalText > limits.max_text_characters_total;
-
-  return (
-    <div className="flex min-w-0 flex-1 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <label
-          className={cn(
-            "relative inline-flex items-center rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-within:ring-2 focus-within:ring-ring",
-            disabled ? "cursor-not-allowed opacity-45" : "cursor-pointer",
-          )}
-        >
-          Choose documents
-          <input
-            type="file"
-            multiple
-            aria-label="Choose documents"
-            disabled={disabled}
-            accept={fixtureExtensions
-              .map((extension) => `.${extension}`)
-              .join(",")}
-            onChange={(event) => {
-              onAdd([...(event.currentTarget.files ?? [])]);
-              event.currentTarget.value = "";
-            }}
-            className="sr-only"
-          />
-        </label>
-        {documents.length === 0 && (
-          <span className="text-xs text-muted-foreground">No files chosen</span>
-        )}
-      </div>
-      {documents.length > 0 && (
-        <ul className="flex flex-col divide-y divide-border">
-          {documents.map((file) => {
-            const read = documentReads[file.name] ?? { status: "not_read" };
-            return (
-              <li
-                key={file.name}
-                className="flex flex-wrap items-center gap-x-4 gap-y-2 py-2"
-              >
-                <span
-                  className="min-w-0 flex-1 truncate text-sm text-foreground"
-                  title={file.name}
-                >
-                  {file.name}
-                </span>
-                <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 text-xs text-muted-foreground">
-                  {read.status === "failed" ? (
-                    <span className="max-w-full text-destructive">
-                      Could not read: {read.message}
-                    </span>
-                  ) : (
-                    <span aria-live="polite">
-                      {read.status === "reading"
-                        ? "Reading…"
-                        : read.status === "read"
-                          ? "Read"
-                          : read.status === "kept"
-                            ? "Kept without reading"
-                            : "Not read"}
-                    </span>
-                  )}
-                  {(read.status === "failed" ||
-                    (textLimitExceeded && read.status === "read")) && (
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => onKeepWithoutReading(file.name)}
-                      className="rounded-md px-2 py-1 text-foreground underline decoration-border underline-offset-2 hover:bg-background disabled:opacity-40"
-                    >
-                      Keep without reading
-                    </button>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  disabled={disabled || read.status === "reading"}
-                  onClick={() => onRemove(file.name)}
-                  aria-label={`Remove ${file.name}`}
-                  className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-background hover:text-foreground disabled:opacity-40"
-                >
-                  <X size={14} strokeWidth={1.75} aria-hidden />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-        <p>Accepted file types: {fixtureExtensions.join(", ")}.</p>
-        <p>File size: {limits.max_initial_bytes / 1_000_000} MB total.</p>
       </div>
     </div>
   );

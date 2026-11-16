@@ -74,12 +74,15 @@ export function UnderBoxSurface({
   label,
   onClose,
   sheet = false,
+  compact = false,
   children,
 }: {
   id: string;
   label: string;
   onClose: () => void;
   sheet?: boolean;
+  // A short list of rows needs little space around it.
+  compact?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -97,7 +100,8 @@ export function UnderBoxSurface({
         id={id}
         aria-label={label}
         className={cn(
-          "animate-open-under-box relative flex flex-col gap-3 rounded-2xl border border-border bg-card px-4 py-4",
+          "animate-open-under-box relative flex flex-col gap-3 rounded-2xl border border-border bg-card",
+          compact ? "under-box-compact p-1.5" : "px-4 py-4",
           sheet &&
             "under-box-sheet max-sm:quiet-scrollbar max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:z-30 max-sm:max-h-[80vh] max-sm:w-full max-sm:overflow-y-auto max-sm:rounded-b-none max-sm:pt-4 max-sm:shadow-[0_-8px_24px_hsl(0_0%_0%/0.08)]",
         )}

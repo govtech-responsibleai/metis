@@ -2665,6 +2665,7 @@ export function Composer({
   leadingIcon = false,
   bare = false,
   sourceControl,
+  attachments,
   sendBlockedReason,
 }: {
   request: WizardRequest | undefined;
@@ -2691,6 +2692,8 @@ export function Composer({
   // it should fill that column and match their width rather than re-centre itself narrower.
   bare?: boolean;
   sourceControl?: ReactNode;
+  // The documents that wait for the next message. They show above the text.
+  attachments?: ReactNode;
   // When set, Send stays grey and shows this text on hover and focus. The user can still type.
   sendBlockedReason?: string;
 }) {
@@ -2814,6 +2817,7 @@ export function Composer({
     >
       {sourceControl ? (
         <>
+          {attachments}
           <div className="flex w-full items-start gap-2">
             {leading}
             {textarea}

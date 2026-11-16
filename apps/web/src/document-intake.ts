@@ -61,7 +61,7 @@ export function documentsForRequest(
   if (unresolved)
     return {
       blocked:
-        "Wait for files to finish reading. For a file that could not be read, choose Keep without reading or remove it.",
+        "Wait for files to finish reading. For a file that could not be read, choose Use name only or remove it.",
     };
   const documents = files.map((file) => {
     const text = textOf(reads[file.name]);
@@ -72,7 +72,7 @@ export function documentsForRequest(
     limits.max_text_characters_total
   )
     return {
-      blocked: `Document text is above ${limits.max_text_characters_total.toLocaleString()} characters. Remove a file or keep it without reading.`,
+      blocked: `Document text is above ${limits.max_text_characters_total.toLocaleString()} characters. Remove a file or choose Use name only for it.`,
     };
   return { documents };
 }

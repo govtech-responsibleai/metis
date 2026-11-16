@@ -444,6 +444,21 @@
   animation: open-under-box 0.16s ease-out both;
 }
 
+/* A compact surface keeps its small padding on the side that the box covers, and its close
+   button is level with the first row. */
+.under-box-stack > section.under-box-compact:first-of-type {
+  padding-top: calc(0.375rem + var(--under-box-overlap));
+}
+
+section.under-box-compact > .under-box-close {
+  top: 0.625rem;
+  right: 0.5rem;
+}
+
+.under-box-stack > section.under-box-compact:first-of-type > .under-box-close {
+  top: calc(0.625rem + var(--under-box-overlap));
+}
+
 /* A menu opens from its trigger: it fades in and drops a few pixels. */
 @keyframes open-menu {
   from {
