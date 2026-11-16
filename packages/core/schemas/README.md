@@ -1,7 +1,7 @@
 # Published schemas
 
 `specification.schema.json` describes `specification.yaml` for editors and external
-validators. It is generated from `SpecificationDocument` in
+validators. It is generated from `Specification` in
 [`metis.core.specification`](../src/metis/core/specification.py). Do not edit the JSON file.
 
 `target-binding.schema.json` describes a target binding, the YAML file a user writes to

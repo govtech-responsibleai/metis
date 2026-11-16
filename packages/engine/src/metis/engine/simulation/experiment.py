@@ -205,7 +205,7 @@ async def _execute_experiment_async(
     # builds; those builds never re-summarize.
     all_fixture_names = [name for task in specification.tasks for name in task.fixtures]
     experiment_root = output_dir if output_dir is not None else Path("results")
-    defaults = specification.experiment.defaults
+    defaults = specification.defaults
     resolved_fixture_descriptions = await resolve_fixture_descriptions(
         all_fixture_names,
         fixtures_dir,

@@ -93,7 +93,7 @@ def _grader_setup_errors(specification: Specification) -> list[str]:
     errors: list[str] = []
     criteria_by_id = {c.id: c for b in specification.behaviours() for c in b.criteria}
     checked: set[str] = set()
-    default_judge_model = specification.experiment.defaults.judge_model
+    default_judge_model = specification.defaults.judge_model
     for scenario in specification.resolved_tasks():
         for ref in scenario.grader_refs:
             if ref.criterion_id in checked:

@@ -947,7 +947,7 @@ class BrowserRunnerFactory:
         binding = load_target_binding(
             inputs_dir, specification.target_binding, "browser"
         )
-        defaults = specification.experiment.defaults
+        defaults = specification.defaults
         return cls(
             binding,
             login_dir=inputs_dir.parent / "logs" / "login",

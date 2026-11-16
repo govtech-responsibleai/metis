@@ -731,7 +731,7 @@ async def _evaluate_records(
     from metis.engine.evaluation import JudgeGateway, build_grader, build_llm_settings
     from metis.library.grader import JudgeArgs, LLMSettings
 
-    default_judge_model = specification.experiment.defaults.judge_model
+    default_judge_model = specification.defaults.judge_model
     criteria_by_id = {c.id: c for b in specification.behaviours() for c in b.criteria}
     graders: dict[str, Grader[Any]] = {}
     for scenario in specification.resolved_tasks():

@@ -216,7 +216,7 @@ async def test_experiment_resolves_descriptions_once_before_workers_start(
         scenarios=[scenario],
         tasks=[],
         fixture_content_descriptions={},
-        experiment=SimpleNamespace(defaults=ExperimentDefaults()),
+        defaults=ExperimentDefaults(),
     )
     plan = [TrialPlanItem(scenario, persona, i) for i in (1, 2, 3)]
 

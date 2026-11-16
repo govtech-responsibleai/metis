@@ -126,7 +126,7 @@ def test_a_run_names_each_model_and_its_source(monkeypatch: pytest.MonkeyPatch) 
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("DEFAULT_MODEL", "team-model")
     specification = Specification.model_validate(yaml.safe_load(MINIMAL_EXPERIMENT))
-    specification.experiment.defaults.judge_model = "spec-judge"
+    specification.defaults.judge_model = "spec-judge"
     roles = [ModelRole.USER_AGENT, ModelRole.JUDGE]
 
     assert cli._models_line(specification, roles) == (

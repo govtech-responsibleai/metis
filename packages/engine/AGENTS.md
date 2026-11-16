@@ -41,7 +41,7 @@ whole process.
 
 ## Schema Sync
 
-`metis-core` publishes the one `specification.yaml` schema, from `SpecificationDocument` in
+`metis-core` publishes the one `specification.yaml` schema, from `Specification` in
 `packages/core/src/metis/core/specification.py`. The engine has no schema files of its own. After
 you change a shared model, run:
 

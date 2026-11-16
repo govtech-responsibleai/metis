@@ -8,8 +8,6 @@ import pytest
 import yaml
 
 import metis.core
-from metis.core.experiment import Experiment
-from metis.core.profile import TargetProfile
 from metis.wizard.contracts import Specification
 from tests.fixtures.wizard.specifications import research_assistant
 
@@ -48,38 +46,30 @@ def test_save_and_load_round_trip(tmp_path: Path) -> None:
     ]
 
 
-def test_specification_combines_profile_and_experiment() -> None:
+def test_specification_holds_the_flat_document() -> None:
     source = research_assistant()
-    profile = TargetProfile(target=source.target, features=source.features)
-    experiment = Experiment(
+    specification = Specification(
         id="research",
+        target=source.target,
+        features=source.features,
         personas=source.personas,
         scenarios=source.scenarios,
         tasks=source.tasks,
     )
-    specification = Specification(profile=profile, experiment=experiment)
 
-    assert specification.profile is profile
-    assert specification.experiment is experiment
-    assert set(profile.model_dump()) == {"target", "features"}
-    assert profile.criterion("AC-1-1") == specification.criterion("AC-1-1")
-    assert experiment.task("TC-001") == specification.task("TC-001")
+    assert specification.criterion("AC-1-1") == source.criterion("AC-1-1")
+    assert specification.task("TC-001") == source.task("TC-001")
 
     specification.target.name = "Research assistant"
     specification.tasks = specification.tasks[:1]
-    assert profile.target.name == "Research assistant"
-    assert len(experiment.tasks) == 1
     document = specification.model_dump(mode="json")
-    assert document == {
-        "schema_version": 1,
-        **profile.model_dump(mode="json"),
-        **experiment.model_dump(mode="json"),
-    }
+    assert document["target"]["name"] == "Research assistant"
+    assert len(document["tasks"]) == 1
     assert Specification.model_validate(document) == specification
 
     copied = specification.model_copy(deep=True)
-    copied.profile.target.name = "Copy"
-    copied.experiment.tasks.clear()
+    copied.target.name = "Copy"
+    copied.tasks.clear()
     assert specification.target.name == "Research assistant"
     assert len(specification.tasks) == 1
 

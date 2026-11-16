@@ -281,9 +281,9 @@ class TestExampleExperiment:
 
     def test_example_experiment_loads(self) -> None:
         document = Specification.load_file(self.EXAMPLE)
-        assert document.experiment.id == "toyapp-http-simple"
+        assert document.id == "toyapp-http-simple"
         assert (
-            document.experiment.runner_factory_ref
+            document.runner_factory_ref
             == "metis.engine.simulation.runners.http.HttpRunnerFactory"
         )
         graders = {c.grader_fqn for b in document.behaviours() for c in b.criteria}
