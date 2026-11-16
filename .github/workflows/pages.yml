@@ -3,9 +3,9 @@ name: Pages
 on:
   push:
     branches: [main]
-    paths: ['website/**', 'landing-page/**', 'GLOSSARY.md', 'Makefile', '.github/workflows/pages.yml']
+    paths: ['website/**', 'GLOSSARY.md', 'Makefile', '.github/workflows/pages.yml']
   pull_request:
-    paths: ['website/**', 'landing-page/**', 'GLOSSARY.md', 'Makefile', '.github/workflows/pages.yml']
+    paths: ['website/**', 'GLOSSARY.md', 'Makefile', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 permissions:
@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: website/package-lock.json
+          cache-dependency-path: website/docs-site/package-lock.json
       - run: make install-docs install-landing
       # The landing page is served at /metis/ and the docs at /metis/docs/.
       - run: make check-docs build-site

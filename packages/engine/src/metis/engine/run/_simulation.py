@@ -18,7 +18,7 @@ from metis.engine.run._common import (
     end_phase_on_error,
     trial_record_files,
 )
-from metis.engine.run._inputs import resolve_experiment_dir
+from metis.engine.run._inputs import load_snapshot, resolve_experiment_dir
 from metis.engine.run.errors import RunError, RunStopped
 from metis.engine.tui import (
     SimulationScenarioState,
@@ -67,7 +67,8 @@ def simulate(
 
     :raises RunStopped: When ``stop`` was set. A stop before the trials start runs none.
     :raises EvaluationInputError: When ``experiment_dir`` is not an experiment folder of
-        this layout. Nothing is written.
+        this layout, or its ``inputs/specification.yaml`` does not load. Nothing is
+        written.
     :raises RunError: When the runner cannot be built, or no trial record was written.
     """
     return _simulate(
@@ -106,7 +107,8 @@ def resume_simulation(
 
     :raises RunStopped: When ``stop`` was set while trials ran.
     :raises EvaluationInputError: When ``experiment_dir`` is not an experiment folder of
-        this layout. Nothing is written.
+        this layout, or its ``inputs/specification.yaml`` does not load. Nothing is
+        written.
     :raises RunError: When the runner cannot be built, or no trial record exists.
     """
     return _simulate(
@@ -134,12 +136,8 @@ def _simulate(
     log_format: Literal["text", "json"],
     log_dir: Path | None,
 ) -> Path:
-    from metis.engine.simulation.types import Specification
-
     experiment_dir = resolve_experiment_dir(experiment_dir, console=console)
-    specification = Specification.load_file(
-        experiment_dir / execution_layout.SPECIFICATION
-    )
+    specification = load_snapshot(experiment_dir, console=console)
     events = PhaseEventLog.for_experiment_dir(experiment_dir)
     try:
         _simulate_in(

@@ -24,6 +24,7 @@ from metis.engine.run import (
     EvaluationOutcome,
     evaluate_command,
     evaluation_is_complete,
+    load_snapshot,
     resolve_experiment_dir,
     resume_command,
 )
@@ -452,13 +453,12 @@ def _run_simulation(
     # module-level loggers that cache the processor chain.
     _configure_process_logging(log_level, use_tui=use_tui)
 
-    from metis.engine.simulation.types import Specification
-
     if resume:
         experiment_dir = target
-        specification = Specification.load_file(
-            experiment_dir / execution_layout.SPECIFICATION
-        )
+        try:
+            specification = load_snapshot(experiment_dir, console=console)
+        except EvaluationInputError:
+            raise typer.Exit(code=1) from None
         _check_simulation_settings(command, specification, env_file)
     else:
         from metis.engine.run import RunError, prepare_experiment, validate_inputs

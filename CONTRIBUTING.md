@@ -87,7 +87,7 @@ During the beta, open your pull request against `next`, except for the documenta
 described below, which branch off `main` and target it.
 
 While v1 is in beta, `main` is the branch we present to users, and the published site is built from
-`main` alone. A change under `website/` or `landing-page/` that corrects or clarifies something
+`main` alone. A change under `website/` that corrects or clarifies something
 already in the latest beta therefore goes to `main`, so it does not have to wait for the next
 release. Documentation for anything that exists only on `next` stays on `next` with its code, and
 all other work goes to `next`.
@@ -119,19 +119,19 @@ When you change a wizard HTTP request or response, update the Pydantic contract 
 ### Running the Landing Page and Docs
 
 The public site has two parts, each with its own Node project: the landing page in
-`landing-page/` and the docs in `website/`. The docs need Node.js 22 or later and use npm, which
+`website/landing-page/` and the docs in `website/docs-site/`. The docs need Node.js 22 or later and use npm, which
 comes with Node. The landing page uses [pnpm](https://pnpm.io/), which Node does not include, so
 install it first with `corepack enable pnpm` or `brew install pnpm`. CI uses pnpm 11. If pnpm is
 missing, the landing page targets stop and say so.
 
 ```bash
-make install-landing    # once: install landing-page dependencies (needs pnpm)
+make install-landing    # once: install website/landing-page dependencies (needs pnpm)
 make run-landing        # landing page dev server on port 8443
-make build-landing      # production build into landing-page/dist
+make build-landing      # production build into website/landing-page/dist
 
 make install-docs       # once: install docs dependencies
 make run-docs           # docs dev server on port 3000
-make build-docs         # production build into website/build
+make build-docs         # production build into website/docs-site/build
 make check-docs         # build the docs and check links
 
 make run-site           # both dev servers together
@@ -139,7 +139,7 @@ make build-site         # both builds, laid out into _site/ as GitHub Pages serv
 ```
 
 `make install-extras` installs both sets of dependencies, along with Playwright. See
-[`website/README.md`](website/README.md) for more on previewing the docs.
+[`website/docs-site/README.md`](website/docs-site/README.md) for more on previewing the docs.
 
 ### Commit Messages
 
@@ -302,13 +302,19 @@ re-locked with `uv lock`, and each beta gets one suite tag, `v1.0.0bN`, instead 
 package. The scoped `<package-name>/v<semver>` tags return for independent releases after v1.0.0.
 Betas promise no compatibility with each other.
 
-A beta has no release branch. It is released in three steps:
+A beta has no release branch. It is released in four steps:
 
 1. Open a pull request into `next` that bumps every `pyproject.toml` version and re-locks with
-   `uv lock`, for example from a `chore/bump-1.0.0bN` branch.
-2. Merge `next` into `main` with a merge commit, not a squash, so that `next` never diverges
-   from `main`. Tag the merge commit on `main` with an annotated `v1.0.0bN` tag.
-3. Publish a GitHub prerelease for the tag.
+   `uv lock`, for example from a `chore/bump-1.0.0bN` branch. Every beta needs this pull request,
+   because `metis --version`, `metis doctor` and the API docs page read the version from these
+   files. Update the version in the Status section of `README.md` in the same pull request.
+2. Check the version on `next` after the pull request is merged.
+   `git grep -n '^version = ' -- '*pyproject.toml'` must show `1.0.0bN` on each of its 8 lines,
+   and `uv lock --check` must pass.
+3. Merge `next` into `main` with a merge commit, not a squash, so that `next` never diverges
+   from `main`. Tag the merge commit on `main` with an annotated `v1.0.0bN` tag. Do not tag a
+   commit whose files show a different version.
+4. Publish a GitHub prerelease for the tag.
 
 ```
 feat/*, fix/*, chore/bump-* ──PR──▶ next ──●──●──●

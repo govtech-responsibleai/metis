@@ -6,7 +6,7 @@ with headless Chrome. The scores are illustrative; the page and layout are the p
 
 Run from the repository root:
 
-    uv run python landing-page/scripts/render_insights.py
+    uv run python website/landing-page/scripts/render_insights.py
 """
 
 from __future__ import annotations

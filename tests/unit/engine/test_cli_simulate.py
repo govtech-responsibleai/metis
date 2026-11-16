@@ -322,6 +322,25 @@ def test_resume_all_complete_is_noop(monkeypatch, tmp_path: Path) -> None:
     assert "nothing to resume" in result.output
 
 
+def test_resume_of_a_snapshot_that_does_not_load_exits_with_code_1(
+    monkeypatch, tmp_path: Path
+) -> None:
+    output_dir = _write_output(
+        tmp_path / "experiments" / "execute" / "test-exp-20260101-010101"
+    )
+    (output_dir / "inputs" / "specification.yaml").write_text("schema_version: 1\n")
+    monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
+
+    result = runner.invoke(
+        app,
+        ["simulate", "--resume", "--experiment-dir", str(output_dir), "--no-tui"],
+    )
+
+    assert result.exit_code == 1
+    assert "failed to load experiment snapshot" in result.output
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+
+
 def _write_evaluation_outputs(output_dir: Path) -> list[Path]:
     paths = [
         output_dir / execution_layout.RESULTS,
