@@ -3397,7 +3397,7 @@ export interface operations {
                     "application/json": components["schemas"]["DocumentExtractionFailure"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3477,7 +3477,7 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3528,7 +3528,7 @@ export interface operations {
                     "application/json": components["schemas"]["InterviewFailure"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3588,7 +3588,7 @@ export interface operations {
                     "application/json": components["schemas"]["InterviewFailure"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3648,7 +3648,7 @@ export interface operations {
                     "application/json": components["schemas"]["InterviewFailure"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3699,7 +3699,7 @@ export interface operations {
                     "application/json": components["schemas"]["ConnectionCheckResult"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3741,7 +3741,7 @@ export interface operations {
                     "application/json": components["schemas"]["InterviewState-Output"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3792,7 +3792,7 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3926,7 +3926,7 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3993,7 +3993,7 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4062,7 +4062,7 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4130,7 +4130,7 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4188,7 +4188,7 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4246,7 +4246,7 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4304,7 +4304,7 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4366,7 +4366,7 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4422,7 +4422,7 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4594,7 +4594,7 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4650,7 +4650,7 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4710,7 +4710,7 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4764,7 +4764,7 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4820,7 +4820,7 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
