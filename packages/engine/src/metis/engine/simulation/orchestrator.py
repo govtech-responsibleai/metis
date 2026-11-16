@@ -88,7 +88,7 @@ class Orchestrator:
         trial_index: int = 1,  # 1-based
         state: SimulationState | None = None,
         tui_ctx: TUIContext | None = None,
-        shutdown_event: threading.Event | None = None,
+        stop: threading.Event | None = None,
         events: PhaseEventLog | None = None,
         attempt: int = 1,
     ) -> None:
@@ -99,7 +99,7 @@ class Orchestrator:
         self._trial_index = trial_index
         self._state = state
         self._tui_ctx = tui_ctx
-        self._shutdown_event = shutdown_event
+        self._stop = stop
         self._events = events
         self._trial = run_dir.name
         self._attempt = attempt
@@ -169,7 +169,7 @@ class Orchestrator:
         consecutive_failures = 0
         empty_actions = 0
         while True:
-            if self._shutdown_event and self._shutdown_event.is_set():
+            if self._stop and self._stop.is_set():
                 return "interrupted"
             if self._turns >= self._config.max_turns:
                 return "max_turns"

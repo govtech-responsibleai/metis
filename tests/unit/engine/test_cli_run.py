@@ -12,6 +12,7 @@ from metis.engine import cli
 from metis.engine.cli import EvaluationOutcome, app
 from metis.engine.extractor import TraceWaitSettings
 from metis.engine.simulation import experiment as experiment_module
+from tests.unit.engine.project_folders import existing_folder
 
 runner = CliRunner()
 
@@ -168,7 +169,9 @@ def test_run_zero_simulation_records_exits_one(monkeypatch, tmp_path: Path) -> N
         evaluation_called = True
         raise AssertionError("evaluation should not run")
 
-    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "project")
+    monkeypatch.setattr(
+        cli, "find_project_root", lambda: existing_folder(tmp_path / "project")
+    )
     monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
     monkeypatch.setattr(experiment_module, "execute_experiment", lambda *_a, **_k: None)
     monkeypatch.setattr(cli, "_run_evaluation", fail_if_evaluated)
@@ -262,7 +265,9 @@ def _simulate_with_fake_experiment(monkeypatch, tmp_path: Path) -> list[str]:
             record.outcome.stop_reason = "goal_achieved"
             path.write_text(record.model_dump_json())
 
-    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "project")
+    monkeypatch.setattr(
+        cli, "find_project_root", lambda: existing_folder(tmp_path / "project")
+    )
     monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
     monkeypatch.setattr(
         experiment_module, "execute_experiment", fake_execute_experiment
@@ -297,7 +302,7 @@ def test_run_resume_that_resimulates_a_trial_grades_every_trial(
     from tests.unit.engine.test_cli_evaluate import _patch_evaluation
     from tests.unit.engine.test_cli_evaluate_resume import write_trial_file
 
-    output = _resumable_run(tmp_path, ["goal_achieved", "system_error"])
+    output = _resumable_run(tmp_path, ["goal_achieved", "interrupted"])
     write_trial_file(output, "TC-001-alice-1", session_id="session-1")
     write_trial_file(output, "TC-001-alice-2", session_id="session-2")
     simulated = _simulate_with_fake_experiment(monkeypatch, tmp_path)

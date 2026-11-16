@@ -62,9 +62,10 @@ def _fixture_parts(state: InterviewState) -> tuple[list[dict[str, Any]], list[An
 
 
 def _validate_inputs(input_dir: Path) -> None:
-    from metis.engine.cli import _validate_inputs as engine_gate
+    from metis.core.console import console
+    from metis.engine.run import validate_inputs
 
-    engine_gate(input_dir)
+    validate_inputs(input_dir, console=console)
 
 
 def test_an_interview_saved_in_one_browser_opens_in_another(make_client) -> None:
