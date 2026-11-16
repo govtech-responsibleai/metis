@@ -1,15 +1,14 @@
-import { ChevronRight, TriangleAlert } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import {
   experimentState,
-  isLive,
   progressText,
-  STATE_LABEL,
   type ExperimentState,
 } from "./experiment-status";
 import { relativeTime } from "./relative-time";
 import { paths } from "./routes";
+import { StateBadge } from "./StateBadge";
 import { api, type ExperimentRecord } from "./transport/api";
 import { cn, Panel } from "./ui";
 
@@ -159,29 +158,5 @@ function ExperimentRow({
       </span>
       <ChevronRight size={14} className="text-muted-foreground" aria-hidden />
     </Link>
-  );
-}
-
-function StateBadge({ state }: { state: ExperimentState }) {
-  const live = isLive(state);
-  const stopped = state.kind === "stopped";
-  return (
-    <span
-      title={stopped ? (state.reason ?? undefined) : undefined}
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium",
-        live
-          ? "border-accent/50 bg-accent/10"
-          : stopped
-            ? "border-warning/50 text-warning"
-            : "border-border text-muted-foreground",
-      )}
-    >
-      {live && (
-        <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
-      )}
-      {stopped && <TriangleAlert size={12} aria-hidden />}
-      {STATE_LABEL[state.kind]}
-    </span>
   );
 }

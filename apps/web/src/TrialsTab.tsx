@@ -17,15 +17,14 @@ import {
 import { useState, type CSSProperties } from "react";
 import { Link } from "wouter";
 import {
-  isLive,
   phaseSteps,
   progressText,
-  STATE_LABEL,
   stepParts,
   type ExperimentState,
   type StepPhase,
 } from "./experiment-status";
 import { paths } from "./routes";
+import { StateBadge } from "./StateBadge";
 import {
   statusCounts,
   TRIAL_STATUS_LABEL,
@@ -39,7 +38,6 @@ import { Button, cn, Mono, Panel, SelectBox } from "./ui";
 function ExperimentProgress({ state }: { state: ExperimentState }) {
   const parts = stepParts(state);
   const percent = Math.round(((parts.simulate + parts.evaluate) / 2) * 100);
-  const live = isLive(state);
   return (
     <Panel className="flex items-center gap-5 p-5">
       <ProgressRing state={state} percent={percent} />
@@ -54,9 +52,7 @@ function ExperimentProgress({ state }: { state: ExperimentState }) {
         </div>
         <PhaseSteps state={state} />
       </div>
-      <span className="text-sm font-medium">
-        {live && state.stopping ? "Stopping" : STATE_LABEL[state.kind]}
-      </span>
+      <StateBadge state={state} plain />
     </Panel>
   );
 }
