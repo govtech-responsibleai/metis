@@ -171,7 +171,7 @@ def _page(grader: type[Grader[Any]], adapted_from: str) -> str:
         "",
         f"{{/* Generated from {source} by make generate-grader-docs. Do not edit. */}}",
         "",
-        "import {GraderCode, GraderTags} from '@site/docs/src/components/Graders';",
+        "import {GraderCode, GraderTags} from '@site/src/components/Graders';",
         "",
         f'<GraderTags name="{grader.__name__}" />',
         "",
