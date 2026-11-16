@@ -20,6 +20,7 @@ import { Link, useLocation } from "wouter";
 import { ACTIONS, isLive, type ExperimentState } from "./experiment-status";
 import { useExperimentWatch, type WatchLoad } from "./experiment-watch";
 import {
+  arrivedAtReport,
   experimentScreen,
   loadReport,
   type ExperimentScreen,
@@ -73,14 +74,16 @@ const TAB =
 
 const LOADING: ReportLoad = { status: "loading" };
 
-// The state holds the request of its answer, so the answer of another experiment or of an
-// earlier attempt reads as loading.
+// The state holds the experiment and the request of its answer. The answer of another
+// experiment reads as loading. A reload of the same experiment keeps the earlier answer until
+// the new one comes, so the screen does not go back to loading in between.
 function useReportLoad(experimentId: string): {
   load: ReportLoad;
   reload: () => void;
 } {
   const [attempt, setAttempt] = useState(0);
   const [held, setHeld] = useState<{
+    experimentId: string;
     key: string;
     load: SettledReportLoad;
   } | null>(null);
@@ -88,14 +91,17 @@ function useReportLoad(experimentId: string): {
   useEffect(() => {
     let current = true;
     void loadReport(experimentId).then((load) => {
-      if (current) setHeld({ key, load });
+      if (current) setHeld({ experimentId, key, load });
     });
     return () => {
       current = false;
     };
   }, [experimentId, key]);
   const reload = useCallback(() => setAttempt((count) => count + 1), []);
-  return { load: held?.key === key ? held.load : LOADING, reload };
+  return {
+    load: held?.experimentId === experimentId ? held.load : LOADING,
+    reload,
+  };
 }
 
 interface ExperimentProps {
@@ -160,6 +166,16 @@ export function ExperimentPage({
     | { status: "failed"; message: string }
   >({ status: "idle" });
   const plan = useMemo(() => trialPlan(specification), [specification]);
+  const screen = experimentScreen(part.tab, load);
+
+  // When the report of a run that the user watches is ready, the page moves to Report by itself,
+  // and the report slides in. The mark stays while Report is on the screen.
+  const [shown, setShown] = useState({ tab: screen.tab, arrived: false });
+  if (shown.tab !== screen.tab)
+    setShown({
+      tab: screen.tab,
+      arrived: arrivedAtReport(part.tab, shown.tab, screen.tab),
+    });
 
   // The report route builds the report once evaluate completes, so read it again then.
   const kind = watch.load.status === "ready" ? watch.load.state.kind : null;
@@ -186,7 +202,8 @@ export function ExperimentPage({
   return (
     <ExperimentView
       {...experiment}
-      screen={experimentScreen(part.tab, load)}
+      screen={screen}
+      arrived={shown.arrived}
       taskId={part.tab === "trials" ? part.taskId : null}
       load={load}
       onReload={reload}
@@ -269,6 +286,7 @@ export function ExperimentView({
   targetTitle,
   experimentId,
   screen,
+  arrived = false,
   taskId,
   load,
   onReload,
@@ -276,6 +294,8 @@ export function ExperimentView({
   actions,
 }: ExperimentProps & {
   screen: ExperimentScreen;
+  // True when the page moved to Report by itself, after a run that the user watched.
+  arrived?: boolean;
   // The Test Case that the Trials tab shows, or null for every trial.
   taskId: string | null;
   load: ReportLoad;
@@ -370,12 +390,14 @@ export function ExperimentView({
             </p>
           )
         ) : (
-          <ReportTab
-            targetId={targetId}
-            experimentId={experimentId}
-            load={load}
-            onReload={onReload}
-          />
+          <div className={cn(arrived && "animate-enter-report")}>
+            <ReportTab
+              targetId={targetId}
+              experimentId={experimentId}
+              load={load}
+              onReload={onReload}
+            />
+          </div>
         )}
       </Page>
     </div>
