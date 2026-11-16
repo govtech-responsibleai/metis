@@ -799,8 +799,14 @@ export function App() {
       {experimentDialogOpen && record && view?.done && (
         <ExperimentDialog
           targetId={record.id}
-          title={record.title}
-          specification={exportedSpecification(record.state)}
+          choices={[
+            {
+              id: record.id,
+              name: record.title,
+              savedAt: record.updated_at,
+              specification: exportedSpecification(record.state),
+            },
+          ]}
           onCancel={() => setExperimentDialogOpen(false)}
           onStarted={(experiment) => {
             setExperimentDialogOpen(false);

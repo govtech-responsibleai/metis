@@ -99,8 +99,9 @@ A Target page has two tabs:
   experiment started, its state, and how many trials are done. It is off until the Interview is
   done.
 
-**Start an experiment**, on the right of the tab row, opens a dialog. It runs the checks of
-`metis doctor` on the server. When every check passes,
+**Start an experiment**, on the right of the tab row, opens a dialog. Pick the Specification to run in
+**Specification**. Each entry shows its Test Cases, its trials, and when it was saved. A Target
+has one Specification for now. The dialog also runs the checks of `metis doctor` on the server. When every check passes,
 the dialog shows **Server ready**. Otherwise it lists each check that warns or fails, with the
 reason. **Start** stays off while a check fails. **Start** starts the simulation of the Specification and opens the experiment view.
 When the server cannot start it, for example because another experiment is running, the dialog

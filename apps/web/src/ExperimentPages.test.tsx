@@ -4,6 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { CaseDrawerView, DRAWER_START, type DrawerState } from "./CaseDrawer";
 import {
   ExperimentDialogView,
+  choiceDetail,
+  type SpecificationChoice,
   type DoctorLoad,
   type StartState,
 } from "./ExperimentDialog";
@@ -688,16 +690,45 @@ test("all experiments shows the Target of each row", () => {
   assert.match(text(markup), /Shop botjust nowWaiting for evaluate/);
 });
 
-const SPECIFICATION = {
-  tasks: [{ num_trials: 3 }, { num_trials: 3 }],
-} as unknown as Specification;
+const CHOICE: SpecificationChoice = {
+  id: "t",
+  name: "Bank bot",
+  savedAt: Date.now() - 3 * 60_000,
+  specification: {
+    tasks: [{ num_trials: 3 }, { num_trials: 3 }],
+  } as unknown as Specification,
+};
 
-function dialog(doctor: DoctorLoad, start: StartState = { status: "idle" }) {
+test("a Specification choice names its Test Cases, its trials, and when it was saved", () => {
+  assert.equal(
+    choiceDetail(CHOICE, CHOICE.savedAt + 3 * 60_000),
+    "2 Test Cases, 6 trials. Saved 3 min ago",
+  );
+  assert.equal(
+    choiceDetail(
+      {
+        ...CHOICE,
+        specification: {
+          tasks: [{ num_trials: 1 }],
+        } as unknown as Specification,
+      },
+      CHOICE.savedAt,
+    ),
+    "1 Test Case, 1 trial. Saved just now",
+  );
+});
+
+function dialog(
+  doctor: DoctorLoad,
+  start: StartState = { status: "idle" },
+  choices: SpecificationChoice[] = [CHOICE],
+) {
   return renderToStaticMarkup(
     <ExperimentDialogView
       id="d"
-      title="Bank bot"
-      specification={SPECIFICATION}
+      choices={choices}
+      chosen={choices[0]?.id ?? ""}
+      onChoose={() => {}}
       doctor={doctor}
       start={start}
       onCheckAgain={() => {}}
@@ -720,10 +751,17 @@ const SERVER_READY: DoctorLoad = {
   ],
 };
 
-test("the dialog shows one line when every check passes, and Start is on", () => {
+test("the dialog shows the chosen Specification and one line when every check passes", () => {
   const markup = dialog(SERVER_READY);
 
-  assert.match(text(markup), /Bank bot has 2 Test Cases and 6 trials\./);
+  assert.match(
+    control(markup, "Bank bot"),
+    /aria-haspopup="listbox"[^>]*aria-expanded="false"/,
+  );
+  assert.match(
+    text(markup),
+    /Bank bot2 Test Cases, 6 trials\. Saved 3 min ago/,
+  );
   assert.match(text(markup), /Server ready/);
   assert.doesNotMatch(text(markup), /metis-core/);
   assert.doesNotMatch(control(markup, "Start"), /disabled=""/);
@@ -784,6 +822,16 @@ test("Start waits for the server checks, and checks that do not load can be trie
   });
   assert.match(failed, /role="alert"/);
   assert.match(control(failed, "Check again"), /^<button/);
+});
+
+test("Start stays off with no Specification to choose", () => {
+  const markup = dialog(SERVER_READY, { status: "idle" }, []);
+
+  assert.match(text(markup), /No Specification/);
+  assert.match(
+    control(markup, "Start"),
+    /title="Choose a Specification first"/,
+  );
 });
 
 test("a refused start shows the message of the API in the dialog", () => {
