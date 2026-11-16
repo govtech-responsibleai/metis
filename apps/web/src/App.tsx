@@ -13,7 +13,6 @@ import type {
   LoadedInterviewRecord,
   CapabilityConfidence,
   CapabilityEvidence,
-  InterviewDocument,
   ModelStatus,
   Perspective,
   UserResponse,
@@ -100,6 +99,12 @@ import {
   targetRedirect,
 } from "./routes";
 import { admitFiles, type AdmittedFile } from "./fixture-policy";
+import {
+  documentsForRequest,
+  unicodeLength,
+  useDocumentIntake,
+  type DocumentReads,
+} from "./document-intake";
 import { specificationHasCriteria } from "./graders";
 import { saveFile } from "./download";
 import { ManualAuthoringEntry, ManualForm } from "./ManualForm";
@@ -112,11 +117,8 @@ import {
 import { InterviewOperations, pendingEntry } from "./wizard/operations";
 
 type WizardConfig = Awaited<ReturnType<typeof api.config>>;
+const NO_FILES: readonly never[] = [];
 export type OpeningControl = "perspective" | "capabilities";
-type OpeningDocumentRead =
-  | { status: "reading" | "not_read" | "kept" }
-  | { status: "read"; text: string }
-  | { status: "failed"; message: string };
 export type WizardConfigState =
   | { status: "loading" }
   | { status: "ready"; config: WizardConfig }
@@ -129,26 +131,6 @@ const emptyCapabilityEvidence = (): CapabilityEvidenceDraft => ({
   known_capability_ids: [],
   confidence: null,
 });
-
-function fileExtension(name: string): string {
-  return name.split(".").at(-1)?.toLowerCase() ?? "";
-}
-
-function unicodeLength(value: string): number {
-  return Array.from(value).length;
-}
-
-async function extractOpeningDocuments(
-  file: File,
-  maxFileBytes: number,
-): Promise<string> {
-  if (file.size > maxFileBytes)
-    throw new Error(`${file.name} is larger than the text-reading limit.`);
-  const result = await api.extractDocuments([file]);
-  const document = result.documents.find((item) => item.name === file.name);
-  if (!document) throw new Error(`No text was returned for ${file.name}.`);
-  return document.text;
-}
 
 // Capabilities are optional. An untouched picker sends no evidence, so the Interview treats
 // capabilities as unspecified. A selection with no confidence may be incomplete, which is what
@@ -237,13 +219,14 @@ export function App() {
   // The default Perspective stays marked until the user first opens the Perspective control.
   const [perspectiveSeen, setPerspectiveSeen] = useState(false);
   const [openingDescription, setOpeningDescription] = useState("");
-  const [openingDocuments, setOpeningDocuments] = useState<AdmittedFile[]>([]);
-  // An extraction response belongs only to the opening session that requested it.
   const openingGeneration = useRef(0);
+  const documentLimits =
+    wizardConfig.status === "ready"
+      ? (wizardConfig.config.document_limits ?? undefined)
+      : undefined;
+  // The documents of the opening message. They wait until the user sends that message.
+  const openingIntake = useDocumentIntake(documentLimits, NO_FILES, setError);
   const [documentTrayOpen, setDocumentTrayOpen] = useState(false);
-  const [openingDocumentReads, setOpeningDocumentReads] = useState<
-    Record<string, OpeningDocumentRead>
-  >({});
   const [capabilityEvidence, setCapabilityEvidence] =
     useState<CapabilityEvidenceDraft>(emptyCapabilityEvidence);
   // The opening owns the connection in run mode. "add" is the Done pane's Connect target.
@@ -436,6 +419,7 @@ export function App() {
     );
   }, [hasCriteria]);
 
+  const resetOpeningIntake = openingIntake.reset;
   const startNew = useCallback(() => {
     openingGeneration.current += 1;
     setOpening(openingGeneration.current);
@@ -443,100 +427,13 @@ export function App() {
     setOpeningControl(null);
     setPerspectiveSeen(false);
     setOpeningDescription("");
-    setOpeningDocuments([]);
+    resetOpeningIntake();
     setDocumentTrayOpen(false);
-    setOpeningDocumentReads({});
     setCapabilityEvidence(emptyCapabilityEvidence());
     setConnectionStep(null);
     setConnectionDraft(emptyConnectionDraft());
     setConnectionResult(null);
   }, []);
-
-  const addOpeningDocuments = useCallback(
-    (files: readonly File[]) => {
-      try {
-        if (
-          wizardConfig.status !== "ready" ||
-          !wizardConfig.config.document_limits
-        )
-          throw new Error("Document limits are not available yet.");
-        const limits = wizardConfig.config.document_limits;
-        const normalized = admitFiles(files, openingDocuments, limits);
-        const reads: Record<string, OpeningDocumentRead> = {};
-        for (const file of normalized) {
-          const canRead = limits.extraction_extensions?.includes(
-            fileExtension(file.name),
-          );
-          reads[file.name] = !canRead
-            ? { status: "not_read" }
-            : file.size > limits.max_extraction_file_bytes
-              ? {
-                  status: "failed",
-                  message: "This file is larger than the text-reading limit.",
-                }
-              : { status: "reading" };
-        }
-        setOpeningDocuments((current) => [...current, ...normalized]);
-        setOpeningDocumentReads((current) => ({ ...current, ...reads }));
-        setError(null);
-        for (const file of normalized) {
-          if (reads[file.name]?.status !== "reading") continue;
-          const generation = openingGeneration.current;
-          void extractOpeningDocuments(
-            file,
-            limits.max_extraction_file_bytes,
-          ).then(
-            (text) => {
-              if (generation !== openingGeneration.current) return;
-              setOpeningDocumentReads((current) => ({
-                ...current,
-                [file.name]: { status: "read", text },
-              }));
-            },
-            (cause: unknown) => {
-              if (generation !== openingGeneration.current) return;
-              setOpeningDocumentReads((current) => ({
-                ...current,
-                [file.name]: {
-                  status: "failed",
-                  message: errorMessage(cause),
-                },
-              }));
-            },
-          );
-        }
-      } catch (cause) {
-        setError(errorMessage(cause));
-      }
-    },
-    [openingDocuments, wizardConfig, setError],
-  );
-
-  const removeOpeningDocument = useCallback(
-    (name: string) => {
-      setOpeningDocuments((current) =>
-        current.filter((file) => file.name !== name),
-      );
-      setOpeningDocumentReads((current) => {
-        const next = { ...current };
-        delete next[name];
-        return next;
-      });
-      setError(null);
-    },
-    [setError],
-  );
-
-  const keepOpeningDocumentWithoutReading = useCallback(
-    (name: string) => {
-      setOpeningDocumentReads((current) => ({
-        ...current,
-        [name]: { status: "kept" },
-      }));
-      setError(null);
-    },
-    [setError],
-  );
 
   const beginWithMessage = useCallback(
     async (
@@ -549,47 +446,19 @@ export function App() {
       const origin = openingGeneration.current;
       const sent = new Date();
       await operations.run(operationKey, async () => {
-        const limits =
-          wizardConfig.status === "ready"
-            ? wizardConfig.config.document_limits
-            : undefined;
-        if (openingDocuments.length > 0 && !limits)
-          throw new Error("Document limits are not available yet.");
-        const unresolved = openingDocuments.filter((file) => {
-          const status = openingDocumentReads[file.name]?.status;
-          return status === "reading" || status === "failed";
-        });
-        if (unresolved.length > 0) {
+        const ready = documentsForRequest(
+          openingIntake.documents,
+          openingIntake.reads,
+          documentLimits,
+        );
+        if ("blocked" in ready) {
           setConnectionStep(null);
           setOpeningControl(null);
           setDocumentTrayOpen(true);
-          setError(
-            "Wait for files to finish reading. For a file that could not be read, choose Keep without reading or remove it.",
-          );
+          setError(ready.blocked);
           return;
         }
-        const totalText = openingDocuments.reduce((total, file) => {
-          const read = openingDocumentReads[file.name];
-          return (
-            total + (read?.status === "read" ? unicodeLength(read.text) : 0)
-          );
-        }, 0);
-        if (limits && totalText > limits.max_text_characters_total) {
-          setConnectionStep(null);
-          setOpeningControl(null);
-          setDocumentTrayOpen(true);
-          setError(
-            `Document text is above ${limits.max_text_characters_total.toLocaleString()} characters. Remove a file or keep it without reading.`,
-          );
-          return;
-        }
-        const documents: InterviewDocument[] = openingDocuments.map((file) => {
-          const read = openingDocumentReads[file.name];
-          return {
-            name: file.name,
-            ...(read?.status === "read" ? { text: read.text } : {}),
-          };
-        });
+        const documents = ready.documents;
         const result = await api.start(
           description,
           evidence,
@@ -603,7 +472,7 @@ export function App() {
           result.stage,
           startTranscript(description, result.state),
         );
-        const record = addFixtures(started, openingDocuments);
+        const record = addFixtures(started, openingIntake.documents);
         const opened = async (saved: LoadedInterviewRecord) => {
           const path = openedPath(
             locationRef.current,
@@ -636,11 +505,11 @@ export function App() {
       navigate,
       operations,
       operationKey,
-      openingDocuments,
-      openingDocumentReads,
+      openingIntake.documents,
+      openingIntake.reads,
+      documentLimits,
       refreshList,
       setError,
-      wizardConfig,
     ],
   );
 
@@ -999,16 +868,16 @@ export function App() {
             onDescription={setOpeningDescription}
             perspective={selectedPerspective}
             onPerspective={setSelectedPerspective}
-            documents={openingDocuments}
+            documents={openingIntake.documents}
             documentTrayOpen={documentTrayOpen}
             onDocumentTrayOpen={(open) => {
               if (open) setOpeningControl(null);
               setDocumentTrayOpen(open);
             }}
-            documentReads={openingDocumentReads}
-            onAddDocuments={addOpeningDocuments}
-            onRemoveDocument={removeOpeningDocument}
-            onKeepDocumentUnread={keepOpeningDocumentWithoutReading}
+            documentReads={openingIntake.reads}
+            onAddDocuments={openingIntake.add}
+            onRemoveDocument={openingIntake.remove}
+            onKeepDocumentUnread={openingIntake.keepUnread}
             capabilityEvidence={capabilityEvidence}
             onCapabilityEvidence={setCapabilityEvidence}
             onBegin={(description, perspective, evidence) =>
@@ -1206,7 +1075,7 @@ type OpeningScreenProps = {
   documents: File[];
   documentTrayOpen: boolean;
   onDocumentTrayOpen: (open: boolean) => void;
-  documentReads: Record<string, OpeningDocumentRead>;
+  documentReads: DocumentReads;
   onAddDocuments: (files: readonly File[]) => void;
   onRemoveDocument: (name: string) => void;
   onKeepDocumentUnread: (name: string) => void;
@@ -1555,7 +1424,7 @@ export function InitialDocumentPicker({
 }: {
   config: WizardConfig;
   documents: readonly File[];
-  documentReads: Record<string, OpeningDocumentRead>;
+  documentReads: DocumentReads;
   disabled: boolean;
   onAdd: (files: readonly File[]) => void;
   onRemove: (name: string) => void;
