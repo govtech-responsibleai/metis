@@ -1,11 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { renderToStaticMarkup } from "react-dom/server";
 import { CaseDrawerView, DRAWER_START, type DrawerState } from "./CaseDrawer";
-import { ExperimentView } from "./ExperimentPages";
+import {
+  ExperimentDialogView,
+  type DoctorLoad,
+  type StartState,
+} from "./ExperimentDialog";
+import { AllExperimentsView, ExperimentView } from "./ExperimentPages";
 import { at, control, tab, text } from "./markup.test-helper";
 import { experimentScreen, type ReportLoad, type ReportPage } from "./report";
 import { ReportSections, SPEC_START, type SpecState } from "./ReportTab";
 import { paths, type ExperimentTab } from "./routes";
+import type { Specification } from "./transport/api";
 
 const DETAIL = {
   description: "The reply starts with a greeting.",
@@ -647,4 +654,124 @@ test("a failed report shows the message and a way to try again", () => {
   assert.match(control(failed(true), "Try again"), /^<button/);
   assert.match(tab(failed(true), "Report"), /^<a[^>]*aria-selected="true"/);
   assert.doesNotMatch(failed(false), /Try again/);
+});
+
+test("all experiments shows the Target of each row", () => {
+  const markup = at(
+    paths.experiments(),
+    <AllExperimentsView
+      load={{
+        status: "ready",
+        rows: [
+          {
+            record: {
+              experiment_id: "e2",
+              target_id: "b",
+              started_at: new Date().toISOString(),
+              step: "simulate",
+            },
+            targetTitle: "Shop bot",
+            load: {
+              status: "ready",
+              state: { kind: "waiting", progress: null },
+            },
+          },
+        ],
+      }}
+    />,
+  );
+
+  assert.match(
+    control(markup, "Shop bot"),
+    /href="\/targets\/b\/experiments\/e2"/,
+  );
+  assert.match(text(markup), /Shop botjust nowWaiting for evaluate/);
+});
+
+const SPECIFICATION = {
+  tasks: [{ num_trials: 3 }, { num_trials: 3 }],
+} as unknown as Specification;
+
+function dialog(doctor: DoctorLoad, start: StartState = { status: "idle" }) {
+  return renderToStaticMarkup(
+    <ExperimentDialogView
+      id="d"
+      title="Bank bot"
+      specification={SPECIFICATION}
+      doctor={doctor}
+      start={start}
+      onCheckAgain={() => {}}
+      onCancel={() => {}}
+      onStart={() => {}}
+    />,
+  );
+}
+
+const PASSING: DoctorLoad = {
+  status: "ready",
+  checks: [
+    { name: "metis-core", status: "pass", detail: "version 1.0.0", fix: null },
+    {
+      name: "LANGFUSE_BASE_URL",
+      status: "warn",
+      detail: "not set",
+      fix: "Set LANGFUSE_BASE_URL in .env to grade a run.",
+    },
+  ],
+};
+
+test("the dialog shows each check of the environment and starts when none fails", () => {
+  const markup = dialog(PASSING);
+
+  assert.match(text(markup), /Bank bot has 2 Test Cases and 6 trials\./);
+  assert.match(text(markup), /Ready/);
+  assert.match(text(markup), /metis-coreversion 1\.0\.0/);
+  assert.match(text(markup), /Set LANGFUSE_BASE_URL in \.env to grade a run\./);
+  assert.match(markup, /aria-label="Warn"/);
+  assert.match(markup, /Trials at a time/);
+  assert.doesNotMatch(control(markup, "Start"), /disabled=""/);
+});
+
+test("a failed check keeps Start off and offers to check again", () => {
+  const markup = dialog({
+    status: "ready",
+    checks: [
+      {
+        name: "OPENAI_API_KEY",
+        status: "fail",
+        detail: "not set",
+        fix: "Set OPENAI_API_KEY in .env (see .env.example).",
+      },
+    ],
+  });
+
+  assert.match(text(markup), /1 check failed/);
+  assert.match(control(markup, "Start"), /disabled=""/);
+  assert.match(control(markup, "Start"), /title="Fix the failed check first"/);
+  assert.match(control(markup, "Check again"), /^<button/);
+});
+
+test("Start waits for the checks, and a check that does not load can be tried again", () => {
+  assert.match(text(dialog({ status: "loading" })), /Checking the environment/);
+  assert.match(control(dialog({ status: "loading" }), "Start"), /disabled=""/);
+
+  const failed = dialog({
+    status: "failed",
+    message: "Couldn't reach the METIS API.",
+  });
+  assert.match(failed, /role="alert"/);
+  assert.match(control(failed, "Check again"), /^<button/);
+});
+
+test("a refused start shows the message of the API in the dialog", () => {
+  const markup = dialog(PASSING, {
+    status: "failed",
+    message: "Another experiment is running. Try again when it ends.",
+  });
+
+  assert.match(
+    markup,
+    /role="alert"[^>]*>Another experiment is running\. Try again when it ends\.</,
+  );
+  assert.doesNotMatch(control(markup, "Start"), /disabled=""/);
 });

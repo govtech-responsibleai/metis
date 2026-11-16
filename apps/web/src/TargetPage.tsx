@@ -4,7 +4,13 @@
 
 import { GitCompareArrows, Play } from "lucide-react";
 import { Link } from "wouter";
+import {
+  ExperimentList,
+  useExperimentList,
+  type ListLoad,
+} from "./ExperimentList";
 import { paths, type TargetTab } from "./routes";
+import { store } from "./transport/api";
 import { Button, buttonClass, cn } from "./ui";
 
 export const LOCKED = "Finish the Interview first";
@@ -91,6 +97,21 @@ export function TargetTabs({
 }
 
 export function ExperimentsTab({ targetId }: { targetId: string }) {
+  const load = useExperimentList(`target:${targetId}`, async () =>
+    (await store.experiments(targetId)).experiments.map((record) => ({
+      record,
+    })),
+  );
+  return <ExperimentsTabView targetId={targetId} load={load} />;
+}
+
+export function ExperimentsTabView({
+  targetId,
+  load,
+}: {
+  targetId: string;
+  load: ListLoad;
+}) {
   return (
     // The left padding puts the content in line with the text of the first tab label.
     <div className="quiet-scrollbar min-h-0 flex-1 overflow-y-auto py-6 pl-9 pr-6">
@@ -101,7 +122,7 @@ export function ExperimentsTab({ targetId }: { targetId: string }) {
             Compare
           </Link>
         </div>
-        <p className="text-sm text-muted-foreground">No experiments yet.</p>
+        <ExperimentList load={load} />
       </div>
     </div>
   );

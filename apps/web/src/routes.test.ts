@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { NEW_EXPERIMENT, paths, placeOf, targetRedirect } from "./routes.ts";
+import { paths, placeOf, targetRedirect } from "./routes.ts";
 
 test("each path builder gives a path that reads back as its place", () => {
   assert.deepEqual(placeOf(paths.newTarget()), { page: "new-target" });
@@ -40,14 +40,11 @@ test("each path builder gives a path that reads back as its place", () => {
 });
 
 test("a bare experiment path has no tab", () => {
-  assert.equal(
-    paths.experiment("a", NEW_EXPERIMENT),
-    "/targets/a/experiments/new",
-  );
-  assert.deepEqual(placeOf(paths.experiment("a", NEW_EXPERIMENT)), {
+  assert.equal(paths.experiment("a", "e1"), "/targets/a/experiments/e1");
+  assert.deepEqual(placeOf(paths.experiment("a", "e1")), {
     page: "experiment",
     targetId: "a",
-    experimentId: "new",
+    experimentId: "e1",
     tab: null,
   });
 });
@@ -89,7 +86,7 @@ test("a Target opens its Experiments tab when its Interview is done", () => {
 test("an unfinished Target sends every place but its Specification tab there", () => {
   for (const path of [
     paths.target("a", "experiments"),
-    paths.experiment("a", NEW_EXPERIMENT),
+    paths.experiment("a", "e1"),
     paths.experiment("a", "e1", "report"),
     paths.testCase("a", "e1", "c1"),
     paths.compare("a"),

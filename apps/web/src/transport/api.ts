@@ -54,6 +54,15 @@ type InterviewReadOperation =
 type InterviewWireRecord = JsonResponse<InterviewReadOperation>;
 type ReportOperation =
   operations["experiment_report_api_v1_experiments__experiment_id__report_get"];
+type ExperimentsOperation =
+  operations["list_target_experiments_api_v1_targets__target_id__experiments_get"];
+type StartExperimentOperation =
+  operations["start_experiment_api_v1_targets__target_id__experiments_post"];
+type EngineStatusOperation =
+  operations["experiment_status_api_v1_engine__experiment_id__get"];
+type EngineEventsOperation =
+  operations["experiment_events_api_v1_engine__experiment_id__events_get"];
+type DoctorOperation = operations["run_doctor_api_v1_doctor_get"];
 
 export type CurrentUser = JsonResponse<CurrentUserOperation>;
 export type UserAccount = Schema["UserAccountBody"];
@@ -406,6 +415,13 @@ export type StorageProblem = Schema["TargetProblem"];
 export type TargetList = JsonResponse<TargetsOperation>;
 // report.json as the route gives it. Only `src/report.ts` reads it.
 export type Report = JsonResponse<ReportOperation>;
+export type ExperimentRecord = Schema["ExperimentRecord"];
+export type ExperimentList = JsonResponse<ExperimentsOperation>;
+export type ExperimentStart = Schema["ExperimentStart"];
+export type StartedExperiment = JsonResponse<StartExperimentOperation, 202>;
+export type EngineStatus = JsonResponse<EngineStatusOperation>;
+export type PhaseEvent = JsonResponse<EngineEventsOperation>[number];
+export type DoctorCheck = JsonResponse<DoctorOperation>[number];
 // The record as the store keeps it: each file is a reference to bytes in the store.
 export type StoredInterviewRecord = Omit<
   LoadedInterviewRecord,
@@ -707,6 +723,17 @@ export const api = {
       }),
       ".html",
     ),
+  doctor: () => call<DoctorCheck[]>("/api/v1/doctor"),
+  engineStatus: (experimentId: string) =>
+    call<EngineStatus>(
+      route("/api/v1/engine/{experiment_id}", { experiment_id: experimentId }),
+    ),
+  engineEvents: (experimentId: string) =>
+    call<PhaseEvent[]>(
+      route("/api/v1/engine/{experiment_id}/events", {
+        experiment_id: experimentId,
+      }),
+    ),
 };
 
 // The store routes keep each Target: its Interview record, the record files, and the
@@ -764,6 +791,16 @@ export const store = {
       { method: "PUT", body: form },
     );
   },
+  experiments: (targetId: string) =>
+    call<ExperimentList>(
+      route("/api/v1/targets/{target_id}/experiments", { target_id: targetId }),
+    ),
+  // Starts `simulate` on the Specification of the Target and saves the row of the Experiment.
+  startExperiment: (targetId: string, body: ExperimentStart) =>
+    call<StartedExperiment>(
+      route("/api/v1/targets/{target_id}/experiments", { target_id: targetId }),
+      { ...JSON_POST, body: JSON.stringify(body) },
+    ),
   deleteTarget: async (id: string) => {
     await responseFor(route("/api/v1/targets/{target_id}", { target_id: id }), {
       method: "DELETE",
