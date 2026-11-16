@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "metis-core"
-version = "1.0.0b1"
+version = "1.0.0b2"
 description = "Core data models and abstractions for the METIS suite"
 requires-python = ">=3.11"
 dependencies = [

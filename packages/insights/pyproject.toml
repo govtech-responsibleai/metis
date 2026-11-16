@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "metis-insights"
-version = "1.0.0b1"
+version = "1.0.0b2"
 description = "Report generation and analytics for METIS evaluation results"
 requires-python = ">=3.11"
 dependencies = [

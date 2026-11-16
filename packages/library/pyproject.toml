@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "metis-library"
-version = "1.0.0b1"
+version = "1.0.0b2"
 description = "Shared catalog of metrics, skills, and reusable components for the METIS evaluation suite"
 requires-python = ">=3.11"
 dependencies = [
