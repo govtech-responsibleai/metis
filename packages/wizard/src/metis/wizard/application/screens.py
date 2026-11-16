@@ -43,7 +43,7 @@ from metis.wizard.contracts.conversation import (
 )
 from metis.wizard.domain.nodes import dependants, locate
 from metis.wizard.domain.patch import Patch, PatchOp, PatchOrigin
-from metis.wizard.domain.permissions import InterviewStep
+from metis.wizard.domain.permissions import TRIALS_MAX, TRIALS_MIN, InterviewStep
 
 if TYPE_CHECKING:
     from metis.wizard.domain.specification import (
@@ -53,8 +53,6 @@ if TYPE_CHECKING:
         Task,
     )
 
-TRIALS_MIN = 1
-TRIALS_MAX = 20
 DEFAULT_TRIALS = 3  # the shared Task default
 # One short sentence for each review. Each tells the user what to do on that screen.
 # The report scores a Behaviour from its Criteria, so the instruction says what they stand for.
