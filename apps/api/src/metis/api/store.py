@@ -1,8 +1,8 @@
 """The store of Targets, Interviews, Specifications, and Experiments.
 
 The store keeps its rows in a database that SQLAlchemy opens from a URL. The default is the
-SQLite file `<project>/experiments/metis.db`. The tables use only portable SQL, so a PostgreSQL
-URL also works.
+SQLite file `<project>/metis.db`, beside the `experiments` folder. The tables use only portable
+SQL, so a PostgreSQL URL also works.
 
 The store keeps the files of each Target in the layout that `metis wizard init` writes, under
 `<project>/experiments/design/<target_id>/`:
@@ -83,9 +83,10 @@ if TYPE_CHECKING:
     from sqlalchemy.engine import Connection, RowMapping
 
 EXPERIMENTS = execution_layout.EXECUTIONS.parent
-"""The folder in the project that holds the database, the Target folders, and the Experiment folders."""
-DATABASE = EXPERIMENTS / "metis.db"
-"""The default SQLite file of the store, relative to the project folder."""
+"""The folder in the project that holds the Target folders and the Experiment folders."""
+DATABASE = Path("metis.db")
+"""The default SQLite file of the store, relative to the project folder. It is beside
+``EXPERIMENTS``, so that folder holds only the files of the Targets and the Experiments."""
 DESIGN = EXPERIMENTS / "design"
 """The folder of the Target folders. `metis wizard init` writes to the same folder."""
 FILES = Path("inputs") / "documents"

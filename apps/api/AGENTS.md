@@ -85,7 +85,7 @@ Settings:
   working directory that has a `pyproject.toml`, else the working directory.
   The rule is `metis.core.execution_layout.find_project_root`, which the engine also calls.
 - `METIS_DATABASE_URL` is a SQLAlchemy URL. The default is
-  `sqlite:///<project>/experiments/metis.db`. The tables use only portable SQL, so do not add
+  `sqlite:///<project>/metis.db`. The tables use only portable SQL, so do not add
   SQLite-only types, JSON1 functions, or `INSERT OR REPLACE`.
 
 `cli.py` gives Uvicorn the app object from `create_app(project_dir=...)`, so the app keeps the

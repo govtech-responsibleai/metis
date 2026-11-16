@@ -53,6 +53,10 @@ openspec/
 # Simulation output (generated at runtime)
 /experiments/
 
+# The store database of the API (generated at runtime)
+/metis.db
+/metis.db-journal
+
 # Wizard session output (generated at runtime)
 /evaluation/
 

@@ -546,7 +546,7 @@ The API keeps its store in the project folder. Start the API with
 the nearest folder at or above the working directory that has a `pyproject.toml`. When no such
 folder is found, it is the working directory. `metis engine simulate` uses the same rule.
 
-- The database is `experiments/metis.db` in the project folder. Set `METIS_DATABASE_URL` to use
+- The database is `metis.db` in the project folder. Set `METIS_DATABASE_URL` to use
   another database.
 - The files of each Target are in `experiments/design/<target_id>/`, the same layout as the CLI
   wizard. `inputs/interview_state.json` holds the state of the Interview, and

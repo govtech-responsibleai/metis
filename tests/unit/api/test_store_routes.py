@@ -55,12 +55,10 @@ def test_the_store_defaults_to_a_sqlite_file_in_the_experiments_folder(
 ) -> None:
     settings = Settings.from_env(project_dir=tmp_path)
     assert settings.project_dir == tmp_path.resolve()
-    assert (
-        settings.database_url == f"sqlite:///{tmp_path.resolve()}/experiments/metis.db"
-    )
+    assert settings.database_url == f"sqlite:///{tmp_path.resolve()}/metis.db"
 
     Store(settings.database_url, settings.project_dir).close()
-    assert (tmp_path / "experiments" / "metis.db").is_file()
+    assert (tmp_path / "metis.db").is_file()
 
     monkeypatch.setenv("METIS_DATABASE_URL", "postgresql://metis:secret@db/metis")
     named = Settings.from_env()
