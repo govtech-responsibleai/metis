@@ -14,6 +14,7 @@ import {
 } from "react";
 import { navigate } from "wouter/use-browser-location";
 import { Field, TextInput } from "./fields";
+import { LoginArt } from "./LoginArt";
 import {
   auth,
   onLoginRequired,
@@ -114,20 +115,89 @@ export function LoginGate({ children }: { children: ReactNode }) {
   );
 }
 
+const NAVY =
+  "bg-linear-135 from-brand-navy via-brand-navy-soft via-60% to-brand-navy";
+
+function Brand({ onNavy = false }: { onNavy?: boolean }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <img src="/metis-mark.png" alt="" className="h-7 w-7" />
+      <span
+        className={`text-base font-black tracking-[0.14em] ${onNavy ? "text-brand-paper" : "text-foreground"}`}
+      >
+        METIS
+      </span>
+    </span>
+  );
+}
+
+const HEADLINE = (
+  <>
+    Evaluate your agent against{" "}
+    <span className="text-gold">your specifications.</span>
+  </>
+);
+const CAPTION =
+  "Define what your agent should do, test the full trajectory, and know exactly what to fix before you ship.";
+
+// On a wide window the form takes one half and the brand panel takes the other half. On a
+// phone the brand is a banner at the top, and the form is a sheet that lies over its lower
+// edge. The brand surface is navy in both themes.
 function Screen({ children }: { children: ReactNode }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6">
-      <div className="flex w-full max-w-sm flex-col gap-6 rounded-lg border border-border bg-card p-6">
-        {/* The same mark and wordmark as the rail. */}
-        <span className="flex items-center gap-1.5">
-          <img src="/metis-mark.png" alt="" className="h-7 w-7" />
-          <span className="text-base font-black tracking-[0.14em] text-foreground">
-            METIS
-          </span>
+    <main className="flex h-full flex-col overflow-y-auto bg-brand-navy md:grid md:grid-cols-2 md:bg-background">
+      <BrandBanner />
+      <div className="relative -mt-5 flex flex-1 flex-col rounded-t-lg border-t border-border bg-background p-8 md:mt-0 md:min-h-full md:rounded-none md:border-t-0">
+        <span className="hidden md:block">
+          <Brand />
         </span>
-        {children}
+        <div className="flex flex-1 justify-center py-2 md:items-center md:py-10">
+          <div className="flex w-full max-w-sm flex-col gap-6">{children}</div>
+        </div>
+      </div>
+      <div className="hidden min-h-0 p-3 md:flex">
+        <BrandPanel />
       </div>
     </main>
+  );
+}
+
+function BrandBanner() {
+  return (
+    <div
+      className={`relative flex min-h-[40%] shrink-0 flex-col justify-between gap-10 overflow-hidden p-8 pb-14 md:hidden ${NAVY}`}
+    >
+      <LoginArt
+        layout="banner"
+        className="absolute inset-0 h-full w-full opacity-85"
+      />
+      <div className="absolute inset-0 bg-linear-to-t from-brand-navy/90 via-brand-navy/40 to-transparent" />
+      <span className="relative">
+        <Brand onNavy />
+      </span>
+      <div className="relative flex flex-col gap-3">
+        <p className="text-2xl leading-tight font-semibold tracking-tight text-balance text-brand-paper">
+          {HEADLINE}
+        </p>
+        <p className="text-sm text-brand-mist">{CAPTION}</p>
+      </div>
+    </div>
+  );
+}
+
+function BrandPanel() {
+  return (
+    <aside
+      className={`relative flex min-h-0 flex-1 flex-col justify-end overflow-hidden rounded-lg border border-white/10 p-8 lg:p-12 ${NAVY}`}
+    >
+      <LoginArt layout="panel" className="absolute inset-0 h-full w-full" />
+      <div className="relative flex max-w-md flex-col gap-4">
+        <h2 className="text-3xl leading-tight font-semibold tracking-tight text-balance text-brand-paper lg:text-4xl">
+          {HEADLINE}
+        </h2>
+        <p className="text-brand-mist">{CAPTION}</p>
+      </div>
+    </aside>
   );
 }
 
@@ -183,7 +253,7 @@ export function LoginPage({
   return (
     <Screen>
       <form className="flex flex-col gap-4" onSubmit={submit}>
-        <h1 className="text-lg font-semibold text-foreground">Log in</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Log in</h1>
         <Field label="Username">
           <TextInput
             name="username"

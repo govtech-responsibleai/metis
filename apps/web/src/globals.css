@@ -73,6 +73,16 @@
      those are the Tailwind theme keys below, which read from these. */
   --radius: 8px;
   --radius-large: 16px;
+
+  /* The brand panel on the login page. It uses the landing page colours and it is navy in
+     both themes, so the dark block does not set these again. */
+  --brand-navy: 208 88% 7%; /* #021220 */
+  --brand-navy-soft: 202 72% 14%; /* #0A2A3D */
+  --brand-paper: 43 41% 97%; /* #FAF8F3 — headings on navy */
+  --brand-mist: 192 16% 76%; /* #B8C8CC — body text on navy */
+  --brand-link: 233 52% 66%; /* #7C86D6 — the links of the trace art */
+  --brand-wait: 194 13% 60%; /* #8CA0A6 — an observation with no result yet */
+  --brand-fail: 347 42% 60%; /* #C46E80 — a failed observation in the trace art */
 }
 
 /* Dark mode keeps neutral black and grey surfaces. The accent is a light teal
@@ -133,6 +143,13 @@
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
   --color-gold: hsl(var(--gold));
+  --color-brand-navy: hsl(var(--brand-navy));
+  --color-brand-navy-soft: hsl(var(--brand-navy-soft));
+  --color-brand-paper: hsl(var(--brand-paper));
+  --color-brand-mist: hsl(var(--brand-mist));
+  --color-brand-link: hsl(var(--brand-link));
+  --color-brand-wait: hsl(var(--brand-wait));
+  --color-brand-fail: hsl(var(--brand-fail));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
   --color-success: hsl(var(--success));
@@ -464,6 +481,78 @@
   .animate-open-menu,
   .animate-open-under-box,
   .perspective-default {
+    animation: none !important;
+  }
+}
+
+/* The trace on the login page (LoginArt.tsx). When the page opens, the gold line moves once
+   to its place and each observation gets its result as the line passes it. Nothing repeats.
+   The easing is a quadratic ease-out, and LoginArt.tsx times the observations with its
+   inverse, so keep the two the same. */
+.login-art-line {
+  animation: login-art-line 2.2s cubic-bezier(0.333, 0.667, 0.667, 1) 0.3s both;
+}
+
+.login-art-show {
+  animation: login-art-show 0.35s ease-out both;
+}
+
+/* The ring around an observation. It opens when the line passes the observation. On the
+   observations that the line passed last it stays, and on the earlier ones it fades out. */
+.login-art-ring,
+.login-art-ring-stay {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.login-art-ring {
+  opacity: 0;
+  animation: login-art-ring 0.8s ease-out backwards;
+}
+
+.login-art-ring-stay {
+  opacity: 0.4;
+  animation: login-art-ring-stay 0.45s ease-out backwards;
+}
+
+@keyframes login-art-ring {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  25% {
+    opacity: 0.6;
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+}
+
+@keyframes login-art-ring-stay {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+@keyframes login-art-line {
+  from {
+    transform: translateX(-418px);
+  }
+}
+
+@keyframes login-art-show {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-art-line,
+  .login-art-show,
+  .login-art-ring,
+  .login-art-ring-stay {
     animation: none !important;
   }
 }
