@@ -13,6 +13,7 @@ thread, in this process. The store and the experiment folders are in the project
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
@@ -162,7 +163,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
-        runs.shutdown(settings.engine.stop_timeout)
+        # In a worker thread, so the wait for the run does not block the event loop.
+        await asyncio.to_thread(runs.shutdown, settings.engine.stop_timeout)
         if owned is not None:
             owned.close()
             app.state.store = None
