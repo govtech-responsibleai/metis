@@ -366,7 +366,7 @@ test("wizard upload fields render a working local file control", () => {
   assert.doesNotMatch(markup, /File attachments are not available/);
 });
 
-test("the docked composer fills the conversation column", () => {
+test("the docked composer uses the side gutters of the transcript", () => {
   const markup = renderToStaticMarkup(
     <Composer
       request={{
@@ -386,7 +386,7 @@ test("the docked composer fills the conversation column", () => {
     />,
   );
 
-  assert.match(markup, /class="w-full pb-6 pt-2"/);
+  assert.match(markup, /class="w-full px-6 pb-6 pt-2"/);
 });
 
 test("the Specification output action follows Interview completion", () => {

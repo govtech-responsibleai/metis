@@ -2801,11 +2801,10 @@ export function Composer({
     <textarea
       ref={field}
       className={cn(
-        // Taller by default and a higher cap: the box showed barely a line, so a
-        // paragraph scrolled out of sight while being written. Three lines to start,
-        // grows to a comfortable draft before it scrolls.
+        // The docked box starts at one line and grows with the draft up to the cap, so it
+        // takes little room below the conversation until there is text to show.
         "max-h-64 flex-1 resize-none bg-transparent py-2.5",
-        roomy ? "min-h-32" : "min-h-[4.5rem]",
+        roomy && "min-h-32",
         "placeholder:text-muted-foreground focus:outline-none",
         "disabled:cursor-not-allowed",
         // A hairline thumb instead of the platform's default bar, which sat wide and opaque
@@ -2816,7 +2815,7 @@ export function Composer({
       placeholder={hint}
       value={text}
       disabled={!enabled}
-      rows={roomy ? 5 : 3}
+      rows={roomy ? 5 : 1}
       onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
       onChange={(e) => setText(e.target.value)}
       onKeyDown={(e) => {
@@ -2871,20 +2870,17 @@ export function Composer({
     </div>
   );
 
-  // Bare: the caller owns width and spacing. Docked: float clear of the bottom edge, centred in an
-  // 80%-wide column so the 10% gutters on each side match the transcript's and the input sits over
-  // the same width as the conversation above it.
+  // Bare: the caller owns width and spacing. Docked: float clear of the bottom edge, with the
+  // transcript's side gutters so the input sits over the same width as the conversation above it.
   if (bare) return pill;
   return (
-    <div className="w-full pb-6 pt-2">
-      <div className="mx-auto w-4/5">
-        {panel && (
-          <div className="above-box-stack relative z-0 mx-auto w-[95%]">
-            {panel}
-          </div>
-        )}
-        {pill}
-      </div>
+    <div className="w-full px-6 pb-6 pt-2">
+      {panel && (
+        <div className="above-box-stack relative z-0 mx-auto w-[95%]">
+          {panel}
+        </div>
+      )}
+      {pill}
     </div>
   );
 }
