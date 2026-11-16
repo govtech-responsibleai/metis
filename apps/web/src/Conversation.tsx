@@ -2657,6 +2657,18 @@ export function acceptsChat(request: WizardRequest | undefined): boolean {
   return request.type === "choice" && Boolean(request.feedback_placeholder);
 }
 
+// A new request mounts a new composer, so the focus of the old box falls to the page. A request
+// that the box answers takes the focus back. Focus that the user put on another control stays.
+export function takeReplyFocus(
+  field: Pick<HTMLTextAreaElement, "focus"> | null,
+  request: WizardRequest | undefined,
+  page: Pick<Document, "activeElement" | "body">,
+): void {
+  if (!field || !acceptsChat(request)) return;
+  if (page.activeElement && page.activeElement !== page.body) return;
+  field.focus({ preventScroll: true });
+}
+
 // The placeholder: the package's own words for how this screen wants to be answered.
 export function composerHint(request: WizardRequest | undefined): string {
   if (request?.type === "choice")
@@ -2746,6 +2758,11 @@ export function Composer({
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   }, [text]);
+
+  const requestId = request?.request_id;
+  useEffect(() => {
+    takeReplyFocus(field.current, request, document);
+  }, [requestId, enabled]);
 
   // Whether the field has been scrolled away from its first line. Once it has, the top edge takes
   // a short fade so the partial line at the cut reads as text continuing above rather than as text
