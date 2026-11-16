@@ -115,9 +115,10 @@ def test_saved_interviews_keep_their_records_files_and_save_times(
     moved = project_dir / "experiments/design/complete/inputs/documents/policy.pdf"
     assert moved.read_bytes() == POLICY
     assert not fixture.parent.exists()
-    from metis.engine.cli import _validate_inputs as engine_gate
+    from metis.core.console import console
+    from metis.engine.run import validate_inputs
 
-    engine_gate(input_dir)
+    validate_inputs(input_dir, console=console)
     engine = create_engine(database_url(project_dir))
     try:
         with engine.connect() as connection:
