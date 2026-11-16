@@ -156,6 +156,26 @@ def prepare_experiment(input_dir: Path, *, project_dir: Path, console: Console) 
     return experiment_dir
 
 
+def load_snapshot(experiment_dir: Path, *, console: Console) -> Specification:
+    """Load the frozen ``inputs/specification.yaml`` of an experiment folder.
+
+    :raises EvaluationInputError: When the file does not load, for example because an
+        older METIS wrote it or it was edited by hand. The error is printed first.
+    """
+    from metis.engine.simulation.types import Specification
+
+    try:
+        return Specification.load_file(experiment_dir / execution_layout.SPECIFICATION)
+    except Exception as exc:
+        # markup=False: a pydantic message holds "[type=...]", which Rich would drop
+        console.print(
+            f"Error: failed to load experiment snapshot: {exc}",
+            style="bold red",
+            markup=False,
+        )
+        raise EvaluationInputError("failed to load experiment snapshot") from exc
+
+
 def resolve_experiment_dir(experiment_dir: Path, *, console: Console) -> Path:
     """Return ``experiment_dir`` resolved, once it is an experiment folder of this layout.
 

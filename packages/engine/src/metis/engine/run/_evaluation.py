@@ -21,7 +21,11 @@ from metis.engine.run._common import (
     resume_command,
     trial_record_files,
 )
-from metis.engine.run._inputs import resolve_experiment_dir, validate_inputs
+from metis.engine.run._inputs import (
+    load_snapshot,
+    resolve_experiment_dir,
+    validate_inputs,
+)
 from metis.engine.run.errors import (
     EvaluationInputError,
     InvalidInputsError,
@@ -302,7 +306,6 @@ def _load_evaluation_specification(
     experiment_dir: Path, *, console: Console
 ) -> Specification:
     """Validate and load the frozen experiment snapshot."""
-    from metis.engine.simulation.types import Specification
 
     inputs_dir = experiment_dir / execution_layout.INPUTS
     if not inputs_dir.is_dir():
@@ -319,13 +322,7 @@ def _load_evaluation_specification(
             f"invalid experiment snapshot in {inputs_dir}"
         ) from exc
 
-    try:
-        return Specification.load_file(inputs_dir / "specification.yaml")
-    except Exception as exc:
-        console.print(
-            f"Error: failed to load experiment snapshot: {exc}", style="bold red"
-        )
-        raise EvaluationInputError("failed to load experiment snapshot") from exc
+    return load_snapshot(experiment_dir, console=console)
 
 
 def _create_evaluation_progress(console: Console) -> Progress:
