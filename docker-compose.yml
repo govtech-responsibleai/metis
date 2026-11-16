@@ -1,0 +1,25 @@
+# One METIS container: the web app and the API on port 8000. See docs/guide/docker.md.
+#
+#   cp .env.example .env    # then set the model keys
+#   docker compose up -d
+
+services:
+  metis:
+    build: .
+    image: metis
+    ports:
+      - "8000:8000"
+    env_file: .env
+    # These win over .env, which can set PORT and HOST for a local API.
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8000"
+    volumes:
+      - metis-data:/data
+    # Give the API time to stop cleanly before Docker kills it.
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+volumes:
+  metis-data:
+    name: metis-data

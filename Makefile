@@ -1,4 +1,4 @@
-.PHONY: check-pnpm install-docs run-docs build-docs check-docs generate-grader-docs install-landing run-landing build-landing run-site build-site help install install-wizard install-engine install-api install-web install-extras install-extras-playwright run run-api run-web lint lint-fix format format-check fix typecheck check check-env ci test test-unit format-check-web typecheck-web test-web build-web check-api-web check-web clean release-branch
+.PHONY: check-pnpm install-docs run-docs build-docs check-docs generate-grader-docs install-landing run-landing build-landing run-site build-site help install install-wizard install-engine install-api install-web install-extras install-extras-playwright run run-api run-web lint lint-fix format format-check fix typecheck check check-env ci test test-unit format-check-web typecheck-web test-web build-web check-api-web check-web docker-build docker-run clean release-branch
 
 help:
 	@printf "Available targets:\n"
@@ -21,6 +21,10 @@ help:
 	@printf "  make run-site             Start the landing page and the docs together\n"
 	@printf "  make run-docs             Start the docs on port 3000 only\n"
 	@printf "  make run-landing          Start the landing page on port 8443 only\n"
+	@printf "\n"
+	@printf "Container:\n"
+	@printf "  make docker-build         Build the metis image (web app and API)\n"
+	@printf "  make docker-run           Run the image on port 8000 with .env and the metis-data volume\n"
 	@printf "\n"
 	@printf "Code quality:\n"
 	@printf "  make lint              Run Ruff lint checks\n"
@@ -149,6 +153,14 @@ check-api-web:
 	npm --prefix apps/web run check:api
 
 check-web: format-check-web typecheck-web test-web check-api-web
+
+docker-build:
+	docker build -t metis .
+
+# The same container as docker-compose.yml, without Compose. HOST and PORT win over .env.
+docker-run:
+	docker run --rm -it -p 8000:8000 --env-file .env -e HOST=0.0.0.0 -e PORT=8000 \
+		-v metis-data:/data metis
 
 lint:
 	uv run ruff check .

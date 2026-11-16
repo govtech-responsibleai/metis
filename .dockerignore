@@ -1,0 +1,60 @@
+# The image needs the workspace root files, packages/, apps/api/, and apps/web/.
+# A pattern without a leading **/ matches at the repository root only.
+
+# Version control and agent tooling
+.git
+.github
+.claude
+.agents
+.codex
+
+# Secrets. Keys come from the environment or from /data/.env at run time.
+.env
+.env.*
+!.env.example
+.envrc
+
+# Local environments, dependencies, and build output
+.venv
+**/node_modules
+**/dist
+**/build
+**/*.egg-info
+**/__pycache__
+**/*.py[cod]
+**/.vite
+**/*.tsbuildinfo
+_site
+
+# The image gets this folder from its own web build
+apps/api/src/metis/api/web_dist/
+
+# Caches and test output
+**/.pytest_cache
+.ruff_cache
+.pyright
+.mypy_cache
+.coverage
+htmlcov
+.deepeval
+.impeccable
+
+# Run output
+experiments
+evaluation
+packages/testbed/results
+packages/testbed/wizard/.reviewer
+packages/testbed/**/*.embeddings.json
+
+# Parts of the repository that the image does not use
+tests
+docs
+website
+landing-page
+openspec
+
+# Editor and OS files
+.idea
+.vscode
+**/*.swp
+**/.DS_Store
