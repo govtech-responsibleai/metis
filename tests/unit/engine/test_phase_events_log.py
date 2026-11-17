@@ -96,6 +96,9 @@ class _TwoTurnAgent:
     def remember(self, *_args: object) -> None:
         pass
 
+    async def close(self) -> None:
+        pass
+
 
 def _session(session_id: str) -> GradingInput:
     trace = Trace(

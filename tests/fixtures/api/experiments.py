@@ -88,6 +88,9 @@ class OneTurnUser:
     def remember(self, output: UserAgentOutput, observation: Observation) -> None:
         pass
 
+    async def close(self) -> None:
+        pass
+
 
 def specification() -> dict[str, Any]:
     """The two-trial engine test Specification, with the offline reply runner."""

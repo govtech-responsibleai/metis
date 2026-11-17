@@ -412,3 +412,73 @@ def test_every_field_the_model_fills_has_a_description() -> None:
     assert "not shown to the assistant" in properties["reasoning"]["description"]
     assert "goal_achieved" in properties["decision"]["description"]
     assert "giving_up" in properties["decision"]["description"]
+
+
+class _ClosableClient(FakeClient):
+    def __init__(self, *outputs: UserAgentOutput) -> None:
+        super().__init__(*outputs)
+        self.closed = False
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+@pytest.mark.asyncio
+async def test_close_closes_the_client_the_agent_made(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    made: list[_ClosableClient] = []
+
+    def llm_client(_settings: object) -> _ClosableClient:
+        made.append(_ClosableClient(_out()))
+        return made[-1]
+
+    monkeypatch.setattr(
+        "metis.engine.simulation.user_agent.agent.llm_client", llm_client
+    )
+    agent = _agent(tmp_path, None)  # type: ignore[arg-type]
+    await agent.decide(1, [], [])
+
+    await agent.close()
+
+    assert [client.closed for client in made] == [True]
+
+
+@pytest.mark.asyncio
+async def test_close_closes_a_client_the_agent_never_used(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    made: list[_ClosableClient] = []
+
+    def llm_client(_settings: object) -> _ClosableClient:
+        made.append(_ClosableClient())
+        return made[-1]
+
+    monkeypatch.setattr(
+        "metis.engine.simulation.user_agent.agent.llm_client", llm_client
+    )
+
+    await _agent(tmp_path, None).close()  # type: ignore[arg-type]
+
+    assert [client.closed for client in made] == [True]
+
+
+def test_a_missing_key_fails_when_the_agent_is_built(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The retry loop sees the error, so it is logged with its cause."""
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    with pytest.raises(openai.OpenAIError, match="credentials"):
+        _agent(tmp_path, None)  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_close_leaves_a_client_the_caller_passed_in_open(tmp_path: Path) -> None:
+    client = _ClosableClient(_out())
+    agent = _agent(tmp_path, client)
+    await agent.decide(1, [], [])
+
+    await agent.close()
+
+    assert not client.closed
