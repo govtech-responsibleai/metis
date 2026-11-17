@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { startTraceArt } from './traceArt';
+import * as THREE from 'three';
 
 /* ── Icons ── */
 const Arrow = () => <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4" /></svg>;
@@ -221,14 +221,34 @@ function usePipeline(active: boolean) {
   return { phase, gradersDone, replay };
 }
 
-/* ── Hero background ── */
-function HeroArt() {
-  const ref = useRef<HTMLCanvasElement>(null);
+/* ── Vanta.js NET background ── */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const W = window as any;
+W.THREE = THREE;
+
+function VantaBg() {
+  const ref = useRef<HTMLDivElement>(null);
+  const effect = useRef<{ destroy: () => void } | null>(null);
   useEffect(() => {
-    if (!ref.current) return;
-    return startTraceArt(ref.current, () => [...document.querySelectorAll('.hero h1, .hero-lede, .hero-actions, .hero-credit')]);
+    if (!ref.current || noMotion()) return;
+    import('vanta/dist/vanta.net.min').then(() => {
+      if (!ref.current || !W.VANTA?.NET) return;
+      effect.current = W.VANTA.NET({
+        el: ref.current,
+        color: 0xE5AE4F,
+        backgroundColor: 0xFAF8F3,
+        points: 8,
+        maxDistance: 22,
+        spacing: 18,
+        showDots: true,
+        mouseControls: true,
+        touchControls: true,
+        gyroControls: false,
+      });
+    });
+    return () => { effect.current?.destroy(); effect.current = null; };
   }, []);
-  return <canvas ref={ref} className="hero-art" aria-hidden="true" />;
+  return <div ref={ref} className="vanta-bg" aria-hidden="true" />;
 }
 
 /* ── Hero card stack ── */
@@ -437,6 +457,7 @@ export default function App() {
 
   return (
     <div className="site-shell">
+      <VantaBg />
       <header className="site-header">
         <div className="container header-inner">
           <a className="header-brand" href="#top" aria-label="METIS home">
@@ -450,7 +471,6 @@ export default function App() {
 
       <main id="top">
         <section className="hero container">
-          <HeroArt />
           <div className="hero-copy">
             <div className="hero-kicker">Open-source evaluation framework for AI agents</div>
             <h1>Test your AI agents against <em>what they should actually do.</em></h1>
@@ -468,6 +488,7 @@ export default function App() {
           <div className="section-heading"><div><div className="section-kicker">The evaluation loop</div><h2>Evaluate your agent against requirements you define.</h2></div><p>Each step ties back to the expectations you set, from how tests are designed to what the results tell you. Read our <a href="https://playbooks.aip.gov.sg/evaluation-playbook/" className="inline-link">Evaluation Playbook</a>.</p></div>
           <div className="steps">{steps.map((s) => (
             <a key={s.number} className="step" href={`#${s.anchor}`}>
+              <span className="step-bignum">{s.number}</span>
               <div className="step-top"><span>{s.number} · {s.label}</span><b>{s.product}</b></div>
               <h3>{s.title}</h3><p>{s.text}</p>
             </a>
