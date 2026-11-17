@@ -300,6 +300,25 @@
   animation: enter-opening-step 0.22s ease-out backwards;
 }
 
+/* The report of a run that the user watched. When evaluate completes, the page moves from Trials
+   to Report by itself. The report comes in from the right, the side of its tab, so the user sees
+   where the page went. It is the one movement of that change. The fill mode is `backwards`, so
+   no transform stays on the report after the animation. */
+@keyframes enter-report {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-enter-report {
+  animation: enter-report 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
 /* Content landing in the document. A row that has just been written rises the last few pixels
    into place instead of appearing cut — the arrival of content is a state change, and this is
    what marks it. It runs on mount and never again: nothing carries a "recently changed" mark
@@ -377,6 +396,46 @@
 
   .section-writing-marker {
     animation: none !important;
+  }
+}
+
+/* The Trials tab while a phase runs. The loader icons turn. In the live half of the progress
+   ring, an accent tail grows forward from the end of the fill and fades as it grows. Each loop
+   runs strictly while that work is in progress, and it stops when the work ends. The tail reads
+   its longest length from --reach. */
+@keyframes run-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.run-turn {
+  animation: run-turn 1.6s linear infinite;
+}
+
+@keyframes ring-reach {
+  from {
+    stroke-dasharray: 0 100;
+    opacity: 0.6;
+  }
+  to {
+    stroke-dasharray: var(--reach) 100;
+    opacity: 0;
+  }
+}
+
+.ring-reach {
+  stroke-dasharray: 0 100;
+  animation: ring-reach 1.6s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-turn {
+    animation: none !important;
+  }
+
+  .ring-reach {
+    display: none;
   }
 }
 

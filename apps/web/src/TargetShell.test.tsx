@@ -245,12 +245,18 @@ test("each Experiment row links to its view and shows its start, state and progr
         status: "ready",
         state: {
           kind: "simulating",
+          stopping: false,
           progress: { phase: "simulating", ended: 5, total: 16 },
         },
       }),
       row("e1", 120, {
         status: "ready",
-        state: { kind: "stopped", progress: null, reason: "Timed out" },
+        state: {
+          kind: "stopped",
+          progress: null,
+          reason: "Timed out",
+          resume: "resume-simulate",
+        },
       }),
       row("e0", 60 * 48, { status: "failed" }),
     ],

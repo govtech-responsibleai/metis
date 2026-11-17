@@ -737,13 +737,45 @@ export const api = {
     call<EngineStatus>(
       route("/api/v1/engine/{experiment_id}", { experiment_id: experimentId }),
     ),
-  engineEvents: (experimentId: string) =>
-    call<PhaseEvent[]>(
-      route("/api/v1/engine/{experiment_id}/events", {
+  // The events after `after`, or every event when it is 0.
+  engineEvents: (experimentId: string, after = 0) => {
+    const path = route("/api/v1/engine/{experiment_id}/events", {
+      experiment_id: experimentId,
+    });
+    return call<PhaseEvent[]>(
+      (after > 0 ? `${path}?after=${after}` : path) as RoutedPath,
+    );
+  },
+  resumeSimulation: (experimentId: string) =>
+    engineAction(
+      route("/api/v1/engine/simulate/{experiment_id}/resume", {
+        experiment_id: experimentId,
+      }),
+    ),
+  evaluate: (experimentId: string) =>
+    engineAction(
+      route("/api/v1/engine/evaluate/{experiment_id}", {
+        experiment_id: experimentId,
+      }),
+    ),
+  resumeEvaluation: (experimentId: string) =>
+    engineAction(
+      route("/api/v1/engine/evaluate/{experiment_id}/resume", {
+        experiment_id: experimentId,
+      }),
+    ),
+  stop: (experimentId: string) =>
+    engineAction(
+      route("/api/v1/engine/{experiment_id}/stop", {
         experiment_id: experimentId,
       }),
     ),
 };
+
+// Each engine start and the stop take no body and answer 202 at once.
+async function engineAction(path: RoutedPath): Promise<void> {
+  await responseFor(path, { method: "POST" });
+}
 
 // The store routes keep each Target: its Interview record, the record files, and the
 // Specification. A file is a reference in the record, and its bytes are a separate request.
@@ -810,6 +842,12 @@ export const store = {
         target_id: targetId,
       }),
     ),
+  experiment: (experimentId: string) =>
+    call<ExperimentRecord>(
+      route("/api/v1/experiments/{experiment_id}", {
+        experiment_id: experimentId,
+      }),
+    ),
   putExperiment: (experimentId: string, body: ExperimentSave) =>
     call<ExperimentRecord>(
       route("/api/v1/experiments/{experiment_id}", {
@@ -817,6 +855,15 @@ export const store = {
       }),
       { ...JSON_POST, method: "PUT", body: JSON.stringify(body) },
     ),
+  // Deletes the row only. The Experiment folder stays on disk.
+  deleteExperiment: async (experimentId: string) => {
+    await responseFor(
+      route("/api/v1/experiments/{experiment_id}", {
+        experiment_id: experimentId,
+      }),
+      { method: "DELETE" },
+    );
+  },
   deleteTarget: async (id: string) => {
     await responseFor(route("/api/v1/targets/{target_id}", { target_id: id }), {
       method: "DELETE",

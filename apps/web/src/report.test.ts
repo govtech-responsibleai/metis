@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  arrivedAtReport,
   experimentScreen,
   loadReport,
   reportPage,
@@ -822,4 +823,11 @@ test("results without a matching Criterion are listed with each recorded result"
 
 test("the page has the Target name", () => {
   assert.equal(reportPage(report()).target, "Bank bot");
+});
+
+test("the page arrives at Report by itself only when the bare URL moves from Trials to Report", () => {
+  assert.equal(arrivedAtReport(null, "trials", "report"), true);
+  assert.equal(arrivedAtReport("report", "trials", "report"), false);
+  assert.equal(arrivedAtReport(null, null, "report"), false);
+  assert.equal(arrivedAtReport(null, "report", "trials"), false);
 });

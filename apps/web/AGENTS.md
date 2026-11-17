@@ -21,6 +21,14 @@ Experiments tab and the All experiments page show the rows of the store routes w
 engine status and events routes. Only `experimentState` in `src/experiment-status.ts` changes
 them into the state that the app shows.
 
+The experiment view follows one Experiment with `useExperimentWatch` (`src/experiment-watch.ts`).
+It reads every event from seq 0 when the page opens, then the new events with `after`, every two
+seconds while the run is alive. It starts evaluate when it sees simulate end, and saves the step
+of the row. `ACTIONS` in `experiment-status.ts` gives the actions that are on in each state, and
+`resume` of the state gives the engine step that Resume starts. `trialRows` in `src/trials.ts`
+makes the rows of the Trials tab from the plan of the Specification and the events. It is a pure
+function: change it, not the component, when the events change. The Trials tab shows no grades.
+
 The Report tab of an experiment (`ReportTab.tsx`) shows the results of `report.html`. Only
 `src/report.ts` reads report.json. `reportPage` changes it into the `ReportPage` view model, and a
 component shows that model and never the wire `Report` type. Do not compute an average or a rate

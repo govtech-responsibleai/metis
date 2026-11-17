@@ -69,6 +69,17 @@ export function experimentScreen(
   return { tab: tab ?? fallback, reportOff: REPORT_OFF[load.status] };
 }
 
+// The page moved to Report by itself: the URL names no tab, and the tab on the screen went from
+// Trials to Report. This is the move after a run that the user watched. A click on a tab names
+// the tab in the URL.
+export function arrivedAtReport(
+  urlTab: ExperimentTab | null,
+  before: ExperimentTab | null,
+  after: ExperimentTab | null,
+): boolean {
+  return urlTab === null && before === "trials" && after === "report";
+}
+
 export type Rate =
   // `low` means that the rate is below the pass rate target.
   { kind: "measured"; percent: number; low: boolean } | { kind: "no-result" };

@@ -136,8 +136,31 @@ Criterion, the trials, and for the trial that you select its conversation and wh
 returned. The **report.html** button downloads the same page that `metis insights report`
 writes.
 
-The Trials tab, the comparison and the list of all experiments do not show experiments yet. Each
-one says what it will show.
+The Trials tab shows the progress of the experiment and one row for each trial, with its Test
+Case, its trial number, its Persona, Scenario and status. A ring shows the progress of the
+whole experiment: its right half is simulate and its left half is evaluate. The steps under the
+percentage show which step runs, and the state of the experiment shows on the right, for
+example **Simulating** or **Stopped**. Hover over **Stopped** to see why the run stopped. A
+trial that has not started is **Waiting**. The rows keep their order while the experiment runs.
+The **Status** filter shows only the trials that you select. **Reason** says why a trial did
+not run, or why evaluate could not grade it. The tab shows no grades: the Report tab has them. The page reads the state again every two seconds
+while the experiment runs. When you open the page again, it rebuilds the rows from the start.
+
+When simulate ends while the page is open, the page starts evaluate. When no page is open at
+that moment, the experiment is **Waiting for evaluate**. Use the buttons above the tabs:
+
+- **Stop** stops the run. Each trial in flight ends at its next turn.
+- **Resume** runs again the trials that did not finish. When simulate is done, it starts
+  evaluate, or it grades the trials with no grade when evaluate stopped.
+- **Delete** removes the experiment from the app after you confirm. Its experiment folder
+  stays on disk. Delete is off while the experiment runs.
+
+When the server refuses an action, for example because another experiment runs, the message
+shows next to the buttons. When evaluate completes, the Report tab turns on. When the page shows
+the Trials tab at that moment, it moves to the Report tab. It stays on Trials when you selected
+the Trials tab yourself.
+
+The comparison does not show experiments yet. It says what it will show.
 
 ## Start a guided Interview
 

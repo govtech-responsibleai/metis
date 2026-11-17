@@ -913,7 +913,8 @@ export function App() {
             targetId={place.targetId}
             targetTitle={record.title}
             experimentId={place.experimentId}
-            tab={place.tab}
+            part={place}
+            specification={exportedSpecification(record.state)}
           />
         ) : place.page === "compare" && record ? (
           <ComparePage targetId={place.targetId} targetTitle={record.title} />
