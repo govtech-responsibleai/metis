@@ -1,11 +1,20 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { renderToStaticMarkup } from "react-dom/server";
 import { CaseDrawerView, DRAWER_START, type DrawerState } from "./CaseDrawer";
-import { ExperimentView } from "./ExperimentPages";
+import {
+  ExperimentDialogView,
+  choiceDetail,
+  type SpecificationChoice,
+  type DoctorLoad,
+  type StartState,
+} from "./ExperimentDialog";
+import { AllExperimentsView, ExperimentView } from "./ExperimentPages";
 import { at, control, tab, text } from "./markup.test-helper";
 import { experimentScreen, type ReportLoad, type ReportPage } from "./report";
 import { ReportSections, SPEC_START, type SpecState } from "./ReportTab";
 import { paths, type ExperimentTab } from "./routes";
+import type { Specification } from "./transport/api";
 
 const DETAIL = {
   description: "The reply starts with a greeting.",
@@ -647,4 +656,193 @@ test("a failed report shows the message and a way to try again", () => {
   assert.match(control(failed(true), "Try again"), /^<button/);
   assert.match(tab(failed(true), "Report"), /^<a[^>]*aria-selected="true"/);
   assert.doesNotMatch(failed(false), /Try again/);
+});
+
+test("all experiments shows the Target of each row", () => {
+  const markup = at(
+    paths.experiments(),
+    <AllExperimentsView
+      load={{
+        status: "ready",
+        rows: [
+          {
+            record: {
+              experiment_id: "e2",
+              target_id: "b",
+              started_at: new Date().toISOString(),
+              step: "simulate",
+            },
+            targetTitle: "Shop bot",
+            load: {
+              status: "ready",
+              state: { kind: "waiting", progress: null },
+            },
+          },
+        ],
+      }}
+    />,
+  );
+
+  assert.match(
+    control(markup, "Shop bot"),
+    /href="\/targets\/b\/experiments\/e2"/,
+  );
+  assert.match(text(markup), /Shop botjust nowWaiting for evaluate/);
+});
+
+const CHOICE: SpecificationChoice = {
+  id: "t",
+  name: "Bank bot",
+  savedAt: Date.now() - 3 * 60_000,
+  specification: {
+    tasks: [{ num_trials: 3 }, { num_trials: 3 }],
+  } as unknown as Specification,
+};
+
+test("a Specification choice names its Test Cases, its trials, and when it was saved", () => {
+  assert.equal(
+    choiceDetail(CHOICE, CHOICE.savedAt + 3 * 60_000),
+    "2 Test Cases, 6 trials. Saved 3 min ago",
+  );
+  assert.equal(
+    choiceDetail(
+      {
+        ...CHOICE,
+        specification: {
+          tasks: [{ num_trials: 1 }],
+        } as unknown as Specification,
+      },
+      CHOICE.savedAt,
+    ),
+    "1 Test Case, 1 trial. Saved just now",
+  );
+});
+
+function dialog(
+  doctor: DoctorLoad,
+  start: StartState = { status: "idle" },
+  choices: SpecificationChoice[] = [CHOICE],
+) {
+  return renderToStaticMarkup(
+    <ExperimentDialogView
+      id="d"
+      choices={choices}
+      chosen={choices[0]?.id ?? ""}
+      onChoose={() => {}}
+      doctor={doctor}
+      start={start}
+      onCheckAgain={() => {}}
+      onCancel={() => {}}
+      onStart={() => {}}
+    />,
+  );
+}
+
+const SERVER_READY: DoctorLoad = {
+  status: "ready",
+  checks: [
+    { name: "metis-core", status: "pass", detail: "version 1.0.0", fix: null },
+    {
+      name: "Langfuse connection",
+      status: "skip",
+      detail: "no keys",
+      fix: null,
+    },
+  ],
+};
+
+test("the dialog shows the chosen Specification and one line when every check passes", () => {
+  const markup = dialog(SERVER_READY);
+
+  assert.match(
+    control(markup, "Bank bot"),
+    /aria-haspopup="listbox"[^>]*aria-expanded="false"/,
+  );
+  assert.match(
+    text(markup),
+    /Bank bot2 Test Cases, 6 trials\. Saved 3 min ago/,
+  );
+  assert.match(text(markup), /Server ready/);
+  assert.doesNotMatch(text(markup), /metis-core/);
+  assert.doesNotMatch(control(markup, "Start"), /disabled=""/);
+});
+
+test("the dialog lists only the checks that warn or fail, with their reason", () => {
+  const markup = dialog({
+    status: "ready",
+    checks: [
+      {
+        name: "metis-core",
+        status: "pass",
+        detail: "version 1.0.0",
+        fix: null,
+      },
+      {
+        name: "LANGFUSE_BASE_URL",
+        status: "warn",
+        detail: "not set",
+        fix: "Set LANGFUSE_BASE_URL in .env to grade a run.",
+      },
+    ],
+  });
+
+  assert.doesNotMatch(text(markup), /metis-core|Server ready/);
+  assert.match(text(markup), /LANGFUSE_BASE_URLnot set/);
+  assert.doesNotMatch(text(markup), /Set LANGFUSE_BASE_URL in \.env/);
+  assert.match(markup, /aria-label="Warn"/);
+  assert.doesNotMatch(control(markup, "Start"), /disabled=""/);
+});
+
+test("a failed check keeps Start off and offers to check again", () => {
+  const markup = dialog({
+    status: "ready",
+    checks: [
+      {
+        name: "OPENAI_API_KEY",
+        status: "fail",
+        detail: "not set",
+        fix: "Set OPENAI_API_KEY in .env (see .env.example).",
+      },
+    ],
+  });
+
+  assert.match(text(markup), /OPENAI_API_KEYnot set/);
+  assert.match(control(markup, "Start"), /disabled=""/);
+  assert.match(control(markup, "Start"), /title="Fix the failed check first"/);
+  assert.match(control(markup, "Check again"), /^<button/);
+});
+
+test("Start waits for the server checks, and checks that do not load can be tried again", () => {
+  assert.match(text(dialog({ status: "loading" })), /Checking the server/);
+  assert.match(control(dialog({ status: "loading" }), "Start"), /disabled=""/);
+
+  const failed = dialog({
+    status: "failed",
+    message: "Couldn't reach the METIS API.",
+  });
+  assert.match(failed, /role="alert"/);
+  assert.match(control(failed, "Check again"), /^<button/);
+});
+
+test("Start stays off with no Specification to choose", () => {
+  const markup = dialog(SERVER_READY, { status: "idle" }, []);
+
+  assert.match(text(markup), /No Specification/);
+  assert.match(
+    control(markup, "Start"),
+    /title="Choose a Specification first"/,
+  );
+});
+
+test("a refused start shows the message of the API in the dialog", () => {
+  const markup = dialog(SERVER_READY, {
+    status: "failed",
+    message: "Another experiment is running. Try again when it ends.",
+  });
+
+  assert.match(
+    markup,
+    /role="alert"[^>]*>Another experiment is running\. Try again when it ends\.</,
+  );
+  assert.doesNotMatch(control(markup, "Start"), /disabled=""/);
 });

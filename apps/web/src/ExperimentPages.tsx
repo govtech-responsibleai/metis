@@ -1,5 +1,5 @@
-// The experiment pages. An experiment has its report. The other pages say what they will show
-// until the experiment store fills them.
+// The experiment pages. An experiment has its report, and the list of all experiments has the
+// Experiments of every Target. The Trials tab and the comparison say what they will show.
 
 import { ChevronLeft } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -11,7 +11,14 @@ import {
   type ReportLoad,
   type SettledReportLoad,
 } from "./report";
+import {
+  ExperimentList,
+  useExperimentList,
+  type ExperimentItem,
+  type ListLoad,
+} from "./ExperimentList";
 import { DownloadReport, ReportTab } from "./ReportTab";
+import { store } from "./transport/api";
 import { paths, type ExperimentTab } from "./routes";
 import { cn } from "./ui";
 
@@ -211,11 +218,32 @@ export function ComparePage({
   );
 }
 
+async function everyExperiment(): Promise<ExperimentItem[]> {
+  const { targets } = await store.targets();
+  const lists = await Promise.all(
+    targets.map(async (target) =>
+      (await store.experiments(target.id)).experiments.map((record) => ({
+        record,
+        targetTitle: target.title,
+      })),
+    ),
+  );
+  return lists
+    .flat()
+    .sort((a, b) => b.record.started_at.localeCompare(a.record.started_at));
+}
+
 export function AllExperimentsPage() {
+  return (
+    <AllExperimentsView load={useExperimentList("all", everyExperiment)} />
+  );
+}
+
+export function AllExperimentsView({ load }: { load: ListLoad }) {
   return (
     <Page>
       <h1 className="text-xl font-semibold">All experiments</h1>
-      <Placeholder>The experiments of every Target show here.</Placeholder>
+      <ExperimentList load={load} />
     </Page>
   );
 }

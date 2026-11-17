@@ -324,6 +324,69 @@ test("reportPage gives report.html with the name from the header", async () => {
   assert.equal(await page.blob.text(), "<html></html>");
 });
 
+test("simulate posts the input folder", async () => {
+  let path = "";
+  let init: RequestInit | undefined;
+  globalThis.fetch = async (input, options) => {
+    path = String(input);
+    init = options;
+    return new Response(JSON.stringify({ experiment_id: "spec-1" }), {
+      status: 202,
+    });
+  };
+
+  assert.deepEqual(await api.simulate("experiments/design/t1/outputs"), {
+    experiment_id: "spec-1",
+  });
+  assert.equal(path, "/api/v1/engine/simulate");
+  assert.equal(init?.method, "POST");
+  assert.equal(init?.body, '{"input_dir":"experiments/design/t1/outputs"}');
+});
+
+test("a busy engine refuses a start with a retryable error", async () => {
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        type: "failure",
+        code: "engine_busy",
+        message: "Another experiment is running.",
+        retryable: true,
+      }),
+      { status: 503 },
+    );
+
+  await assert.rejects(
+    api.simulate("experiments/design/t1/outputs"),
+    (cause) =>
+      cause instanceof TransportError &&
+      cause.code === "engine_busy" &&
+      cause.message === "Another experiment is running." &&
+      cause.retryable,
+  );
+});
+
+test("the engine reads go to the routes of the experiment", async () => {
+  const paths: string[] = [];
+  globalThis.fetch = async (input) => {
+    paths.push(String(input));
+    return new Response("[]");
+  };
+
+  await store.experiments("t/1");
+  await store.specification("t/1");
+  await api.engineStatus("e 1");
+  await api.engineEvents("e 1");
+  await api.doctor();
+
+  assert.deepEqual(paths, [
+    "/api/v1/targets/t%2F1/experiments",
+    "/api/v1/targets/t%2F1/specification",
+    "/api/v1/engine/e%201",
+    "/api/v1/engine/e%201/events",
+    "/api/v1/doctor",
+  ]);
+});
+
 test("the exact file name comes before the ASCII fallback", () => {
   assert.equal(dispositionFilename(REPORT_NAME), "run 1-report.html");
   assert.equal(

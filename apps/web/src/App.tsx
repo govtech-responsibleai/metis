@@ -93,13 +93,7 @@ import {
   type TargetSummary,
 } from "./targets";
 import { Link, useLocation } from "wouter";
-import {
-  NEW_EXPERIMENT,
-  paths,
-  placeOf,
-  targetOf,
-  targetRedirect,
-} from "./routes";
+import { paths, placeOf, targetOf, targetRedirect } from "./routes";
 import {
   admitFiles,
   readmitSavedFile,
@@ -804,12 +798,19 @@ export function App() {
     <div className="flex h-full w-full overflow-hidden">
       {experimentDialogOpen && record && view?.done && (
         <ExperimentDialog
-          title={record.title}
-          specification={exportedSpecification(record.state)}
+          targetId={record.id}
+          choices={[
+            {
+              id: record.id,
+              name: record.title,
+              savedAt: record.updated_at,
+              specification: exportedSpecification(record.state),
+            },
+          ]}
           onCancel={() => setExperimentDialogOpen(false)}
-          onStart={() => {
+          onStarted={(experiment) => {
             setExperimentDialogOpen(false);
-            navigate(paths.experiment(record.id, NEW_EXPERIMENT));
+            navigate(paths.experiment(record.id, experiment.experiment_id));
           }}
         />
       )}

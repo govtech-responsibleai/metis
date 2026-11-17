@@ -2,10 +2,16 @@
 // button stay off until the Interview is done, because only then does the Target have its
 // Specification.
 
-import { GitCompareArrows, Play } from "lucide-react";
+import { Play } from "lucide-react";
 import { Link } from "wouter";
+import {
+  ExperimentList,
+  useExperimentList,
+  type ListLoad,
+} from "./ExperimentList";
 import { paths, type TargetTab } from "./routes";
-import { Button, buttonClass, cn } from "./ui";
+import { store } from "./transport/api";
+import { Button, cn } from "./ui";
 
 export const LOCKED = "Finish the Interview first";
 
@@ -91,18 +97,19 @@ export function TargetTabs({
 }
 
 export function ExperimentsTab({ targetId }: { targetId: string }) {
+  const load = useExperimentList(`target:${targetId}`, async () =>
+    (await store.experiments(targetId)).experiments.map((record) => ({
+      record,
+    })),
+  );
+  return <ExperimentsTabView load={load} />;
+}
+
+export function ExperimentsTabView({ load }: { load: ListLoad }) {
   return (
     // The left padding puts the content in line with the text of the first tab label.
     <div className="quiet-scrollbar min-h-0 flex-1 overflow-y-auto py-6 pl-9 pr-6">
-      <div className="flex flex-col gap-4">
-        <div className="flex justify-end">
-          <Link href={paths.compare(targetId)} className={buttonClass()}>
-            <GitCompareArrows size={14} strokeWidth={2} aria-hidden />
-            Compare
-          </Link>
-        </div>
-        <p className="text-sm text-muted-foreground">No experiments yet.</p>
-      </div>
+      <ExperimentList load={load} />
     </div>
   );
 }
