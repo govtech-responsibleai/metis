@@ -92,8 +92,8 @@ class UserAgent:
         """
         self._llm_log = llm_log
         self.settings = settings or user_agent_settings()
-        self._client = client
-        self._owns_client = False
+        self._owns_client = client is None
+        self._client = client or llm_client(self.settings)
         self._system = SYSTEM_PROMPT.format(
             persona_description=persona_text(persona.description, persona.metadata),
             scenario_description=scenario_text(scenario.description, scenario.metadata),
@@ -152,15 +152,12 @@ class UserAgent:
         A client left open is closed when it is deleted, on whatever loop is running then.
         Its connections belong to the loop of this trial, which may have closed (#183).
         """
-        if self._owns_client and self._client is not None:
+        if self._owns_client:
             await self._client.close()
 
     async def _call(
         self, messages: list[ChatCompletionMessageParam]
     ) -> UserAgentOutput:
-        if self._client is None:
-            self._client = llm_client(self.settings)
-            self._owns_client = True
         options = sampling_options()
         try:
             response = await parse_completion(
