@@ -103,10 +103,8 @@ def test_each_save_of_a_done_interview_writes_its_specification(
 
     assert saved.status_code == 204, saved.text
     first = client.get(f"/api/v1/targets/{TARGET}/specification").json()
-    input_dir = Path(first["input_dir"])
-    assert input_dir == (
-        project_dir.resolve() / "experiments" / "design" / TARGET / "outputs"
-    )
+    assert first["input_dir"] == f"experiments/design/{TARGET}/outputs"
+    input_dir = project_dir / first["input_dir"]
     yaml_bytes = (input_dir / "specification.yaml").read_bytes()
     assert first["specification_yaml"] == yaml_bytes.decode("utf-8")
     assert first["sha256"] == hashlib.sha256(yaml_bytes).hexdigest()
@@ -176,11 +174,10 @@ def test_the_outputs_folder_passes_the_engine_gate_and_resolves_its_binding(
         client, record, [("files", ("policy.pdf", POLICY, "application/pdf"))]
     )
     assert saved.status_code == 204, saved.text
-    input_dir = Path(
-        client.get(f"/api/v1/targets/{TARGET}/specification").json()["input_dir"]
-    )
-    target_dir = project_dir.resolve() / "experiments" / "design" / TARGET
-    assert input_dir == target_dir / "outputs"
+    relative = client.get(f"/api/v1/targets/{TARGET}/specification").json()["input_dir"]
+    target_dir = project_dir / "experiments" / "design" / TARGET
+    assert relative == f"experiments/design/{TARGET}/outputs"
+    input_dir = project_dir / relative
     assert (target_dir / "inputs" / "documents" / "policy.pdf").read_bytes() == POLICY
 
     _validate_inputs(input_dir)

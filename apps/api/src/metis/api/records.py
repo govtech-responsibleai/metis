@@ -131,7 +131,10 @@ class SpecificationRecord(BaseModel):
     specification_yaml: str
     sha256: str
     input_dir: str
-    """The absolute path of the folder that `metis engine simulate --input-dir` reads."""
+    """The folder that `simulate` reads, relative to the project folder.
+
+    It is the `input_dir` of `POST /api/v1/engine/simulate`.
+    """
     updated_at: datetime
 
 

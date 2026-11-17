@@ -62,6 +62,11 @@ wizard routes do not use the store.
 | `GET /api/v1/targets/{target_id}/experiments` | List the Experiments of a Target. |
 | `GET`, `PUT`, `DELETE /api/v1/experiments/{experiment_id}` | Read, save, or delete one Experiment row. |
 
+The web app starts an Experiment in two requests. It sends the `input_dir` of the Specification,
+a path relative to the project folder, to `POST /api/v1/engine/simulate`. Then it saves the row
+with `PUT /api/v1/experiments/{experiment_id}` and the step `simulate`. The engine does not know
+the Target. The row is the only link between the Target and its Experiment.
+
 The PUT of an Interview is a multipart form. The `record` part is a file that contains the
 record JSON. Each new file is a part named `files`, and its file name is the name in the record.
 The files of the record are its fixtures and the files of an answer that the wizard has not

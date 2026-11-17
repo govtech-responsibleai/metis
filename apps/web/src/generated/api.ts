@@ -380,7 +380,7 @@ export interface paths {
         };
         /**
          * Read the Specification of a Target
-         * @description Return the Specification and the input folder for `metis engine simulate --input-dir`.
+         * @description Return the Specification and the input folder for `POST /api/v1/engine/simulate`.
          *
          *     A Target has a Specification after its Interview is done. Before that, the route gives 404.
          */

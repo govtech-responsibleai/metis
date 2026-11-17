@@ -230,3 +230,26 @@ def test_a_user_does_not_see_the_records_of_the_local_user_account(
             "/api/v1/auth/login", json={"username": "local", "password": ""}
         )
         assert local.status_code == 401
+
+
+def test_with_login_on_the_input_folder_starts_in_the_folder_of_the_user_account(
+    login_on: None,
+    make_engine_client: Callable[..., TestClient],
+    project_dir: Path,
+) -> None:
+    client = make_engine_client()
+    account = client.post("/api/v1/users", headers=ADMIN).json()
+    client.post(
+        "/api/v1/auth/login",
+        json={"username": account["username"], "password": account["password"]},
+    )
+    _save(client, "Bank bot", b"policy")
+    input_dir = client.get(f"/api/v1/targets/{TARGET}/specification").json()[
+        "input_dir"
+    ]
+
+    started = client.post("/api/v1/engine/simulate", json={"input_dir": input_dir})
+
+    assert started.status_code == 202, started.text
+    folder = project_dir / "users" / account["id"] / "experiments" / "execute"
+    assert (folder / started.json()["experiment_id"]).is_dir()
