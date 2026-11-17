@@ -627,3 +627,43 @@ async def test_clicking_around_before_the_refused_typing_does_not_make_a_turn(
     assert page.sent == []
     assert observation.sent_nothing
     assert runner._turn == 0
+
+
+@pytest.mark.asyncio
+async def test_teardown_closes_the_runner_agent_client_when_the_context_fails_to_close(
+    tmp_path: Path, clock: Clock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class ClosableLLM(ScriptedLLM):
+        closed = False
+
+        async def close(self) -> None:
+            self.closed = True
+
+    made: list[ClosableLLM] = []
+
+    def llm_client(_settings: object) -> ClosableLLM:
+        made.append(ClosableLLM(_send(), [("report", {"outcome": "done", "why": "x"})]))
+        return made[-1]
+
+    monkeypatch.setattr(browser_module, "llm_client", llm_client)
+    page = FakePage(tmp_path)
+    browser = FakeBrowser(page)
+    factory = BrowserRunnerFactory(
+        load_target_binding(_inputs(tmp_path, _BINDING), "app.yaml", "browser"),
+        browser=browser,
+        login_dir=tmp_path / "login",
+    )
+    await factory.start()
+    runner = await factory.create(tmp_path / "trial", tmp_path, tmp_path)
+    runner.use_ledger(ArtifactLedger(tmp_path, tmp_path / "trial", []))
+    await runner.setup(TrialConfig(persona="p", scenario="s", response_wait_ms=10000))
+    await runner.act("Say ⟦hello⟧", [])
+
+    async def broken_close() -> None:
+        raise RuntimeError("the browser is gone")
+
+    browser.contexts[-1].close = broken_close  # type: ignore[method-assign]
+    with pytest.raises(RuntimeError, match="the browser is gone"):
+        await runner.teardown()
+
+    assert [llm.closed for llm in made] == [True]

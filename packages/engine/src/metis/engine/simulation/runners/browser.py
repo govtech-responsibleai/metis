@@ -583,11 +583,13 @@ class BrowserRunner(Runner):
         """
 
     async def teardown(self) -> None:
-        if self.context is not None:
-            await self.context.close()
-            self.context = self.page = None
-        if self._owns_llm and self._llm is not None:
-            await self._llm.close()  # the browser is the factory's
+        try:
+            if self.context is not None:
+                await self.context.close()
+                self.context = self.page = None
+        finally:
+            if self._owns_llm and self._llm is not None:
+                await self._llm.close()  # the browser is the factory's
 
     # ------------------------------------------------------------------ tools
 

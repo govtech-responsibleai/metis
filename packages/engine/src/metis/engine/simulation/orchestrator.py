@@ -136,7 +136,10 @@ class Orchestrator:
             logger.info("[sim] STOP: %s after %d turn(s)", stop_reason, self._turns)
             return self.partial_record(stop_reason)
         finally:
-            await self._runner.teardown()
+            try:
+                await self._runner.teardown()
+            finally:
+                await self._agent.close()
 
     def _check_fixtures(self, stop_reason: str) -> str:
         """Check 1: a fixture the scenario names that was never sent fails the trial."""

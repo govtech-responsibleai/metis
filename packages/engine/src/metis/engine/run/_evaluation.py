@@ -773,11 +773,6 @@ async def _evaluate_records(
             {g.args.model for g in graders.values() if isinstance(g.args, JudgeArgs)}
         )
         console.print(f"Models: Judge {', '.join(judge_models)}", markup=False)
-    llm = (
-        build_llm_settings(gateway)
-        if gateway is not None and needs_llm
-        else LLMSettings(client=_NoJudgeClient())  # type: ignore[arg-type]
-    )
 
     from metis.engine.evaluation.trial_files import load_trial_evaluations
 
@@ -798,6 +793,12 @@ async def _evaluate_records(
     evaluations: list[TrialEvaluation] = []
     progress = _create_evaluation_progress(console) if show_progress else None
 
+    # Built just before the `try` whose `finally` closes it, so no error leaves it open.
+    llm = (
+        build_llm_settings(gateway)
+        if gateway is not None and needs_llm
+        else LLMSettings(client=_NoJudgeClient())  # type: ignore[arg-type]
+    )
     try:
         with progress if progress else nullcontext():
             task_id = (

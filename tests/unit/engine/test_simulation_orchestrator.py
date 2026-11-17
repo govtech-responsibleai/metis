@@ -116,6 +116,7 @@ class ScriptedAgent:
         self.held: list[list[str]] = []
         self.promised: list[list[str]] = []
         self.remembered: list[Observation] = []
+        self.closed = False
 
     async def decide(
         self, turn: int, held: list[Artifact], promised: list[Promise]
@@ -130,6 +131,9 @@ class ScriptedAgent:
 
     def remember(self, output: UserAgentOutput, observation: Observation) -> None:
         self.remembered.append(observation)
+
+    async def close(self) -> None:
+        self.closed = True
 
 
 def _go(action: str = "Say ⟦hi⟧") -> UserAgentOutput:
@@ -725,3 +729,29 @@ async def test_the_turn_line_shows_an_action_that_sent_nothing(tmp_path: Path) -
     assert first["sent_nothing"] is True
     assert first["reply"] is None
     assert "quoted no message" in first["notice"]
+
+
+@pytest.mark.asyncio
+async def test_the_user_agent_is_closed_when_the_trial_ends(tmp_path: Path) -> None:
+    agent = ScriptedAgent([_go(), _done()])
+    orch = _build(tmp_path, FakeRunner([Step(_observation())]), agent)
+
+    await orch.execute()
+
+    assert agent.closed
+
+
+@pytest.mark.asyncio
+async def test_the_user_agent_is_closed_when_the_runner_fails(tmp_path: Path) -> None:
+    class BrokenRunner(FakeRunner):
+        async def teardown(self) -> None:
+            raise RuntimeError("teardown failed")
+
+    agent = ScriptedAgent([_go()])
+    runner = BrokenRunner([Step(raises=TrialRecoverableError("target down"))])
+    orch = _build(tmp_path, runner, agent)
+
+    with pytest.raises(RuntimeError, match="teardown failed"):
+        await orch.execute()
+
+    assert agent.closed

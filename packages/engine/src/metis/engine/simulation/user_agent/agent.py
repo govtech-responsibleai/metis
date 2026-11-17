@@ -86,12 +86,14 @@ class UserAgent:
         """
         :param llm_log: The trial's LLM-call log; every attempt at every call appends a row.
         :param client: Replaces the default client. It must have ``max_retries=0``,
-            because retries happen in ``parse_completion`` where each one is logged.
+            because retries happen in ``parse_completion`` where each one is logged. The
+            caller owns it, so :meth:`close` leaves it open.
         :param settings: The user agent role. Unset, it resolves from the environment.
         """
         self._llm_log = llm_log
         self.settings = settings or user_agent_settings()
-        self._client = client or llm_client(self.settings)
+        self._client = client
+        self._owns_client = False
         self._system = SYSTEM_PROMPT.format(
             persona_description=persona_text(persona.description, persona.metadata),
             scenario_description=scenario_text(scenario.description, scenario.metadata),
@@ -144,9 +146,21 @@ class UserAgent:
         """Record what was done and what came back, for the next turn's history."""
         self._history.append((output, observation))
 
+    async def close(self) -> None:
+        """Close the client this agent made, on the event loop that used it.
+
+        A client left open is closed when it is deleted, on whatever loop is running then.
+        Its connections belong to the loop of this trial, which may have closed (#183).
+        """
+        if self._owns_client and self._client is not None:
+            await self._client.close()
+
     async def _call(
         self, messages: list[ChatCompletionMessageParam]
     ) -> UserAgentOutput:
+        if self._client is None:
+            self._client = llm_client(self.settings)
+            self._owns_client = True
         options = sampling_options()
         try:
             response = await parse_completion(

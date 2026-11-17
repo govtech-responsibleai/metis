@@ -93,6 +93,9 @@ class ScriptedUser:
     def remember(self, output: UserAgentOutput, observation: Observation) -> None:
         pass
 
+    async def close(self) -> None:
+        pass
+
 
 @pytest.mark.parametrize("source", ["folder", "wizard_archive"])
 def test_execution_can_resume_and_report_after_move(
