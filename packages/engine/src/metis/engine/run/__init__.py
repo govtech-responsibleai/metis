@@ -5,8 +5,8 @@ handler, and write text only to the ``console`` that the caller gives. The calle
 the process before it calls one: it loads ``.env``, registers the METIS-internal Langfuse
 client (``metis.engine.tracing.tracing_key``), and sets up process logging.
 
-Only one run at a time is safe in one process. Logging, the Langfuse clients, and
-``LANGFUSE_HOST`` in ``os.environ`` are shared by the whole process.
+Only one run at a time is safe in one process. Logging and the METIS-internal Langfuse
+clients are shared by the whole process.
 """
 
 from metis.engine.run._common import (

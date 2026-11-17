@@ -1,7 +1,7 @@
 """The engine run that is alive now, and the library calls that it makes.
 
 The API runs at most one engine function at a time, on its own thread, in its own process.
-Logging, the Langfuse clients, and ``LANGFUSE_HOST`` are shared by the whole process, so a
+Logging and the METIS-internal Langfuse clients are shared by the whole process, so a
 second run at the same time is not safe. The limit is for the whole server, so it covers the
 runs of every user account. The run in memory holds only what a live thread needs: its
 project folder, its experiment id and folder, its phase, its stop flag, and the last ``seq`` of

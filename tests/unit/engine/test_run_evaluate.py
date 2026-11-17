@@ -25,6 +25,7 @@ from metis.engine.run import (
 )
 from tests.unit.engine.test_cli_evaluate import (
     MINIMAL_EXPERIMENT,
+    NoLangfuse,
     _patch_evaluation,
     _session,
     _write_experiment_dir,
@@ -59,7 +60,7 @@ def _fetch_that_waits(monkeypatch) -> threading.Event:
         await asyncio.sleep(30)
         raise AssertionError("a stopped session must not finish its fetch")
 
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
     return started
 
@@ -452,7 +453,7 @@ def test_evaluate_writes_only_to_the_console_it_was_given(
     async def fetch(session_id: str, *_args: object, **_kwargs: object):
         return _session(session_id)
 
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
     console, text = _console()
 

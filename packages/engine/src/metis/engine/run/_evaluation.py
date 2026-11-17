@@ -38,7 +38,6 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
     from pathlib import Path
 
-    from langfuse import Langfuse
     from rich.console import Console
 
     from metis.core.profile import Criterion
@@ -46,7 +45,7 @@ if TYPE_CHECKING:
     from metis.core.traces import Trace
     from metis.core.trials import TrialRecord
     from metis.engine.evaluation.trial_files import TrialEvaluation
-    from metis.engine.extractor import TraceWait, TraceWaitSettings
+    from metis.engine.extractor import TargetLangfuse, TraceWait, TraceWaitSettings
     from metis.engine.simulation.types import Specification
     from metis.library.grader import Grader, LLMSettings
 
@@ -471,7 +470,7 @@ class _EvaluationContext:
     criteria_by_id: dict[str, Criterion]
     graders: dict[str, Grader[Any]]
     llm: LLMSettings
-    langfuse: Langfuse
+    langfuse: TargetLangfuse
     trace_wait: TraceWaitSettings
     evaluation_log: EvaluationLogger
     total_records: int
@@ -789,11 +788,12 @@ async def _evaluate_records(
     else:
         clear_evaluation_outputs(experiment_dir)
         attempted = {}
-    langfuse = extractor.get_langfuse_client()
     evaluations: list[TrialEvaluation] = []
     progress = _create_evaluation_progress(console) if show_progress else None
 
-    # Built just before the `try` whose `finally` closes it, so no error leaves it open.
+    # Both clients are built just before the `try` whose `finally` closes them, so no error
+    # leaves one open. Each belongs to this run's event loop (issue #190).
+    langfuse = extractor.get_langfuse_client()
     llm = (
         build_llm_settings(gateway)
         if gateway is not None and needs_llm
@@ -887,9 +887,13 @@ async def _evaluate_records(
         )
         raise
     finally:
-        # Runs only after every session has stopped, so no grader call is still using it.
-        if gateway is not None and needs_llm:
-            await llm.client.close()
+        # Runs only after every session has stopped, so no fetch or grader call is still
+        # using a client.
+        try:
+            await langfuse.aclose()
+        finally:
+            if gateway is not None and needs_llm:
+                await llm.client.close()
 
     if stop is not None and stop.is_set():
         # The stop arrived after the last session ended, before the watcher saw it.

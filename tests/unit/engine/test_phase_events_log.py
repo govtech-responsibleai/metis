@@ -32,6 +32,7 @@ from metis.engine.simulation.experiment import (
 )
 from metis.engine.simulation.types import Persona, Scenario, UserAgentOutput
 from tests.unit.engine.project_folders import existing_folder
+from tests.unit.engine.test_cli_evaluate import NoLangfuse
 from tests.unit.engine.test_runner_ref import StubRunnerFactory
 
 if TYPE_CHECKING:
@@ -123,7 +124,7 @@ def fake_services(monkeypatch: pytest.MonkeyPatch) -> None:
         "tests.unit.engine.test_runner_ref.StubRunner.session_id",
         property(lambda _self: "session-1"),
     )
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
 
     async def fetch(session_id: str, *_args: object, **_kwargs: object) -> GradingInput:
         return _session(session_id)

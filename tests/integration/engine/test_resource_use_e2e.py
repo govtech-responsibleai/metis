@@ -164,10 +164,17 @@ def experiment_sessions(
         get_langfuse_client,
     )
 
-    langfuse = get_langfuse_client()
     wait = TraceWaitSettings(timeout_seconds=90)
 
     async def _fetch_all() -> dict[str, GradingInput]:
+        # Made, used and closed on this loop, as an evaluation does.
+        langfuse = get_langfuse_client()
+        try:
+            return await _fetch_each(langfuse)
+        finally:
+            await langfuse.aclose()
+
+    async def _fetch_each(langfuse: Any) -> dict[str, GradingInput]:
         sessions: dict[str, GradingInput] = {}
         for record in records:
             sid = record.target_session_id
@@ -183,10 +190,7 @@ def experiment_sessions(
             sessions[sid] = gi
         return sessions
 
-    try:
-        return asyncio.run(_fetch_all())
-    finally:
-        langfuse.shutdown()
+    return asyncio.run(_fetch_all())
 
 
 @pytest.fixture(scope="module")

@@ -29,6 +29,7 @@ from rich.console import Console
 
 from metis.engine.extractor import TraceWaitSettings
 from metis.engine.run import evaluate, prepare_experiment, simulate
+from tests.unit.engine.test_cli_evaluate import NoLangfuse
 from tests.unit.engine.test_cli_simulate import MINIMAL_EXPERIMENT
 
 if TYPE_CHECKING:
@@ -137,7 +138,7 @@ def fake_services(monkeypatch: pytest.MonkeyPatch) -> None:
         "tests.unit.engine.test_runner_ref.StubRunner.session_id",
         property(lambda _self: "session-1"),
     )
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
 
     async def fetch(session_id: str, *_args: object, **_kwargs: object) -> Any:
         return _session(session_id, 1)
