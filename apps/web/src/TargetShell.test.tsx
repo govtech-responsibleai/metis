@@ -4,10 +4,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Router } from "wouter";
 import { ComparePage } from "./ExperimentPages";
 import {
+  joinFailure,
   LoginPage,
   LoginSessionProvider,
   startsAtFirstPage,
 } from "./LoginGate";
+import { TransportError } from "./transport/api";
 import { at, control, tab, text } from "./markup.test-helper";
 import { ProfileToolbar } from "./ProfileToolbar";
 import type { ListLoad, RowLoad } from "./ExperimentList";
@@ -81,14 +83,42 @@ test("the login page asks for a username and a password", () => {
   const inputs = [...markup.matchAll(/<input[^>]*>/g)].map(([input]) => input);
 
   assert.match(markup, /<h1[^>]*>Log in<\/h1>/);
-  assert.equal(inputs.length, 2);
+  assert.equal(inputs.length, 3);
   assert.match(inputs[0] ?? "", /type="text"/);
   assert.match(inputs[0] ?? "", /autoComplete="username"/);
   assert.match(inputs[0] ?? "", /name="username"/);
   assert.match(inputs[1] ?? "", /type="password"/);
   assert.match(inputs[1] ?? "", /autoComplete="current-password"/);
   assert.match(markup, /<button[^>]*type="submit"[^>]*>Log in<\/button>/);
+  assert.match(markup, /<button[^>]*aria-label="Show password"/);
   assert.doesNotMatch(markup, /role="alert"/);
+});
+
+test("the login page has a workshop join with a hidden token box", () => {
+  const markup = renderToStaticMarkup(<LoginPage onLogin={() => {}} />);
+  const token = [...markup.matchAll(/<input[^>]*>/g)][2]?.[0] ?? "";
+
+  assert.match(markup, /<h2[^>]*>Joining a workshop\?<\/h2>/);
+  assert.match(token, /aria-label="Workshop token"/);
+  assert.match(token, /type="password"/);
+  assert.match(token, /autoComplete="off"/);
+  assert.match(markup, /<button[^>]*aria-label="Show token"/);
+  assert.match(markup, /<button[^>]*type="submit"[^>]*>Join<\/button>/);
+});
+
+test("a failed join says if the token is wrong or the server has no joining", () => {
+  assert.equal(
+    joinFailure(new TransportError("x", { status: 401 })),
+    "Incorrect, please try again.",
+  );
+  assert.equal(
+    joinFailure(new TransportError("x", { status: 404 })),
+    "This METIS server has no workshop joining.",
+  );
+  assert.equal(
+    joinFailure(new TransportError("Couldn't reach the METIS API.")),
+    "Couldn't reach the METIS API.",
+  );
 });
 
 test("a login of a different user account starts at the first page", () => {
