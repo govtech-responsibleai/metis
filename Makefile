@@ -23,8 +23,8 @@ help:
 	@printf "  make run-landing          Start the landing page on port 8443 only\n"
 	@printf "\n"
 	@printf "Container:\n"
-	@printf "  make docker-build         Build the metis image (web app and API)\n"
-	@printf "  make docker-run           Run the image on port 8000 with .env and the metis-data volume\n"
+	@printf "  make docker-build         Build IMAGE_TAG (default metis:<commit>); PLATFORM=linux/amd64 for a server\n"
+	@printf "  make docker-run           Run IMAGE_TAG on port 8000 with ENV_FILE (.env); CA_BUNDLE=... behind a TLS proxy\n"
 	@printf "\n"
 	@printf "Code quality:\n"
 	@printf "  make lint              Run Ruff lint checks\n"
@@ -154,13 +154,34 @@ check-api-web:
 
 check-web: format-check-web typecheck-web test-web check-api-web
 
-docker-build:
-	docker build -t metis .
+# The image that docker-build makes and docker-run starts. The default names the commit.
+IMAGE_TAG ?= metis:$(shell git rev-parse --short HEAD 2>/dev/null || echo local)
+# The platform to build for. When it is empty, the build is for this machine. Most servers need
+# linux/amd64.
+PLATFORM ?=
+# The env file that the container reads.
+ENV_FILE ?= .env
+# A CA bundle for a proxy that intercepts TLS. docker-run mounts it, so the image never holds it.
+CA_BUNDLE ?=
 
-# The same container as docker-compose.yml, without Compose. HOST and PORT win over .env.
+docker-build:
+	docker build $(if $(PLATFORM),--platform $(PLATFORM)) -t "$(IMAGE_TAG)" .
+
+# The same container as docker-compose.yml, without Compose. Docker reads ENV_FILE on this machine,
+# so the file needs no mount. Docker keeps quotes as part of a value, so a quoted value stops the
+# run. HOST and PORT come after the file, so a PORT for a local API there does not move the
+# container off port 8000.
 docker-run:
-	docker run --rm -it -p 8000:8000 --env-file .env -e HOST=0.0.0.0 -e PORT=8000 \
-		-v metis-data:/data metis
+	@test -f "$(ENV_FILE)" || { echo "$(ENV_FILE) not found. Copy .env.example to .env."; exit 1; }
+	@! grep -nE "^[A-Za-z_][A-Za-z0-9_]*=[\"']" "$(ENV_FILE)" | cut -d= -f1 | grep . \
+		|| { echo "Remove the quotes around these values in $(ENV_FILE). Docker keeps them."; exit 1; }
+	@test -z "$(CA_BUNDLE)" || test -f "$(CA_BUNDLE)" || { echo "$(CA_BUNDLE) not found."; exit 1; }
+	docker run --rm -it --name metis -p 8000:8000 -v metis-data:/data \
+		--env-file "$(ENV_FILE)" -e HOST=0.0.0.0 -e PORT=8000 \
+		$(if $(CA_BUNDLE),-v "$(realpath $(CA_BUNDLE)):/run/metis-ca.pem:ro" \
+			-e SSL_CERT_FILE=/run/metis-ca.pem -e REQUESTS_CA_BUNDLE=/run/metis-ca.pem \
+			-e CURL_CA_BUNDLE=/run/metis-ca.pem) \
+		"$(IMAGE_TAG)"
 
 lint:
 	uv run ruff check .
