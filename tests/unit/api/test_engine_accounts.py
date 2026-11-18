@@ -148,32 +148,36 @@ def test_an_experiment_of_another_user_is_not_found(
     assert fake_engine.calls == []
 
 
-def test_a_start_while_another_user_runs_names_no_experiment(
-    users: tuple[User, User], fake_engine: FakeEngine
+@pytest.fixture
+def one_slot_users(
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> tuple[User, User]:
+    """The two user accounts of ``users``, on a server that runs one experiment at a time."""
+    monkeypatch.setenv("METIS_API_ENGINE_MAX_RUNS", "1")
+    return request.getfixturevalue("users")
+
+
+def test_a_start_while_another_user_runs_waits_in_the_queue(
+    one_slot_users: tuple[User, User], fake_engine: FakeEngine
 ) -> None:
-    alice, bob = users
+    alice, bob = one_slot_users
     fake_engine.mode = "hold"
     running = alice.experiment("test-exp-20260101-000001")
     alice.client.post(f"/api/v1/engine/simulate/{running}/resume")
     other = bob.experiment("test-exp-20260101-000002")
+    wait_until(lambda: len(fake_engine.calls) == 1)
 
     response = bob.client.post(f"/api/v1/engine/simulate/{other}/resume")
 
-    assert response.status_code == 503
-    body = response.json()
-    assert body["code"] == "engine_busy"
-    assert body["retryable"] is True
-    assert body["message"] == (
-        "The engine runs an experiment of another user account. "
-        "Start this run when that run ends."
-    )
-    assert running not in body["message"]
+    assert response.status_code == 202
+    assert response.json() == {"experiment_id": other}
+    assert len(fake_engine.calls) == 1
 
 
 def test_the_same_name_as_the_run_of_another_user_is_not_that_run(
-    users: tuple[User, User], fake_engine: FakeEngine
+    one_slot_users: tuple[User, User], fake_engine: FakeEngine
 ) -> None:
-    alice, bob = users
+    alice, bob = one_slot_users
     fake_engine.mode = "hold"
     alice.experiment()
     bob.experiment()
@@ -183,14 +187,20 @@ def test_the_same_name_as_the_run_of_another_user_is_not_that_run(
     )
 
     status = bob.client.get(f"/api/v1/engine/{EXPERIMENT}").json()
-    stop = bob.client.post(f"/api/v1/engine/{EXPERIMENT}/stop")
-    resume = bob.client.post(f"/api/v1/engine/simulate/{EXPERIMENT}/resume")
+    no_run = bob.client.post(f"/api/v1/engine/{EXPERIMENT}/stop")
+    queued = bob.client.post(f"/api/v1/engine/simulate/{EXPERIMENT}/resume")
+    again = bob.client.post(f"/api/v1/engine/simulate/{EXPERIMENT}/resume")
+    unqueued = bob.client.post(f"/api/v1/engine/{EXPERIMENT}/stop")
 
     assert (status["status"], status["last_seq"]) == ("not_started", 0)
-    assert stop.status_code == 409
-    assert stop.json()["code"] == "no_run"
-    assert resume.status_code == 503
-    assert resume.json()["code"] == "engine_busy"
+    assert no_run.status_code == 409
+    assert no_run.json()["code"] == "no_run"
+    # Bob's experiment waits for the slot of Alice's run, under its own name.
+    assert queued.status_code == 202
+    assert again.status_code == 409
+    assert again.json()["code"] == "run_in_progress"
+    assert unqueued.status_code == 202
+    assert len(fake_engine.calls) == 1
     assert alice.client.get(f"/api/v1/engine/{EXPERIMENT}").json()["status"] == (
         "running"
     )

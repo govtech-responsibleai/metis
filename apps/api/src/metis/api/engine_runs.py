@@ -1,14 +1,19 @@
-"""The engine run that is alive now, and the library calls that it makes.
+"""The engine runs that are alive or queued now, and the library calls that they make.
 
-The API runs at most one engine function at a time, on its own thread, in its own process.
-Logging and the METIS-internal Langfuse clients are shared by the whole process, so a
-second run at the same time is not safe. The limit is for the whole server, so it covers the
-runs of every user account. The run in memory holds only what a live thread needs: its
-project folder, its experiment id and folder, its phase, its stop flag, and the last ``seq`` of
-``logs/events.jsonl`` when it started. Two user accounts can have an experiment folder with the
-same name, so a run is the run of a request only when both its project folder and its
-experiment id are the same. The experiment folders on disk are the source of truth
-for everything else.
+The API runs up to ``max_runs`` jobs at a time, each on its own thread, in its own process.
+A start that finds every slot taken waits in a first-in-first-out queue, and starts when a
+slot frees. The limit and the queue are for the whole server, so they cover the jobs of every
+user account. A job is the steps that one start asks for, such as a simulate and then its
+evaluate, and one thread runs all its steps in order. Each simulation sends its logs to its
+own files (``metis.engine.logging.router``), and each evaluation has its own Langfuse client,
+so runs on two threads do not share a log file or a connection.
+
+The run in memory holds only what a thread needs: its project folder, its experiment id and
+folder, its steps, its stop flag, and the last ``seq`` of ``logs/events.jsonl`` when it was
+accepted. Two user accounts can have an experiment folder with the same name, so a run is the
+run of a request only when both its project folder and its experiment id are the same. The
+experiment folders on disk are the source of truth for everything else. A restart loses the
+queue.
 
 The text of a run goes to ``logs/console.log`` of its experiment, never to the stdout of the
 API. Its progress goes to ``logs/events.jsonl``, which the engine writes.
@@ -18,6 +23,8 @@ from __future__ import annotations
 
 import functools
 import threading
+import time
+from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
 
@@ -30,7 +37,7 @@ from metis.core.phase_events import EVENTS_FILE, PhaseEvent
 from metis.engine import run as engine_run
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
     from pathlib import Path
 
     from metis.core.phase_events import Phase
@@ -114,157 +121,193 @@ class EngineFunctions:
     )
 
 
+@dataclass(frozen=True)
+class Step:
+    """One engine call of a job: its phase, and the call on the experiment folder."""
+
+    phase: Phase
+    work: Callable[[Path, threading.Event, Console], object]
+
+
 @dataclass
 class Run:
-    """The run that is alive now."""
+    """A job that is alive or queued now."""
 
     project_dir: Path
     experiment_id: str
     experiment_dir: Path
-    phase: Phase
+    steps: tuple[Step, ...]
     start_seq: int
-    """The last ``seq`` of the events log before the run started."""
+    """The last ``seq`` of the events log when the start was accepted."""
     stop: threading.Event = field(default_factory=threading.Event)
 
-    def is_of(self, project_dir: Path, experiment_id: str) -> bool:
-        """Whether this is the run of ``experiment_id`` in ``project_dir``."""
-        return self.project_dir == project_dir and self.experiment_id == experiment_id
+    @property
+    def key(self) -> tuple[Path, str]:
+        """The project folder and the experiment id, which name the run of a request."""
+        return (self.project_dir, self.experiment_id)
+
+
+@dataclass(frozen=True)
+class LiveRun:
+    """A run of a request, and its place in the queue."""
+
+    run: Run
+    queue_ahead: int | None
+    """The jobs before it in the queue, across all user accounts. ``None`` when it runs."""
 
 
 class EngineRuns:
-    """Starts, stops, and reports the one engine run of the process.
+    """Starts, queues, stops, and reports the engine jobs of the process.
 
-    One lock covers the busy check, the checks of a start, and the start of the thread, so a
-    refused start changes nothing and two starts at the same time cannot both pass.
+    One lock covers the check for a live or queued run, the checks of a start, the queue,
+    and the start of each thread. A refused start therefore changes nothing, and two starts
+    of the same experiment cannot both pass.
     """
 
-    def __init__(self, functions: EngineFunctions) -> None:
+    def __init__(self, functions: EngineFunctions, max_runs: int = 1) -> None:
         self.functions = functions
+        self.max_runs = max_runs
+        """The jobs that run at the same time. The lifespan sets it from the settings."""
         self._lock = threading.Lock()
-        self._run: Run | None = None
-        self._thread: threading.Thread | None = None
+        self._running: dict[tuple[Path, str], tuple[Run, threading.Thread]] = {}
+        self._queue: deque[Run] = deque()
+        self._closed = False
 
     def start(
         self,
         *,
         project_dir: Path,
         experiment_id: str | None,
-        phase: Phase,
         prepare: Callable[[], Path],
-        work: Callable[[Path, threading.Event, Console], object],
+        steps: Sequence[Step],
     ) -> str:
-        """Check that no run is alive, prepare the folder, and start ``work`` on a thread.
+        """Check that the experiment has no live or queued run, prepare it, and accept it.
 
         ``project_dir`` is the project folder of the request. ``experiment_id`` is the folder
         of a resume or an evaluate, and ``None`` for a new simulation. ``prepare`` makes the
         checks of the start and returns the experiment folder. It runs under the lock, so an
-        error from it leaves no run.
+        error from it leaves no run. The job starts on a thread at once when a slot is free,
+        else it waits at the end of the queue.
 
         :raises RouteError: 409 ``run_in_progress`` when the run of ``experiment_id`` is
-            alive, 503 ``engine_busy`` when another run is alive, or an error of ``prepare``.
-            ``engine_busy`` names the run only when it is in the same project folder.
+            alive or queued, or an error of ``prepare``.
         """
         with self._lock:
-            if self._run is not None:
-                if experiment_id is not None and self._run.is_of(
-                    project_dir, experiment_id
-                ):
-                    raise RouteError(
-                        409,
-                        "run_in_progress",
-                        f"The experiment {experiment_id!r} runs now.",
-                    )
-                if self._run.project_dir == project_dir:
-                    running = f"the experiment {self._run.experiment_id!r}"
-                else:
-                    running = "an experiment of another user account"
+            if experiment_id is not None and self._find(project_dir, experiment_id):
                 raise RouteError(
-                    503,
-                    "engine_busy",
-                    f"The engine runs {running}. Start this run when that run ends.",
-                    retryable=True,
+                    409,
+                    "run_in_progress",
+                    f"The experiment {experiment_id!r} runs now, or waits to run.",
                 )
             experiment_dir = prepare()
             run = Run(
                 project_dir=project_dir,
                 experiment_id=experiment_dir.name,
                 experiment_dir=experiment_dir,
-                phase=phase,
+                steps=tuple(steps),
                 start_seq=last_seq(experiment_dir),
             )
-            thread = threading.Thread(
-                target=self._run_thread,
-                args=(run, work),
-                name=f"metis-engine-{run.experiment_id}",
-                daemon=True,
-            )
-            self._run, self._thread = run, thread
-            thread.start()
+            self._queue.append(run)
+            self._start_next()
             return run.experiment_id
 
     def stop(self, project_dir: Path, experiment_id: str) -> None:
-        """Set the stop flag of the run of ``experiment_id`` in ``project_dir``.
+        """Stop the run of ``experiment_id`` in ``project_dir``.
 
-        :raises RouteError: 409 ``no_run`` when that experiment does not run.
+        A running job gets its stop flag, and runs no further step. A queued job leaves the
+        queue at once.
+
+        :raises RouteError: 409 ``no_run`` when that experiment does not run or wait.
         """
         with self._lock:
-            if self._run is None or not self._run.is_of(project_dir, experiment_id):
+            found = self._find(project_dir, experiment_id)
+            if found is None:
                 raise RouteError(
                     409, "no_run", f"The experiment {experiment_id!r} does not run."
                 )
-            self._run.stop.set()
+            found.run.stop.set()
+            if found.queue_ahead is not None:
+                self._queue.remove(found.run)
 
-    def current(self, project_dir: Path, experiment_id: str) -> Run | None:
-        """The run of ``experiment_id`` in ``project_dir`` when it is alive, else ``None``."""
+    def current(self, project_dir: Path, experiment_id: str) -> LiveRun | None:
+        """The run of ``experiment_id`` in ``project_dir`` when it runs or waits, else ``None``."""
         with self._lock:
-            if self._run is not None and self._run.is_of(project_dir, experiment_id):
-                return self._run
-            return None
+            return self._find(project_dir, experiment_id)
 
     def shutdown(self, timeout: float) -> None:
-        """Stop the run and wait for its thread, for at most ``timeout`` seconds."""
-        with self._lock:
-            run, thread = self._run, self._thread
-            if run is not None:
-                run.stop.set()
-        if run is None or thread is None:
-            return
-        thread.join(timeout)
-        if thread.is_alive():
-            logger.warning(
-                "engine_run_did_not_stop",
-                experiment_id=run.experiment_id,
-                timeout_seconds=timeout,
-            )
+        """Empty the queue, stop every run, and wait for the threads.
 
-    def _run_thread(
-        self,
-        run: Run,
-        work: Callable[[Path, threading.Event, Console], object],
-    ) -> None:
-        """Run ``work`` with the console file of the experiment, then forget the run.
-
-        The engine ends the events log with ``interrupted`` or ``failed`` before it raises,
-        so a ``RunStopped`` or a ``RunError`` needs nothing more. Any other error is logged.
+        The wait is at most ``timeout`` seconds in all. A thread that is still alive then is
+        logged. No queued job starts after this.
         """
+        with self._lock:
+            self._closed = True
+            self._queue.clear()
+            running = list(self._running.values())
+            for run, _ in running:
+                run.stop.set()
+        deadline = time.monotonic() + timeout
+        for run, thread in running:
+            thread.join(max(0.0, deadline - time.monotonic()))
+            if thread.is_alive():
+                logger.warning(
+                    "engine_run_did_not_stop",
+                    experiment_id=run.experiment_id,
+                    timeout_seconds=timeout,
+                )
+
+    def _find(self, project_dir: Path, experiment_id: str) -> LiveRun | None:
+        """The live or queued run of the experiment. The caller holds the lock."""
+        key = (project_dir, experiment_id)
+        if key in self._running:
+            return LiveRun(run=self._running[key][0], queue_ahead=None)
+        for ahead, run in enumerate(self._queue):
+            if run.key == key:
+                return LiveRun(run=run, queue_ahead=ahead)
+        return None
+
+    def _start_next(self) -> None:
+        """Start queued jobs while a slot is free. The caller holds the lock."""
+        while not self._closed and self._queue and len(self._running) < self.max_runs:
+            run = self._queue.popleft()
+            thread = threading.Thread(
+                target=self._run_thread,
+                args=(run,),
+                name=f"metis-engine-{run.experiment_id}",
+                daemon=True,
+            )
+            self._running[run.key] = (run, thread)
+            thread.start()
+
+    def _run_thread(self, run: Run) -> None:
+        """Run the steps of the job with the console file of the experiment, then free its slot.
+
+        A step runs only when the stop flag is clear. The engine ends the events log with
+        ``interrupted`` or ``failed`` before it raises, so a ``RunStopped`` or a ``RunError``
+        ends the job and needs nothing more. Any other error is logged and ends the job.
+        """
+        step = run.steps[0] if run.steps else None
         try:
             logs = run.experiment_dir / execution_layout.LOGS
             logs.mkdir(parents=True, exist_ok=True)
             with (logs / CONSOLE_FILE).open("a", encoding="utf-8") as handle:
                 console = Console(file=handle, color_system=None, width=120)
-                work(run.experiment_dir, run.stop, console)
+                for step in run.steps:
+                    if run.stop.is_set():
+                        break
+                    step.work(run.experiment_dir, run.stop, console)
         except (engine_run.RunStopped, engine_run.RunError):
             pass
         except Exception:
             logger.exception(
                 "engine_run_failed",
                 experiment_id=run.experiment_id,
-                phase=run.phase,
+                phase=step.phase if step else None,
             )
         finally:
             with self._lock:
-                if self._run is run:
-                    self._run, self._thread = None, None
+                self._running.pop(run.key, None)
+                self._start_next()
 
 
 def read_events(experiment_dir: Path) -> list[tuple[PhaseEvent, str]]:
@@ -297,7 +340,9 @@ __all__ = [
     "CONSOLE_FILE",
     "EngineFunctions",
     "EngineRuns",
+    "LiveRun",
     "Run",
+    "Step",
     "last_seq",
     "read_events",
     "setup_engine_process",

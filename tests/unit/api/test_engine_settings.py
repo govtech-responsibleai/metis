@@ -18,6 +18,7 @@ def test_the_defaults() -> None:
         langfuse_timeout=180,
         max_langfuse_timeout=600,
         stop_timeout=30,
+        max_runs=4,
     )
 
 
@@ -29,6 +30,7 @@ def test_each_setting_comes_from_its_variable() -> None:
             "METIS_API_LANGFUSE_TIMEOUT": "120",
             "METIS_API_MAX_LANGFUSE_TIMEOUT": "300",
             "METIS_API_STOP_TIMEOUT": " 5 ",
+            "METIS_API_ENGINE_MAX_RUNS": "2",
         }
     )
 
@@ -38,15 +40,19 @@ def test_each_setting_comes_from_its_variable() -> None:
         langfuse_timeout=120,
         max_langfuse_timeout=300,
         stop_timeout=5,
+        max_runs=2,
     )
 
 
 @pytest.mark.parametrize("value", ["0", "-1", "1.5", "abc", ""])
+@pytest.mark.parametrize(
+    "variable", ["METIS_API_STOP_TIMEOUT", "METIS_API_ENGINE_MAX_RUNS"]
+)
 def test_a_value_that_is_not_a_whole_number_of_one_or_more_is_refused(
-    value: str,
+    variable: str, value: str
 ) -> None:
-    with pytest.raises(InvalidSettingError, match="METIS_API_STOP_TIMEOUT"):
-        EngineSettings.from_env({"METIS_API_STOP_TIMEOUT": value})
+    with pytest.raises(InvalidSettingError, match=variable):
+        EngineSettings.from_env({variable: value})
 
 
 @pytest.mark.parametrize(

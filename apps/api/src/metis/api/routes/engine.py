@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from rich.console import Console
 
-from metis.api.engine_runs import EngineRuns, read_events
+from metis.api.engine_runs import EngineRuns, Step, read_events
 from metis.api.errors import RouteError
 from metis.api.experiment_dirs import find_experiment_dir, request_project_dir
 from metis.api.routes.wizard import ServiceError
@@ -152,7 +152,6 @@ _RESPONSES: dict[int | str, dict[str, object]] = {
     404: {"model": ServiceError},
     409: {"model": ServiceError},
     422: {"model": ServiceError},
-    503: {"model": ServiceError},
 }
 
 
@@ -328,9 +327,8 @@ def start_simulation(body: SimulateRequest, request: Request) -> EngineRunAccept
     experiment_id = runs.start(
         project_dir=project_dir,
         experiment_id=None,
-        phase="simulating",
         prepare=prepare,
-        work=work,
+        steps=[Step("simulating", work)],
     )
     return EngineRunAccepted(experiment_id=experiment_id)
 
@@ -361,9 +359,8 @@ def _start_existing(
     runs.start(
         project_dir=project_dir,
         experiment_id=experiment_id,
-        phase=phase,
         prepare=prepare,
-        work=work,
+        steps=[Step(phase, work)],
     )
     return EngineRunAccepted(experiment_id=experiment_id)
 
@@ -528,8 +525,8 @@ def experiment_status(experiment_id: str, request: Request) -> EngineStatus:
     """Return the phase, the status, and the counts of the experiment."""
     project_dir = request_project_dir(request)
     experiment_dir = find_experiment_dir(project_dir, experiment_id)
-    run = _runs(request).current(project_dir, experiment_id)
-    return _status(experiment_id, experiment_dir, run)
+    live = _runs(request).current(project_dir, experiment_id)
+    return _status(experiment_id, experiment_dir, live.run if live else None)
 
 
 def _status(experiment_id: str, experiment_dir: Path, run: Run | None) -> EngineStatus:
@@ -543,14 +540,14 @@ def _status(experiment_id: str, experiment_dir: Path, run: Run | None) -> Engine
                 e
                 for e in reversed(phase_lines)
                 if e.seq > run.start_seq
-                and e.phase == run.phase
+                and e.phase == run.steps[0].phase
                 and e.status == "started"
             ),
             None,
         )
         return EngineStatus(
             experiment_id=experiment_id,
-            phase=run.phase,
+            phase=run.steps[0].phase,
             status="stopping" if run.stop.is_set() else "running",
             total=started.total if started else None,
             done=started.done if started else None,

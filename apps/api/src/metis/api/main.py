@@ -142,12 +142,14 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     Login settings that disagree stop the start. See ``login_from_env``.
 
     Before it accepts a request, the app sets up the process for the engine one time. At
-    shutdown it stops the engine run and waits for it, for at most the stop time limit.
+    shutdown it empties the engine queue, stops the engine runs, and waits for them, for at
+    most the stop time limit in all.
     """
     owned: Store | None = None
     settings = Settings.from_env(project_dir=app.state.project_dir)
     runs: EngineRuns = app.state.engine_runs
     app.state.engine_settings = settings.engine
+    runs.max_runs = settings.engine.max_runs
     # Before the store, so a setup that fails leaves nothing to close.
     runs.functions.setup_process()
     if getattr(app.state, "wizard_dependencies", None) is None:
