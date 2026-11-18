@@ -16,7 +16,6 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import ValidationError
 
 from metis.api.records import (
-    ExperimentList,
     InterviewRecord,
     SpecificationRecord,
     TargetList,
@@ -170,19 +169,6 @@ def read_specification(
     A Target has a Specification after its Interview is done. Before that, the route gives 404.
     """
     return store.read_specification(target_id)
-
-
-@router.get(
-    "/{target_id}/experiments",
-    summary="List the Experiments of a Target",
-    response_model=ExperimentList,
-    responses=_ERRORS,
-)
-def list_target_experiments(
-    target_id: str, store: Annotated[Store, Depends(get_store)]
-) -> ExperimentList:
-    """Return the Experiment rows of the Target, newest first."""
-    return ExperimentList(experiments=store.list_experiments(target_id))
 
 
 __all__ = ["get_store", "router"]

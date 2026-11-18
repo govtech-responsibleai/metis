@@ -231,6 +231,7 @@ def create_app(
     app.include_router(graders_router)
     app.include_router(models_router)
     app.include_router(targets_router)
+    # Before engine_router, so that /engine/experiments does not match /engine/{experiment_id}.
     app.include_router(experiments_router)
     app.include_router(reports_router)
     app.include_router(engine_router)

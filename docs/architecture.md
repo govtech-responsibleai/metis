@@ -287,7 +287,7 @@ completion. The next state goes back whole in the response, so any instance serv
 and the wizard routes write no Interview file. Web clients drive the wizard through these HTTP
 lifecycle routes; they MUST NOT embed the wizard.
 
-**The store.** The store routes under `/api/v1/targets` and `/api/v1/experiments` keep
+**The store.** The store routes under `/api/v1/targets` and `/api/v1/engine/experiments` keep
 Targets, Interview records, Specifications, and Experiments. They do not change the wizard routes. The rows are in
 a database that SQLAlchemy opens from `METIS_DATABASE_URL`. The default is a SQLite file at
 `<project>/evaluations/metis.db`. `metis-api --project-dir` names the project folder. Without it,

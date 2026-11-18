@@ -59,12 +59,19 @@ wizard routes do not use the store.
 | `PUT /api/v1/targets/{target_id}/interview` | Save the record and its new files. |
 | `GET /api/v1/targets/{target_id}/interview/files/{name}` | Read one file of the record. |
 | `GET /api/v1/targets/{target_id}/specification` | Read the last Specification and its input folder. |
-| `GET /api/v1/targets/{target_id}/experiments` | List the Experiments of a Target. |
-| `GET`, `PUT`, `DELETE /api/v1/experiments/{experiment_id}` | Read, save, or delete one Experiment row. |
+| `GET /api/v1/engine/experiments?target_id=<id>` | List the Experiments of a Target. |
+| `GET`, `PUT`, `DELETE /api/v1/engine/experiments/{experiment_id}` | Read, save, or delete one Experiment row. |
+
+The top-level API prefixes follow the parts of METIS: `/wizard`, `/engine`, and `/insights`. Targets
+and graders are general to METIS, so `/targets` and `/graders` have their own prefixes. The
+Experiment row routes are in `routes/experiments.py` under the `/engine` prefix, because an
+Experiment is an engine run. They use the store only, and the engine routes do not use the store.
+`main.py` adds the Experiment router before the engine router, so `/engine/experiments` does not
+match `/engine/{experiment_id}`.
 
 The web app starts an Experiment in two requests. It sends the `input_dir` of the Specification,
 a path relative to the project folder, to `POST /api/v1/engine/simulate`. Then it saves the row
-with `PUT /api/v1/experiments/{experiment_id}` and the step `simulate`. The engine does not know
+with `PUT /api/v1/engine/experiments/{experiment_id}` and the step `simulate`. The engine does not know
 the Target. The row is the only link between the Target and its Experiment.
 
 The PUT of an Interview is a multipart form. The `record` part is a file that contains the
@@ -381,10 +388,10 @@ src/metis/api/
 ├── main.py            the app composition root: /health, routers, the store, and error handlers
 ├── routes/graders.py  read-only installed grader catalogue route
 ├── routes/models.py   read-only model role status route
-├── routes/reports.py  experiment report routes, as JSON and as the HTML page
+├── routes/reports.py  insights routes: the experiment report, as JSON and as the HTML page
 ├── routes/wizard.py   client config, Interview lifecycle, compile, and package routes
 ├── routes/targets.py  store routes for Targets, Interview records, files, and Specifications
-├── routes/experiments.py  store routes for Experiment rows
+├── routes/experiments.py  store routes for Experiment rows, under /api/v1/engine/experiments
 ├── routes/engine.py   engine routes: start, resume, evaluate, stop, status, and events
 ├── routes/doctor.py   the checks of `metis doctor`
 ├── engine_runs.py     the live and queued engine jobs, their threads, and the events reader
@@ -420,8 +427,8 @@ variables, the `.env` path, and the model guide path in the message.
 
 The report routes find an experiment id among the folder names in
 `<project folder>/evaluations/experiments/`, so an id cannot name another path.
-`GET /api/v1/experiments/{experiment_id}/report` returns `report.json`, and
-`GET /api/v1/experiments/{experiment_id}/report.html` returns `report.html`. Both are the same
+`GET /api/v1/insights/{experiment_id}/report` returns `report.json`, and
+`GET /api/v1/insights/{experiment_id}/report.html` returns `report.html`. Both are the same
 report in two formats. Both responses are inline, with the file name in `Content-Disposition`, so a
 client that wants a file saves the response. Both call `metis.insights.ensure_report`, which builds
 the files when they are missing or older than `results.json`. An unknown id gives 404
