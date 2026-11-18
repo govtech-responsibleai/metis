@@ -226,7 +226,8 @@ function renderTrialDetail(V,S,row,trial){
  const list=items.filter(x=>x.outcome===pick);
  const rows=list.map(x=>`<div class="why-row${x.cid===S.markCol?" mark":""}"><div class="why-head"><b>${esc(criterionName(V,x.cid))}</b></div>${graderOutput(x)}</div>`).join("");
  const verdicts=present.length?`<div class="verdicts"><h4>What the graders returned</h4><div class="vtabs" role="tablist">${tabs}</div><p class="n vlead">${lead}</p>${rows}</div>`:'<p class="n">No grader result was recorded for this trial.</p>';
- return `<div class="trial-detail"><h4 class="td-title">Trial ${trial.trial_index}</h4>${note}<div class="split">${conv}${verdicts}</div></div>`;
+ const link=/^https?:\/\//i.test(trial.sessionUrl||"")?`<a class="td-link" href="${esc(trial.sessionUrl)}" target="_blank" rel="noopener noreferrer">Open in Langfuse ↗</a>`:"";
+ return `<div class="trial-detail"><div class="td-head"><h4 class="td-title">Trial ${trial.trial_index}</h4>${link}</div>${note}<div class="split">${conv}${verdicts}</div></div>`;
 }
 function renderDrawer(V,S){
  const rows=V.resultTable.rows||[],row=rows.find(r=>r.task_id===S.openCase);if(!row)return "";

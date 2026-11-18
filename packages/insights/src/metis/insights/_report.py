@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from metis.core import execution_layout
+from metis.core.langfuse_links import TargetProject, target_langfuse_project
 from metis.core.logging import get_logger
 from metis.core.trace_processing import Problem
 from metis.core.trials import TrialRecord
@@ -134,8 +135,37 @@ def load_report_sources(
     return specification, trial_outcomes
 
 
+class _SessionLinks:
+    """The Langfuse page of each trial's target session, for one report build.
+
+    A record from simulate holds its URL, saved with the run's own keys. A record from before
+    that has none, so the build looks up the target's project from ``os.environ`` the first
+    time it needs to, and keeps the answer for the rest of the build, a failure included. A
+    build whose records all hold a URL makes no network call. The keys loaded now may belong
+    to another project than the run's, which is why simulate saves the URL.
+    """
+
+    def __init__(self) -> None:
+        self._project: TargetProject | None = None
+        self._looked_up = False
+
+    def url(self, record: TrialRecord) -> str | None:
+        if record.target_session_url:
+            return record.target_session_url
+        if not record.target_session_id:
+            return None
+        if not self._looked_up:
+            self._looked_up = True
+            # The lookup logs its own warning when it fails, once for the build.
+            self._project = target_langfuse_project()
+        if self._project is None:
+            return None
+        return self._project.session_url(record.target_session_id)
+
+
 def _load_trial_records(run_dir: Path) -> list[dict[str, Any]]:
     trials: list[dict[str, Any]] = []
+    links = _SessionLinks()
     for record_path in sorted(
         (run_dir / execution_layout.TRIALS).glob(f"*/{execution_layout.TRIAL_RECORD}")
     ):
@@ -174,6 +204,7 @@ def _load_trial_records(run_dir: Path) -> list[dict[str, Any]]:
                 "task_id": config.task_id,
                 "trial_index": config.trial_index,
                 "session": session or "",
+                "sessionUrl": links.url(record),
                 "persona": config.persona,
                 "scenario": config.scenario,
                 "stopReason": stop_reason,

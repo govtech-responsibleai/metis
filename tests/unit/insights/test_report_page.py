@@ -288,3 +288,31 @@ def test_skipped_tab_names_each_criterion_and_its_reason(tmp_path: Path) -> None
     assert "These criteria did not apply in this trial." in html
     for cid in ["C-3", *extra]:
         assert f"{cid} has no tool calls." in html
+
+
+def _with_session_url(report: dict, url: str | None) -> dict:
+    for row in report["resultTable"]["rows"]:
+        for trial in row["trials"]:
+            trial["sessionUrl"] = url
+    return report
+
+
+def test_a_trial_links_to_its_langfuse_session(experiment: Path) -> None:
+    url = "https://lf.example/langfuse/project/p1/sessions/T-1-1"
+    html = open_case(_with_session_url(build(experiment), url), "T-1")
+    assert (
+        f'<a class="td-link" href="{url}" target="_blank" rel="noopener noreferrer">'
+        "Open in Langfuse ↗</a>"
+    ) in html
+
+
+def test_a_trial_without_a_session_url_has_no_link(experiment: Path) -> None:
+    html = open_case(_with_session_url(build(experiment), None), "T-1")
+    assert "td-link" not in html
+    assert '<h4 class="td-title">Trial 1</h4>' in html
+
+
+def test_a_session_url_that_is_not_http_has_no_link(experiment: Path) -> None:
+    html = open_case(_with_session_url(build(experiment), "javascript:alert(1)"), "T-1")
+    assert "td-link" not in html
+    assert "javascript:" not in html
