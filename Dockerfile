@@ -8,7 +8,10 @@
 # path-dependency members. See docs/guide/docker.md.
 
 # ---- The web app: a static build that the API serves from its package. ----
-FROM node:22-slim AS web
+# The output is the same on every CPU, so this stage runs on the platform of the build machine. A
+# build for another platform then emulates only the runtime stage, and esbuild, which can crash
+# under emulation, runs natively.
+FROM --platform=$BUILDPLATFORM node:22-slim AS web
 
 # A corporate proxy intercepts TLS, so `npm ci` fails with a certificate error unless the CA bundle
 # is installed early and Node points at it.
