@@ -320,8 +320,13 @@ def test_the_structlog_config_after_simulate_is_the_one_before_it(
 def test_simulate_writes_only_to_the_console_it_was_given(
     monkeypatch, tmp_path: Path, capsys
 ) -> None:
+    from metis.core import langfuse_links
+
     experiment_dir = _experiment(tmp_path)
     _fake_trials(monkeypatch)
+    # With no logging configured, structlog prints the lookup's warning to stdout. The
+    # CLI and the API send it to stderr, so it is not console output.
+    monkeypatch.setattr(langfuse_links, "target_langfuse_project", lambda: None)
     console, text = _console()
 
     simulate(experiment_dir, concurrency=1, stop=threading.Event(), console=console)
@@ -488,3 +493,58 @@ def test_a_simulate_whose_orchestration_log_fails_puts_back_the_logging(
 
     assert structlog.get_config() == before
     assert router_module._install_count == 0
+
+
+def test_simulate_looks_up_the_target_project_once_and_gives_it_to_the_trials(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from metis.core import langfuse_links
+    from metis.core.langfuse_links import TargetProject
+
+    experiment_dir = _experiment(tmp_path, TWO_TRIAL_EXPERIMENT)
+    project = TargetProject("https://lf.example", "p1")
+    lookups: list[object] = []
+
+    def lookup(*args: object, **kwargs: object) -> TargetProject:
+        lookups.append(args)
+        return project
+
+    monkeypatch.setattr(langfuse_links, "target_langfuse_project", lookup)
+    given: list[object] = []
+
+    def fake_execute_experiment(*_args: object, **kwargs: object) -> None:
+        given.append(kwargs["target_project"])
+        _write_record(kwargs["output_dir"], "TC-001-alice-1")  # type: ignore[arg-type]
+
+    monkeypatch.setattr(
+        experiment_module, "execute_experiment", fake_execute_experiment
+    )
+
+    simulate(
+        experiment_dir, concurrency=1, stop=threading.Event(), console=_console()[0]
+    )
+
+    assert len(lookups) == 1
+    assert given == [project]
+
+
+def test_simulate_without_target_langfuse_keys_still_completes(
+    monkeypatch, tmp_path: Path
+) -> None:
+    experiment_dir = _experiment(tmp_path)
+    given: list[object] = []
+
+    def fake_execute_experiment(*_args: object, **kwargs: object) -> None:
+        given.append(kwargs["target_project"])
+        _write_record(kwargs["output_dir"], "TC-001-alice-1")  # type: ignore[arg-type]
+
+    monkeypatch.setattr(
+        experiment_module, "execute_experiment", fake_execute_experiment
+    )
+
+    simulate(
+        experiment_dir, concurrency=1, stop=threading.Event(), console=_console()[0]
+    )
+
+    assert given == [None]
+    assert _events(experiment_dir)[-1] == ("simulating", "completed")

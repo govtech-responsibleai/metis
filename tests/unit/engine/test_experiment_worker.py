@@ -1129,3 +1129,80 @@ async def test_task_execution_settings_reach_worker_and_failure_records(
             2,
             45000,
         )
+
+
+class TestSessionUrl:
+    """The worker saves the Langfuse page of each trial's target session in record.json."""
+
+    async def _run(
+        self,
+        scenario: Scenario,
+        persona: Persona,
+        tmp_path: Path,
+        target_project: object,
+        session_id: str | None = "sess-mock-123",
+    ) -> TrialRecord:
+        canned = _make_canned_record(scenario, persona).model_copy(
+            update={"target_session_id": session_id}
+        )
+        with patch("metis.engine.simulation.trial.Orchestrator") as mock_orch_cls:
+            mock_orch_cls.return_value = AsyncMock(
+                execute=AsyncMock(return_value=canned)
+            )
+            await _worker(
+                worker_id=0,
+                runner_factory=MockRunnerFactory(),
+                worker_trials=[TrialPlanItem(scenario, persona, 1)],
+                experiment_root=tmp_path,
+                fixtures_dir=tmp_path / "fixtures",
+                fixture_content_descriptions={},
+                console_lock=asyncio.Lock(),
+                started_scenarios=set(),
+                trial_max_retries=0,
+                trial_retry_delay_seconds=0,
+                target_project=target_project,  # type: ignore[arg-type]
+            )
+        folder = trial_folder_name(scenario, persona, 1)
+        return TrialRecord.load_file(
+            tmp_path / "outputs" / "trials" / folder / "record.json"
+        )
+
+    @pytest.mark.asyncio
+    async def test_the_record_carries_the_url_when_the_project_is_known(
+        self, simple_scenario: Scenario, simple_persona: Persona, tmp_path: Path
+    ) -> None:
+        from metis.core.langfuse_links import TargetProject
+
+        record = await self._run(
+            simple_scenario,
+            simple_persona,
+            tmp_path,
+            TargetProject("https://lf.example/langfuse", "p1"),
+        )
+        assert (
+            record.target_session_url
+            == "https://lf.example/langfuse/project/p1/sessions/sess-mock-123"
+        )
+
+    @pytest.mark.asyncio
+    async def test_the_record_has_no_url_without_a_project(
+        self, simple_scenario: Scenario, simple_persona: Persona, tmp_path: Path
+    ) -> None:
+        record = await self._run(simple_scenario, simple_persona, tmp_path, None)
+        assert record.target_session_id == "sess-mock-123"
+        assert record.target_session_url is None
+
+    @pytest.mark.asyncio
+    async def test_a_trial_without_a_session_has_no_url(
+        self, simple_scenario: Scenario, simple_persona: Persona, tmp_path: Path
+    ) -> None:
+        from metis.core.langfuse_links import TargetProject
+
+        record = await self._run(
+            simple_scenario,
+            simple_persona,
+            tmp_path,
+            TargetProject("https://lf.example", "p1"),
+            session_id=None,
+        )
+        assert record.target_session_url is None
