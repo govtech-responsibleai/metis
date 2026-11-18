@@ -497,11 +497,12 @@ export interface paths {
         put?: never;
         /**
          * Start a simulation of an input folder
-         * @description Create an experiment folder from the input folder and run every trial in it.
+         * @description Create an experiment folder from the input folder, run every trial, then grade them.
          *
          *     The request checks the inputs as `metis engine simulate --input-dir` does, then creates
          *     `evaluations/experiments/<specification id>-<YYYYmmdd-HHMMSS>/`. The trials run after the
-         *     response.
+         *     response. When the simulation completes, the same job grades every trial, with the
+         *     default concurrency and Langfuse timeout of the server.
          */
         post: operations["start_simulation_api_v1_engine_simulate_post"];
         delete?: never;
@@ -524,7 +525,8 @@ export interface paths {
          * @description Run again each trial whose record is missing, cannot be read, or was interrupted.
          *
          *     When it runs any trial again, the run deletes the evaluation outputs of the experiment,
-         *     so the report routes return results_missing until the next evaluate.
+         *     so the report routes return results_missing until the evaluate after it. When the
+         *     simulation completes, the same job grades the trials with no evaluation.
          */
         post: operations["resume_simulation_api_v1_engine_simulate__experiment_id__resume_post"];
         delete?: never;
@@ -1622,15 +1624,20 @@ export interface components {
             experiment_id: string;
             /**
              * Phase
-             * @description The phase of the live run, else of the last phase line.
+             * @description The phase of the live run: of its newest phase line, or of its first step before it writes one. For a queued run, the phase of its first step. Else the phase of the last phase line.
              */
             phase: ("simulating" | "evaluating") | null;
             /**
              * Status
-             * @description running or stopping while a run is alive. Else the status of the last phase line: completed, failed, or interrupted. unfinished when that line is started, because the run ended with no last line. not_started when the events log has no phase line.
+             * @description queued while the run waits for a free slot. running or stopping while a run is alive. Else the status of the last phase line: completed, failed, or interrupted. unfinished when that line is started, because the run ended with no last line. not_started when the events log has no phase line.
              * @enum {string}
              */
-            status: "running" | "stopping" | "completed" | "failed" | "interrupted" | "unfinished" | "not_started";
+            status: "queued" | "running" | "stopping" | "completed" | "failed" | "interrupted" | "unfinished" | "not_started";
+            /**
+             * Queue Ahead
+             * @description The runs before this one in the queue, across all user accounts, so 0 means that it starts next. null in every status but queued.
+             */
+            queue_ahead: number | null;
             /**
              * Total
              * @description Trials in the phase, from its started line. null until it is written.
@@ -5071,15 +5078,6 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ServiceError"];
-                };
-            };
         };
     };
     resume_simulation_api_v1_engine_simulate__experiment_id__resume_post: {
@@ -5126,15 +5124,6 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ServiceError"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5195,15 +5184,6 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ServiceError"];
-                };
-            };
         };
     };
     resume_evaluation_api_v1_engine_evaluate__experiment_id__resume_post: {
@@ -5257,15 +5237,6 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ServiceError"];
-                };
-            };
         };
     };
     stop_run_api_v1_engine__experiment_id__stop_post: {
@@ -5308,15 +5279,6 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ServiceError"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
                 headers: {
                     [name: string]: unknown;
                 };

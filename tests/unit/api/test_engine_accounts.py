@@ -174,6 +174,25 @@ def test_a_start_while_another_user_runs_waits_in_the_queue(
     assert len(fake_engine.calls) == 1
 
 
+def test_the_place_counts_the_runs_of_every_user_account(
+    one_slot_users: tuple[User, User], fake_engine: FakeEngine
+) -> None:
+    alice, bob = one_slot_users
+    fake_engine.mode = "hold"
+    running = alice.experiment("test-exp-20260101-000001")
+    queued = alice.experiment("test-exp-20260101-000002")
+    mine = bob.experiment("test-exp-20260101-000003")
+    alice.client.post(f"/api/v1/engine/simulate/{running}/resume")
+    alice.client.post(f"/api/v1/engine/simulate/{queued}/resume")
+    bob.client.post(f"/api/v1/engine/simulate/{mine}/resume")
+
+    status = bob.client.get(f"/api/v1/engine/{mine}").json()
+
+    # Two jobs of Alice are before it: one runs, one waits. Only the waiting one counts.
+    assert (status["status"], status["queue_ahead"]) == ("queued", 1)
+    assert running not in str(status) and queued not in str(status)
+
+
 def test_the_same_name_as_the_run_of_another_user_is_not_that_run(
     one_slot_users: tuple[User, User], fake_engine: FakeEngine
 ) -> None:

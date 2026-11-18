@@ -40,7 +40,7 @@ if TYPE_CHECKING:
     import threading
     from collections.abc import Callable
 
-    from metis.api.engine_runs import Run
+    from metis.api.engine_runs import LiveRun
     from metis.api.settings import EngineSettings
 
 router = APIRouter(prefix="/api/v1/engine", tags=["engine"])
@@ -110,6 +110,7 @@ class EngineRunAccepted(BaseModel):
 
 
 EngineRunStatus = Literal[
+    "queued",
     "running",
     "stopping",
     "completed",
@@ -125,14 +126,24 @@ class EngineStatus(BaseModel):
 
     experiment_id: str
     phase: Literal["simulating", "evaluating"] | None = Field(
-        description="The phase of the live run, else of the last phase line."
+        description=(
+            "The phase of the live run: of its newest phase line, or of its first step "
+            "before it writes one. For a queued run, the phase of its first step. Else "
+            "the phase of the last phase line."
+        )
     )
     status: EngineRunStatus = Field(
         description=(
-            "running or stopping while a run is alive. Else the status of the last phase "
-            "line: completed, failed, or interrupted. unfinished when that line is "
-            "started, because the run ended with no last line. not_started when the "
-            "events log has no phase line."
+            "queued while the run waits for a free slot. running or stopping while a run "
+            "is alive. Else the status of the last phase line: completed, failed, or "
+            "interrupted. unfinished when that line is started, because the run ended "
+            "with no last line. not_started when the events log has no phase line."
+        )
+    )
+    queue_ahead: int | None = Field(
+        description=(
+            "The runs before this one in the queue, across all user accounts, so 0 means "
+            "that it starts next. null in every status but queued."
         )
     )
     total: int | None = Field(
@@ -576,29 +587,41 @@ def experiment_status(experiment_id: str, request: Request) -> EngineStatus:
     project_dir = request_project_dir(request)
     experiment_dir = find_experiment_dir(project_dir, experiment_id)
     live = _runs(request).current(project_dir, experiment_id)
-    return _status(experiment_id, experiment_dir, live.run if live else None)
+    return _status(experiment_id, experiment_dir, live)
 
 
-def _status(experiment_id: str, experiment_dir: Path, run: Run | None) -> EngineStatus:
+def _status(
+    experiment_id: str, experiment_dir: Path, live: LiveRun | None
+) -> EngineStatus:
     events = [event for event, _ in read_events(experiment_dir)]
     last_seq = max((event.seq for event in events), default=0)
     # A skipped line says that a phase did not run, so the line before it gives the state.
     phase_lines = [e for e in events if e.trial is None and e.status != "skipped"]
-    if run is not None:
+    if live is not None and live.queue_ahead is not None:
+        return EngineStatus(
+            experiment_id=experiment_id,
+            phase=live.run.steps[0].phase,
+            status="queued",
+            queue_ahead=live.queue_ahead,
+            total=None,
+            done=None,
+            reason=None,
+            last_seq=last_seq,
+        )
+    if live is not None:
+        run = live.run
+        # A job moves from step to step, so its phase is that of its newest own line.
+        own = [e for e in phase_lines if e.seq > run.start_seq]
+        phase = own[-1].phase if own else run.steps[0].phase
         started = next(
-            (
-                e
-                for e in reversed(phase_lines)
-                if e.seq > run.start_seq
-                and e.phase == run.steps[0].phase
-                and e.status == "started"
-            ),
+            (e for e in reversed(own) if e.phase == phase and e.status == "started"),
             None,
         )
         return EngineStatus(
             experiment_id=experiment_id,
-            phase=run.steps[0].phase,
+            phase=phase,
             status="stopping" if run.stop.is_set() else "running",
+            queue_ahead=None,
             total=started.total if started else None,
             done=started.done if started else None,
             reason=None,
@@ -609,6 +632,7 @@ def _status(experiment_id: str, experiment_dir: Path, run: Run | None) -> Engine
             experiment_id=experiment_id,
             phase=None,
             status="not_started",
+            queue_ahead=None,
             total=None,
             done=None,
             reason=None,
@@ -634,6 +658,7 @@ def _status(experiment_id: str, experiment_dir: Path, run: Run | None) -> Engine
         experiment_id=experiment_id,
         phase=newest.phase,
         status=status,
+        queue_ahead=None,
         total=started.total if started else None,
         done=started.done if started else None,
         reason=newest.reason if newest.status == "failed" else None,

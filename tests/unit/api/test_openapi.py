@@ -186,3 +186,27 @@ def test_state_schema_bounds_history_and_requires_non_null_pending_metadata(
         assert request["properties"]["stage"] == {
             "$ref": "#/components/schemas/InterviewStep"
         }
+
+
+def test_the_engine_status_has_queued_and_its_place(client: TestClient) -> None:
+    schema = client.get("/openapi.json").json()["components"]["schemas"]["EngineStatus"]
+
+    assert "queued" in schema["properties"]["status"]["enum"]
+    assert "queue_ahead" in schema["required"]
+    assert {"type": "integer"} in schema["properties"]["queue_ahead"]["anyOf"]
+
+
+def test_no_engine_route_documents_503(client: TestClient) -> None:
+    paths = client.get("/openapi.json").json()["paths"]
+
+    engine = {
+        (path, method): operation
+        for path, operations in paths.items()
+        if path.startswith("/api/v1/engine/")
+        for method, operation in operations.items()
+    }
+
+    assert engine
+    assert [
+        key for key, operation in engine.items() if "503" in operation["responses"]
+    ] == []

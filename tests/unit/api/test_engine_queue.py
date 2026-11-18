@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from typing import TYPE_CHECKING
 
@@ -9,7 +10,7 @@ import pytest
 import structlog
 
 from metis.core import execution_layout
-from metis.core.phase_events import EVENTS_FILE
+from metis.core.phase_events import EVENTS_FILE, PhaseEventLog
 from tests.fixtures.api.engine import wait_until
 
 if TYPE_CHECKING:
@@ -178,3 +179,107 @@ def test_shutdown_waits_for_every_running_run_against_one_time_limit(
     assert sorted(log["experiment_id"] for log in warned) == [
         folder.name for folder in folders[:3]
     ]
+
+
+def _status(client: TestClient, experiment_id: str) -> dict[str, object]:
+    return client.get(f"/api/v1/engine/{experiment_id}").json()
+
+
+def test_a_queued_run_shows_its_place(
+    make_engine_client: Callable[..., TestClient],
+    fake_engine: FakeEngine,
+    folders: list[Path],
+) -> None:
+    client = make_engine_client(max_runs=1)
+    fake_engine.mode = "hold"
+    for folder in folders[:3]:
+        _resume(client, folder.name)
+    wait_until(lambda: _status(client, folders[0].name)["total"] == 2)
+
+    running, next_one, last = (_status(client, f.name) for f in folders[:3])
+
+    assert (running["status"], running["queue_ahead"]) == ("running", None)
+    assert next_one == {
+        "experiment_id": folders[1].name,
+        "phase": "simulating",
+        "status": "queued",
+        "queue_ahead": 0,
+        "total": None,
+        "done": None,
+        "reason": None,
+        "last_seq": 0,
+    }
+    assert (last["status"], last["queue_ahead"]) == ("queued", 1)
+
+
+def test_a_place_moves_up_when_a_run_ahead_leaves_the_queue(
+    make_engine_client: Callable[..., TestClient],
+    fake_engine: FakeEngine,
+    folders: list[Path],
+) -> None:
+    client = make_engine_client(max_runs=1)
+    fake_engine.mode = "hold"
+    for folder in folders[:3]:
+        _resume(client, folder.name)
+
+    _stop(client, folders[1].name)
+
+    assert _status(client, folders[2].name)["queue_ahead"] == 0
+
+
+def test_a_queued_evaluate_shows_the_phase_of_its_first_step(
+    make_engine_client: Callable[..., TestClient],
+    fake_engine: FakeEngine,
+    folders: list[Path],
+) -> None:
+    client = make_engine_client(max_runs=1)
+    fake_engine.mode = "hold"
+    _resume(client, folders[0].name)
+    client.post(f"/api/v1/engine/evaluate/{folders[1].name}")
+
+    status = _status(client, folders[1].name)
+
+    assert (status["phase"], status["status"]) == ("evaluating", "queued")
+
+
+def test_queue_ahead_is_null_when_no_run_is_alive(
+    engine_client: TestClient, folders: list[Path]
+) -> None:
+    assert _status(engine_client, folders[0].name)["queue_ahead"] is None
+    _resume(engine_client, folders[0].name)
+    wait_until(
+        lambda: (
+            _status(engine_client, folders[0].name)["status"] == "completed"
+            and _status(engine_client, folders[0].name)["phase"] == "evaluating"
+        )
+    )
+
+    assert _status(engine_client, folders[0].name)["queue_ahead"] is None
+
+
+def test_a_job_that_moves_to_evaluate_reports_evaluating(
+    engine_client: TestClient,
+    fake_engine: FakeEngine,
+    folders: list[Path],
+) -> None:
+    held = threading.Event()
+    release = threading.Event()
+
+    def evaluate(experiment_dir: Path, **_: object) -> None:
+        events = PhaseEventLog.for_experiment_dir(experiment_dir)
+        events.emit("evaluating", "started", total=5, done=1)
+        held.set()
+        release.wait(5)
+        events.emit("evaluating", "completed")
+
+    engine_client.app.state.engine_runs.functions = fake_engine.functions(
+        resume_evaluation=evaluate
+    )
+    _resume(engine_client, folders[0].name)
+    assert held.wait(5)
+
+    status = _status(engine_client, folders[0].name)
+    release.set()
+
+    assert (status["phase"], status["status"]) == ("evaluating", "running")
+    assert (status["total"], status["done"]) == (5, 1)
