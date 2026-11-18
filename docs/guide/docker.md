@@ -67,6 +67,7 @@ contains no key and no `.env` file.
 | `METIS_ADMIN_TOKEN` | The token that makes and lists user accounts. |
 | `METIS_DATABASE_URL` | The SQLAlchemy URL of the database. The default is the SQLite file in `/data`. |
 | `METIS_API_CONNECTION_CHECK` | `1` turns on the connection check of the web app. It is off in the container. |
+| `METIS_API_ENGINE_MAX_RUNS` | The experiments that run at the same time. The default is 4. |
 
 With the connection check on, the server sends a request to each target URL that a user enters.
 This includes internal addresses that only the server can reach.
@@ -75,6 +76,21 @@ The container listens on port 8000. Compose and `make docker-run` set `HOST` and
 `.env`, so a `PORT` there has no effect. A platform that gets `.env` as environment variables does
 not do this, so leave `PORT` and `HOST` out of the variables you give it. To use another port on
 your computer, change the first number of `ports` in `docker-compose.yml`.
+
+## Experiments at the same time
+
+The server runs up to `METIS_API_ENGINE_MAX_RUNS` experiments at the same time, for all users.
+An experiment that starts when every place is taken waits in a queue, first in first out. Its
+page shows Queued and the number of experiments before it. It starts on its own when a place
+frees, and its evaluate starts on its own when its simulate ends. No browser tab must stay open.
+
+Choose the value from the rate limits of your model provider and of the target. Every run calls
+the same provider, and most often the same target. Each run makes up to its concurrency of calls
+at the same time, so the server makes up to `METIS_API_ENGINE_MAX_RUNS` × concurrency calls at
+the same time. If runs fail with rate-limit errors, lower the value.
+
+The queue is in the memory of the server. When the container restarts, the queue is lost. An
+experiment that was queued then shows Stopped, and Resume starts it again.
 
 ## Make targets
 

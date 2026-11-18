@@ -78,8 +78,8 @@ class EngineSettings:
     the runs to stop, in all. ``max_runs`` is the number of jobs that run at the same time;
     a start beyond it waits in the queue.
 
-    ``langfuse_timeout`` is 180 seconds, longer than the 90 of the CLI. The web app can start
-    an evaluation as soon as the simulation ends, while the last traces still reach Langfuse.
+    ``langfuse_timeout`` is 180 seconds, longer than the 90 of the CLI. The server starts the
+    evaluate as soon as the simulation ends, while the last traces still reach Langfuse.
     A session whose traces have settled is graded after its first check, so the longer limit
     costs time only when traces are late or missing.
     """

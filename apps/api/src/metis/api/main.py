@@ -6,8 +6,8 @@ failure one stable JSON shape. When login is on, `login_guard` lets a request re
 route only with a login session. The wizard routes keep no state: each request carries the
 whole Interview state in its body. The store routes keep the Targets, Interviews,
 Specifications, and Experiments in the `Store` that the app composes at startup. The report
-routes read the experiment folders. The engine routes run one engine run at a time, on a
-thread, in this process. The store and the experiment folders are in the project folder that
+routes read the experiment folders. The engine routes run up to the run limit of jobs at a
+time, each on a thread in this process, and queue the rest. The store and the experiment folders are in the project folder that
 `create_app` gets, or the default project folder that `find_project_root` finds.
 
 When the web folder of the API package has a built web app, the app also serves that web app on
@@ -93,8 +93,11 @@ _OPENAPI_TAGS = [
         "name": "engine",
         "description": (
             "Start, resume, evaluate, stop, and follow the run of an experiment folder. The "
-            "API runs one engine run at a time in its own process. A start returns 202 at "
-            "once. Poll the status route for the state, and the events route for each trial."
+            "API runs up to METIS_API_ENGINE_MAX_RUNS runs at a time in its own process, and "
+            "queues the rest, first in first out. A simulate start also grades the trials "
+            "when the simulation completes. A start returns 202 at once. Poll the status "
+            "route for the state, which is queued while the run waits, and the events route "
+            "for each trial."
         ),
     },
     {

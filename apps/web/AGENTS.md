@@ -23,8 +23,12 @@ them into the state that the app shows.
 
 The experiment view follows one Experiment with `useExperimentWatch` (`src/experiment-watch.ts`).
 It reads every event from seq 0 when the page opens, then the new events with `after`, every two
-seconds while the run is alive. It starts evaluate when it sees simulate end, and saves the step
-of the row. `ACTIONS` in `experiment-status.ts` gives the actions that are on in each state, and
+seconds while the run is alive or queued. The server starts the evaluate after a simulate, so the
+page never starts one on its own. The step of the row is the step that the web app started, so
+a completed evaluate with the step `simulate` is Completed. A queued run shows "Queued" with its
+place (`queueText`): Stop is on, and Resume and Delete are off. "Waiting for evaluate" is a
+simulate that completed with no evaluate, for example after an API restart, and its Resume starts
+the evaluate. `ACTIONS` in `experiment-status.ts` gives the actions that are on in each state, and
 `resume` of the state gives the engine step that Resume starts. Polling stops when no run is
 alive, so another tab can change the Experiment after the last poll. `startStep` therefore reads
 the status again before it starts a step. When the state now needs a different step, or none, it

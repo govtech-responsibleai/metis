@@ -145,23 +145,28 @@ The Trials tab shows the progress of the experiment and one row for each trial, 
 Case, its trial number, its Persona, Scenario and status. A ring shows the progress of the
 whole experiment: its right half is simulate and its left half is evaluate. The steps under the
 percentage show which step runs, and the state of the experiment shows on the right, for
-example **Simulating** or **Stopped**. Hover over **Stopped** to see why the run stopped. A
+example **Queued**, **Simulating** or **Stopped**. Hover over **Stopped** to see why the run stopped. A
 trial that has not started is **Waiting**. The rows keep their order while the experiment runs.
 The **Status** filter shows only the trials that you select. **Reason** says why a trial did
 not run, or why evaluate could not grade it. The tab shows no grades: the Report tab has them. The page reads the state again every two seconds
 while the experiment runs. When you open the page again, it rebuilds the rows from the start.
 
-When simulate ends while the page is open, the page starts evaluate. When no page is open at
-that moment, the experiment is **Waiting for evaluate**. Use the buttons above the tabs:
+The server runs a few experiments at the same time, for all users. When every place is taken,
+a new experiment is **Queued**, with the number of experiments before it, or **Starts next**. It
+starts on its own when a place frees. When simulate ends, the server starts evaluate, so you do
+not need to keep the page open. An experiment that is **Waiting for evaluate** completed
+simulate but has no evaluate, for example after the server restarted. Use the buttons above the
+tabs:
 
-- **Stop** stops the run. Each trial in flight ends at its next turn.
+- **Stop** stops the run. Each trial in flight ends at its next turn. A queued experiment
+  leaves the queue, and Resume starts it again.
 - **Resume** runs again the trials that did not finish. When simulate is done, it starts
   evaluate, or it grades the trials with no grade when evaluate stopped.
 - **Delete** removes the experiment from the app after you confirm. Its experiment folder
-  stays on disk. Delete is off while the experiment runs.
+  stays on disk. Delete is off while the experiment runs or is queued.
 
-When the server refuses an action, for example because another experiment runs, the message
-shows next to the buttons. When evaluate completes, the Report tab turns on. When the page shows
+When the server refuses an action, for example because the experiment changed in another tab,
+the message shows next to the buttons. When evaluate completes, the Report tab turns on. When the page shows
 the Trials tab at that moment, it moves to the Report tab. It stays on Trials when you selected
 the Trials tab yourself.
 
