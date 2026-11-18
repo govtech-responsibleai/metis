@@ -180,25 +180,10 @@ The comparison does not show experiments yet. It says what it will show.
 
 ### The demo Target
 
-The demo Target shows a complete Experiment, from the Interview to the Report. Its Target is
-the [agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp), the
-Northstar Policy & Report Assistant. The demo Target has:
-
-- a done Interview with a short Specification: three Test Cases and 6 trials;
-- a Target binding for the toy app;
-- one finished Experiment, so the **Trials** tab and the **Report** tab show data before you
-  start an experiment.
-
-You can use it in two ways:
-
-- Open the **Specification** tab, select **Back**, and change the Interview.
-- Select **Start an experiment** to run the Specification on the toy app. The run takes about
-  three minutes. The server must have the address of the toy app in `TOYAPP_API_URL`.
-
-The demo Target is your own copy. A change or a delete has no effect on another user account,
-and a demo Target that you delete does not come back. On your own computer, the web app adds
-the demo Target the first time that the API starts in a project folder that never had a saved
-Target.
+The demo Target shows you a full end-to-end run before you make your own Target. It contains
+one complete run for the Northstar Policy & Report Assistant, the
+[agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp): the
+Interview, the Specification, one finished Experiment and its Report.
 
 ## Start a guided Interview
 
