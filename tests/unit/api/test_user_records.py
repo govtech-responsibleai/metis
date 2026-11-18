@@ -80,8 +80,8 @@ def test_each_user_has_their_own_targets_and_project_folder(
         assert [(row["id"], row["title"]) for row in listed] == [(target, title)]
         assert client.get(f"{base}/interview").json()["title"] == title
         assert client.get(f"{base}/interview/files/policy.pdf").content == content
-        folder = project_dir / "users" / user_id / "experiments" / "design" / target
-        assert (folder / "inputs" / "documents" / "policy.pdf").read_bytes() == content
+        folder = project_dir / "users" / user_id / "evaluations" / "interviews" / target
+        assert (folder / "documents" / "policy.pdf").read_bytes() == content
     assert not (project_dir / "experiments").exists()
     with store.engine.connect() as connection:
         rows = connection.execute(select(targets.c.user_id, targets.c.id)).all()
@@ -101,7 +101,10 @@ def test_a_save_with_the_target_id_of_another_user_changes_nothing(
     assert refused.status_code == 409
     assert refused.json()["code"] == "target_exists"
     assert bob.get("/api/v1/targets").json()["targets"] == []
-    assert not (project_dir / "users" / bob_id).exists()
+    # The folder of Bob holds only the `user.json` that his user account got when it was made.
+    assert sorted(p.name for p in (project_dir / "users" / bob_id).iterdir()) == [
+        "user.json"
+    ]
     assert (
         alice.get(f"/api/v1/targets/{TARGET}/interview").json()["title"] == "Bank bot"
     )
@@ -137,7 +140,7 @@ def test_two_users_can_each_have_an_experiment_folder_with_the_same_name(
         (bob, bob_id, "Shop bot", OTHER_TARGET),
     ):
         _save(client, title, b"policy", target)
-        folder = project_dir / "users" / user_id / "experiments" / "execute"
+        folder = project_dir / "users" / user_id / "evaluations" / "experiments"
         (folder / EXPERIMENT).mkdir(parents=True)
 
     path = f"/api/v1/experiments/{EXPERIMENT}"
@@ -161,7 +164,7 @@ def test_a_user_reaches_only_the_experiment_folders_of_their_account(
     (alice, alice_id), (bob, _) = two_users
     _save(alice, "Bank bot", b"policy")
     _save(bob, "Shop bot", b"policy", OTHER_TARGET)
-    folder = project_dir / "users" / alice_id / "experiments" / "execute"
+    folder = project_dir / "users" / alice_id / "evaluations" / "experiments"
     (folder / EXPERIMENT).mkdir(parents=True)
     path = f"/api/v1/experiments/{EXPERIMENT}"
     assert (
@@ -204,8 +207,8 @@ def test_with_login_off_the_records_belong_to_the_local_user_account(
 
         assert client.get(f"/api/v1/targets/{TARGET}/interview").status_code == 200
 
-    folder = project_dir / "experiments" / "design" / TARGET
-    assert (folder / "inputs" / "documents" / "policy.pdf").is_file()
+    folder = project_dir / "evaluations" / "interviews" / TARGET
+    assert (folder / "documents" / "policy.pdf").is_file()
     assert not (project_dir / "users").exists()
     with store.engine.connect() as connection:
         assert connection.execute(select(targets.c.user_id)).scalars().all() == [
@@ -251,5 +254,5 @@ def test_with_login_on_the_input_folder_starts_in_the_folder_of_the_user_account
     started = client.post("/api/v1/engine/simulate", json={"input_dir": input_dir})
 
     assert started.status_code == 202, started.text
-    folder = project_dir / "users" / account["id"] / "experiments" / "execute"
+    folder = project_dir / "users" / account["id"] / "evaluations" / "experiments"
     assert (folder / started.json()["experiment_id"]).is_dir()

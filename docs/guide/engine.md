@@ -106,10 +106,10 @@ To run the phases separately, use `simulate` first. It prints the exact `evaluat
 
 ```bash
 metis engine simulate --input-dir packages/engine/examples/http-agentic_eval_toyapp-1/
-metis engine evaluate --experiment-dir experiments/execute/toyapp-http-simple-20260820-143000/
+metis engine evaluate --experiment-dir evaluations/experiments/toyapp-http-simple-20260820-143000/
 ```
 
-`experiments/execute/toyapp-http-simple-20260820-143000/` is the output directory that `simulate` created. The name is only a sample: `simulate` makes the real name from the experiment `id` and the start time of the run, so use the path that `simulate` printed.
+`evaluations/experiments/toyapp-http-simple-20260820-143000/` is the output directory that `simulate` created. The name is only a sample: `simulate` makes the real name from the experiment `id` and the start time of the run, so use the path that `simulate` printed.
 
 `evaluate` grades a trial only when Langfuse has stored nothing new for it for 30 seconds (the quiet window) and no trace is empty. METIS cannot know when a conversation has ended, so it reads the newest `updatedAt` that Langfuse stores for the trial and waits until that time is 30 seconds old. Old traces are graded on the first check. Set `LANGFUSE_METIS_QUIET_SECONDS` in `.env` to change the 30 seconds, for example when your target sends its traces late. The timeout, `--langfuse-timeout` (default 90 seconds), is the longest time that `evaluate` waits for each trial. If the traces are not ready when the timeout ends, the trial fails with `no traces in Langfuse` or `traces still changing in Langfuse` and gets no grades. The timeout must be at least as long as the quiet window, because a trial that has just finished needs the full quiet window before it can be graded. `logs/evaluate.log` has a `TRACE WAIT` line for each trial with the number of checks and the seconds waited. Data that Langfuse stores later than the quiet window is not graded.
 
@@ -122,12 +122,12 @@ The website explains each step in full: [Run your evaluations](https://govtech-r
 If simulation stops before all runs finish, continue the output directory that you name. `simulate` prints this exact command, so you never retype a timestamp:
 
 ```bash
-metis engine simulate --resume --experiment-dir experiments/execute/toyapp-http-simple-20260820-143000/
+metis engine simulate --resume --experiment-dir evaluations/experiments/toyapp-http-simple-20260820-143000/
 # or run the remaining simulation and then evaluate everything:
-metis engine run --resume --experiment-dir experiments/execute/toyapp-http-simple-20260820-143000/
+metis engine run --resume --experiment-dir evaluations/experiments/toyapp-http-simple-20260820-143000/
 ```
 
-Resume reads the experiment and the fixtures from the frozen `inputs/` snapshot in the named directory, not from the source directory. It runs again only the trials that did not end: a record that is missing, unreadable, or not valid, or a record with stop reason `interrupted`. A trial that ended is not run again, whatever its result, so a `system_error` trial stays failed. Some system errors are retried up to the trial's retry limit, and others, such as a failed user-agent LLM call or `fixture_never_uploaded`, end the trial on the first try; resume runs neither again. To run failed trials again, start a new experiment with `simulate --input-dir`, which runs every trial again, not only the failed ones. Resume appends to the experiment-level simulation log. Extra trial folders are ignored. A valid record is complete even if an artifact file is missing. Passing `--resume` with `--input-dir` is an error: the message lists the outputs that exist for the experiment `id` and names the correct flag.
+Resume reads the experiment and the fixtures from the frozen `specification/` snapshot in the named directory, not from the source directory. It runs again only the trials that did not end: a record that is missing, unreadable, or not valid, or a record with stop reason `interrupted`. A trial that ended is not run again, whatever its result, so a `system_error` trial stays failed. Some system errors are retried up to the trial's retry limit, and others, such as a failed user-agent LLM call or `fixture_never_uploaded`, end the trial on the first try; resume runs neither again. To run failed trials again, start a new experiment with `simulate --input-dir`, which runs every trial again, not only the failed ones. Resume appends to the experiment-level simulation log. Extra trial folders are ignored. A valid record is complete even if an artifact file is missing. Passing `--resume` with `--input-dir` is an error: the message lists the outputs that exist for the experiment `id` and names the correct flag.
 
 ### What You'll See
 
@@ -152,11 +152,11 @@ The combined `run` command closes the Simulation TUI before it starts the evalua
 
 ### Where Results Land
 
-Each execution produces output in `experiments/execute/<id>-<timestamp>/`, under the project folder. The project folder is the working directory or the nearest folder above it that has a `pyproject.toml`. To choose it yourself, see [Simulation options](#simulation-options). The `outputs/reports/` directory is created by `evaluate` or `run`, which write `results.json`; `metis insights report` adds `report.json` and `report.html`. Simulation-only runs stop after `outputs/trials/` and `logs/`:
+Each execution produces output in `evaluations/experiments/<id>-<timestamp>/`, under the project folder. The project folder is the working directory or the nearest folder above it that has a `pyproject.toml`. To choose it yourself, see [Simulation options](#simulation-options). The `outputs/reports/` directory is created by `evaluate` or `run`, which write `results.json`; `metis insights report` adds `report.json` and `report.html`. Simulation-only runs stop after `outputs/trials/` and `logs/`:
 
 ```text
-experiments/execute/toyapp-http-simple-20260730-143022/
-├── inputs/
+evaluations/experiments/toyapp-http-simple-20260730-143022/
+├── specification/             # A frozen copy of the --input-dir folder
 │   ├── specification.yaml
 │   └── fixtures/
 ├── outputs/
@@ -490,13 +490,13 @@ The flags below are optional and apply to both modes:
 | `--no-tui` | `false` | Disable TUI dashboard (force linear log output) |
 | `--log-format` | `text` | Log file format: `text` or `json` |
 | `--log-dir` | co-located with results | Override the log output directory |
-| `--project-dir` | nearest folder with a `pyproject.toml` | Existing project folder that holds `experiments/execute/`. New experiments go under it, from any working directory. `~` expands to the home folder. A resume without `--experiment-dir` lists the experiments in this folder. A resume with `--experiment-dir` continues in that experiment folder, and a warning shows when the experiment folder is not in this folder |
+| `--project-dir` | nearest folder with a `pyproject.toml` | Existing project folder that holds `evaluations/experiments/`. New experiments go under it, from any working directory. `~` expands to the home folder. A resume without `--experiment-dir` lists the experiments in this folder. A resume with `--experiment-dir` continues in that experiment folder, and a warning shows when the experiment folder is not in this folder |
 
 ### Evaluation options
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--experiment-dir` | (required) | One output directory that `simulate` created, for example `experiments/execute/toyapp-http-simple-20260820-143000/`. It must hold an `inputs/` snapshot |
+| `--experiment-dir` | (required) | One output directory that `simulate` created, for example `evaluations/experiments/toyapp-http-simple-20260820-143000/`. It must hold a `specification/` snapshot |
 | `--langfuse-timeout` | `90` | Seconds to wait for each trial's Langfuse traces to be ready |
 | `--concurrency N` / `-c N` | `1` | Max concurrent sessions. Must be at least 1 |
 | `-v` / `-vv` | WARNING | Increase evaluation logging verbosity |
@@ -744,7 +744,7 @@ class RunnerFactory(Protocol):
         """Release shared resources."""
 ```
 
-The engine also expects a `retry_defaults` property that returns `(trial_max_retries, trial_retry_delay_seconds)`. It builds your factory with `factory_cls()`, or, when the class has a `from_specification(specification, inputs_dir)` classmethod, with the specification and the experiment's `inputs/` folder. `HttpRunnerFactory` and `BrowserRunnerFactory` use the second form to load their target binding.
+The engine also expects a `retry_defaults` property that returns `(trial_max_retries, trial_retry_delay_seconds)`. It builds your factory with `factory_cls()`, or, when the class has a `from_specification(specification, specification_dir)` classmethod, with the specification and the experiment's `specification/` folder. `HttpRunnerFactory` and `BrowserRunnerFactory` use the second form to load their target binding.
 
 #### A Minimal Runner
 
@@ -891,14 +891,16 @@ At simulation time (`_simulate_in` in `packages/engine/src/metis/engine/run/_sim
 factory_cls = resolve_runner_factory(specification.runner_factory_ref)
 from_specification = getattr(factory_cls, "from_specification", None)
 runner_factory = (
-    from_specification(specification, experiment_dir / execution_layout.INPUTS)
+    from_specification(
+        specification, experiment_dir / execution_layout.SPECIFICATION_DIR
+    )
     if from_specification is not None
     else factory_cls()
 )
 ```
 
-A factory with a `from_specification` class method is built from the Specification and its
-inputs folder. Any other factory is built with no arguments. All configuration (credentials, URLs, feature flags) should come from environment variables read inside `__init__`.
+A factory with a `from_specification` class method is built from the Specification and the
+experiment's `specification/` folder. Any other factory is built with no arguments. All configuration (credentials, URLs, feature flags) should come from environment variables read inside `__init__`.
 
 #### Removing Playwright Dependencies
 
@@ -939,7 +941,7 @@ the Profile and Experiment configuration.
 Tasks select measured Behaviours from the Profile. Reports combine the planned Tasks and
 recorded results to show whether the target meets those Criteria.
 
-The engine freezes the document under the output directory's `inputs/` directory.
+The engine freezes the document under the output directory's `specification/` directory.
 Reporting reads this copy and joins scores by Criterion ID. The report retains
 the grader configuration used for each Criterion.
 
@@ -1097,7 +1099,7 @@ If your target does not instrument with Langfuse, you can still use METIS for si
 metis engine simulate --input-dir my-experiment/
 ```
 
-This produces trial records in `experiments/execute/<id>-<timestamp>/outputs/trials/`. You get:
+This produces trial records in `evaluations/experiments/<id>-<timestamp>/outputs/trials/`. You get:
 - Outcome data (stop reason, turn count, duration)
 - Collected artifacts
 - The trial's `logs/`, which record each turn's message and response as plain text

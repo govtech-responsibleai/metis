@@ -23,12 +23,12 @@ test("offers the file with its server filename", () => {
   saveFile(
     {
       blob: new Blob(["zip bytes"], { type: "application/zip" }),
-      filename: "20261016-223045-interview.zip",
+      filename: "20261016-223045-interview-k7mwp.zip",
     },
     document,
     urlApi,
   );
 
-  assert.deepEqual(downloads, ["20261016-223045-interview.zip"]);
+  assert.deepEqual(downloads, ["20261016-223045-interview-k7mwp.zip"]);
   assert.deepEqual(revoked, ["blob:metis"]);
 });

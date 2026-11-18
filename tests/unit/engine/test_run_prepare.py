@@ -60,9 +60,9 @@ def test_prepare_experiment_returns_the_folder_before_any_trial_runs(
 
     experiment_dir = prepare_experiment(source, project_dir=project, console=console)
 
-    assert experiment_dir.parent == project / "experiments" / "execute"
+    assert experiment_dir.parent == project / "evaluations" / "experiments"
     assert re.fullmatch(r"test-exp-\d{8}-\d{6}", experiment_dir.name)
-    assert (experiment_dir / "inputs" / "specification.yaml").read_text() == (
+    assert (experiment_dir / "specification" / "specification.yaml").read_text() == (
         MINIMAL_EXPERIMENT
     )
     assert not (experiment_dir / "outputs").exists()

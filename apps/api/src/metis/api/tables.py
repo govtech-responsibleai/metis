@@ -18,7 +18,8 @@ metadata = MetaData()
 targets = Table(
     "targets",
     metadata,
-    # The name of the Target folder in `experiments/design/`. The client makes it.
+    # The name of the Interview folder and the Specification folder of the Target. The client
+    # makes it.
     Column("id", String(64), primary_key=True),
     # The one column that names the user account. Each other record belongs to a user account
     # through its Target.

@@ -361,7 +361,7 @@ Use either endpoint after `/turn` or `/end` returns `done`.
 | Endpoint | Input | Output | Use |
 |---|---|---|---|
 | `POST /compile` | `state.specification` as JSON | `specification.yaml` as a string and `specification` with assigned Task IDs | Store or display YAML yourself. |
-| `POST /package` | One JSON form field: `state` for Interviews or `specification` for manual exports; an optional `connection` with `specification`; fixture file parts | `YYYYMMDD-HHMMSS-interview.zip` | Download a portable specification. |
+| `POST /package` | One JSON form field: `state` for Interviews or `specification` for manual exports; an optional `connection` with `specification`; fixture file parts | `YYYYMMDD-HHMMSS-interview-<random>.zip` | Download a portable specification. |
 
 Compile directly from `interview.json`:
 
@@ -382,20 +382,22 @@ jq -c '.state' interview.json | \
 ```
 
 Add one `-F 'files=@<path>'` part for each original fixture referenced by the completed Specification.
-The response `Content-Disposition` header supplies the ZIP filename. The ZIP contains a
-`YYYYMMDD-HHMMSS-interview/` root folder with `inputs/interview_state.json`, `outputs/specification.yaml`, and
-`outputs/fixtures/`. In run mode, it also contains `outputs/target-binding.yaml`. The API compiles the Specification directly from the supplied state and
+The response `Content-Disposition` header supplies the ZIP filename, `<id>.zip`, where `<id>` is
+`YYYYMMDD-HHMMSS-interview-<random>` at the time of the request. The ZIP contains
+`interviews/<id>/interview_state.json`, `specifications/<id>/specification.yaml`, and
+`specifications/<id>/fixtures/`. In run mode, it also contains
+`specifications/<id>/target-binding.yaml`. The API compiles the Specification directly from the supplied state and
 saves that same state with its current JSON format. Send exactly one source field; requests
 with both `state` and `specification` are rejected.
 
 For a manual export, send the user-authored Specification in the `specification` form field.
-The manual ZIP uses `YYYYMMDD-HHMMSS-manual.zip` and a matching root folder. It contains an
-empty `inputs/` folder and the same `outputs/` layout.
+The manual ZIP uses the `<id>` `YYYYMMDD-HHMMSS-manual-<random>`. It contains the same
+`specifications/<id>/` folder and no `interviews/` folder.
 
 To run a manual export, also send a `connection` form field. Its value is a connection as JSON,
 in the same shape as `state.context.connection`. The ZIP then contains
-`outputs/target-binding.yaml`, and `outputs/specification.yaml` names the generic runner and the
-binding file. This is the same export as an Interview with that connection. The API applies the
+`specifications/<id>/target-binding.yaml`, and `specification.yaml` names the generic runner and
+the binding file. This is the same export as an Interview with that connection. The API applies the
 same validation as `POST /connection/check`. A binding that is not valid gives a 400
 `validation_error`. Its message names each field and its reason, and never the value. Send
 `connection` only with `specification`. An Interview keeps its connection in its state, so a
@@ -410,10 +412,10 @@ curl --fail-with-body http://localhost:8001/api/v1/wizard/package \
 ```
 
 The API retains no uploaded bytes or experiment files. A successful package response contains
-a generated Specification and marks a completed export. Extract the archive into `experiments/design/`
-and use its dated folder as the Engine input. For example, run
-`metis engine run --input-dir experiments/design/20261016-223045-interview/outputs/`. Task fixture references stay relative
-to `outputs/fixtures/`. Wizard exports contain no Testbed caches or score files.
+a generated Specification and marks a completed export. Extract the archive into `evaluations/`
+and use its Specification folder as the Engine input. For example, run
+`metis engine run --input-dir evaluations/specifications/20261117-160005-interview-x9abc`. Task
+fixture references stay relative to `fixtures/` in that folder. Wizard exports contain no Testbed caches or score files.
 
 ## Connect the target
 
@@ -479,8 +481,8 @@ To start in run mode, put a connection in the start request:
 The connection travels in `state.context.connection`. Prompts and the model never read it. A
 spec-only state has no `connection` key. To add or replace the connection later, send the state
 to `POST /connection` and save the returned state. `POST /package` then adds
-`outputs/target-binding.yaml`, and `outputs/specification.yaml` names the generic runner and the
-binding file.
+`specifications/<id>/target-binding.yaml`, and `specification.yaml` names the generic runner and
+the binding file.
 
 ## Handle errors and resume
 
@@ -569,13 +571,17 @@ The API keeps its store in the project folder. Start the API with
 the nearest folder at or above the working directory that has a `pyproject.toml`. When no such
 folder is found, it is the working directory. `metis engine simulate` uses the same rule.
 
-- The database is `metis.db` in the project folder. Set `METIS_DATABASE_URL` to use
-  another database.
-- The files of each Target are in `experiments/design/<target_id>/`, the same layout as the CLI
-  wizard. `inputs/interview_state.json` holds the state of the Interview, and
-  `inputs/documents/` holds the files that you upload.
-- `outputs/` holds the Specification. Give this folder to `metis engine simulate --input-dir`.
-  The `input_dir` field of the Specification response is its path.
+- Everything is in the `evaluations/` folder of the project folder. The database is
+  `evaluations/metis.db`. Set `METIS_DATABASE_URL` to use another database.
+- The Interview of each Target is in `evaluations/interviews/<target_id>/`, the same layout as
+  the CLI wizard. `interview_state.json` holds the state of the Interview, and `documents/` holds
+  the files that you upload.
+- `evaluations/specifications/<target_id>/` holds the Specification. Give this folder to
+  `metis engine simulate --input-dir`. The `input_dir` field of the Specification response is its
+  path, for example `evaluations/specifications/20261117-143000-interview-k7mwp`.
+- The engine writes each Experiment to `evaluations/experiments/<specification-id>-YYYYMMDD-HHMMSS/`.
+  A delete of the Target removes its Interview folder and its Specification folder, and keeps its
+  Experiment folders.
 
 ## Turn on login for a shared server
 
@@ -621,8 +627,11 @@ curl -X POST https://metis.example/api/v1/users \
 }
 ```
 
-METIS makes the username and the password. This response is the only one that has the password,
-because METIS keeps only a hash of it. Each request makes one more user account. A user account
+METIS makes the username and the password. This response is the only one of the API that has
+the password, and the database keeps only a hash of it. Keep the password when you get it: no
+route and no file gives it again. For debugging, the server writes `users/<user id>/user.json`
+with the id, the username, and the times of creation, last login, and last write, so you can
+tell which user account a folder belongs to. Each request makes one more user account. A user account
 has no end date, and a person cannot change its credentials.
 
 The admin token can only make and list user accounts. It does not open another route, and it
@@ -638,8 +647,9 @@ user account gets 409 `target_exists`. Two user accounts can use the same Experi
 
 Each user account has its own project folder at `users/<user id>/` in the project folder of
 the server. The layout inside it is the same as on your own computer, for example
-`users/<user id>/experiments/design/<target_id>/`. The database stays at `metis.db` in the
-project folder of the server.
+`users/<user id>/evaluations/interviews/<target_id>/`. Every path in a request or a response is
+relative to that folder. The database stays at `evaluations/metis.db` in the project folder of
+the server, and that `evaluations/` folder holds no other files.
 
 Records that a server saved with login off belong to the local user account. A user account of
 a login does not see them.

@@ -25,7 +25,12 @@ The experiment view follows one Experiment with `useExperimentWatch` (`src/exper
 It reads every event from seq 0 when the page opens, then the new events with `after`, every two
 seconds while the run is alive. It starts evaluate when it sees simulate end, and saves the step
 of the row. `ACTIONS` in `experiment-status.ts` gives the actions that are on in each state, and
-`resume` of the state gives the engine step that Resume starts. `trialRows` in `src/trials.ts`
+`resume` of the state gives the engine step that Resume starts. Polling stops when no run is
+alive, so another tab can change the Experiment after the last poll. `startStep` therefore reads
+the status again before it starts a step. When the state now needs a different step, or none, it
+starts nothing, and the page shows `STALE_STEP` and polls again. When the start gives
+`run_in_progress`, `startStep` saves the step only when the live run is of the phase of the step.
+The web app never sends `regrade` to the evaluate route. `trialRows` in `src/trials.ts`
 makes the rows of the Trials tab from the plan of the Specification and the events. It is a pure
 function: change it, not the component, when the events change. The Trials tab shows no grades.
 
@@ -82,9 +87,9 @@ the opening documents in the same way. `src/Documents.tsx` has the plus menu of 
 the document chips. The file upload of the Test Case form is a different
 control: it adds a file for one Test Case and no document.
 
-The id of an Interview is its Target id and the name of its folder in `experiments/design/`.
-`interviewId` makes it from the local time when the user sends the first message:
-`YYYYMMDD-HHMMSS-interview-<random>`, the same form as a `metis wizard init` folder. The random
+The id of an Interview is its Target id and the name of its folders in `evaluations/interviews/`
+and `evaluations/specifications/`. `interviewId` makes it from the local time when the user sends
+the first message: `YYYYMMDD-HHMMSS-interview-<random>`, the same form as a `metis wizard init` id. The random
 part is the five characters of `randomPart`, so two people who start in the same second get different
 ids. When the store
 gives 409 `target_exists` on the first save, `putNew` saves again as `-2`, `-3`, and so on.

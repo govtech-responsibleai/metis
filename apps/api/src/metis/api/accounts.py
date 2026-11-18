@@ -3,6 +3,11 @@
 A user account is one person who can log in to a METIS server. METIS makes its username and its
 password. The database keeps a scrypt hash of the password and never the password.
 
+For debugging, ``users/<user id>/user.json`` in the server project folder names each user account:
+its id, its username, and when it was made, last logged in, and last written. METIS writes the file
+when it makes the user account and at each login. It holds no password, so a copy of the server
+folder cannot be used to log in.
+
 A login session starts at a login and ends at a logout or after ``LOGIN_SESSION_LIFETIME``. The
 browser holds a random cookie value. The database keeps only the SHA-256 of that value, so a
 copy of the database cannot be used to log in.
@@ -12,8 +17,11 @@ Note: not to be mistaken for the Session of a Trial (see the glossary).
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
+import json
+import os
 import secrets
 import uuid
 from dataclasses import dataclass
@@ -23,10 +31,20 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import delete, insert, select
 from sqlalchemy.exc import IntegrityError
 
+from metis.api.store import user_project_dir
 from metis.api.tables import login_sessions, users
+from metis.core.logging import get_logger
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from sqlalchemy.engine import Engine
+
+logger = get_logger(__name__)
+
+USER_FILE = "user.json"
+"""The file in the project folder of a user account that names it, for debugging. It holds no
+password."""
 
 LOGIN_SESSION_LIFETIME = timedelta(days=30)
 """The time from a login to the end of its login session."""
@@ -161,11 +179,20 @@ def _account(row: Any) -> UserAccount:
     )
 
 
-class Accounts:
-    """The user accounts and the login sessions of one database."""
+def _time(value: datetime | None) -> str | None:
+    return None if value is None else value.isoformat().replace("+00:00", "Z")
 
-    def __init__(self, engine: Engine) -> None:
+
+class Accounts:
+    """The user accounts and the login sessions of one database.
+
+    With ``server_dir``, the project folder of the server, each new user account and each login
+    writes the ``user.json`` of the user account. Without it, no file is written.
+    """
+
+    def __init__(self, engine: Engine, server_dir: Path | None = None) -> None:
         self._engine = engine
+        self._server_dir = server_dir
 
     def create(self) -> NewUserAccount:
         """Make a user account with a new username and a new password.
@@ -194,6 +221,7 @@ class Accounts:
                     )
             except IntegrityError:
                 continue
+            self._write_user_file(account, last_login_at=None)
             return NewUserAccount(account=account, password=password)
         raise RuntimeError("The store could not find a free username.")
 
@@ -218,6 +246,7 @@ class Accounts:
             return None
         token = secrets.token_urlsafe(32)
         now = datetime.now(UTC)
+        account = _account(row)
         with self._engine.begin() as connection:
             connection.execute(
                 delete(login_sessions).where(login_sessions.c.expires_at <= now)
@@ -230,7 +259,8 @@ class Accounts:
                     expires_at=now + LOGIN_SESSION_LIFETIME,
                 )
             )
-        return LoginSession(token=token, account=_account(row))
+        self._write_user_file(account, last_login_at=now)
+        return LoginSession(token=token, account=account)
 
     def current(self, token: str) -> UserAccount | None:
         """The user account of a cookie value, or ``None`` when no login session has it."""
@@ -245,6 +275,41 @@ class Accounts:
             return None
         return _account(row)
 
+    def _write_user_file(
+        self, account: UserAccount, *, last_login_at: datetime | None
+    ) -> None:
+        """Write ``user.json`` of ``account`` in one rename, readable by the server's user only.
+
+        A write that fails is logged and does not stop the caller, because the file is only for
+        debugging.
+        """
+        if self._server_dir is None:
+            return
+        path = user_project_dir(self._server_dir, account.id) / USER_FILE
+        temporary = path.with_name(f".{uuid.uuid4().hex}.part")
+        content = {
+            "id": account.id,
+            "username": account.username,
+            "created_at": _time(account.created_at),
+            "last_login_at": _time(last_login_at),
+            "updated_at": _time(datetime.now(UTC)),
+        }
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                json.dump(content, stream, indent=2)
+                stream.write("\n")
+            temporary.replace(path)
+        except OSError as exc:
+            with contextlib.suppress(OSError):
+                temporary.unlink(missing_ok=True)
+            logger.warning(
+                "user_file_not_written",
+                user_id=account.id,
+                error_type=type(exc).__name__,
+            )
+
     def logout(self, token: str) -> None:
         """End the login session of a cookie value. An unknown value changes nothing."""
         with self._engine.begin() as connection:
@@ -257,6 +322,7 @@ class Accounts:
 
 __all__ = [
     "LOGIN_SESSION_LIFETIME",
+    "USER_FILE",
     "Accounts",
     "LoginSession",
     "NewUserAccount",

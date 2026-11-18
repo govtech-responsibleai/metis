@@ -284,7 +284,7 @@ test("runs a document interview through skip, review, reload and package", async
           headers: {
             "content-type": "application/zip",
             "Content-Disposition":
-              'attachment; filename="20261016-223045-interview.zip"',
+              'attachment; filename="20261016-223045-interview-k7mwp.zip"',
           },
         },
       );
@@ -391,7 +391,7 @@ test("runs a document interview through skip, review, reload and package", async
     } as unknown as Document,
     { createObjectURL: () => "blob:offline", revokeObjectURL: () => {} },
   );
-  assert.deepEqual(downloads, ["20261016-223045-interview.zip"]);
+  assert.deepEqual(downloads, ["20261016-223045-interview-k7mwp.zip"]);
   assert.equal(withFixture.state.confirmed, true);
   assert.equal(withFixture.transcript.at(-1)?.kind, "interaction");
   await repository.delete("offline-flow");
@@ -452,7 +452,7 @@ test("runs an offline start, chat, choice, form, reload, end and package flow", 
           headers: {
             "content-type": "application/zip",
             "Content-Disposition":
-              'attachment; filename="20261016-223045-manual.zip"',
+              'attachment; filename="20261016-223045-manual-k7mwp.zip"',
           },
         },
       );
@@ -540,7 +540,7 @@ test("runs an offline start, chat, choice, form, reload, end and package flow", 
     } as unknown as Document,
     { createObjectURL: () => "blob:offline", revokeObjectURL: () => {} },
   );
-  assert.deepEqual(downloads, ["20261016-223045-manual.zip"]);
+  assert.deepEqual(downloads, ["20261016-223045-manual-k7mwp.zip"]);
   assert.equal(withFixture.state.confirmed, true);
   assert.equal(withFixture.transcript.at(-1)?.kind, "interaction");
   await repository.delete("offline-plain-flow");

@@ -103,8 +103,10 @@ def build_specification_archive(
 ) -> SpecificationArchive:
     """Build a complete specification ZIP from request-scoped fixture streams.
 
-    `target_binding_yaml` is written next to `specification.yaml` when the export has a target
-    connection.
+    The archive is named `<id>.zip`, and the user extracts it into an `evaluations/` folder. It
+    holds `specifications/<id>/` with `specification.yaml` and `fixtures/`. An Interview export
+    also holds `interviews/<id>/interview_state.json`. `target_binding_yaml` is written next to
+    `specification.yaml` when the export has a target connection.
 
     The caller owns the input streams. This function validates every filename before it reads any
     body, reads at most one bounded chunk beyond the total fixture limit, and never writes a fixture
@@ -131,32 +133,35 @@ def build_specification_archive(
         joined = ", ".join(missing)
         raise SpecificationError(f"Missing fixture file(s): {joined}.")
 
-    root = export_layout.experiment_name(
+    export_id = export_layout.new_id(
         "interview" if interview_state_json is not None else "manual"
     )
+    interview = export_layout.interview_dir(export_id)
+    package = export_layout.specification_dir(export_id)
     output = io.BytesIO()
     try:
         with zipfile.ZipFile(
             output, mode="w", compression=zipfile.ZIP_DEFLATED, allowZip64=True
         ) as archive:
-            archive.writestr(f"{root}/{export_layout.INPUTS}/", b"")
             if interview_state_json is not None:
                 archive.writestr(
-                    f"{root}/{export_layout.INTERVIEW_STATE}", interview_state_json
+                    f"{interview / export_layout.INTERVIEW_STATE}", interview_state_json
                 )
-            archive.writestr(f"{root}/{export_layout.SPECIFICATION}", to_yaml(document))
+            archive.writestr(
+                f"{package / export_layout.SPECIFICATION}", to_yaml(document)
+            )
             if target_binding_yaml is not None:
                 archive.writestr(
-                    f"{root}/{export_layout.TARGET_BINDING}", target_binding_yaml
+                    f"{package / export_layout.TARGET_BINDING}", target_binding_yaml
                 )
-            archive.writestr(f"{root}/{export_layout.FIXTURES}/", b"")
+            archive.writestr(f"{package / export_layout.FIXTURES}/", b"")
             for name in sorted(normalized):
                 archive.writestr(
-                    f"{root}/{export_layout.FIXTURES / name}", normalized[name]
+                    f"{package / export_layout.FIXTURES / name}", normalized[name]
                 )
     except (OSError, zipfile.BadZipFile) as exc:
         raise SpecificationError(f"Could not create specification.zip: {exc}") from exc
-    return SpecificationArchive(content=output.getvalue(), filename=f"{root}.zip")
+    return SpecificationArchive(content=output.getvalue(), filename=f"{export_id}.zip")
 
 
 def _bounded_fixture_list(

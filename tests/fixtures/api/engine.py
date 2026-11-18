@@ -33,7 +33,7 @@ from fastapi.testclient import TestClient
 
 from metis.api.engine_runs import EngineFunctions
 from metis.api.main import create_app
-from metis.core import execution_layout
+from metis.core import execution_layout, project_layout
 from metis.core.phase_events import INTERRUPTED_REASON, PhaseEventLog
 from metis.engine.run import RunError, RunStopped
 from tests.fixtures.api._shared import scripted_interview_handler
@@ -145,7 +145,7 @@ def fake_engine() -> Iterator[FakeEngine]:
 @pytest.fixture
 def input_dir(project_dir: Path) -> Path:
     """An input folder under the project folder, as the wizard writes it."""
-    return write_input_dir(project_dir / "experiments" / "design" / "t1" / "outputs")
+    return write_input_dir(project_dir / "evaluations" / "specifications" / "t1")
 
 
 @pytest.fixture
@@ -153,8 +153,8 @@ def make_experiment_dir(project_dir: Path) -> Callable[[str], Path]:
     """Make an experiment folder as ``prepare_experiment`` makes it, with a fixed name."""
 
     def make(name: str = f"{SPECIFICATION_ID}-20260101-000000") -> Path:
-        folder = project_dir / execution_layout.EXECUTIONS / name
-        write_input_dir(folder / execution_layout.INPUTS)
+        folder = project_dir / project_layout.EXPERIMENTS / name
+        write_input_dir(folder / execution_layout.SPECIFICATION_DIR)
         return folder
 
     return make

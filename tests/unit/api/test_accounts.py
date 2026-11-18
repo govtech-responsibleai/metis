@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import re
+import stat
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -217,6 +220,60 @@ def test_the_cookie_is_secure_on_a_server_that_other_computers_reach(
         cookie = _log_in(client, _new_user(client)).headers["set-cookie"]
 
     assert "Secure" in cookie
+
+
+def test_a_user_file_names_the_user_account_and_its_last_login(
+    browser: TestClient, project_dir: Path
+) -> None:
+    user = _new_user(browser)
+    path = project_dir / "users" / user["id"] / "user.json"
+
+    made = json.loads(path.read_text())
+    assert {key: made[key] for key in ("id", "username")} == {
+        key: user[key] for key in ("id", "username")
+    }
+    assert "password" not in made
+    assert user["password"] not in path.read_text()
+    assert datetime.fromisoformat(made["created_at"]) == datetime.fromisoformat(
+        user["created_at"]
+    )
+    assert made["last_login_at"] is None
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+    assert _log_in(browser, user).status_code == 200
+
+    logged_in = json.loads(path.read_text())
+    assert user["password"] not in path.read_text()
+    assert logged_in["last_login_at"] is not None
+    assert logged_in["created_at"] == made["created_at"]
+    assert logged_in["updated_at"] >= made["updated_at"]
+    assert sorted(p.name for p in path.parent.iterdir()) == ["user.json"]
+
+
+def test_a_wrong_login_does_not_change_the_user_file(
+    browser: TestClient, project_dir: Path
+) -> None:
+    user = _new_user(browser)
+    path = project_dir / "users" / user["id"] / "user.json"
+    before = path.read_text()
+
+    wrong = browser.post(
+        LOGIN, json={"username": user["username"], "password": "wrong-guess"}
+    )
+
+    assert wrong.status_code == 401
+    assert path.read_text() == before
+
+
+def test_a_user_file_that_cannot_be_written_does_not_stop_the_user_account(
+    store: Store, tmp_path: Path
+) -> None:
+    blocked = tmp_path / "blocked"
+    blocked.write_text("a file where the users folder should be")
+
+    new = Accounts(store.engine, server_dir=blocked).create()
+
+    assert Accounts(store.engine).login(new.account.username, new.password) is not None
 
 
 @pytest.mark.parametrize(

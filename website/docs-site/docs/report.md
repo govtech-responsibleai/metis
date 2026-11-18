@@ -13,7 +13,7 @@ company policies, analyses uploaded reports, and sends requests to the right spe
 
 After the Engine grades your Trials, run:
 
-<Terminal command="metis insights report --results-file experiments/execute/<your-experiment>/outputs/reports/results.json" />
+<Terminal command="metis insights report --results-file evaluations/experiments/<your-experiment>/outputs/reports/results.json" />
 
 `metis engine evaluate` and `metis engine run` print this command with your path at the end of
 their output.

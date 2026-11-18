@@ -310,13 +310,13 @@ def _fixtures() -> list[SpecificationFixture]:
     return [SpecificationFixture("policy.pdf", io.BytesIO(b"policy bytes"))]
 
 
-def _outputs(archive_bytes: bytes) -> dict[str, bytes]:
-    """The archive's `outputs/` members by path below the dated root folder."""
+def _package(archive_bytes: bytes) -> dict[str, bytes]:
+    """The archive's Specification files by path below `specifications/<id>/`."""
     with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
         return {
-            name.split("/", 1)[1]: archive.read(name)
+            name.split("/", 2)[2]: archive.read(name)
             for name in archive.namelist()
-            if name.split("/", 1)[1].startswith("outputs/")
+            if name.startswith("specifications/")
         }
 
 
@@ -334,23 +334,21 @@ def test_a_manual_specification_with_a_connection_exports_like_an_interview(
     manual = package_specification(specification, _fixtures(), connection=target)
     interview = package_specification(state, _fixtures())
 
-    assert _outputs(manual.content) == _outputs(interview.content)
-    exported = yaml.safe_load(_outputs(manual.content)["outputs/specification.yaml"])
+    assert _package(manual.content) == _package(interview.content)
+    exported = yaml.safe_load(_package(manual.content)["specification.yaml"])
     assert exported["runner_factory_ref"] == RUNNER_FACTORY_REFS[transport]
-    assert "outputs/target-binding.yaml" in _outputs(manual.content)
+    assert "target-binding.yaml" in _package(manual.content)
     with zipfile.ZipFile(io.BytesIO(manual.content)) as archive:
-        roots = {name.split("/", 1)[0] for name in archive.namelist()}
-        assert all(root.endswith("-manual") for root in roots)
-        assert not any(
-            name.endswith("interview_state.json") for name in archive.namelist()
-        )
+        folders = {tuple(name.split("/")[:2]) for name in archive.namelist()}
+        assert {folder for folder, _id in folders} == {"specifications"}
+        assert all("-manual-" in export_id for _folder, export_id in folders)
 
 
 def test_a_manual_specification_without_a_connection_keeps_the_default_runner() -> None:
-    outputs = _outputs(package_specification(research_assistant(), _fixtures()).content)
+    package = _package(package_specification(research_assistant(), _fixtures()).content)
 
-    assert "outputs/target-binding.yaml" not in outputs
-    exported = yaml.safe_load(outputs["outputs/specification.yaml"])
+    assert "target-binding.yaml" not in package
+    exported = yaml.safe_load(package["specification.yaml"])
     assert "target_binding" not in exported
     assert exported["runner_factory_ref"] == research_assistant().runner_factory_ref
 

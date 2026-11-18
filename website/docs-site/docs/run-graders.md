@@ -22,10 +22,10 @@ file. See [How graders work](library/how-graders-work.md) for these settings, an
 Pass the output folder that `simulate` created:
 
 ```bash
-metis engine evaluate --experiment-dir experiments/execute/<your-experiment>
+metis engine evaluate --experiment-dir evaluations/experiments/<your-experiment>
 ```
 
-`simulate` prints this command with your path. The folder must hold the frozen `inputs/` copy
+`simulate` prints this command with your path. The folder must hold the frozen `specification/` copy
 that `simulate` made. Running `evaluate` again on the same folder starts over: once the setup
 checks pass, it deletes the earlier evaluation and grades every trial. `logs/events.jsonl` is kept.
 
@@ -34,7 +34,7 @@ checks pass, it deletes the earlier evaluation and grades every trial. `logs/eve
 If an evaluation stops before all trials are graded, continue the same folder:
 
 ```bash
-metis engine evaluate --resume --experiment-dir experiments/execute/<your-experiment>
+metis engine evaluate --resume --experiment-dir evaluations/experiments/<your-experiment>
 ```
 
 Resume skips every trial that is already evaluated, grades the rest, and prints
@@ -55,7 +55,7 @@ By default `evaluate` grades one trial at a time. `--concurrency` (short `-c`) s
 trials are graded together:
 
 ```bash
-metis engine evaluate --experiment-dir experiments/execute/<your-experiment> --concurrency 4
+metis engine evaluate --experiment-dir evaluations/experiments/<your-experiment> --concurrency 4
 ```
 
 The number must be at least 1. A new trial starts as soon as any running trial finishes. Raise
@@ -97,7 +97,7 @@ The timeout must be at least as long as the quiet window. A trial that has just 
 full quiet window before METIS can grade it:
 
 ```bash
-metis engine evaluate --experiment-dir experiments/execute/<your-experiment> --langfuse-timeout 300
+metis engine evaluate --experiment-dir evaluations/experiments/<your-experiment> --langfuse-timeout 300
 ```
 
 If the traces are not ready in time, the trial fails with one of these reasons:

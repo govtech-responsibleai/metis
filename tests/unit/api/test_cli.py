@@ -50,8 +50,8 @@ def test_project_dir_gives_the_store_that_folder(
 
     with TestClient(served[0]):
         pass
-    assert (project_dir / "metis.db").is_file()
-    assert not (elsewhere / "experiments").exists()
+    assert (project_dir / "evaluations" / "metis.db").is_file()
+    assert not (elsewhere / "evaluations").exists()
 
 
 def test_without_project_dir_the_store_is_in_the_project_above_the_working_directory(
@@ -65,8 +65,8 @@ def test_without_project_dir_the_store_is_in_the_project_above_the_working_direc
 
     with TestClient(served[0]):
         pass
-    assert (project_dir / "metis.db").is_file()
-    assert not (working / "experiments").exists()
+    assert (project_dir / "evaluations" / "metis.db").is_file()
+    assert not (working / "evaluations").exists()
 
 
 def test_a_project_dir_that_is_not_a_folder_stops_the_command(

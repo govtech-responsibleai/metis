@@ -125,14 +125,14 @@ def _exercise(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, source: str) -> N
     document["runner_factory_ref"] = f"{__name__}.FileRunnerFactory"
     document["tasks"][0]["fixtures"] = ["input.txt"]
     document["fixture_content_descriptions"] = {"input.txt": "Input bytes"}
-    design_dir = tmp_path / "experiments" / "design"
+    evaluations = tmp_path / "evaluations"
     if source == "wizard_archive":
         archive = build_specification_archive(
             document, [SpecificationFixture("input.txt", io.BytesIO(b"fixture"))]
         )
         with zipfile.ZipFile(io.BytesIO(archive.content)) as bundle:
-            bundle.extractall(design_dir)
-        input_dir = next(design_dir.glob("*/outputs"))
+            bundle.extractall(evaluations)
+        input_dir = next((evaluations / "specifications").iterdir())
     else:
         input_dir = tmp_path / "user-supplied"
         (input_dir / "fixtures").mkdir(parents=True)
@@ -149,10 +149,10 @@ def _exercise(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, source: str) -> N
         cli.app, ["simulate", "--input-dir", str(input_dir), "--no-tui"]
     )
     assert simulation.exit_code == 0, simulation.output
-    execution = next((tmp_path / "experiments" / "execute").iterdir())
+    execution = next((tmp_path / "evaluations" / "experiments").iterdir())
     records = sorted((execution / "outputs" / "trials").glob("*/record.json"))
     assert len(records) == 2
-    snapshot = execution / "inputs"
+    snapshot = execution / "specification"
     assert yaml.safe_load((snapshot / "specification.yaml").read_text()) == document
     assert (snapshot / "fixtures" / "input.txt").read_bytes() == b"fixture"
     for record_path in records:

@@ -55,20 +55,24 @@ class _SpecFactory(StubRunnerFactory):
     received: tuple[object, Path] | None = None
 
     @classmethod
-    def from_specification(cls, specification, inputs_dir: Path) -> _SpecFactory:
-        cls.received = (specification.target_binding, inputs_dir)
+    def from_specification(cls, specification, specification_dir: Path) -> _SpecFactory:
+        cls.received = (specification.target_binding, specification_dir)
         return cls()
 
 
 class _MarkupSpecFactory(StubRunnerFactory):
     @classmethod
-    def from_specification(cls, specification, inputs_dir: Path) -> _MarkupSpecFactory:
+    def from_specification(
+        cls, specification, specification_dir: Path
+    ) -> _MarkupSpecFactory:
         raise TargetBindingError("targets/app.yaml: spec_url 'specs/[/v1].json' [x]")
 
 
 class _FailingSpecFactory(StubRunnerFactory):
     @classmethod
-    def from_specification(cls, specification, inputs_dir: Path) -> _FailingSpecFactory:
+    def from_specification(
+        cls, specification, specification_dir: Path
+    ) -> _FailingSpecFactory:
         raise TargetBindingError("targets/app.yaml: target binding file not found")
 
 
@@ -112,9 +116,9 @@ def _write_source(tmp_path: Path) -> Path:
 
 
 def _write_output(output_dir: Path, experiment_yaml: str = MINIMAL_EXPERIMENT) -> Path:
-    """Create a resumable output directory with a frozen inputs/ snapshot."""
-    (output_dir / "inputs" / "fixtures").mkdir(parents=True)
-    (output_dir / "inputs" / "specification.yaml").write_text(experiment_yaml)
+    """Create a resumable output directory with a frozen specification/ snapshot."""
+    (output_dir / "specification" / "fixtures").mkdir(parents=True)
+    (output_dir / "specification" / "specification.yaml").write_text(experiment_yaml)
     return output_dir
 
 
@@ -181,10 +185,10 @@ def test_resume_runs_only_missing_or_interrupted_records(
     monkeypatch, tmp_path: Path
 ) -> None:
     output_dir = _write_output(
-        tmp_path / "experiments" / "execute" / "test-exp-20260101-010101",
+        tmp_path / "evaluations" / "experiments" / "test-exp-20260101-010101",
         MINIMAL_EXPERIMENT.replace("num_trials: 1", "num_trials: 3"),
     )
-    (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
+    (output_dir / "specification" / "fixtures" / "fixture.txt").write_text("frozen")
     _write_record(output_dir, "TC-001-alice-1", "goal_achieved")
     _write_record(output_dir, "TC-001-alice-2", "interrupted")
     monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
@@ -212,10 +216,10 @@ def test_resume_runs_an_interrupted_trial_and_skips_a_system_error_trial(
     monkeypatch, tmp_path: Path
 ) -> None:
     output_dir = _write_output(
-        tmp_path / "experiments" / "execute" / "test-exp-20260101-010101",
+        tmp_path / "evaluations" / "experiments" / "test-exp-20260101-010101",
         TWO_TRIAL_EXPERIMENT,
     )
-    (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
+    (output_dir / "specification" / "fixtures" / "fixture.txt").write_text("frozen")
     _write_record(output_dir, "TC-001-alice-1", "system_error")
     _write_record(output_dir, "TC-001-alice-2", "interrupted")
     monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
@@ -251,9 +255,9 @@ def test_resume_with_only_a_system_error_record_has_nothing_to_redo(
     monkeypatch, tmp_path: Path
 ) -> None:
     output_dir = _write_output(
-        tmp_path / "experiments" / "execute" / "test-exp-20260101-010101"
+        tmp_path / "evaluations" / "experiments" / "test-exp-20260101-010101"
     )
-    (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
+    (output_dir / "specification" / "fixtures" / "fixture.txt").write_text("frozen")
     _write_record(output_dir, "TC-001-alice-1", "system_error")
     monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
     calls: list[object] = []
@@ -276,10 +280,10 @@ def test_resume_passes_append_true_to_setup_engine_logging(
     monkeypatch, tmp_path: Path
 ) -> None:
     output_dir = _write_output(
-        tmp_path / "experiments" / "execute" / "test-exp-20260101-010101",
+        tmp_path / "evaluations" / "experiments" / "test-exp-20260101-010101",
         TWO_TRIAL_EXPERIMENT,
     )
-    (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
+    (output_dir / "specification" / "fixtures" / "fixture.txt").write_text("frozen")
     _write_record(output_dir, "TC-001-alice-1", "goal_achieved")
     _write_record(output_dir, "TC-001-alice-2", "interrupted")
     monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
@@ -307,9 +311,9 @@ def test_resume_passes_append_true_to_setup_engine_logging(
 
 def test_resume_all_complete_is_noop(monkeypatch, tmp_path: Path) -> None:
     output_dir = _write_output(
-        tmp_path / "experiments" / "execute" / "test-exp-20260101-010101"
+        tmp_path / "evaluations" / "experiments" / "test-exp-20260101-010101"
     )
-    (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
+    (output_dir / "specification" / "fixtures" / "fixture.txt").write_text("frozen")
     _write_record(output_dir, "TC-001-alice-1")
     monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
 
@@ -326,9 +330,11 @@ def test_resume_of_a_snapshot_that_does_not_load_exits_with_code_1(
     monkeypatch, tmp_path: Path
 ) -> None:
     output_dir = _write_output(
-        tmp_path / "experiments" / "execute" / "test-exp-20260101-010101"
+        tmp_path / "evaluations" / "experiments" / "test-exp-20260101-010101"
     )
-    (output_dir / "inputs" / "specification.yaml").write_text("schema_version: 1\n")
+    (output_dir / "specification" / "specification.yaml").write_text(
+        "schema_version: 1\n"
+    )
     monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
 
     result = runner.invoke(
@@ -357,10 +363,10 @@ def test_a_resume_that_reruns_a_trial_clears_the_evaluation(
     monkeypatch, tmp_path: Path
 ) -> None:
     output_dir = _write_output(
-        tmp_path / "experiments" / "execute" / "test-exp-20260101-010101",
+        tmp_path / "evaluations" / "experiments" / "test-exp-20260101-010101",
         TWO_TRIAL_EXPERIMENT,
     )
-    (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
+    (output_dir / "specification" / "fixtures" / "fixture.txt").write_text("frozen")
     _write_record(output_dir, "TC-001-alice-1", "goal_achieved")
     _write_record(output_dir, "TC-001-alice-2", "interrupted")
     evaluation_paths = _write_evaluation_outputs(output_dir)
@@ -384,13 +390,13 @@ def test_a_resume_whose_runner_cannot_be_built_keeps_the_evaluation(
     monkeypatch, tmp_path: Path
 ) -> None:
     output_dir = _write_output(
-        tmp_path / "experiments" / "execute" / "test-exp-20260101-010101",
+        tmp_path / "evaluations" / "experiments" / "test-exp-20260101-010101",
         _with_factory(
             "tests.unit.engine.test_cli_simulate._FailingSpecFactory",
             TWO_TRIAL_EXPERIMENT,
         ),
     )
-    (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
+    (output_dir / "specification" / "fixtures" / "fixture.txt").write_text("frozen")
     _write_record(output_dir, "TC-001-alice-1", "goal_achieved")
     _write_record(output_dir, "TC-001-alice-2", "interrupted")
     evaluation_paths = _write_evaluation_outputs(output_dir)
@@ -409,9 +415,9 @@ def test_a_resume_with_nothing_to_redo_keeps_the_evaluation(
     monkeypatch, tmp_path: Path
 ) -> None:
     output_dir = _write_output(
-        tmp_path / "experiments" / "execute" / "test-exp-20260101-010101"
+        tmp_path / "evaluations" / "experiments" / "test-exp-20260101-010101"
     )
-    (output_dir / "inputs" / "fixtures" / "fixture.txt").write_text("frozen")
+    (output_dir / "specification" / "fixtures" / "fixture.txt").write_text("frozen")
     _write_record(output_dir, "TC-001-alice-1")
     evaluation_paths = _write_evaluation_outputs(output_dir)
     monkeypatch.setattr(cli, "_configure_process_logging", lambda *_a, **_k: None)
@@ -425,8 +431,10 @@ def test_a_resume_with_nothing_to_redo_keeps_the_evaluation(
     assert [path.exists() for path in evaluation_paths] == [True, True, True]
 
 
-def test_resume_directory_without_inputs_snapshot_exits_one(tmp_path: Path) -> None:
-    output_dir = tmp_path / "experiments" / "execute" / "test-exp-20260101-010101"
+def test_resume_directory_without_specification_snapshot_exits_one(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "evaluations" / "experiments" / "test-exp-20260101-010101"
     output_dir.mkdir(parents=True)
 
     result = runner.invoke(
@@ -443,8 +451,12 @@ def test_resume_with_input_dir_lists_outputs_and_chooses_none(
 ) -> None:
     input_dir = _write_source(tmp_path)
     root = tmp_path / "project"
-    older = _write_output(root / "experiments" / "execute" / "test-exp-20260101-010101")
-    newer = _write_output(root / "experiments" / "execute" / "test-exp-20260102-020202")
+    older = _write_output(
+        root / "evaluations" / "experiments" / "test-exp-20260101-010101"
+    )
+    newer = _write_output(
+        root / "evaluations" / "experiments" / "test-exp-20260102-020202"
+    )
     monkeypatch.setattr(cli, "find_project_root", lambda: existing_folder(root))
 
     result = runner.invoke(app, ["simulate", "--resume", "--input-dir", str(input_dir)])
@@ -511,7 +523,7 @@ def _start_run(
 
 
 def _only_run_folder(project: Path) -> Path:
-    [run_dir] = (project / "experiments" / "execute").iterdir()
+    [run_dir] = (project / "evaluations" / "experiments").iterdir()
     return run_dir
 
 
@@ -530,7 +542,7 @@ def test_a_new_run_goes_under_the_project_folder(
     run_dir = _only_run_folder(project)
     assert output_dirs == [run_dir]
     assert re.fullmatch(r"test-exp-\d{8}-\d{6}", run_dir.name)
-    assert (run_dir / "inputs" / "specification.yaml").read_text() == (
+    assert (run_dir / "specification" / "specification.yaml").read_text() == (
         MINIMAL_EXPERIMENT
     )
     assert not (tmp_path / "cwd-root").exists()
@@ -568,7 +580,7 @@ def test_each_new_run_is_listed_in_the_project_folder(
 
     assert first.exit_code == 0, first.output
     assert second.exit_code == 0, second.output
-    runs = sorted(p.name for p in (project / "experiments" / "execute").iterdir())
+    runs = sorted(p.name for p in (project / "evaluations" / "experiments").iterdir())
     assert runs == ["test-exp-20261107-143000", "test-exp-20261107-143001"]
 
 
@@ -687,7 +699,7 @@ def test_a_factory_without_from_specification_is_built_with_no_arguments(
     assert type(factory) is StubRunnerFactory
 
 
-def test_a_factory_with_from_specification_gets_the_specification_and_inputs(
+def test_a_factory_with_from_specification_gets_the_specification_and_its_folder(
     monkeypatch, tmp_path: Path
 ) -> None:
     ref = "tests.unit.engine.test_cli_simulate._SpecFactory"
@@ -697,11 +709,14 @@ def test_a_factory_with_from_specification_gets_the_specification_and_inputs(
 
     assert result.exit_code == 0, result.output
     assert _SpecFactory.received is not None
-    binding, inputs_dir = _SpecFactory.received
+    binding, specification_dir = _SpecFactory.received
     assert binding == "targets/app.yaml"
-    assert inputs_dir.name == "inputs"
-    assert (inputs_dir / "specification.yaml").is_file()
-    assert inputs_dir.parent.parent == tmp_path / "project" / "experiments" / "execute"
+    assert specification_dir.name == "specification"
+    assert (specification_dir / "specification.yaml").is_file()
+    assert (
+        specification_dir.parent.parent
+        == tmp_path / "project" / "evaluations" / "experiments"
+    )
 
     output_dir = _write_output(
         tmp_path / "resumed" / "test-exp-20260101-010101", _with_factory(ref)
@@ -714,7 +729,7 @@ def test_a_factory_with_from_specification_gets_the_specification_and_inputs(
     )
 
     assert result.exit_code == 0, result.output
-    assert _SpecFactory.received == ("targets/app.yaml", output_dir / "inputs")
+    assert _SpecFactory.received == ("targets/app.yaml", output_dir / "specification")
 
 
 def test_a_binding_error_prints_and_exits_one(monkeypatch, tmp_path: Path) -> None:

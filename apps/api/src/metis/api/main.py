@@ -54,8 +54,8 @@ from metis.api.settings import (
 )
 from metis.api.store import Store, StoreError
 from metis.api.web import serve_web
-from metis.core.execution_layout import find_project_root
 from metis.core.logging import get_logger
+from metis.core.project_layout import find_project_root
 from metis.wizard import InterviewerUnavailable
 
 if TYPE_CHECKING:
@@ -85,7 +85,7 @@ _OPENAPI_TAGS = [
     {
         "name": "experiments",
         "description": (
-            "Keep one row for each Experiment folder under experiments/execute/. "
+            "Keep one row for each Experiment folder under evaluations/experiments/. "
             "A delete removes the row. The Experiment folder stays on disk."
         ),
     },
@@ -164,7 +164,9 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.login = settings.login
     app.state.admin_token = settings.admin_token
     app.state.secure_cookie = settings.secure_cookie
-    app.state.accounts = Accounts(app.state.store.engine)
+    app.state.accounts = Accounts(
+        app.state.store.engine, server_dir=app.state.store.project_dir
+    )
     try:
         yield
     finally:

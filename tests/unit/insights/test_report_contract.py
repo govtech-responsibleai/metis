@@ -290,7 +290,7 @@ def test_report_carries_display_names(experiment: Path) -> None:
 
 
 def test_report_uses_specification_names(experiment: Path) -> None:
-    spec_path = experiment.parents[2] / "inputs/specification.yaml"
+    spec_path = experiment.parents[2] / "specification/specification.yaml"
     spec = yaml.safe_load(spec_path.read_text())
     spec["features"][0]["behaviours"][0]["criteria"][0]["name"] = "Check one"
     spec["personas"][0]["name"] = "Busy parent"

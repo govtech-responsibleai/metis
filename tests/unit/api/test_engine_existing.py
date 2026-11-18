@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from metis.core import execution_layout
+from metis.core import execution_layout, project_layout
 from metis.engine.extractor import TraceWaitSettings
 from tests.fixtures.api.engine import wait_until
 
@@ -104,7 +104,7 @@ def test_a_folder_with_no_snapshot_is_an_invalid_experiment(
     project_dir: Path,
     name: str,
 ) -> None:
-    folder = project_dir / execution_layout.EXECUTIONS / "bare"
+    folder = project_dir / project_layout.EXPERIMENTS / "bare"
     folder.mkdir(parents=True)
 
     response = engine_client.post(ROUTES[name].format(id="bare"))
@@ -113,7 +113,7 @@ def test_a_folder_with_no_snapshot_is_an_invalid_experiment(
     body = response.json()
     assert body["code"] == "invalid_experiment"
     assert body["message"] == (
-        f"'{folder}' is not a simulation output directory (no 'inputs/' snapshot). "
+        f"'{folder}' is not a simulation output directory (no 'specification/' snapshot). "
         "Run 'metis engine simulate' first."
     )
     assert fake_engine.calls == []
@@ -199,15 +199,58 @@ def test_a_resume_of_a_complete_evaluation_is_refused(
     assert fake_engine.calls == []
 
 
-def test_an_evaluate_of_a_complete_evaluation_grades_again(
+def test_an_evaluate_of_a_complete_evaluation_is_refused(
     engine_client: TestClient, fake_engine: FakeEngine, experiment_dir: Path
 ) -> None:
     _write_results(experiment_dir)
 
     response = engine_client.post(ROUTES["evaluate"].format(id=experiment_dir.name))
 
+    assert response.status_code == 409
+    assert response.json()["code"] == "evaluation_complete"
+    assert "regrade" in response.json()["message"]
+    assert fake_engine.calls == []
+    assert (experiment_dir / execution_layout.RESULTS).exists()
+
+
+def test_an_evaluate_with_regrade_grades_a_complete_evaluation_again(
+    engine_client: TestClient, fake_engine: FakeEngine, experiment_dir: Path
+) -> None:
+    _write_results(experiment_dir)
+
+    response = engine_client.post(
+        ROUTES["evaluate"].format(id=experiment_dir.name), json={"regrade": True}
+    )
+
     assert response.status_code == 202
     wait_until(lambda: len(fake_engine.calls) == 1)
+    assert fake_engine.calls[0].name == "evaluate"
+
+
+def test_an_evaluate_of_an_evaluation_that_did_not_end_grades_every_trial(
+    engine_client: TestClient, fake_engine: FakeEngine, experiment_dir: Path
+) -> None:
+    results = experiment_dir / execution_layout.RESULTS
+    results.parent.mkdir(parents=True)
+    results.write_text("{")  # a results.json that does not load
+
+    response = engine_client.post(ROUTES["evaluate"].format(id=experiment_dir.name))
+
+    assert response.status_code == 202
+    wait_until(lambda: len(fake_engine.calls) == 1)
+    assert fake_engine.calls[0].name == "evaluate"
+
+
+def test_regrade_is_not_an_option_of_an_evaluate_resume(
+    engine_client: TestClient, fake_engine: FakeEngine, experiment_dir: Path
+) -> None:
+    response = engine_client.post(
+        ROUTES["resume_evaluation"].format(id=experiment_dir.name),
+        json={"regrade": True},
+    )
+
+    assert response.status_code == 422
+    assert fake_engine.calls == []
 
 
 @pytest.mark.parametrize("name", list(ROUTES))
@@ -253,7 +296,7 @@ def test_a_bad_timeout_is_checked_after_the_folder_and_the_run(
     make_experiment_dir: Callable[..., Path],
 ) -> None:
     bad = {"langfuse_timeout": 10}
-    bare = project_dir / execution_layout.EXECUTIONS / "bare"
+    bare = project_dir / project_layout.EXPERIMENTS / "bare"
     bare.mkdir(parents=True)
     running = make_experiment_dir("test-exp-20260101-000001")
     other = make_experiment_dir("test-exp-20260101-000002")

@@ -66,7 +66,7 @@ test("uses the stateless wizard routes and JSON request shapes", async () => {
         headers: {
           "content-type": "application/zip",
           "Content-Disposition":
-            'attachment; filename="20261016-223045-interview.zip"',
+            'attachment; filename="20261016-223045-interview-k7mwp.zip"',
         },
       });
     }
@@ -222,7 +222,7 @@ test("packages a synthesized manual Specification and its fixtures as multipart"
       headers: {
         "content-type": "application/zip",
         "Content-Disposition":
-          'attachment; filename="20261016-223045-manual.zip"',
+          'attachment; filename="20261016-223045-manual-k7mwp.zip"',
       },
     });
   };
@@ -336,12 +336,12 @@ test("simulate posts the input folder", async () => {
     });
   };
 
-  assert.deepEqual(await api.simulate("experiments/design/t1/outputs"), {
+  assert.deepEqual(await api.simulate("evaluations/specifications/t1"), {
     experiment_id: "spec-1",
   });
   assert.equal(path, "/api/v1/engine/simulate");
   assert.equal(init?.method, "POST");
-  assert.equal(init?.body, '{"input_dir":"experiments/design/t1/outputs"}');
+  assert.equal(init?.body, '{"input_dir":"evaluations/specifications/t1"}');
 });
 
 test("a busy engine refuses a start with a retryable error", async () => {
@@ -357,7 +357,7 @@ test("a busy engine refuses a start with a retryable error", async () => {
     );
 
   await assert.rejects(
-    api.simulate("experiments/design/t1/outputs"),
+    api.simulate("evaluations/specifications/t1"),
     (cause) =>
       cause instanceof TransportError &&
       cause.code === "engine_busy" &&

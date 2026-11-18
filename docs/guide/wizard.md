@@ -8,8 +8,8 @@ The METIS Engine runs that specification.
 | Interface | Best for | Who saves Interview state? | Finished output |
 |---|---|---|---|
 | [CLI](wizard/cli.md) | A person working in a terminal | The CLI saves a local JSON file | Files in an output directory |
-| [Web](wizard/web.md) | A person who wants a guided browser flow | The API saves data in its store | `YYYYMMDD-HHMMSS-interview.zip` download |
-| [API](wizard/api.md) | A service or custom client | Your client saves the returned JSON state | YAML strings or `YYYYMMDD-HHMMSS-interview.zip` |
+| [Web](wizard/web.md) | A person who wants a guided browser flow | The API saves data in its store | `YYYYMMDD-HHMMSS-interview-<random>.zip` download |
+| [API](wizard/api.md) | A service or custom client | Your client saves the returned JSON state | YAML strings or `YYYYMMDD-HHMMSS-interview-<random>.zip` |
 
 - The CLI runs the Wizard logic on your computer. It does not need the API server.
 - The web client uses the Wizard API.
@@ -100,7 +100,7 @@ Run mode needs valid fields. If the fields are not valid, fix them, or choose Bu
 the fields are valid but the target does not answer, you can still continue. `review.md` then says
 that the binding was not tested.
 
-A download with a binding has `outputs/target-binding.yaml` next to `outputs/specification.yaml`.
+A download with a binding has `target-binding.yaml` next to `specification.yaml`.
 The Specification names the generic runner in `runner_factory_ref` and the file in `target_binding`.
 The binding file starts with a comment that lists the variables to set.
 
@@ -145,16 +145,32 @@ file. It does not guess submissions during a run.
 
 ## Run the evaluation
 
-The CLI writes files to `experiments/design/YYYYMMDD-HHMMSS-interview-<random>/` by default, for example `20261112-101500-interview-k7mwp`. The timestamp uses the machine's local date and 24-hour time, including seconds. The random part is five characters.
-Extract browser or API downloads into `experiments/design/`.
-The API store uses the same layout. It writes each done web Interview to
-`experiments/design/<target-id>/outputs/`, and you can give that folder to `--input-dir`.
-Each ZIP contains its dated experiment folder. For an Interview created on 2026-10-16 at 22:30:45, run the specification with the
-Engine:
+METIS writes everything in one `evaluations/` folder in the project folder, with one folder for
+each step:
+
+```text
+<project>/evaluations/
+├── metis.db                  the database of the API server; the CLI does not use it
+├── interviews/<id>/          interview_state.json, documents/
+├── specifications/<id>/      specification.yaml, fixtures/, target-binding.yaml, review.md
+└── experiments/<specification-id>-YYYYMMDD-HHMMSS/
+```
+
+The CLI writes `interviews/<id>/` and `specifications/<id>/`. The `<id>` has the form
+`YYYYMMDD-HHMMSS-interview-<random>`, for example `20261117-143000-interview-k7mwp`. The timestamp
+uses the machine's local date and 24-hour time, including seconds. The random part is five
+characters. The API store uses the same layout, with the Target id as the `<id>`. A download from
+the browser or the API is named `<id>.zip`. Extract it into `evaluations/`. Then give the
+Specification folder to `--input-dir`:
 
 ```bash
-metis engine run --input-dir experiments/design/20261016-223045-interview/outputs/
+metis engine run --input-dir evaluations/specifications/20261117-143000-interview-k7mwp
 ```
+
+The engine names the Experiment folder after the `id` in `specification.yaml` and the time that
+the Experiment started, for example `evaluations/experiments/toy-app-eval-20261117-150212/`. It
+does not use the `<id>` of the Specification folder. Two Interviews for a Target with the same
+name thus give Experiment folders whose names start the same way.
 
 See the [Engine guide](engine.md) for the evaluation run and the [Report guide](report.md) for the
 results.
