@@ -86,7 +86,35 @@ volume to keep your data.
 | `/data/experiments/execute/` | The experiment folders |
 | `/data/users/<user id>/` | The same folders for each user account, when login is on |
 
-Run only one container on a volume. The container runs as the user `metis` with uid 10001.
+The container runs as the user `metis` with uid 10001.
+
+## Run one container
+
+Run exactly one METIS container, with one API process. Do not add workers, replicas, or
+autoscaling. The API does not support more than one process, for three reasons:
+
+- The database is a SQLite file in `/data`. A second container has its own volume, so it has its
+  own database.
+- The experiment folders are on the volume of one container. They are the source of truth for
+  every run.
+- The API keeps the run that is alive now in memory. A second process does not know about it.
+  It can start a second run of the same experiment, and it answers a stop or status request as
+  if no run were alive.
+
+A second process on the same volume is not safe either. The store locks a save only inside its
+own process, so saves from two processes can mix.
+
+Check these settings on a hosting platform:
+
+| Setting | Value |
+|---|---|
+| Instances or replicas | 1 |
+| Autoscaling | Off |
+| Deploy strategy | Stop the old container before the new one starts. A rolling deploy runs two containers on one volume for a short time. |
+| Start command | `metis-api`, the `CMD` of the image. Do not start the API with Uvicorn or Gunicorn directly. |
+
+More CPUs do not need more processes. The API requests are small, and the engine run spends most
+of its time waiting for model calls.
 
 ## Certificates
 
