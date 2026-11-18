@@ -68,6 +68,7 @@ type DoctorOperation = operations["run_doctor_api_v1_doctor_get"];
 
 export type CurrentUser = JsonResponse<CurrentUserOperation>;
 export type UserAccount = Schema["UserAccountBody"];
+export type NewUserAccount = Schema["NewUserAccountBody"];
 export type InterviewStep = Schema["InterviewStep"];
 export type Perspective = Schema["Perspective"];
 export type InterviewDocument = Schema["InterviewDocument"];
@@ -790,6 +791,15 @@ export const auth = {
   logout: async (): Promise<void> => {
     await responseFor("/api/v1/auth/logout", { method: "POST" });
   },
+};
+
+// The user routes need the admin token of the server. The caller keeps the token in memory only.
+export const users = {
+  create: (adminToken: string) =>
+    call<NewUserAccount>("/api/v1/users", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${adminToken}` },
+    }),
 };
 
 export const store = {

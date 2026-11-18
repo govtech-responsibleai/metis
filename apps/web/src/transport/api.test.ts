@@ -8,6 +8,7 @@ import {
   onLoginRequired,
   store,
   TransportError,
+  users,
   type InterviewState,
   type Report,
 } from "./api.ts";
@@ -570,4 +571,42 @@ test("login sends the credentials as JSON and logout sends a POST", async () => 
     },
     { path: "/api/v1/auth/logout", method: "POST", body: undefined },
   ]);
+});
+
+test("a new user account sends the admin token as a bearer token", async () => {
+  let asked = 0;
+  const stop = onLoginRequired(() => {
+    asked += 1;
+  });
+  const calls: Array<{ path: string; method?: string; auth: string | null }> =
+    [];
+  globalThis.fetch = async (input, init) => {
+    calls.push({
+      path: String(input),
+      method: init?.method,
+      auth: new Headers(init?.headers).get("Authorization"),
+    });
+    return calls.length === 1
+      ? new Response(
+          JSON.stringify({
+            id: "u1",
+            username: "brave-otter",
+            created_at: "2026-11-17T00:00:00Z",
+            password: "k3m7p-x9q2r",
+          }),
+          { status: 201 },
+        )
+      : failure(401, "invalid_admin_token", "The request needs the token.");
+  };
+
+  const account = await users.create("workshop-token");
+  await assert.rejects(users.create("wrong"), { status: 401 });
+
+  assert.equal(account.password, "k3m7p-x9q2r");
+  assert.deepEqual(calls, [
+    { path: "/api/v1/users", method: "POST", auth: "Bearer workshop-token" },
+    { path: "/api/v1/users", method: "POST", auth: "Bearer wrong" },
+  ]);
+  assert.equal(asked, 0);
+  stop();
 });
