@@ -96,7 +96,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 
 # The API runs each experiment on a thread of its own, up to METIS_API_ENGINE_MAX_RUNS at once,
 # and queues the rest. tini as PID 1 and the exec form of CMD let the stop signal reach the API,
-# which then stops its runs. Run one API process only, because the store has no lock between
-# processes and the queue is in the memory of that process.
+# which then stops its runs. Run one API process in one container only. The store, the
+# experiment folders, the live runs, and the queue are not shared between processes. See "Run
+# one container" in docs/guide/docker.md.
 ENTRYPOINT ["tini", "--"]
 CMD ["metis-api", "--project-dir", "/data"]

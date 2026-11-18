@@ -138,7 +138,36 @@ volume to keep your data.
 | `/data/users/<user id>/evaluations/` | The Interviews, Specifications and experiments of each user account, when login is on. The database stays in `/data/evaluations/`. |
 | `/data/users/<user id>/user.json` | The username and the login times of each user account, for debugging. It holds no password. |
 
-Run only one container on a volume. The container runs as the user `metis` with uid 10001.
+The container runs as the user `metis` with uid 10001.
+
+## Run one container
+
+Run exactly one METIS container, with one API process. Do not add workers, replicas, or
+autoscaling. The API does not support more than one process, for three reasons:
+
+- The database is a SQLite file in `/data`. A second container has its own volume, so it has its
+  own database.
+- The experiment folders are on the volume of one container. They are the source of truth for
+  every run.
+- The API keeps the runs that are alive now, and the queue, in memory. A second process does not
+  know about them. It can start a second run of the same experiment, it answers a stop or status
+  request as if no run were alive or queued, and it has a queue and a run limit of its own.
+
+A second process on the same volume is not safe either. The store locks a save only inside its
+own process, so saves from two processes can mix.
+
+Check these settings on a hosting platform:
+
+| Setting | Value |
+|---|---|
+| Instances or replicas | 1 |
+| Autoscaling | Off |
+| Deploy strategy | Stop the old container before the new one starts. A rolling deploy runs two containers on one volume for a short time. |
+| Start command | `metis-api`, the `CMD` of the image. Do not start the API with Uvicorn or Gunicorn directly. |
+
+More CPUs do not need more processes. The API requests are small, and the engine runs spend most
+of their time waiting for model calls. To run more experiments at the same time, raise
+`METIS_API_ENGINE_MAX_RUNS`. See [Experiments at the same time](#experiments-at-the-same-time).
 
 ## Certificates
 
