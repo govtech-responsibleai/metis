@@ -265,9 +265,10 @@ id: my-evaluation
 runner_factory_ref: metis.engine.simulation.runners.http.HttpRunnerFactory
 target_binding: toyapp-api.yaml
 target:
-  name: Employee Policy Assistant
+  name: Northstar Policy & Report Assistant
   users: Employees of a fictional company.
-  description: Answers employee policy questions from a fixed document collection.
+  description: Answers employee policy questions from a fixed document collection, and
+    analyses reports that employees upload. Each message goes to one of the two jobs only.
 ```
 
 | Field | Required | Description |
