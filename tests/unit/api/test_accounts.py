@@ -23,6 +23,8 @@ from metis.core import execution_layout, project_layout
 from tests.fixtures.api.engine import FakeEngine, write_input_dir
 from tests.fixtures.api.records import done_state, put_interview, ref, web_record
 
+pytestmark = pytest.mark.usefixtures("no_demo_target")
+
 JOIN = {"Authorization": "Bearer workshop-join-token"}
 ADMIN_TOKEN = {"Authorization": "Bearer facilitator-admin-token"}
 ADMIN_USERNAME = "workshop-lead"

@@ -13,6 +13,8 @@ from metis.api.store import LOCAL_USER_ID, Store
 from metis.api.tables import targets, users
 from tests.fixtures.api.records import done_state, put_interview, ref, web_record
 
+pytestmark = pytest.mark.usefixtures("no_demo_target")
+
 JOIN = {"Authorization": "Bearer workshop-join-token"}
 TARGET = "20261114-101500-interview-k7mwp"
 OTHER_TARGET = "20261114-101500-interview-x3r9t"

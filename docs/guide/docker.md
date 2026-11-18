@@ -79,6 +79,9 @@ curl http://localhost:8000/api/v1/users \
 For the API routes, see
 [Turn on login for a shared server](wizard/api.md#turn-on-login-for-a-shared-server).
 
+Each new user account gets a demo Target. To let a person start an experiment from it, also
+set `TOYAPP_API_URL` in `.env`.
+
 ## Settings
 
 The container reads `.env`. The model variables are the same as for a local install. The image

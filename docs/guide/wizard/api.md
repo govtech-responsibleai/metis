@@ -676,6 +676,23 @@ thus give it to each participant, and a website that gives credentials to its vi
 it on its server. That website must decide who gets a user account, and how many. The admin token
 opens only the user routes. Keep it for your own scripts.
 
+Each new user account gets its own demo Target, the Northstar Policy & Report Assistant, with
+a done Interview and one finished Experiment. See
+[The demo Target](web.md#the-demo-target). A user account that exists before the server has
+this feature does not get one. For a workshop, set up the server before you make the user
+accounts:
+
+- Run the [agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp)
+  where the server can reach it, and set `TOYAPP_API_URL` to its address, for example
+  `http://127.0.0.1:8000`. The Target binding of the demo reads this variable. The checks of
+  `metis doctor` do not read it, so a server without it shows **Server ready** and the
+  experiment fails when it starts.
+- Set the model keys and the Langfuse keys that an experiment needs. See the
+  [Engine guide](../engine.md).
+
+A person can read the finished Experiment of the demo without these settings. Only a new
+experiment needs them.
+
 ### Records of each user account
 
 When login is on, each person sees only the records of their own user account: the Targets,
