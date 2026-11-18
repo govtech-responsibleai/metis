@@ -142,8 +142,8 @@ compile failure gets 400 `compilation_failed` and changes nothing. A missing row
 
 The engine routes start, stop, and follow the engine steps of an experiment. They call the
 `metis.engine.run` library functions in the API's own process. Each job runs on a
-`threading.Thread` of its own. They start no child process, and they do not use the store. They read and write
-the experiment folders only, as `metis engine simulate` and `evaluate` do.
+`threading.Thread` of its own. They start no child process, and they do not use the store. They
+read and write the experiment folders only, as `metis engine simulate` and `evaluate` do.
 
 Each engine route works in the project folder of the request, which `request_project_dir` in
 `experiment_dirs.py` gives. The report routes use the same function. With login off, it is the
@@ -159,15 +159,17 @@ folder, its steps, its stop flag (a `threading.Event`), and the last `seq` of
 folder with the same name, so a run is the run of a request only when its project folder and
 its experiment id are both the same. When the thread ends, the API forgets the run.
 
-The API runs up to `METIS_API_ENGINE_MAX_RUNS` jobs at the same time, across all experiments
-of all user accounts. A start that finds every slot taken gets 202 and waits in a queue, first
-in first out. It starts when a slot frees. A start never fails because the engine is busy. Each
-simulation sends its logs to its own files, and each evaluation has its own Langfuse client,
-so two runs never share a log file or a connection. One lock covers the check for a live or
-queued run, the checks of the start, the queue, and the start of each thread. A refused start
-therefore creates no folder, and two starts of the same experiment cannot both pass. A restart
-loses the queue. The folder of a queued run then has no events, so the web app shows it as
-Stopped, with Resume.
+The API runs up to `METIS_API_ENGINE_MAX_RUNS` jobs at the same time, across all experiments of
+all user accounts. A start that finds every slot taken gets 202 and waits in a queue, first in
+first out. It starts when a slot frees. A start never fails because the engine is busy. Each
+simulation sends its logs to its own files, and each evaluation reads the target's Langfuse
+through a client of its own. The METIS-internal tracing client is the same for all runs. One
+lock covers the check for a live or queued run, the checks of the start, the queue, and the
+start of each thread. A refused start therefore creates no folder, and two starts of the same
+experiment cannot both pass. A restart loses the queue, and no queued job starts after it. A
+queued new simulation has a folder with no events, so the web app shows it as Stopped, with
+Resume. A queued resume or evaluate shows the last state of its folder, for example Waiting for
+evaluate, and its Resume starts it again.
 
 A job is what one start asks for. One thread runs all the steps of a job in order, so the
 evaluate after a simulate keeps the slot of its simulate. A step runs only when the stop flag
@@ -211,13 +213,14 @@ character. After `prepare_experiment`, the route also checks that the new folder
 `evaluations/experiments/` of the request. #174 gives the id field this rule in metis-core, for the
 wizard and the CLI too.
 
-A full evaluate deletes the results of the experiment before it grades again. Thus the
-evaluate route refuses an experiment whose evaluation is complete, with 409
-`evaluation_complete`, and keeps the results. The evaluation is complete when `results.json`
-loads (`evaluation_is_complete`). To grade a complete evaluation again, send `regrade: true` in
-the body. The evaluate that the server starts after a simulate does not use this route, so this
-check does not apply to it, and it needs no `regrade`. The web app never sends `regrade`. The evaluate resume route has
-no `regrade` field, and a complete evaluation gives it 409 `evaluation_complete` too.
+A full evaluate deletes the results of the experiment before it grades again. Thus the evaluate
+route refuses an experiment whose evaluation is complete, with 409 `evaluation_complete`, and
+keeps the results. The evaluation is complete when `results.json` loads
+(`evaluation_is_complete`). To grade a complete evaluation again, send `regrade: true` in the
+body. The evaluate that the server starts after a simulate does not use this route, so this
+check does not apply to it, and it needs no `regrade`. The web app never sends `regrade`. The
+evaluate resume route has no `regrade` field, and a complete evaluation gives it 409
+`evaluation_complete` too.
 
 Every check of a start runs in the request, before the job is accepted. The routes check in
 this order and return the first error:
@@ -242,26 +245,25 @@ this order and return the first error:
 | 409 | `no_run` | A stop for an experiment that does not run and does not wait in the queue. |
 | 422 | `validation_error` | A field is not valid, or `concurrency` or `langfuse_timeout` is more than its maximum setting. |
 
-A run that fails after the 202 fails on its thread, and frees its slot for the next job. The engine has then already ended the
-events log with `failed` and its reason, or with `interrupted` for a stop. The API logs any
-error that is not a `RunError` or `RunStopped`. The text of a run goes to `logs/console.log`
-of the experiment, never to the stdout of the API.
+A run that fails after the 202 fails on its thread, and frees its slot for the next job. The
+engine has then already ended the events log with `failed` and its reason, or with `interrupted`
+for a stop. The API logs any error that is not a `RunError` or `RunStopped`. The text of a run
+goes to `logs/console.log` of the experiment, never to the stdout of the API.
 
-The status route takes its answer from `EngineRuns` when the run of that id is queued or
-alive. A queued run is `queued`, with the phase of its first step and no counts.
-`queue_ahead` is the number of jobs before it in the queue, across all user accounts, so 0
-means that it starts next. It is a count only, and it never names an experiment or a user
-account. It is `null` in every other status. A live run is `running`, or `stopping` once the
-stop flag is set. Its phase is the phase of its newest phase line with a `seq` more than the
-start `seq`, so a job that moves from simulate to evaluate reports `evaluating`. Before its
-first line, the phase is that of its first step. The counts come from the `started` line of
-that phase after the start `seq`, so they are `null` until the engine writes it. When no run is alive, the answer comes from the last phase line of the
-events log: `completed`, `failed` with its reason, or `interrupted`. A log that ends with
-`started` is `unfinished`, because the run ended with no last line, for example after the
-process was killed. A log with no phase line is `not_started`. The status route and the
-events route read the file with one reader (`read_events`). It skips a last line with no
-newline and any line that does not parse. The events route returns each line as the engine
-wrote it.
+The status route takes its answer from `EngineRuns` when the run of that id is queued or alive.
+A queued run is `queued`, with the phase of its first step and no counts. `queue_ahead` is the
+number of jobs before it in the queue, across all user accounts, so 0 means that it starts next.
+It is a count only, and it never names an experiment or a user account. It is `null` in every
+other status. A live run is `running`, or `stopping` once the stop flag is set. Its phase is the
+phase of its newest phase line with a `seq` more than the start `seq`, so a job that moves from
+simulate to evaluate reports `evaluating`. Before its first line, the phase is that of its first
+step. The counts come from the `started` line of that phase after the start `seq`, so they are
+`null` until the engine writes it. When no run is alive, the answer comes from the last phase
+line of the events log: `completed`, `failed` with its reason, or `interrupted`. A log that ends
+with `started` is `unfinished`, because the run ended with no last line, for example after the
+process was killed. A log with no phase line is `not_started`. The status route and the events
+route read the file with one reader (`read_events`). It skips a last line with no newline and
+any line that does not parse. The events route returns each line as the engine wrote it.
 
 Startup and shutdown:
 
@@ -343,7 +345,7 @@ src/metis/api/
 ├── routes/experiments.py  store routes for Experiment rows
 ├── routes/engine.py   engine routes: start, resume, evaluate, stop, status, and events
 ├── routes/doctor.py   the checks of `metis doctor`
-├── engine_runs.py     the live and queued engine jobs, their threads and console file, and the events reader
+├── engine_runs.py     the live and queued engine jobs, their threads, and the events reader
 ├── experiment_dirs.py the project folder of a request, and an experiment folder from its id
 ├── errors.py          RouteError, which the app maps to the service error shape
 ├── routes/accounts.py user and auth routes, and the login guard of all /api routes

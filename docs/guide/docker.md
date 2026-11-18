@@ -89,8 +89,10 @@ the same provider, and most often the same target. Each run makes up to its conc
 at the same time, so the server makes up to `METIS_API_ENGINE_MAX_RUNS` × concurrency calls at
 the same time. If runs fail with rate-limit errors, lower the value.
 
-The queue is in the memory of the server. When the container restarts, the queue is lost. An
-experiment that was queued then shows Stopped, and Resume starts it again.
+The queue is in the memory of the server. When the container restarts, the queue is lost, and
+no queued experiment starts on its own. A queued new experiment then shows Stopped. A queued
+resume shows the state from before it, for example Waiting for evaluate. In both cases, Resume
+starts it again.
 
 ## Make targets
 
