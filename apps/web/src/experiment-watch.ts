@@ -1,6 +1,8 @@
-// Follows one Experiment while its run is alive, and starts its engine steps.
+// Follows one Experiment while its run is alive or queued, and starts the steps that the user
+// asks for. The server starts the evaluate after a simulate, so this page never starts one on
+// its own.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   experimentState,
   type ExperimentState,
@@ -75,8 +77,13 @@ const RESUME: Record<
 export const STALE_STEP =
   "This Experiment changed since the page last read it, so nothing started. The page now shows its current state.";
 
+// A queued run is alive too: it waits on the server for a free slot, and starts on its own.
 function isLiveStatus(status: EngineStatus): boolean {
-  return status.status === "running" || status.status === "stopping";
+  return (
+    status.status === "running" ||
+    status.status === "stopping" ||
+    status.status === "queued"
+  );
 }
 
 // Starts the engine step that a Resume was for, and saves the step of the row.
@@ -107,10 +114,6 @@ export async function startStep(
   if (record.step === saved) return record;
   return calls.putExperiment(id, { target_id: record.target_id, step: saved });
 }
-
-// The Experiments whose evaluate this page started on its own. It is outside the component, so
-// a second mount in strict mode, or a second poll, cannot start evaluate again.
-const autoStarted = new Set<string>();
 
 function errorText(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
@@ -187,8 +190,6 @@ export function useExperimentWatch(experimentId: string): {
   const [recordError, setRecordError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"stop" | "resume" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  // The Experiment whose simulate this page saw run.
-  const sawSimulate = useRef<string | null>(null);
   const { engine, failure } = useEngine(experimentId, wake);
 
   useEffect(() => {
@@ -239,25 +240,6 @@ export function useExperimentWatch(experimentId: string): {
     },
     [],
   );
-
-  // Evaluate starts when this page sees simulate end. When no page is open at that moment, the
-  // Experiment waits for evaluate, and Resume starts it.
-  useEffect(() => {
-    if (state?.kind === "simulating") {
-      sawSimulate.current = experimentId;
-      // A resumed simulation ends again, and its evaluate starts again.
-      autoStarted.delete(experimentId);
-    }
-    if (
-      state?.kind !== "waiting" ||
-      !record ||
-      sawSimulate.current !== experimentId ||
-      autoStarted.has(experimentId)
-    )
-      return;
-    autoStarted.add(experimentId);
-    act("resume", () => start("evaluate", record));
-  }, [state?.kind, record, experimentId, act, start]);
 
   const load: WatchLoad =
     recordError !== null

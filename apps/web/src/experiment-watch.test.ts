@@ -22,6 +22,7 @@ const status = (fields: Partial<EngineStatus>): EngineStatus => ({
   done: 0,
   reason: null,
   last_seq: 0,
+  queue_ahead: null,
   ...fields,
 });
 
@@ -154,4 +155,40 @@ test("a start that the API refuses saves no step", async () => {
 
   await assert.rejects(startStep("evaluate", RECORD, fake), complete);
   assert.deepEqual(calls, ["status e1", "evaluate e1"]);
+});
+
+test("a Resume of a queued Experiment starts nothing", async () => {
+  const { calls, fake } = recording([
+    status({ status: "queued", queue_ahead: 2 }),
+  ]);
+
+  await assert.rejects(
+    startStep("resume-simulate", { ...RECORD, step: "simulate" }, fake),
+    { message: STALE_STEP },
+  );
+  assert.deepEqual(calls, ["status e1"]);
+});
+
+test("run_in_progress of a queued job of the same phase saves the step", async () => {
+  // The start was accepted by another tab and waits in the queue on the server.
+  const record: ExperimentRecord = { ...RECORD, step: "simulate" };
+  const { calls, fake } = recording(
+    [
+      status({ phase: "evaluating", status: "interrupted" }),
+      status({ phase: "evaluating", status: "queued", queue_ahead: 0 }),
+    ],
+    async () => {
+      throw RUN_IN_PROGRESS;
+    },
+  );
+
+  const saved = await startStep("resume-evaluate", record, fake);
+
+  assert.deepEqual(calls, [
+    "status e1",
+    "resume-evaluate e1",
+    "status e1",
+    "save e1 evaluate",
+  ]);
+  assert.equal(saved.step, "evaluate");
 });

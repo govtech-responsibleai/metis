@@ -25,7 +25,15 @@ export type ExperimentState =
       // True after a stop, until the run ends.
       stopping: boolean;
     }
-  // Simulate is done and evaluate has not started.
+  // The run waits on the server for a free slot. `phase` is the phase of its first step, and
+  // `queueAhead` is the number of runs before it, so 0 means that it starts next.
+  | {
+      kind: "queued";
+      phase: Phase;
+      progress: Progress | null;
+      queueAhead: number;
+    }
+  // Simulate is done and evaluate has not started, for example after an API restart.
   | { kind: "waiting"; progress: Progress | null; resume: "evaluate" }
   | { kind: "completed"; progress: Progress | null }
   | {
@@ -37,13 +45,14 @@ export type ExperimentState =
 
 export type ExperimentAction = "stop" | "resume" | "delete";
 
-// The actions that are on in each state. Delete is off while a run is alive.
+// The actions that are on in each state. Delete is off while a run is alive or queued.
 export const ACTIONS: Record<
   ExperimentState["kind"],
   Record<ExperimentAction, boolean>
 > = {
   simulating: { stop: true, resume: false, delete: false },
   evaluating: { stop: true, resume: false, delete: false },
+  queued: { stop: true, resume: false, delete: false },
   waiting: { stop: false, resume: true, delete: true },
   completed: { stop: false, resume: false, delete: true },
   stopped: { stop: false, resume: true, delete: true },
@@ -61,6 +70,10 @@ export function phaseSteps(state: ExperimentState): {
       return { simulate: "live", evaluate: "next" };
     case "evaluating":
       return { simulate: "done", evaluate: "live" };
+    case "queued":
+      return state.phase === "evaluating"
+        ? { simulate: "done", evaluate: "next" }
+        : { simulate: "next", evaluate: "next" };
     case "waiting":
       return { simulate: "done", evaluate: "next" };
     case "completed":
@@ -97,10 +110,16 @@ export function stepParts(state: ExperimentState): {
 export const STATE_LABEL: Record<ExperimentState["kind"], string> = {
   simulating: "Simulating",
   evaluating: "Evaluating",
+  queued: "Queued",
   waiting: "Waiting for evaluate",
   completed: "Completed",
   stopped: "Stopped",
 };
+
+// The place of a queued Experiment, shown next to its state.
+export function queueText(queueAhead: number): string {
+  return queueAhead === 0 ? "Starts next" : `${queueAhead} ahead`;
+}
 
 export type LiveState = Extract<ExperimentState, { stopping: boolean }>;
 
@@ -116,10 +135,18 @@ export function experimentState(
   const progress = progressOf(events);
   const phase = status.phase ?? "simulating";
   switch (status.status) {
+    case "queued":
+      return {
+        kind: "queued",
+        phase,
+        progress: null,
+        queueAhead: status.queue_ahead ?? 0,
+      };
     case "running":
     case "stopping":
       return { kind: phase, progress, stopping: status.status === "stopping" };
     case "completed":
+      // The server starts the evaluate after a simulate, so the step can be `simulate`.
       if (phase === "evaluating") return { kind: "completed", progress };
       // With the step `evaluate`, the app started evaluate and it wrote no line.
       return step === "simulate"

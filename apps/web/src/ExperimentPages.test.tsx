@@ -422,6 +422,41 @@ test("an Experiment that waits for evaluate shows its state and can resume", () 
   assert.match(control(markup, "Resume"), /^<button/);
 });
 
+test("a queued Experiment shows its place, can stop, and cannot resume", () => {
+  const markup = view(
+    "trials",
+    { status: "not-evaluated" },
+    running({
+      kind: "queued",
+      phase: "simulating",
+      progress: null,
+      queueAhead: 2,
+    }),
+  );
+
+  assert.match(text(markup), /Queued/);
+  assert.match(text(markup), /2 ahead/);
+  assert.match(control(markup, "Stop"), /^<button/);
+  assert.doesNotMatch(control(markup, "Stop"), /disabled=""/);
+  assert.doesNotMatch(text(markup), /Resume/);
+  assert.match(control(markup, "Delete"), /disabled=""/);
+});
+
+test("a queued Experiment that starts next says so", () => {
+  const markup = view(
+    "trials",
+    { status: "not-evaluated" },
+    running({
+      kind: "queued",
+      phase: "evaluating",
+      progress: null,
+      queueAhead: 0,
+    }),
+  );
+
+  assert.match(text(markup), /Starts next/);
+});
+
 test("the Trials tab says when the trials do not load", () => {
   const markup = view(
     "trials",

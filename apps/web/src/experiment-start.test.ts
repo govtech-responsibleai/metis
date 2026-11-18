@@ -49,15 +49,15 @@ test("a start runs the input folder of the Target and saves the row", async () =
 });
 
 test("a refused simulate saves no row", async () => {
-  const busy = new TransportError("The engine runs another experiment.", {
-    status: 503,
-    code: "engine_busy",
-    retryable: true,
+  const refused = new TransportError("The Specification id is not valid.", {
+    status: 422,
+    code: "invalid_inputs",
+    retryable: false,
   });
   const { calls, fake } = recording(async () => {
-    throw busy;
+    throw refused;
   });
 
-  await assert.rejects(startExperiment("t1", fake), busy);
+  await assert.rejects(startExperiment("t1", fake), refused);
   assert.deepEqual(calls, ["specification t1"]);
 });
