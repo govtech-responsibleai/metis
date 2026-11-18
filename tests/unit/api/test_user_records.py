@@ -101,7 +101,10 @@ def test_a_save_with_the_target_id_of_another_user_changes_nothing(
     assert refused.status_code == 409
     assert refused.json()["code"] == "target_exists"
     assert bob.get("/api/v1/targets").json()["targets"] == []
-    assert not (project_dir / "users" / bob_id).exists()
+    # The folder of Bob holds only the `user.json` that his user account got when it was made.
+    assert sorted(p.name for p in (project_dir / "users" / bob_id).iterdir()) == [
+        "user.json"
+    ]
     assert (
         alice.get(f"/api/v1/targets/{TARGET}/interview").json()["title"] == "Bank bot"
     )

@@ -62,9 +62,7 @@ def users(
             json={"username": account["username"], "password": account["password"]},
         )
         assert login.status_code == 200
-        user = User(client, account["id"], project_dir)
-        user.folder.mkdir(parents=True)
-        made.append(user)
+        made.append(User(client, account["id"], project_dir))
     yield made[0], made[1]
 
 

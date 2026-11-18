@@ -164,7 +164,9 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.login = settings.login
     app.state.admin_token = settings.admin_token
     app.state.secure_cookie = settings.secure_cookie
-    app.state.accounts = Accounts(app.state.store.engine)
+    app.state.accounts = Accounts(
+        app.state.store.engine, server_dir=app.state.store.project_dir
+    )
     try:
         yield
     finally:
