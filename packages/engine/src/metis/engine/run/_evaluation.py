@@ -92,8 +92,8 @@ def evaluate(
     names the CLI command that the "to continue" text names.
 
     The caller sets up the process first: it loads ``.env``, calls
-    ``metis.engine.tracing.tracing_key()``, and sets up process logging. Only one run at a
-    time is safe in one process.
+    ``metis.engine.tracing.tracing_key()``, and sets up process logging. Runs on
+    other threads of the process can run at the same time.
 
     :raises RunStopped: When ``stop`` was set.
     :raises EvaluationInputError: When the experiment folder, its snapshot, or a trial
@@ -129,8 +129,7 @@ def resume_evaluation(
     it prints ``nothing to resume`` and changes no file. Under ``command="run"`` it still
     writes the ``evaluating`` ``started`` and ``completed`` lines.
 
-    The caller sets up the process first, and only one run at a time is safe in one
-    process, as for ``evaluate``.
+    The caller sets up the process first, as for ``evaluate``.
     """
     return _evaluate(
         experiment_dir,

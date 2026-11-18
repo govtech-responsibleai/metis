@@ -31,10 +31,18 @@ The caller sets up the process before it calls a function. It loads `.env`, call
 simulation sits after the caller's log level filter, so the caller's log level also decides
 what reaches the per-trial log files.
 
-A process can safely run only one function at a time. Logging and the Langfuse clients in
-`tracing.py` are shared by the whole process. An evaluation reads the target's Langfuse
-through a client of its own (`get_langfuse_client`), and closes it before its event loop
-closes, so no run uses a connection of an earlier run's loop.
+A process can run more than one function at a time, each on its own thread, as the API
+does. Each simulation keeps its `LogRouter` in a context variable for the time of the run
+(`metis.engine.logging.router`). The first run installs one structlog processor that sends
+each event to the router of its context, and the last run puts back the configuration from
+before. An event with no run in its context goes to the renderer of the process. The asyncio
+tasks of a run inherit the variable. Do not start a thread inside a run: a new thread does not
+inherit the context, and its events would reach the process renderer. Only the CLI uses the
+TUI, which silences the stderr handlers of the process, and the CLI runs one function at a
+time. An evaluation reads the target's Langfuse through a client of its own
+(`get_langfuse_client`), and closes it before its event loop closes, so no run uses a
+connection of another run's loop. The METIS-internal tracing client is registered one time,
+with the same keys for every run.
 
 ## Runner Contract
 

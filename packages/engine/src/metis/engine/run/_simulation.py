@@ -62,8 +62,8 @@ def simulate(
     ``log_level`` is the lowest level that its log tail shows.
 
     The caller sets up the process first: it loads ``.env``, calls
-    ``metis.engine.tracing.tracing_key()``, and sets up process logging. Only one run at a
-    time is safe in one process.
+    ``metis.engine.tracing.tracing_key()``, and sets up process logging. Runs on
+    other threads of the process can run at the same time, each with its own log files.
 
     :raises RunStopped: When ``stop`` was set. A stop before the trials start runs none.
     :raises EvaluationInputError: When ``experiment_dir`` is not an experiment folder of
@@ -102,8 +102,7 @@ def resume_simulation(
     trial is never graded from the evaluation of its old run. The logs are appended to.
     A stop before the trials start leaves the folder as it is.
 
-    The caller sets up the process first, and only one run at a time is safe in one
-    process, as for ``simulate``.
+    The caller sets up the process first, as for ``simulate``.
 
     :raises RunStopped: When ``stop`` was set while trials ran.
     :raises EvaluationInputError: When ``experiment_dir`` is not an experiment folder of
