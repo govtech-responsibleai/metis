@@ -199,15 +199,58 @@ def test_a_resume_of_a_complete_evaluation_is_refused(
     assert fake_engine.calls == []
 
 
-def test_an_evaluate_of_a_complete_evaluation_grades_again(
+def test_an_evaluate_of_a_complete_evaluation_is_refused(
     engine_client: TestClient, fake_engine: FakeEngine, experiment_dir: Path
 ) -> None:
     _write_results(experiment_dir)
 
     response = engine_client.post(ROUTES["evaluate"].format(id=experiment_dir.name))
 
+    assert response.status_code == 409
+    assert response.json()["code"] == "evaluation_complete"
+    assert "regrade" in response.json()["message"]
+    assert fake_engine.calls == []
+    assert (experiment_dir / execution_layout.RESULTS).exists()
+
+
+def test_an_evaluate_with_regrade_grades_a_complete_evaluation_again(
+    engine_client: TestClient, fake_engine: FakeEngine, experiment_dir: Path
+) -> None:
+    _write_results(experiment_dir)
+
+    response = engine_client.post(
+        ROUTES["evaluate"].format(id=experiment_dir.name), json={"regrade": True}
+    )
+
     assert response.status_code == 202
     wait_until(lambda: len(fake_engine.calls) == 1)
+    assert fake_engine.calls[0].name == "evaluate"
+
+
+def test_an_evaluate_of_an_evaluation_that_did_not_end_grades_every_trial(
+    engine_client: TestClient, fake_engine: FakeEngine, experiment_dir: Path
+) -> None:
+    results = experiment_dir / execution_layout.RESULTS
+    results.parent.mkdir(parents=True)
+    results.write_text("{")  # a results.json that does not load
+
+    response = engine_client.post(ROUTES["evaluate"].format(id=experiment_dir.name))
+
+    assert response.status_code == 202
+    wait_until(lambda: len(fake_engine.calls) == 1)
+    assert fake_engine.calls[0].name == "evaluate"
+
+
+def test_regrade_is_not_an_option_of_an_evaluate_resume(
+    engine_client: TestClient, fake_engine: FakeEngine, experiment_dir: Path
+) -> None:
+    response = engine_client.post(
+        ROUTES["resume_evaluation"].format(id=experiment_dir.name),
+        json={"regrade": True},
+    )
+
+    assert response.status_code == 422
+    assert fake_engine.calls == []
 
 
 @pytest.mark.parametrize("name", list(ROUTES))

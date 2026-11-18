@@ -545,6 +545,8 @@ export interface paths {
         /**
          * Grade every trial of an experiment
          * @description Delete the earlier evaluation of the experiment, then grade every trial.
+         *
+         *     A complete evaluation gives 409 evaluation_complete, unless the body has regrade: true.
          */
         post: operations["start_evaluation_api_v1_engine_evaluate__experiment_id__post"];
         delete?: never;
@@ -1652,7 +1654,7 @@ export interface components {
         };
         /**
          * EvaluateRequest
-         * @description Grade the trials of an experiment.
+         * @description Delete the evaluation of an experiment and grade every trial.
          */
         EvaluateRequest: {
             /**
@@ -1665,6 +1667,12 @@ export interface components {
              * @description The longest wait in seconds for the traces of a session, as --langfuse-timeout. Default: a setting, 180 unless the server changes it.
              */
             langfuse_timeout?: number | null;
+            /**
+             * Regrade
+             * @description Grade again an experiment whose evaluation is complete. Without it, an evaluate of a complete evaluation gives 409 evaluation_complete and keeps the results.
+             * @default false
+             */
+            regrade: boolean;
         };
         /** EvidenceItem */
         EvidenceItem: {
@@ -3096,6 +3104,22 @@ export interface components {
             results?: {
                 [key: string]: components["schemas"]["TrialResult"];
             };
+        };
+        /**
+         * ResumeEvaluationRequest
+         * @description Grade the trials of an experiment that have no evaluation file.
+         */
+        ResumeEvaluationRequest: {
+            /**
+             * Concurrency
+             * @description Sessions at the same time. Default: a setting.
+             */
+            concurrency?: number | null;
+            /**
+             * Langfuse Timeout
+             * @description The longest wait in seconds for the traces of a session, as --langfuse-timeout. Default: a setting, 180 unless the server changes it.
+             */
+            langfuse_timeout?: number | null;
         };
         /**
          * ResumeSimulationRequest
@@ -5193,7 +5217,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["EvaluateRequest"] | null;
+                "application/json": components["schemas"]["ResumeEvaluationRequest"] | null;
             };
         };
         responses: {
