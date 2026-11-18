@@ -464,7 +464,19 @@ function TrialSection({
 }) {
   return (
     <div className="trial-detail">
-      <h4 className="td-title">Trial {trial.index}</h4>
+      <div className="td-head">
+        <h4 className="td-title">Trial {trial.index}</h4>
+        {trial.sessionUrl && (
+          <a
+            className="td-link"
+            href={trial.sessionUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Open in Langfuse ↗
+          </a>
+        )}
+      </div>
       {trial.category !== "succeeded" && (
         <div className="endnote">
           <b>Ended early.</b> {ending(trial)}:{" "}

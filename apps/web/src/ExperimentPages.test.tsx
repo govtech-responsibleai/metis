@@ -130,6 +130,7 @@ const PAGE: ReportPage = {
               { turn: 2, user: "Open an account", target: null, errors: [] },
             ],
             conversationProblem: null,
+            sessionUrl: "https://lf.example/project/p1/sessions/s-1",
             criteria: [
               {
                 criterionId: "c1",
@@ -155,6 +156,7 @@ const PAGE: ReportPage = {
             attempt: 2,
             turns: [],
             conversationProblem: "The trace is not complete",
+            sessionUrl: null,
             criteria: [
               {
                 criterionId: "c1",
@@ -712,7 +714,7 @@ test("the trial drawer starts on the first trial with its conversation and its g
 
   assert.match(
     shown,
-    /Trial 1Turn 1UserHelloBank botGood morning\.Turn 2UserOpen an accountBank botNo reply recorded/,
+    /Trial 1Open in Langfuse ↗Turn 1UserHelloBank botGood morning\.Turn 2UserOpen an accountBank botNo reply recorded/,
   );
   assert.match(
     shown,
@@ -1039,4 +1041,18 @@ test("a refused start shows the message of the API in the dialog", () => {
     /role="alert"[^>]*>Another experiment is running\. Try again when it ends\.</,
   );
   assert.doesNotMatch(control(markup, "Start"), /disabled=""/);
+});
+
+test("a trial with a Langfuse session links to it in a new tab", () => {
+  const link = control(drawer(), "Open in Langfuse ↗");
+
+  assert.ok(
+    link.includes(' href="https://lf.example/project/p1/sessions/s-1"'),
+  );
+  assert.ok(link.includes(' target="_blank"'));
+  assert.ok(link.includes(' rel="noopener noreferrer"'));
+});
+
+test("a trial with no Langfuse session has no link", () => {
+  assert.doesNotMatch(drawer({ trial: 2 }), /Open in Langfuse/);
 });

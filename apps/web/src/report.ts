@@ -206,6 +206,9 @@ export interface TrialDetail {
   attempt: number;
   turns: Turn[];
   conversationProblem: string | null;
+  // The page of the trial's session in the target's Langfuse. Null when the report has
+  // none, or has one that is not an http or https URL.
+  sessionUrl: string | null;
   // One entry for each Criterion that has an outcome in the trial.
   criteria: TrialCriterion[];
 }
@@ -345,6 +348,11 @@ function measurementName(key: string): string {
   );
 }
 
+// A link the report may open: only an http or https URL, never a javascript: one.
+function webUrl(url: string | null | undefined): string | null {
+  return url && /^https?:\/\//i.test(url) ? url : null;
+}
+
 function trialDetails(report: Report, row: Row): TrialDetail[] {
   return (row.trials ?? []).map((trial) => ({
     index: trial.trial_index,
@@ -362,6 +370,7 @@ function trialDetails(report: Report, row: Row): TrialDetail[] {
       errors: turn.errors ?? [],
     })),
     conversationProblem: trial.conversationProblem ?? null,
+    sessionUrl: webUrl(trial.sessionUrl),
     criteria: Object.entries(trial.results ?? {}).flatMap(([id, counts]) => {
       const outcome = outcomeOf(counts);
       if (!outcome) return [];
