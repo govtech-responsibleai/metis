@@ -26,7 +26,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 
 from rich.console import Console
 
@@ -100,6 +100,7 @@ class Evaluate(Protocol):
         concurrency: int,
         stop: threading.Event,
         console: Console,
+        command: Literal["evaluate", "run"] = ...,
     ) -> object: ...
 
 

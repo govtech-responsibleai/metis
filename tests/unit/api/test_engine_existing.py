@@ -46,8 +46,9 @@ def test_a_resume_of_a_simulation_runs_with_the_default_concurrency(
 
     assert response.status_code == 202
     assert response.json() == {"experiment_id": experiment_dir.name}
-    wait_until(lambda: len(fake_engine.calls) == 1)
-    [call] = fake_engine.calls
+    # The job is the resume, then its evaluate.
+    wait_until(lambda: len(fake_engine.calls) == 2)
+    call = fake_engine.calls[0]
     assert (call.name, call.experiment_dir) == ("resume_simulation", experiment_dir)
     assert call.options == {"concurrency": 1}
 
@@ -288,11 +289,14 @@ def test_a_start_while_every_slot_is_taken_waits_for_a_slot(
     assert response.status_code == 202
     assert len(fake_engine.calls) == 1
     fake_engine.release.set()
-    wait_until(lambda: len(fake_engine.calls) == 2)
-    assert (fake_engine.calls[1].name, fake_engine.calls[1].experiment_dir) == (
-        name,
-        other,
-    )
+    wait_until(lambda: any(call.experiment_dir == other for call in fake_engine.calls))
+    first = next(call for call in fake_engine.calls if call.experiment_dir == other)
+    assert first.name == name
+    # The queued start waited for the whole job of the running one, its evaluate too.
+    assert [call.name for call in fake_engine.calls[:2]] == [
+        "resume_simulation",
+        "resume_evaluation",
+    ]
 
 
 def test_a_bad_timeout_is_checked_after_the_folder_and_the_run(

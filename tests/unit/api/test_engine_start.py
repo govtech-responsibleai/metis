@@ -56,8 +56,8 @@ def test_a_start_creates_the_experiment_and_returns_its_id(
     assert experiment_id.startswith(f"{SPECIFICATION_ID}-")
     experiment_dir = project_dir / project_layout.EXPERIMENTS / experiment_id
     assert (experiment_dir / execution_layout.SPECIFICATION).is_file()
-    wait_until(lambda: len(fake_engine.calls) == 1)
-    [call] = fake_engine.calls
+    wait_until(lambda: len(fake_engine.calls) == 2)
+    call = fake_engine.calls[0]
     assert call.name == "simulate"
     assert call.experiment_dir == experiment_dir
     assert call.options == {"concurrency": 1}
@@ -74,7 +74,8 @@ def test_a_start_passes_the_concurrency_of_the_request(
         json={"input_dir": _relative(project_dir, input_dir), "concurrency": 3},
     )
 
-    wait_until(lambda: len(fake_engine.calls) == 1)
+    # The job is the simulate, then its evaluate.
+    wait_until(lambda: len(fake_engine.calls) == 2)
     assert fake_engine.calls[0].options == {"concurrency": 3}
 
 

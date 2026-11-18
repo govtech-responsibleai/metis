@@ -275,10 +275,20 @@ def test_engine_text_goes_to_the_console_file_and_not_to_stdout(
     _resume(engine_client, experiment_dir.name)
     wait_until(lambda: _not_running(engine_client, experiment_dir.name))
 
+    wait_until(
+        lambda: _status(engine_client, experiment_dir.name)["phase"] == "evaluating"
+    )
+    wait_until(lambda: _not_running(engine_client, experiment_dir.name))
+
+    # One console file for the whole job: the simulate, then the evaluate after it.
     console_file = experiment_dir / execution_layout.LOGS / CONSOLE_FILE
-    expected = f"fake resume_simulation of {experiment_dir.name}"
-    assert console_file.read_text(encoding="utf-8").strip() == expected
-    assert expected not in capsys.readouterr().out
+    expected = [
+        f"fake resume_simulation of {experiment_dir.name}",
+        f"fake resume_evaluation of {experiment_dir.name}",
+    ]
+    assert console_file.read_text(encoding="utf-8").splitlines() == expected
+    out = capsys.readouterr().out
+    assert not any(line in out for line in expected)
 
 
 # --- shutdown --------------------------------------------------------------------------

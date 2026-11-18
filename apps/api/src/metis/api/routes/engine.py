@@ -42,7 +42,6 @@ if TYPE_CHECKING:
 
     from metis.api.engine_runs import Run
     from metis.api.settings import EngineSettings
-    from metis.core.phase_events import Phase
 
 router = APIRouter(prefix="/api/v1/engine", tags=["engine"])
 
@@ -293,11 +292,12 @@ def _trace_wait(langfuse_timeout: int) -> TraceWaitSettings:
     responses=_RESPONSES,
 )
 def start_simulation(body: SimulateRequest, request: Request) -> EngineRunAccepted:
-    """Create an experiment folder from the input folder and run every trial in it.
+    """Create an experiment folder from the input folder, run every trial, then grade them.
 
     The request checks the inputs as `metis engine simulate --input-dir` does, then creates
     `evaluations/experiments/<specification id>-<YYYYmmdd-HHMMSS>/`. The trials run after the
-    response.
+    response. When the simulation completes, the same job grades every trial, with the
+    default concurrency and Langfuse timeout of the server.
     """
     settings = _settings(request)
     concurrency = _limit(
@@ -305,6 +305,8 @@ def start_simulation(body: SimulateRequest, request: Request) -> EngineRunAccept
     )
     project_dir = request_project_dir(request)
     input_dir = _input_dir(project_dir, body.input_dir)
+    # Before the folder is made, so a bad setting fails the start and leaves no folder.
+    trace_wait = _trace_wait(settings.langfuse_timeout)
     runs = _runs(request)
 
     def prepare() -> Path:
@@ -328,20 +330,52 @@ def start_simulation(body: SimulateRequest, request: Request) -> EngineRunAccept
         project_dir=project_dir,
         experiment_id=None,
         prepare=prepare,
-        steps=[Step("simulating", work)],
+        steps=[
+            Step("simulating", work),
+            _evaluate_after_simulate(runs, settings, lambda: trace_wait),
+        ],
     )
     return EngineRunAccepted(experiment_id=experiment_id)
+
+
+def _evaluate_after_simulate(
+    runs: EngineRuns,
+    settings: EngineSettings,
+    trace_wait: Callable[[], TraceWaitSettings | None],
+) -> Step:
+    """The evaluate that the server runs after a simulate completes, on the same thread.
+
+    It is ``resume_evaluation`` under ``command="run"``, as ``metis engine run --resume``. A
+    simulate that ran trials has deleted the evaluation outputs, so it grades every trial.
+    A resume that ran no trial keeps a complete evaluation, and the evaluate writes its
+    evaluating lines only. Thus it needs no ``regrade``. The simulate request has no evaluate
+    settings, so it takes the defaults of the server. ``trace_wait`` gives the trace wait
+    that the checks of the start made.
+    """
+
+    def work(experiment_dir: Path, stop: threading.Event, console: Console) -> None:
+        wait = trace_wait()
+        assert wait is not None  # the checks run before the thread starts
+        runs.functions.resume_evaluation(
+            experiment_dir,
+            trace_wait=wait,
+            concurrency=settings.concurrency,
+            stop=stop,
+            console=console,
+            command="run",
+        )
+
+    return Step("evaluating", work)
 
 
 def _start_existing(
     request: Request,
     experiment_id: str,
     *,
-    phase: Phase,
-    work: Callable[[Path, threading.Event, Console], object],
+    steps: list[Step],
     check: Callable[[Path], None] | None = None,
 ) -> EngineRunAccepted:
-    """Start ``work`` on an experiment folder, after the checks of the request.
+    """Start the job of ``steps`` on an experiment folder, after the checks of the request.
 
     The order of the checks is: the folder, the live run, the layout of the folder, then
     ``check``.
@@ -360,7 +394,7 @@ def _start_existing(
         project_dir=project_dir,
         experiment_id=experiment_id,
         prepare=prepare,
-        steps=[Step(phase, work)],
+        steps=steps,
     )
     return EngineRunAccepted(experiment_id=experiment_id)
 
@@ -380,7 +414,8 @@ def resume_simulation(
     """Run again each trial whose record is missing, cannot be read, or was interrupted.
 
     When it runs any trial again, the run deletes the evaluation outputs of the experiment,
-    so the report routes return results_missing until the next evaluate.
+    so the report routes return results_missing until the evaluate after it. When the
+    simulation completes, the same job grades the trials with no evaluation.
     """
     body = body or ResumeSimulationRequest()
     settings = _settings(request)
@@ -389,12 +424,27 @@ def resume_simulation(
     )
     runs = _runs(request)
 
+    # Set in ``check``, so a bad setting is reported after the folder, run, and layout errors.
+    trace_wait: TraceWaitSettings | None = None
+
+    def check(_experiment_dir: Path) -> None:
+        nonlocal trace_wait
+        trace_wait = _trace_wait(settings.langfuse_timeout)
+
     def work(experiment_dir: Path, stop: threading.Event, console: Console) -> None:
         runs.functions.resume_simulation(
             experiment_dir, concurrency=concurrency, stop=stop, console=console
         )
 
-    return _start_existing(request, experiment_id, phase="simulating", work=work)
+    return _start_existing(
+        request,
+        experiment_id,
+        steps=[
+            Step("simulating", work),
+            _evaluate_after_simulate(runs, settings, lambda: trace_wait),
+        ],
+        check=check,
+    )
 
 
 def _start_evaluation(
@@ -456,7 +506,7 @@ def _start_evaluation(
         )
 
     return _start_existing(
-        request, experiment_id, phase="evaluating", work=work, check=check
+        request, experiment_id, steps=[Step("evaluating", work)], check=check
     )
 
 

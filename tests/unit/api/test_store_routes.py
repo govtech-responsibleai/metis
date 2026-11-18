@@ -572,8 +572,8 @@ def test_the_browser_starts_the_specification_and_saves_its_experiment_row(
     assert (experiment_dir / execution_layout.FIXTURES / "policy.pdf").read_bytes() == (
         POLICY
     )
-    wait_until(lambda: len(fake_engine.calls) == 1)
-    [call] = fake_engine.calls
+    wait_until(lambda: len(fake_engine.calls) == 2)
+    call = fake_engine.calls[0]
     assert (call.name, call.experiment_dir, call.options) == (
         "simulate",
         experiment_dir,
