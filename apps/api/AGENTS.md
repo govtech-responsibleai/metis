@@ -91,6 +91,14 @@ media type is the type in the record when a header can hold it, else `applicatio
 Each Store holds a thread lock for the full time of a save or a delete, so the owner check and
 the write stay together. The store has no lock between processes.
 
+The API supports one process and one instance only. The store lock is a thread lock, the
+default database is a SQLite file in the project folder, the experiment folders are on one
+disk, and `EngineRuns` keeps the live run in memory. None of them is shared between processes.
+`metis-api` gives Uvicorn the app object, so it cannot start more than one worker. Uvicorn or
+Gunicorn started directly on `create_app` can, so the deployment docs require `metis-api`. Do not add
+code that assumes a second process. See
+[Run one container](../../docs/guide/docker.md#run-one-container).
+
 A folder in `evaluations/interviews/` with a state file that validates is an Interview of the
 wizard CLI. The store adds its rows when it opens and at each Target list. Such a row has no
 transcript, and its file references are the files in its `documents/` folder.
