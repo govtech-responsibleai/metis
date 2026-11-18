@@ -196,7 +196,9 @@ def test_the_engine_status_has_queued_and_its_place(client: TestClient) -> None:
     assert {"type": "integer"} in schema["properties"]["queue_ahead"]["anyOf"]
 
 
-def test_no_engine_route_documents_503(client: TestClient) -> None:
+def test_only_the_engine_start_routes_document_503(client: TestClient) -> None:
+    # 503 is engine_stopping, for a start while the server shuts down. A busy engine
+    # queues the start, so no route gives 503 for that.
     paths = client.get("/openapi.json").json()["paths"]
 
     engine = {
@@ -206,7 +208,11 @@ def test_no_engine_route_documents_503(client: TestClient) -> None:
         for method, operation in operations.items()
     }
 
-    assert engine
-    assert [
-        key for key, operation in engine.items() if "503" in operation["responses"]
-    ] == []
+    assert sorted(
+        path for (path, _), op in engine.items() if "503" in op["responses"]
+    ) == [
+        "/api/v1/engine/evaluate/{experiment_id}",
+        "/api/v1/engine/evaluate/{experiment_id}/resume",
+        "/api/v1/engine/simulate",
+        "/api/v1/engine/simulate/{experiment_id}/resume",
+    ]

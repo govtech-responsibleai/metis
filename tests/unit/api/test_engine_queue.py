@@ -10,6 +10,7 @@ import pytest
 import structlog
 
 from metis.api import engine_runs
+from metis.api.errors import RouteError
 from metis.core import execution_layout
 from metis.core.phase_events import EVENTS_FILE, PhaseEventLog
 from tests.fixtures.api.engine import wait_until
@@ -330,3 +331,28 @@ def test_a_job_whose_thread_cannot_start_frees_its_slot(
         lambda: [call.experiment_dir for call in fake_engine.calls] == [folders[0]]
     )
     runs.shutdown(5)
+
+
+def test_a_start_after_shutdown_is_refused_and_makes_no_folder(
+    fake_engine: FakeEngine, folders: list[Path]
+) -> None:
+    runs = engine_runs.EngineRuns(fake_engine.functions(), max_runs=1)
+    runs.shutdown(1)
+    prepared: list[Path] = []
+
+    def prepare() -> Path:
+        prepared.append(folders[0])
+        return folders[0]
+
+    with pytest.raises(RouteError) as refused:
+        runs.start(
+            project_dir=folders[0].parent.parent.parent,
+            experiment_id=None,
+            prepare=prepare,
+            steps=[engine_runs.Step("simulating", lambda *_: None)],
+        )
+
+    assert (refused.value.status, refused.value.code) == (503, "engine_stopping")
+    assert refused.value.retryable is True
+    assert prepared == []
+    assert fake_engine.calls == []

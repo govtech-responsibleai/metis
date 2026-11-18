@@ -5078,6 +5078,15 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
         };
     };
     resume_simulation_api_v1_engine_simulate__experiment_id__resume_post: {
@@ -5124,6 +5133,15 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5184,6 +5202,15 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
         };
     };
     resume_evaluation_api_v1_engine_evaluate__experiment_id__resume_post: {
@@ -5230,6 +5257,15 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

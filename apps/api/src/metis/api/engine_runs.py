@@ -190,10 +190,20 @@ class EngineRuns:
         error from it leaves no run. The job starts on a thread at once when a slot is free,
         else it waits at the end of the queue.
 
-        :raises RouteError: 409 ``run_in_progress`` when the run of ``experiment_id`` is
-            alive or queued, or an error of ``prepare``.
+        :raises RouteError: 503 ``engine_stopping`` once the shutdown has started, 409
+            ``run_in_progress`` when the run of ``experiment_id`` is alive or queued, or an
+            error of ``prepare``.
         """
         with self._lock:
+            # A job accepted now would never start, so the start is refused before prepare.
+            if self._closed:
+                raise RouteError(
+                    503,
+                    "engine_stopping",
+                    "The server is stopping, so it starts no run. Start it again when the "
+                    "server is back.",
+                    retryable=True,
+                )
             if experiment_id is not None and self._find(project_dir, experiment_id):
                 raise RouteError(
                     409,

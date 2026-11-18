@@ -227,8 +227,8 @@ this order and return the first error:
 
 | Route | Order of the checks |
 |---|---|
-| `simulate` | `validation_error`, `input_dir_outside_project`, `invalid_langfuse_timeout`, `invalid_inputs` or `experiment_exists` |
-| resume, evaluate | `validation_error`, `experiment_not_found`, `run_in_progress`, `invalid_experiment`, `invalid_langfuse_timeout`, `evaluation_complete` (evaluate and evaluate resume) |
+| `simulate` | `validation_error`, `input_dir_outside_project`, `invalid_langfuse_timeout`, `engine_stopping`, `invalid_inputs` or `experiment_exists` |
+| resume, evaluate | `validation_error`, `experiment_not_found`, `engine_stopping`, `run_in_progress`, `invalid_experiment`, `invalid_langfuse_timeout`, `evaluation_complete` (evaluate and evaluate resume) |
 | stop | `experiment_not_found`, `no_run` |
 | status, events | `validation_error` (events only), `experiment_not_found` |
 
@@ -243,6 +243,7 @@ this order and return the first error:
 | 422 | `invalid_langfuse_timeout` | `TraceWaitSettings.from_env` refuses the timeout. The simulate routes check the timeout setting, for the evaluate after the simulate. |
 | 409 | `evaluation_complete` | A resume of an evaluation whose `results.json` loads. |
 | 409 | `no_run` | A stop for an experiment that does not run and does not wait in the queue. |
+| 503 | `engine_stopping` | A start after the shutdown started. The start makes no folder. It is the only engine error with `retryable: true`. |
 | 422 | `validation_error` | A field is not valid, or `concurrency` or `langfuse_timeout` is more than its maximum setting. |
 
 A run that fails after the 202 fails on its thread, and frees its slot for the next job. The
@@ -272,8 +273,8 @@ Startup and shutdown:
   level, which also decides what reaches the per-trial log files of a simulation.
 - At shutdown, the lifespan empties the queue, sets the stop flag of each run, and waits for
   the threads, for at most `METIS_API_STOP_TIMEOUT` seconds in all. No queued job starts after
-  that. Each run thread is a daemon thread, so a run that does not stop in time cannot keep the
-  process open.
+  that, and a new start gets 503 `engine_stopping`. Each run thread is a daemon thread, so a run
+  that does not stop in time cannot keep the process open.
 
 Settings, which the API reads at startup. A value that is not a whole number of 1 or more
 stops the start.

@@ -163,6 +163,11 @@ _RESPONSES: dict[int | str, dict[str, object]] = {
     409: {"model": ServiceError},
     422: {"model": ServiceError},
 }
+_START_RESPONSES: dict[int | str, dict[str, object]] = {
+    **_RESPONSES,
+    503: {"model": ServiceError},
+}
+"""A start also gives 503 ``engine_stopping`` while the server shuts down."""
 
 
 def _runs(request: Request) -> EngineRuns:
@@ -300,7 +305,7 @@ def _trace_wait(langfuse_timeout: int) -> TraceWaitSettings:
     status_code=202,
     summary="Start a simulation of an input folder",
     response_model=EngineRunAccepted,
-    responses=_RESPONSES,
+    responses=_START_RESPONSES,
 )
 def start_simulation(body: SimulateRequest, request: Request) -> EngineRunAccepted:
     """Create an experiment folder from the input folder, run every trial, then grade them.
@@ -415,7 +420,7 @@ def _start_existing(
     status_code=202,
     summary="Run again the trials of an experiment that did not end",
     response_model=EngineRunAccepted,
-    responses=_RESPONSES,
+    responses=_START_RESPONSES,
 )
 def resume_simulation(
     experiment_id: str,
@@ -526,7 +531,7 @@ def _start_evaluation(
     status_code=202,
     summary="Grade every trial of an experiment",
     response_model=EngineRunAccepted,
-    responses=_RESPONSES,
+    responses=_START_RESPONSES,
 )
 def start_evaluation(
     experiment_id: str, request: Request, body: EvaluateRequest | None = None
@@ -545,7 +550,7 @@ def start_evaluation(
     status_code=202,
     summary="Grade the trials of an experiment that have no evaluation",
     response_model=EngineRunAccepted,
-    responses=_RESPONSES,
+    responses=_START_RESPONSES,
 )
 def resume_evaluation(
     experiment_id: str, request: Request, body: ResumeEvaluationRequest | None = None
