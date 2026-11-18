@@ -232,6 +232,20 @@ def test_a_queued_job_that_stops_can_resume(
     assert _status(client, queued.name)["status"] == "not_started"
     assert client.post(f"{SIMULATE}/{queued.name}/resume").status_code == 202
 
+    # The resume waits for the slot of the running job, then runs its whole job.
+    fake_engine.release.set()
+    wait_until(
+        lambda: (
+            _ended(client, queued.name)
+            and _status(client, queued.name)["phase"] == "evaluating"
+        )
+    )
+    assert [
+        call.name for call in fake_engine.calls if call.experiment_dir == queued
+    ] == ["resume_simulation", "resume_evaluation"]
+    status = _status(client, queued.name)
+    assert (status["phase"], status["status"]) == ("evaluating", "completed")
+
 
 def test_a_bad_quiet_window_fails_a_simulate_start(
     engine_client: TestClient,
