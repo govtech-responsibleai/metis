@@ -288,11 +288,11 @@ ten characters from an alphabet with no characters that look alike. A person can
 change them, so each password is random and login needs no rate limit. Keep that rule, or add
 a rate limit. The `users` table keeps a scrypt hash. The `password_hash` column can be empty, for
 a user account of a later login method. For debugging, `users/<user id>/user.json` holds the id,
-the username, the password in plain text, and the times of creation, last login, and last
-write. `Accounts` writes it with mode 0600 when it makes the user account and at each correct
-login, and a write that fails is only logged. Anyone who can read the server folder can log in
-as every user account, so protect that folder and its backups like the admin token. The `login_sessions` table keeps the SHA-256 of the
-cookie value, never the value. Records link to the id of a user account, never to its username.
+the username, and the times of creation, last login, and last write. `Accounts` writes it with
+mode 0600 when it makes the user account and at each correct login, and a write that fails is
+only logged. Do not add the password or its hash to the file: a copy of the server folder must
+not be enough to log in. The `login_sessions` table keeps the SHA-256 of the cookie value, never
+the value. Records link to the id of a user account, never to its username.
 
 The admin token in `METIS_ADMIN_TOKEN` can only make and list user accounts. Do not give it
 another power, because a website outside this repository holds it. The user routes return 404

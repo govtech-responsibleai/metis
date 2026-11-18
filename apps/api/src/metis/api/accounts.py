@@ -4,9 +4,9 @@ A user account is one person who can log in to a METIS server. METIS makes its u
 password. The database keeps a scrypt hash of the password and never the password.
 
 For debugging, ``users/<user id>/user.json`` in the server project folder names each user account:
-its id, its username, its password in plain text, and when it was made, last logged in, and last
-written. METIS writes the file when it makes the user account and at each login, with mode 0600.
-Anyone who can read the file can log in as the user account.
+its id, its username, and when it was made, last logged in, and last written. METIS writes the file
+when it makes the user account and at each login. It holds no password, so a copy of the server
+folder cannot be used to log in.
 
 A login session starts at a login and ends at a logout or after ``LOGIN_SESSION_LIFETIME``. The
 browser holds a random cookie value. The database keeps only the SHA-256 of that value, so a
@@ -43,8 +43,8 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 USER_FILE = "user.json"
-"""The file in the project folder of a user account that names it, for debugging. It holds the
-password in plain text."""
+"""The file in the project folder of a user account that names it, for debugging. It holds no
+password."""
 
 LOGIN_SESSION_LIFETIME = timedelta(days=30)
 """The time from a login to the end of its login session."""
@@ -221,7 +221,7 @@ class Accounts:
                     )
             except IntegrityError:
                 continue
-            self._write_user_file(account, password, last_login_at=None)
+            self._write_user_file(account, last_login_at=None)
             return NewUserAccount(account=account, password=password)
         raise RuntimeError("The store could not find a free username.")
 
@@ -259,7 +259,7 @@ class Accounts:
                     expires_at=now + LOGIN_SESSION_LIFETIME,
                 )
             )
-        self._write_user_file(account, password.strip().lower(), last_login_at=now)
+        self._write_user_file(account, last_login_at=now)
         return LoginSession(token=token, account=account)
 
     def current(self, token: str) -> UserAccount | None:
@@ -276,12 +276,12 @@ class Accounts:
         return _account(row)
 
     def _write_user_file(
-        self, account: UserAccount, password: str, *, last_login_at: datetime | None
+        self, account: UserAccount, *, last_login_at: datetime | None
     ) -> None:
         """Write ``user.json`` of ``account`` in one rename, readable by the server's user only.
 
-        A write that fails is logged without the password and does not stop the caller, because
-        the file is only for debugging.
+        A write that fails is logged and does not stop the caller, because the file is only for
+        debugging.
         """
         if self._server_dir is None:
             return
@@ -290,7 +290,6 @@ class Accounts:
         content = {
             "id": account.id,
             "username": account.username,
-            "password": password,
             "created_at": _time(account.created_at),
             "last_login_at": _time(last_login_at),
             "updated_at": _time(datetime.now(UTC)),

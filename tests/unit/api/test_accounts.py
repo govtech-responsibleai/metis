@@ -229,9 +229,11 @@ def test_a_user_file_names_the_user_account_and_its_last_login(
     path = project_dir / "users" / user["id"] / "user.json"
 
     made = json.loads(path.read_text())
-    assert {key: made[key] for key in ("id", "username", "password")} == {
-        key: user[key] for key in ("id", "username", "password")
+    assert {key: made[key] for key in ("id", "username")} == {
+        key: user[key] for key in ("id", "username")
     }
+    assert "password" not in made
+    assert user["password"] not in path.read_text()
     assert datetime.fromisoformat(made["created_at"]) == datetime.fromisoformat(
         user["created_at"]
     )
@@ -241,7 +243,7 @@ def test_a_user_file_names_the_user_account_and_its_last_login(
     assert _log_in(browser, user).status_code == 200
 
     logged_in = json.loads(path.read_text())
-    assert logged_in["password"] == user["password"]
+    assert user["password"] not in path.read_text()
     assert logged_in["last_login_at"] is not None
     assert logged_in["created_at"] == made["created_at"]
     assert logged_in["updated_at"] >= made["updated_at"]

@@ -628,11 +628,10 @@ curl -X POST https://metis.example/api/v1/users \
 ```
 
 METIS makes the username and the password. This response is the only one of the API that has
-the password, and the database keeps only a hash of it. For debugging, the server also writes
-`users/<user id>/user.json` with the username, the password in plain text, and the times of
-creation, last login, and last write. Only the user that runs the server can read the file.
-Anyone who can read the server folder or its backups can log in as every user account, so
-protect them like the admin token. Each request makes one more user account. A user account
+the password, and the database keeps only a hash of it. Keep the password when you get it: no
+route and no file gives it again. For debugging, the server writes `users/<user id>/user.json`
+with the id, the username, and the times of creation, last login, and last write, so you can
+tell which user account a folder belongs to. Each request makes one more user account. A user account
 has no end date, and a person cannot change its credentials.
 
 The admin token can only make and list user accounts. It does not open another route, and it

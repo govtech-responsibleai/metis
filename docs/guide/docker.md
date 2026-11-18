@@ -86,7 +86,7 @@ volume to keep your data.
 | `/data/evaluations/specifications/` | The Specification of each Target |
 | `/data/evaluations/experiments/` | The experiment folders |
 | `/data/users/<user id>/evaluations/` | The Interviews, Specifications and experiments of each user account, when login is on. The database stays in `/data/evaluations/`. |
-| `/data/users/<user id>/user.json` | The username, the password in plain text, and the login times of each user account, for debugging. Protect the volume and its backups like the admin token. |
+| `/data/users/<user id>/user.json` | The username and the login times of each user account, for debugging. It holds no password. |
 
 Run only one container on a volume. The container runs as the user `metis` with uid 10001.
 
