@@ -13,6 +13,9 @@ build/
 *.egg-info/
 _site/
 
+# The web build that the Docker image puts in the API package
+apps/api/src/metis/api/web_dist/
+
 # JavaScript
 node_modules/
 *.tsbuildinfo

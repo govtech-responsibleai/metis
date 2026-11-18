@@ -76,7 +76,9 @@ metis/
 │   │   ├── tsconfig.json
 │   │   └── src/
 │
-└── infra/                      # Docker Compose, Kubernetes, deployment assets
+├── Dockerfile                  # One image: the API, the metis CLI, and the built web app
+├── .dockerignore
+└── docker-compose.yml          # Runs the image with .env and a /data volume
 ```
 
 **Rules:**

@@ -302,6 +302,7 @@ src/metis/api/
 ├── tables.py          the portable tables of the store
 ├── input_folder.py    builds, stages, and swaps the input folder of a Specification
 ├── settings.py        environment-backed settings and the production dependency composition
+├── web.py             serves the built web app in metis/api/web_dist
 ├── cli.py             the `metis-api` executable and its --project-dir option
 └── __init__.py        version and the re-exported core version
 ```
@@ -366,6 +367,12 @@ checks before a run starts are the real library functions on folders under `tmp_
   For monorepo development, keep one active `.env` at the repository root. Copy it from the
   root `.env.example`. See
   [the model guide](../../docs/guide/models.md).
-- Build the image from the repository root: `docker build -f apps/api/Dockerfile -t metis-api .`.
-  METIS is one uv workspace with a single lockfile, so the build needs the workspace root and the
-  path-dependency members.
+- The root `Dockerfile` builds one image with the API, the `metis` CLI, and the built web app.
+  Build it from the repository root with `docker build -t metis .`. METIS is one uv workspace
+  with a single lockfile, so the build needs the workspace root and the path-dependency members.
+  The image copies the web build into `metis/api/web_dist` inside the API package. The container
+  runs `metis-api --project-dir /data` under `tini`, as one process, so the API serves the web
+  app on its own address (`metis.api.web`). The API serves that folder when it has an
+  `index.html`. Without it, the API runs alone. The web route does not match a path under
+  `/api`, so the API routes keep their 404 and 405 responses. See
+  [the Docker guide](../../docs/guide/docker.md).
