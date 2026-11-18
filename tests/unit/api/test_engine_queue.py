@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 import structlog
 
+from metis.api import engine_runs
 from metis.core import execution_layout
 from metis.core.phase_events import EVENTS_FILE, PhaseEventLog
 from tests.fixtures.api.engine import wait_until
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from fastapi.testclient import TestClient
+    from rich.console import Console
 
     from tests.fixtures.api.engine import FakeEngine
 
@@ -283,3 +285,48 @@ def test_a_job_that_moves_to_evaluate_reports_evaluating(
 
     assert (status["phase"], status["status"]) == ("evaluating", "running")
     assert (status["total"], status["done"]) == (5, 1)
+
+
+def test_a_job_whose_thread_cannot_start_frees_its_slot(
+    fake_engine: FakeEngine,
+    folders: list[Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runs = engine_runs.EngineRuns(fake_engine.functions(), max_runs=1)
+    real_thread = threading.Thread
+    refused: list[str] = []
+
+    class NoThread(real_thread):
+        def start(self) -> None:
+            if not refused:
+                refused.append(self.name)
+                raise RuntimeError("can't start new thread")
+            super().start()
+
+    monkeypatch.setattr(engine_runs.threading, "Thread", NoThread)
+
+    resume = fake_engine.functions().resume_simulation
+
+    def work(experiment_dir: Path, stop: threading.Event, console: Console) -> None:
+        resume(experiment_dir, concurrency=1, stop=stop, console=console)
+
+    def start(folder: Path) -> str:
+        return runs.start(
+            project_dir=folder.parent.parent.parent,
+            experiment_id=folder.name,
+            prepare=lambda: folder,
+            steps=[engine_runs.Step("simulating", work)],
+        )
+
+    with structlog.testing.capture_logs() as logs:
+        start(folders[0])
+    project_dir = folders[0].parent.parent.parent
+
+    # The job is gone, so the experiment shows the state of its folder, and can start again.
+    assert runs.current(project_dir, folders[0].name) is None
+    assert [log["event"] for log in logs].count("engine_run_not_started") == 1
+    start(folders[0])
+    wait_until(
+        lambda: [call.experiment_dir for call in fake_engine.calls] == [folders[0]]
+    )
+    runs.shutdown(5)

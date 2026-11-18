@@ -268,7 +268,12 @@ class EngineRuns:
         return None
 
     def _start_next(self) -> None:
-        """Start queued jobs while a slot is free. The caller holds the lock."""
+        """Start queued jobs while a slot is free. The caller holds the lock.
+
+        A thread that cannot start, for example when the process has no threads left, is
+        logged and its job is dropped, so it holds no slot. Its folder then gives its status,
+        and a start can try it again. The next jobs of the queue still get their turn.
+        """
         while not self._closed and self._queue and len(self._running) < self.max_runs:
             run = self._queue.popleft()
             thread = threading.Thread(
@@ -278,7 +283,13 @@ class EngineRuns:
                 daemon=True,
             )
             self._running[run.key] = (run, thread)
-            thread.start()
+            try:
+                thread.start()
+            except RuntimeError:
+                del self._running[run.key]
+                logger.exception(
+                    "engine_run_not_started", experiment_id=run.experiment_id
+                )
 
     def _run_thread(self, run: Run) -> None:
         """Run the steps of the job with the console file of the experiment, then free its slot.
