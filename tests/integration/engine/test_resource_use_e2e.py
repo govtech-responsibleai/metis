@@ -133,8 +133,8 @@ def experiment_sessions(
         f"stderr: {result.stderr[-2000:]}"
     )
 
-    executions = tmp / "experiments" / "execute"
-    experiment_dirs = sorted(executions.iterdir(), key=lambda p: p.stat().st_mtime)
+    experiments = tmp / "evaluations" / "experiments"
+    experiment_dirs = sorted(experiments.iterdir(), key=lambda p: p.stat().st_mtime)
     assert experiment_dirs, "No experiment directory was created by the simulation"
     experiment_dir = experiment_dirs[-1]
 

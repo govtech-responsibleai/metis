@@ -54,6 +54,7 @@ openspec/
 !.agents/skills/metis-frontend-style/
 
 # Simulation output (generated at runtime)
+/evaluations/
 /experiments/
 
 # The store database of the API (generated at runtime)

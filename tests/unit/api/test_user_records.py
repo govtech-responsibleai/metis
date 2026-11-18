@@ -137,7 +137,7 @@ def test_two_users_can_each_have_an_experiment_folder_with_the_same_name(
         (bob, bob_id, "Shop bot", OTHER_TARGET),
     ):
         _save(client, title, b"policy", target)
-        folder = project_dir / "users" / user_id / "experiments" / "execute"
+        folder = project_dir / "users" / user_id / "evaluations" / "experiments"
         (folder / EXPERIMENT).mkdir(parents=True)
 
     path = f"/api/v1/experiments/{EXPERIMENT}"
@@ -161,7 +161,7 @@ def test_a_user_reaches_only_the_experiment_folders_of_their_account(
     (alice, alice_id), (bob, _) = two_users
     _save(alice, "Bank bot", b"policy")
     _save(bob, "Shop bot", b"policy", OTHER_TARGET)
-    folder = project_dir / "users" / alice_id / "experiments" / "execute"
+    folder = project_dir / "users" / alice_id / "evaluations" / "experiments"
     (folder / EXPERIMENT).mkdir(parents=True)
     path = f"/api/v1/experiments/{EXPERIMENT}"
     assert (
@@ -251,5 +251,5 @@ def test_with_login_on_the_input_folder_starts_in_the_folder_of_the_user_account
     started = client.post("/api/v1/engine/simulate", json={"input_dir": input_dir})
 
     assert started.status_code == 202, started.text
-    folder = project_dir / "users" / account["id"] / "experiments" / "execute"
+    folder = project_dir / "users" / account["id"] / "evaluations" / "experiments"
     assert (folder / started.json()["experiment_id"]).is_dir()

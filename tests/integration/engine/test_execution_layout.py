@@ -149,10 +149,10 @@ def _exercise(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, source: str) -> N
         cli.app, ["simulate", "--input-dir", str(input_dir), "--no-tui"]
     )
     assert simulation.exit_code == 0, simulation.output
-    execution = next((tmp_path / "experiments" / "execute").iterdir())
+    execution = next((tmp_path / "evaluations" / "experiments").iterdir())
     records = sorted((execution / "outputs" / "trials").glob("*/record.json"))
     assert len(records) == 2
-    snapshot = execution / "inputs"
+    snapshot = execution / "specification"
     assert yaml.safe_load((snapshot / "specification.yaml").read_text()) == document
     assert (snapshot / "fixtures" / "input.txt").read_bytes() == b"fixture"
     for record_path in records:

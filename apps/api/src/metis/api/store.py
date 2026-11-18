@@ -8,7 +8,7 @@ Where the records are
 ---------------------
 
 The rows are in a database that SQLAlchemy opens from a URL. The default is the SQLite file
-`metis.db` in the project folder of the server, beside the `experiments` folder. The tables use
+`metis.db` in the project folder of the server. The tables use
 only portable SQL, so a PostgreSQL URL also works.
 
 The files of a Target are in `<project>/experiments/design/<target_id>/`, in the layout that
@@ -24,7 +24,7 @@ The files of a Target are in `<project>/experiments/design/<target_id>/`, in the
   `metis engine simulate --input-dir`. It holds `specification.yaml`, `fixtures/`, and
   `target-binding.yaml` when the Interview has a target connection.
 
-An Experiment is a folder that the engine writes under `<project>/experiments/execute/`. The
+An Experiment is a folder that the engine writes under `<project>/evaluations/experiments/`. The
 engine copies the input folder into each Experiment folder, so a new Specification does not
 change an earlier Experiment.
 
@@ -100,7 +100,7 @@ from metis.api.tables import (
     targets,
     users,
 )
-from metis.core import execution_layout
+from metis.core import project_layout
 from metis.wizard import (
     CompilationError,
     InterviewState,
@@ -116,12 +116,9 @@ if TYPE_CHECKING:
     from sqlalchemy import Table
     from sqlalchemy.engine import Connection, Engine, RowMapping
 
-EXPERIMENTS = execution_layout.EXECUTIONS.parent
-"""The folder in the project that holds the Target folders and the Experiment folders."""
 DATABASE = Path("metis.db")
-"""The default SQLite file of the store, relative to the project folder. It is beside
-``EXPERIMENTS``, so that folder holds only the files of the Targets and the Experiments."""
-DESIGN = EXPERIMENTS / "design"
+"""The default SQLite file of the store, relative to the project folder."""
+DESIGN = Path("experiments") / "design"
 """The folder of the Target folders. `metis wizard init` writes to the same folder."""
 FILES = Path("inputs") / "documents"
 """The folder of a Target that holds the files of its Interview record."""
@@ -278,8 +275,8 @@ class Store:
         return store
 
     @property
-    def executions_dir(self) -> Path:
-        return self.project_dir / execution_layout.EXECUTIONS
+    def experiments_dir(self) -> Path:
+        return self.project_dir / project_layout.EXPERIMENTS
 
     def target_dir(self, target_id: str) -> Path:
         return self.project_dir / DESIGN / _target_id(target_id)
@@ -433,7 +430,7 @@ class Store:
     def delete_target(self, target_id: str) -> None:
         """Delete the rows of the Target and its folder in `experiments/design/`.
 
-        The Experiment folders in `experiments/execute/` stay on disk.
+        The Experiment folders in `evaluations/experiments/` stay on disk.
         """
         target_id = _target_id(target_id)
         with self._lock:
@@ -534,7 +531,7 @@ class Store:
         self, experiment_id: str, body: ExperimentSave
     ) -> ExperimentRecord:
         """Save the last step of an Experiment. The first save checks the Experiment folder."""
-        folder = self.executions_dir / _experiment_id(experiment_id)
+        folder = self.experiments_dir / _experiment_id(experiment_id)
         target_id = _target_id(body.target_id)
         with self._lock, self._engine.begin() as connection:
             owned = self._owns(connection, target_id)
@@ -548,7 +545,7 @@ class Store:
             if row is None:
                 if not folder.is_dir():
                     raise _invalid(
-                        f"The Experiment folder {execution_layout.EXECUTIONS / experiment_id} "
+                        f"The Experiment folder {project_layout.EXPERIMENTS / experiment_id} "
                         "does not exist."
                     )
                 connection.execute(
@@ -863,7 +860,6 @@ __all__ = [
     "user_project_dir",
     "DATABASE",
     "DESIGN",
-    "EXPERIMENTS",
     "FILES",
     "LOCAL_USER_ID",
     "OUTPUTS",

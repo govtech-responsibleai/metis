@@ -313,7 +313,7 @@ def test_a_missing_snapshot_raises_an_evaluation_input_error(
     monkeypatch, tmp_path: Path
 ) -> None:
     output = _write_experiment_dir(tmp_path)
-    shutil.rmtree(output / "inputs")
+    shutil.rmtree(output / "specification")
     _patch_evaluation(monkeypatch)
     console, text = _console()
 

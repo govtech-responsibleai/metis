@@ -304,7 +304,7 @@ export interface paths {
          * Delete a Target
          * @description Delete the Target, its Interview, its Specification, and its Experiment rows.
          *
-         *     The Experiment folders under `experiments/execute/` stay on disk.
+         *     The Experiment folders under `evaluations/experiments/` stay on disk.
          */
         delete: operations["delete_target_api_v1_targets__target_id__delete"];
         options?: never;
@@ -429,7 +429,7 @@ export interface paths {
          * Save an Experiment
          * @description Save the last engine step that the web app started for the Experiment.
          *
-         *     The Experiment folder must exist under `experiments/execute/`, else the route gives 400. The
+         *     The Experiment folder must exist under `evaluations/experiments/`, else the route gives 400. The
          *     first save keeps the start time.
          */
         put: operations["put_experiment_api_v1_experiments__experiment_id__put"];
@@ -500,7 +500,7 @@ export interface paths {
          * @description Create an experiment folder from the input folder and run every trial in it.
          *
          *     The request checks the inputs as `metis engine simulate --input-dir` does, then creates
-         *     `experiments/execute/<specification id>-<YYYYmmdd-HHMMSS>/`. The trials run after the
+         *     `evaluations/experiments/<specification id>-<YYYYmmdd-HHMMSS>/`. The trials run after the
          *     response.
          */
         post: operations["start_simulation_api_v1_engine_simulate_post"];

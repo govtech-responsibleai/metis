@@ -10,7 +10,7 @@ nothing to retry.
 
 Its ``path`` is a POSIX-style path relative to the experiment root — the
 directory created by ``metis engine simulate`` (or resumed into), containing
-``inputs/`` and ``outputs/trials/``. Storing a relative path keeps experiment output
+``specification/`` and ``outputs/trials/``. Storing a relative path keeps experiment output
 directories portable: they can be copied, zipped, or moved without breaking
 artifact references baked into ``record.json``.
 """

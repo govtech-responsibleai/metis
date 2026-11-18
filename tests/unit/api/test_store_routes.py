@@ -13,7 +13,7 @@ from sqlalchemy import create_engine
 from metis.api.settings import Settings
 from metis.api.store import LOCAL_USER_ID, STATE, Store
 from metis.api.tables import interviews, targets
-from metis.core import execution_layout
+from metis.core import execution_layout, project_layout
 from metis.wizard import InterviewState
 from metis.wizard.application import export_layout
 from tests.fixtures.api._shared import database_url
@@ -36,9 +36,11 @@ def _files(folder: Path) -> set[Path]:
 
 
 def _experiment_folder(project_dir: Path, experiment_id: str) -> Path:
-    folder = project_dir / "experiments" / "execute" / experiment_id
-    (folder / "inputs").mkdir(parents=True)
-    (folder / "inputs" / "specification.yaml").write_text("id: research-assistant\n")
+    folder = project_dir / "evaluations" / "experiments" / experiment_id
+    (folder / "specification").mkdir(parents=True)
+    (folder / "specification" / "specification.yaml").write_text(
+        "id: research-assistant\n"
+    )
     return folder
 
 
@@ -502,7 +504,7 @@ def test_an_experiment_row_keeps_its_step_and_needs_its_folder(
 
     assert missing.status_code == 400
     assert missing.json()["code"] == "validation_error"
-    assert "experiments/execute/no-such-experiment" in missing.json()["message"]
+    assert "evaluations/experiments/no-such-experiment" in missing.json()["message"]
     assert started.status_code == 200, started.text
     assert evaluated.json() == {**started.json(), "step": "evaluate"}
     assert client.get(f"/api/v1/experiments/{experiment_id}").json() == evaluated.json()
@@ -527,7 +529,7 @@ def test_a_deleted_experiment_has_no_row_and_its_folder_stays(
     assert (
         client.get(f"/api/v1/targets/{TARGET}/experiments").json()["experiments"] == []
     )
-    assert (folder / "inputs" / "specification.yaml").is_file()
+    assert (folder / "specification" / "specification.yaml").is_file()
 
 
 def test_a_deleted_target_loses_its_rows_and_design_folder_and_keeps_its_experiments(
@@ -548,7 +550,7 @@ def test_a_deleted_target_loses_its_rows_and_design_folder_and_keeps_its_experim
     assert client.get(f"/api/v1/targets/{TARGET}/specification").status_code == 404
     assert client.get(f"/api/v1/experiments/{experiment_id}").status_code == 404
     assert not (project_dir / "experiments" / "design" / TARGET).exists()
-    assert (folder / "inputs" / "specification.yaml").is_file()
+    assert (folder / "specification" / "specification.yaml").is_file()
 
 
 def test_the_browser_starts_the_specification_and_saves_its_experiment_row(
@@ -571,7 +573,7 @@ def test_the_browser_starts_the_specification_and_saves_its_experiment_row(
 
     assert input_dir == f"experiments/design/{TARGET}/outputs"
     assert saved.status_code == 200, saved.text
-    experiment_dir = project_dir / execution_layout.EXECUTIONS / experiment_id
+    experiment_dir = project_dir / project_layout.EXPERIMENTS / experiment_id
     assert (experiment_dir / execution_layout.FIXTURES / "policy.pdf").read_bytes() == (
         POLICY
     )

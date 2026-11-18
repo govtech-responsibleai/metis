@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from metis.core import execution_layout
+from metis.core import execution_layout, project_layout
 from metis.engine.extractor import TraceWaitSettings
 from tests.fixtures.api.engine import wait_until
 
@@ -104,7 +104,7 @@ def test_a_folder_with_no_snapshot_is_an_invalid_experiment(
     project_dir: Path,
     name: str,
 ) -> None:
-    folder = project_dir / execution_layout.EXECUTIONS / "bare"
+    folder = project_dir / project_layout.EXPERIMENTS / "bare"
     folder.mkdir(parents=True)
 
     response = engine_client.post(ROUTES[name].format(id="bare"))
@@ -113,7 +113,7 @@ def test_a_folder_with_no_snapshot_is_an_invalid_experiment(
     body = response.json()
     assert body["code"] == "invalid_experiment"
     assert body["message"] == (
-        f"'{folder}' is not a simulation output directory (no 'inputs/' snapshot). "
+        f"'{folder}' is not a simulation output directory (no 'specification/' snapshot). "
         "Run 'metis engine simulate' first."
     )
     assert fake_engine.calls == []
@@ -253,7 +253,7 @@ def test_a_bad_timeout_is_checked_after_the_folder_and_the_run(
     make_experiment_dir: Callable[..., Path],
 ) -> None:
     bad = {"langfuse_timeout": 10}
-    bare = project_dir / execution_layout.EXECUTIONS / "bare"
+    bare = project_dir / project_layout.EXPERIMENTS / "bare"
     bare.mkdir(parents=True)
     running = make_experiment_dir("test-exp-20260101-000001")
     other = make_experiment_dir("test-exp-20260101-000002")

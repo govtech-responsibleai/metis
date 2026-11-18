@@ -20,7 +20,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, TypeAlias
 
 from metis.api.store import DATABASE
-from metis.core.execution_layout import find_project_root
 from metis.core.model_settings import (
     ModelRole,
     RoleSettings,
@@ -29,6 +28,7 @@ from metis.core.model_settings import (
     missing_settings,
     resolve_role,
 )
+from metis.core.project_layout import find_project_root
 from metis.wizard import InterviewRequest, InterviewResult
 
 if TYPE_CHECKING:

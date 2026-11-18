@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 from fastapi.testclient import TestClient
 
-from metis.core import execution_layout
+from metis.core import execution_layout, project_layout
 from tests.fixtures.api.engine import wait_until, write_input_dir
 from tests.unit.engine.test_cli_simulate import MINIMAL_EXPERIMENT
 
@@ -32,7 +32,10 @@ class User:
     def experiment(self, name: str = EXPERIMENT) -> str:
         """Make an experiment folder in the project folder of this user account."""
         write_input_dir(
-            self.folder / execution_layout.EXECUTIONS / name / execution_layout.INPUTS
+            self.folder
+            / project_layout.EXPERIMENTS
+            / name
+            / execution_layout.SPECIFICATION_DIR
         )
         return name
 
@@ -78,7 +81,7 @@ def test_an_input_dir_is_relative_to_the_project_folder_of_the_user(
 
     assert started.status_code == 202
     experiment_id = started.json()["experiment_id"]
-    assert (alice.folder / execution_layout.EXECUTIONS / experiment_id).is_dir()
+    assert (alice.folder / project_layout.EXPERIMENTS / experiment_id).is_dir()
     assert refused.status_code == 422
     assert refused.json()["code"] == "invalid_inputs"
     assert str(bob.folder / INPUT_DIR) in refused.json()["message"]
@@ -104,7 +107,7 @@ def test_an_input_dir_of_another_user_cannot_start_a_run(
     assert response.status_code == 422
     assert response.json()["code"] in ("input_dir_outside_project", "invalid_inputs")
     assert fake_engine.calls == []
-    assert not (bob.folder / execution_layout.EXECUTIONS).exists()
+    assert not (bob.folder / project_layout.EXPERIMENTS).exists()
 
 
 ID_ROUTES = [
@@ -199,7 +202,7 @@ def test_a_specification_id_that_names_the_folder_of_another_user_is_refused(
     users: tuple[User, User], fake_engine: FakeEngine
 ) -> None:
     alice, bob = users
-    escape = f"../../../{bob.folder.name}/experiments/execute/planted"
+    escape = f"../../../{bob.folder.name}/evaluations/experiments/planted"
     write_input_dir(
         alice.folder / INPUT_DIR,
         MINIMAL_EXPERIMENT.replace("id: test-exp\n", f"id: {escape}\n"),
@@ -214,4 +217,4 @@ def test_a_specification_id_that_names_the_folder_of_another_user_is_refused(
     assert "must be one folder name" in response.json()["message"]
     assert fake_engine.calls == []
     assert not (bob.folder / "experiments").exists()
-    assert not (alice.folder / execution_layout.EXECUTIONS).exists()
+    assert not (alice.folder / project_layout.EXPERIMENTS).exists()

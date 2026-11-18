@@ -25,7 +25,7 @@ from metis.api.engine_runs import EngineRuns, read_events
 from metis.api.errors import RouteError
 from metis.api.experiment_dirs import find_experiment_dir, request_project_dir
 from metis.api.routes.wizard import ServiceError
-from metis.core import execution_layout
+from metis.core import project_layout
 from metis.core.phase_events import PhaseEvent
 from metis.engine.extractor import TraceWaitSettings
 from metis.engine.run import (
@@ -202,7 +202,7 @@ def _input_dir(project_dir: Path, text: str) -> Path:
 def _check_specification_id(input_dir: Path) -> None:
     """Refuse a Specification id that is not one folder name, before any folder is made.
 
-    The experiment folder is ``experiments/execute/<specification id>-<time>/``, so an id with
+    The experiment folder is ``evaluations/experiments/<specification id>-<time>/``, so an id with
     a path separator or ``..`` would name a folder outside the experiments of the request,
     for example in the project folder of another user account. A file that does not load is
     left to ``prepare_experiment``, which gives its own error.
@@ -226,8 +226,8 @@ def _check_specification_id(input_dir: Path) -> None:
         )
 
 
-def _inside_executions(project_dir: Path, experiment_dir: Path) -> Path:
-    """The experiment folder, once it is a folder of ``experiments/execute/`` of the request.
+def _inside_experiments(project_dir: Path, experiment_dir: Path) -> Path:
+    """The experiment folder, once it is a folder of ``evaluations/experiments/`` of the request.
 
     ``_check_specification_id`` and ``prepare_experiment`` each read ``specification.yaml``,
     so a file that changes between the two reads can put the folder in another place. Such a
@@ -236,14 +236,14 @@ def _inside_executions(project_dir: Path, experiment_dir: Path) -> Path:
 
     :raises RouteError: 422 ``invalid_inputs`` when it is in another place.
     """
-    executions = (project_dir / execution_layout.EXECUTIONS).resolve()
-    if experiment_dir.resolve().parent != executions:
+    experiments = (project_dir / project_layout.EXPERIMENTS).resolve()
+    if experiment_dir.resolve().parent != experiments:
         shutil.rmtree(experiment_dir, ignore_errors=True)
         raise RouteError(
             422,
             "invalid_inputs",
             f"The experiment folder {experiment_dir.name!r} is not in "
-            f"{execution_layout.EXECUTIONS}/ of the project folder.",
+            f"{project_layout.EXPERIMENTS}/ of the project folder.",
         )
     return experiment_dir
 
@@ -284,7 +284,7 @@ def start_simulation(body: SimulateRequest, request: Request) -> EngineRunAccept
     """Create an experiment folder from the input folder and run every trial in it.
 
     The request checks the inputs as `metis engine simulate --input-dir` does, then creates
-    `experiments/execute/<specification id>-<YYYYmmdd-HHMMSS>/`. The trials run after the
+    `evaluations/experiments/<specification id>-<YYYYmmdd-HHMMSS>/`. The trials run after the
     response.
     """
     settings = _settings(request)
@@ -305,7 +305,7 @@ def start_simulation(body: SimulateRequest, request: Request) -> EngineRunAccept
             raise RouteError(409, "experiment_exists", str(exc)) from None
         except InvalidInputsError as exc:
             raise RouteError(422, "invalid_inputs", str(exc)) from None
-        return _inside_executions(project_dir, experiment_dir)
+        return _inside_experiments(project_dir, experiment_dir)
 
     def work(experiment_dir: Path, stop: threading.Event, console: Console) -> None:
         runs.functions.simulate(

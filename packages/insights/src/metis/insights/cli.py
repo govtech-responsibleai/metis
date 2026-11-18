@@ -42,7 +42,7 @@ def report(
         "--results-file",
         help=(
             "results.json that `metis engine evaluate` wrote, "
-            "e.g. experiments/execute/my-eval-20260820-143000/outputs/reports/results.json"
+            "e.g. evaluations/experiments/my-eval-20260820-143000/outputs/reports/results.json"
         ),
     ),
 ) -> None:

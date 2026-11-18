@@ -2,7 +2,7 @@
 
 `make_experiment` simulates a Specification through `metis engine simulate` with an offline runner
 and user, and optionally scores it with `metis engine evaluate` over fake Langfuse traces.
-The folders are the same files a real experiment leaves under ``experiments/execute/``.
+The folders are the same files a real experiment leaves under ``evaluations/experiments/``.
 """
 
 from __future__ import annotations
@@ -103,7 +103,7 @@ def specification() -> dict[str, Any]:
 def make_experiment(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> Iterator[MakeExperiment]:
-    """Build the experiment folder under ``tmp_path/experiments/execute`` and return it.
+    """Build the experiment folder under ``tmp_path/evaluations/experiments`` and return it.
 
     With ``evaluate=False`` the experiment has trial records but no results.json.
     """
@@ -112,7 +112,7 @@ def make_experiment(
     monkeypatch.setattr(trial_module, "UserAgent", OneTurnUser)
     _patch_evaluation(monkeypatch, traces=1)
     runner = CliRunner()
-    executions = tmp_path / "experiments" / "execute"
+    experiments = tmp_path / "evaluations" / "experiments"
 
     def _make(*, evaluate: bool = True) -> Path:
         input_dir = tmp_path / "sources"
@@ -130,7 +130,7 @@ def make_experiment(
             ],
         )
         assert simulation.exit_code == 0, simulation.output
-        (experiment_dir,) = executions.iterdir()
+        (experiment_dir,) = experiments.iterdir()
         if evaluate:
             evaluation = runner.invoke(
                 cli.app, ["evaluate", "--experiment-dir", str(experiment_dir)]

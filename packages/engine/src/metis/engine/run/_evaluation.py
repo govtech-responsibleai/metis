@@ -306,19 +306,19 @@ def _load_evaluation_specification(
 ) -> Specification:
     """Validate and load the frozen experiment snapshot."""
 
-    inputs_dir = experiment_dir / execution_layout.INPUTS
-    if not inputs_dir.is_dir():
+    snapshot_dir = experiment_dir / execution_layout.SPECIFICATION_DIR
+    if not snapshot_dir.is_dir():
         console.print(
-            f"Error: missing required file 'specification.yaml' in {inputs_dir}",
+            f"Error: missing required file 'specification.yaml' in {snapshot_dir}",
             style="bold red",
         )
         raise EvaluationInputError("missing experiment snapshot")
 
     try:
-        validate_inputs(inputs_dir, console=console)
+        validate_inputs(snapshot_dir, console=console)
     except InvalidInputsError as exc:
         raise EvaluationInputError(
-            f"invalid experiment snapshot in {inputs_dir}"
+            f"invalid experiment snapshot in {snapshot_dir}"
         ) from exc
 
     return load_snapshot(experiment_dir, console=console)
@@ -615,7 +615,7 @@ async def _fetch_and_grade(
     )
     if unknown:
         # The record was written against a spec whose criteria differ from the
-        # snapshot (e.g. inputs/specification.yaml was edited). Say so rather
+        # snapshot (e.g. specification/specification.yaml was edited). Say so rather
         # than silently grading fewer criteria than the trial ran for.
         console.print(
             f"  WARNING: {record_name} — criteria {', '.join(unknown)} are not in the "

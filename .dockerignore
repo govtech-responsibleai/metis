@@ -40,6 +40,7 @@ htmlcov
 .impeccable
 
 # Run output
+evaluations
 experiments
 evaluation
 packages/testbed/results

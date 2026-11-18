@@ -250,7 +250,7 @@ Run from the project root. Use `uv run metis engine simulate` or activate the en
 ```bash
 metis engine simulate --input-dir path/to/my-experiment/
 # Evaluate the output directory that simulate wrote. It prints this command.
-metis engine evaluate --experiment-dir experiments/execute/my-experiment-20260820-143000/
+metis engine evaluate --experiment-dir evaluations/experiments/my-experiment-20260820-143000/
 ```
 
 Use `metis engine run --input-dir path/to/my-experiment/` for the combined simulation and evaluation flow.

@@ -151,7 +151,7 @@ def _run(
 
 
 def _run_folder(tmp_path: Path) -> Path:
-    return next((tmp_path / "project" / "experiments" / "execute").iterdir())
+    return next((tmp_path / "project" / "evaluations" / "experiments").iterdir())
 
 
 def _input_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
