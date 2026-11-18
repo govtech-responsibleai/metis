@@ -367,17 +367,19 @@ def _simulate_in(
         use_tui=use_tui,
         append=resume,
     )
-    orchestration_logger = OrchestrationLogger(
-        log_dir=resolved_log_dir, log_format=log_format, append=resume
-    )
-    if resume:
-        orchestration_logger.resume_started(len(redo_plan), len(completed_records))
-
-    tui_ctx: TUIContext | None = None
-    if use_tui:
-        tui_ctx = TUIContext(state=sim_state, tail_buffers=tail_buffers)
-
+    # Everything after the setup is inside the try, so an error always puts back the logging.
+    orchestration_logger: OrchestrationLogger | None = None
     try:
+        orchestration_logger = OrchestrationLogger(
+            log_dir=resolved_log_dir, log_format=log_format, append=resume
+        )
+        if resume:
+            orchestration_logger.resume_started(len(redo_plan), len(completed_records))
+
+        tui_ctx: TUIContext | None = None
+        if use_tui:
+            tui_ctx = TUIContext(state=sim_state, tail_buffers=tail_buffers)
+
         with tui_ctx if tui_ctx else nullcontext():
             execute_experiment(
                 runner_factory=runner_factory,
@@ -399,7 +401,8 @@ def _simulate_in(
             )
     finally:
         teardown_engine_logging(log_router)
-        orchestration_logger.close()
+        if orchestration_logger is not None:
+            orchestration_logger.close()
 
     console.print(
         _format_final_summary(

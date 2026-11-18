@@ -463,3 +463,28 @@ def test_two_simulates_on_two_threads_keep_their_trial_logs_apart(
             f"run={own} " in line or line.endswith(f"run={own}") for line in lines
         )
         assert not any(f"run={other}" in line for line in lines)
+
+
+def test_a_simulate_whose_orchestration_log_fails_puts_back_the_logging(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from metis.engine.logging import router as router_module
+    from metis.engine.run import _simulation
+
+    experiment_dir = _experiment(tmp_path)
+    _fake_trials(monkeypatch)
+    configure_logging(level="INFO")
+    before = structlog.get_config()
+
+    def no_orchestration_log(*_args: object, **_kwargs: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(_simulation, "OrchestrationLogger", no_orchestration_log)
+
+    with pytest.raises(OSError, match="disk full"):
+        simulate(
+            experiment_dir, concurrency=1, stop=threading.Event(), console=_console()[0]
+        )
+
+    assert structlog.get_config() == before
+    assert router_module._install_count == 0

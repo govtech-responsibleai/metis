@@ -9,6 +9,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
+import pytest
 import structlog
 from rich.console import Console
 
@@ -622,3 +623,17 @@ class TestContextRouting:
         teardown_engine_logging(router)
 
         assert "after" in (tmp_path / "two" / "simulate-scn_per-01.log").read_text()
+
+    def test_a_setup_that_fails_leaves_the_logging_as_it_was(
+        self, tmp_path: Path
+    ) -> None:
+        configure_logging(level="INFO")
+        before = structlog.get_config()
+        blocked = tmp_path / "file"
+        blocked.write_text("not a folder")
+
+        with pytest.raises(OSError):
+            setup_engine_logging(blocked / "logs", log_format="text", use_tui=False)
+
+        assert structlog.get_config() == before
+        assert router_module._install_count == 0

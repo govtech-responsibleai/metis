@@ -338,13 +338,18 @@ def setup_engine_logging(
     Call ``teardown_engine_logging`` in the same context.
     """
     process_renderer = _install_route()
-    router = LogRouter(
-        log_dir=log_dir,
-        log_format=log_format,
-        tail_buffers=tail_buffers,
-        fallback_renderer=None if use_tui else process_renderer,
-        append=append,
-    )
+    try:
+        router = LogRouter(
+            log_dir=log_dir,
+            log_format=log_format,
+            tail_buffers=tail_buffers,
+            fallback_renderer=None if use_tui else process_renderer,
+            append=append,
+        )
+    except BaseException:
+        # No router to tear down, so the setup takes back its own install.
+        _remove_route()
+        raise
     router.context_token = _CURRENT_ROUTER.set(router)
 
     # In TUI mode, suppress the stdlib root handler's stderr output.
