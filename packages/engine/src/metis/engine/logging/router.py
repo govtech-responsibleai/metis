@@ -367,12 +367,14 @@ def teardown_engine_logging(router: LogRouter) -> None:
 
     The context has no router again. The last run of the process puts back the structlog
     configuration, and each run puts back the level of each stderr handler that TUI mode
-    silenced, so a caller whose process outlives the run keeps its own logging.
+    silenced, so a caller whose process outlives the run keeps its own logging. A second
+    teardown of the same router changes nothing, so it cannot remove the route of another run.
     """
     router.close_all()
-    if router.context_token is not None:
-        _CURRENT_ROUTER.reset(router.context_token)
-        router.context_token = None
+    if router.context_token is None:
+        return
+    _CURRENT_ROUTER.reset(router.context_token)
+    router.context_token = None
     _remove_route()
     for handler, level in router.previous_handler_levels.items():
         handler.setLevel(level)

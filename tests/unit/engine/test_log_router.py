@@ -602,3 +602,23 @@ class TestContextRouting:
         router_module._route(None, "info", {"event": "late"})
 
         assert [event["event"] for event in seen] == ["late"]
+
+    def test_a_second_teardown_of_a_router_changes_nothing(
+        self, tmp_path: Path
+    ) -> None:
+        configure_logging(level="DEBUG")
+        first = setup_engine_logging(tmp_path / "one", log_format="text", use_tui=False)
+        teardown_engine_logging(first)
+        teardown_engine_logging(first)
+
+        # The next run of the process still gets its own trial log.
+        router = setup_engine_logging(
+            tmp_path / "two", log_format="text", use_tui=False
+        )
+        router.open_trial("scn", "per", trial_index=1, num_trials=1)
+        get_logger("test.twice").info(
+            "after", scenario_id="scn", persona_id="per", trial_index=1
+        )
+        teardown_engine_logging(router)
+
+        assert "after" in (tmp_path / "two" / "simulate-scn_per-01.log").read_text()
