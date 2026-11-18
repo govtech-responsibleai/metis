@@ -180,6 +180,10 @@ class TrialRecord(BaseModel, extra="ignore"):
     outcome: TrialOutcome
     artifacts: list[Artifact] = []
     target_session_id: str | None = None
+    target_session_url: str | None = None
+    """The page of the target session in the target's Langfuse project, saved by simulate
+    while the run's own ``LANGFUSE_*`` keys are loaded. ``None`` when the trial has no session
+    or the project lookup failed, and in records written before the field existed."""
     # attempt_number is telemetry: which attempt produced this record.
     # max_allowed_attempts is configuration: 1 + the run's retry budget.
     # A record with attempt_number=1 and max_allowed_attempts=3 succeeded on

@@ -130,3 +130,27 @@ def test_outcome_cause_defaults_to_none() -> None:
     )
     assert record.outcome.failure_source is None
     assert record.outcome.failure_message is None
+
+
+def _record(**extra: object) -> TrialRecord:
+    return TrialRecord.model_validate(
+        {
+            "config": {"persona": "p", "scenario": "s"},
+            "outcome": {
+                "stop_reason": "max_turns",
+                "simulated_turns_completed": 1,
+                "duration_seconds": 1.0,
+            },
+            **extra,
+        }
+    )
+
+
+def test_a_record_without_a_session_url_loads() -> None:
+    assert _record(target_session_id="s-1").target_session_url is None
+
+
+def test_the_session_url_round_trips() -> None:
+    url = "https://lf.example/project/p1/sessions/s-1"
+    record = _record(target_session_id="s-1", target_session_url=url)
+    assert TrialRecord.model_validate(record.model_dump()).target_session_url == url
