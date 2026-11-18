@@ -169,7 +169,7 @@ no folder, and two starts at the same time cannot both pass.
 |---|---|
 | `POST /api/v1/engine/simulate` | Create an experiment from an input folder and run its trials (`simulate`). |
 | `POST /api/v1/engine/simulate/{experiment_id}/resume` | Run again the trials that did not end (`resume_simulation`). |
-| `POST /api/v1/engine/evaluate/{experiment_id}` | Delete the earlier evaluation and grade every trial (`evaluate`). |
+| `POST /api/v1/engine/evaluate/{experiment_id}` | Delete the earlier evaluation and grade every trial (`evaluate`). A complete evaluation needs `regrade: true`. |
 | `POST /api/v1/engine/evaluate/{experiment_id}/resume` | Grade the trials with no evaluation file (`resume_evaluation`). |
 | `POST /api/v1/engine/{experiment_id}/stop` | Set the stop flag of the run. |
 | `GET /api/v1/engine/{experiment_id}` | The phase, the status, and the counts of the experiment. |
@@ -190,13 +190,21 @@ character. After `prepare_experiment`, the route also checks that the new folder
 `evaluations/experiments/` of the request. #174 gives the id field this rule in metis-core, for the
 wizard and the CLI too.
 
+A full evaluate deletes the results of the experiment before it grades again. Thus the
+evaluate route refuses an experiment whose evaluation is complete, with 409
+`evaluation_complete`, and keeps the results. The evaluation is complete when `results.json`
+loads (`evaluation_is_complete`). To grade a complete evaluation again, send `regrade: true` in
+the body. A simulate and a resume of a simulation delete the evaluation outputs, so the evaluate
+after them needs no `regrade`. The web app never sends `regrade`. The evaluate resume route has
+no `regrade` field, and a complete evaluation gives it 409 `evaluation_complete` too.
+
 Every check of a start runs in the request, before the thread starts. The routes check in
 this order and return the first error:
 
 | Route | Order of the checks |
 |---|---|
 | `simulate` | `validation_error`, `input_dir_outside_project`, `engine_busy`, `invalid_inputs` or `experiment_exists` |
-| resume, evaluate | `validation_error`, `experiment_not_found`, `run_in_progress` or `engine_busy`, `invalid_experiment`, `invalid_langfuse_timeout` (evaluate only), `evaluation_complete` (evaluate resume only) |
+| resume, evaluate | `validation_error`, `experiment_not_found`, `run_in_progress` or `engine_busy`, `invalid_experiment`, `invalid_langfuse_timeout` (evaluate only), `evaluation_complete` (evaluate and evaluate resume) |
 | stop | `experiment_not_found`, `no_run` |
 | status, events | `validation_error` (events only), `experiment_not_found` |
 

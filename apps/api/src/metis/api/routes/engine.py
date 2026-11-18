@@ -73,8 +73,8 @@ class ResumeSimulationRequest(BaseModel):
     )
 
 
-class EvaluateRequest(BaseModel):
-    """Grade the trials of an experiment."""
+class ResumeEvaluationRequest(BaseModel):
+    """Grade the trials of an experiment that have no evaluation file."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -87,6 +87,19 @@ class EvaluateRequest(BaseModel):
         description=(
             "The longest wait in seconds for the traces of a session, as "
             "--langfuse-timeout. Default: a setting, 180 unless the server changes it."
+        ),
+    )
+
+
+class EvaluateRequest(ResumeEvaluationRequest):
+    """Delete the evaluation of an experiment and grade every trial."""
+
+    regrade: bool = Field(
+        default=False,
+        description=(
+            "Grade again an experiment whose evaluation is complete. Without it, an "
+            "evaluate of a complete evaluation gives 409 evaluation_complete and keeps "
+            "the results."
         ),
     )
 
@@ -388,7 +401,11 @@ def resume_simulation(
 
 
 def _start_evaluation(
-    request: Request, experiment_id: str, body: EvaluateRequest, *, resume: bool
+    request: Request,
+    experiment_id: str,
+    body: ResumeEvaluationRequest,
+    *,
+    resume: bool,
 ) -> EngineRunAccepted:
     settings = _settings(request)
     concurrency = _limit(
@@ -412,7 +429,20 @@ def _start_evaluation(
                 409,
                 "evaluation_complete",
                 f"The evaluation of {experiment_id!r} is complete, so it has nothing to "
-                "resume. Start an evaluate to grade every trial again.",
+                "resume. Start an evaluate with regrade to grade every trial again.",
+            )
+        # A full evaluate deletes the results first, so a stale client must not start one
+        # by mistake. A simulate deletes the evaluation outputs, so its evaluate passes.
+        if (
+            isinstance(body, EvaluateRequest)
+            and not body.regrade
+            and evaluation_is_complete(experiment_dir)
+        ):
+            raise RouteError(
+                409,
+                "evaluation_complete",
+                f"The evaluation of {experiment_id!r} is complete, so an evaluate would "
+                "delete its results. Send regrade: true to grade every trial again.",
             )
 
     def work(experiment_dir: Path, stop: threading.Event, console: Console) -> None:
@@ -443,7 +473,10 @@ def _start_evaluation(
 def start_evaluation(
     experiment_id: str, request: Request, body: EvaluateRequest | None = None
 ) -> EngineRunAccepted:
-    """Delete the earlier evaluation of the experiment, then grade every trial."""
+    """Delete the earlier evaluation of the experiment, then grade every trial.
+
+    A complete evaluation gives 409 evaluation_complete, unless the body has regrade: true.
+    """
     return _start_evaluation(
         request, experiment_id, body or EvaluateRequest(), resume=False
     )
@@ -457,12 +490,12 @@ def start_evaluation(
     responses=_RESPONSES,
 )
 def resume_evaluation(
-    experiment_id: str, request: Request, body: EvaluateRequest | None = None
+    experiment_id: str, request: Request, body: ResumeEvaluationRequest | None = None
 ) -> EngineRunAccepted:
     """Grade only the trials with no evaluation file. A complete evaluation gives 409
     evaluation_complete."""
     return _start_evaluation(
-        request, experiment_id, body or EvaluateRequest(), resume=True
+        request, experiment_id, body or ResumeEvaluationRequest(), resume=True
     )
 
 
