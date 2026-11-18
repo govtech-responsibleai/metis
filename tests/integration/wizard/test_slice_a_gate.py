@@ -120,26 +120,28 @@ def test_the_specification_package_passes_the_engine_input_gate(
     archive = tmp_path / "specification.zip"
     archive.write_bytes(archive_bytes.content)
 
-    root = archive_bytes.filename.removesuffix(".zip")
-    extracted = tmp_path / "extracted"
+    export_id = archive_bytes.filename.removesuffix(".zip")
+    evaluations = tmp_path / "evaluations"
     with zipfile.ZipFile(archive) as specification:
         expected = {
-            "inputs/",
-            "outputs/specification.yaml",
-            "outputs/fixtures/",
-            "outputs/fixtures/notes.txt",
-            "outputs/fixtures/policy.pdf",
+            f"specifications/{export_id}/{name}"
+            for name in (
+                "specification.yaml",
+                "fixtures/",
+                "fixtures/notes.txt",
+                "fixtures/policy.pdf",
+            )
         }
         if interview:
-            expected.add("inputs/interview_state.json")
-        assert set(specification.namelist()) == {f"{root}/{name}" for name in expected}
-        specification.extractall(extracted)
+            expected.add(f"interviews/{export_id}/interview_state.json")
+        assert set(specification.namelist()) == expected
+        specification.extractall(evaluations)
 
-    extracted = extracted / root
+    extracted = evaluations / "specifications" / export_id
 
     from metis.engine.simulation.types import Specification as EngineSpecification
 
-    experiment = yaml.safe_load((extracted / "outputs/specification.yaml").read_text())
+    experiment = yaml.safe_load((extracted / "specification.yaml").read_text())
     assert [task["id"] for task in experiment["tasks"]] == [
         "TC-001",
         "TC-002",
@@ -156,7 +158,7 @@ def test_the_specification_package_passes_the_engine_input_gate(
         ],
         "short-recovery": ["metis.library.graders.demo.DemoTraceBudgetGrader"],
     }
-    validate_inputs(extracted / "outputs", console=console)
+    validate_inputs(extracted, console=console)
 
 
 @pytest.mark.parametrize("transport", [None, *ConnectionTransport])
@@ -167,7 +169,7 @@ def test_the_engine_builds_the_runner_factory_that_a_download_names(
 ) -> None:
     """A run-mode download loads into the generic runner factory; a spec-only one keeps the default.
 
-    The engine copies `outputs/` to the experiment's `specification/`, so the factory reads the
+    The engine copies `specifications/<id>/` to the experiment's `specification/`, so the factory reads the
     binding from there. No request reaches a target: the factory only loads the binding.
     """
     from metis.engine.simulation.runner_resolver import resolve_runner_factory
@@ -194,14 +196,14 @@ def test_the_engine_builds_the_runner_factory_that_a_download_names(
     )
     with zipfile.ZipFile(io.BytesIO(archive.content)) as specification:
         specification.extractall(tmp_path)
-    outputs = tmp_path / archive.filename.removesuffix(".zip") / "outputs"
-    validate_inputs(outputs, console=console)
+    package = tmp_path / "specifications" / archive.filename.removesuffix(".zip")
+    validate_inputs(package, console=console)
 
-    loaded = EngineSpecification.load_file(outputs / "specification.yaml")
+    loaded = EngineSpecification.load_file(package / "specification.yaml")
     factory_cls = resolve_runner_factory(loaded.runner_factory_ref)
     if transport is None:
         assert factory_cls.__name__ == "HttpRunnerFactory"
         assert loaded.target_binding is None
         return
-    factory = factory_cls.from_specification(loaded, outputs)
+    factory = factory_cls.from_specification(loaded, package)
     assert factory.binding.binding.transport == transport.value

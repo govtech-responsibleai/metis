@@ -76,7 +76,7 @@ export interface paths {
          * @description Build one request-scoped engine-ready ZIP without retaining uploaded files.
          *
          *     Send `state` for an Interview or `specification` for a manual export. With `specification`,
-         *     an optional `connection` (a `TargetConnection` as JSON) adds `outputs/target-binding.yaml`
+         *     an optional `connection` (a `TargetConnection` as JSON) adds `target-binding.yaml`
          *     and names the generic runner, the same as an Interview with that connection. An Interview
          *     carries its connection in its state, so `connection` with `state` is rejected. A binding
          *     that fails the `/connection/check` validation gives 400 `validation_error`. The message
@@ -3306,7 +3306,7 @@ export interface components {
         SimulateRequest: {
             /**
              * Input Dir
-             * @description The input folder, relative to the project folder. For example experiments/design/<target id>/outputs.
+             * @description The input folder, relative to the project folder. For example evaluations/specifications/<target id>.
              */
             input_dir: string;
             /**

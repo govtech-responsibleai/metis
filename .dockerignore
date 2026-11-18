@@ -41,7 +41,6 @@ htmlcov
 
 # Run output
 evaluations
-experiments
 evaluation
 packages/testbed/results
 packages/testbed/wizard/.reviewer

@@ -53,13 +53,8 @@ openspec/
 .agents/skills/*
 !.agents/skills/metis-frontend-style/
 
-# Simulation output (generated at runtime)
+# Interviews, Specifications, Experiments, and the API store database (generated at runtime)
 /evaluations/
-/experiments/
-
-# The store database of the API (generated at runtime)
-/metis.db
-/metis.db-journal
 
 # The project folder of each user account, on a server with login on (generated at runtime)
 /users/

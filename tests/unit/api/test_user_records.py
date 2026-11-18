@@ -80,8 +80,8 @@ def test_each_user_has_their_own_targets_and_project_folder(
         assert [(row["id"], row["title"]) for row in listed] == [(target, title)]
         assert client.get(f"{base}/interview").json()["title"] == title
         assert client.get(f"{base}/interview/files/policy.pdf").content == content
-        folder = project_dir / "users" / user_id / "experiments" / "design" / target
-        assert (folder / "inputs" / "documents" / "policy.pdf").read_bytes() == content
+        folder = project_dir / "users" / user_id / "evaluations" / "interviews" / target
+        assert (folder / "documents" / "policy.pdf").read_bytes() == content
     assert not (project_dir / "experiments").exists()
     with store.engine.connect() as connection:
         rows = connection.execute(select(targets.c.user_id, targets.c.id)).all()
@@ -204,8 +204,8 @@ def test_with_login_off_the_records_belong_to_the_local_user_account(
 
         assert client.get(f"/api/v1/targets/{TARGET}/interview").status_code == 200
 
-    folder = project_dir / "experiments" / "design" / TARGET
-    assert (folder / "inputs" / "documents" / "policy.pdf").is_file()
+    folder = project_dir / "evaluations" / "interviews" / TARGET
+    assert (folder / "documents" / "policy.pdf").is_file()
     assert not (project_dir / "users").exists()
     with store.engine.connect() as connection:
         assert connection.execute(select(targets.c.user_id)).scalars().all() == [

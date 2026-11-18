@@ -8,21 +8,22 @@ Where the records are
 ---------------------
 
 The rows are in a database that SQLAlchemy opens from a URL. The default is the SQLite file
-`metis.db` in the project folder of the server. The tables use
-only portable SQL, so a PostgreSQL URL also works.
+`evaluations/metis.db` in the project folder of the server. The tables use only portable SQL, so
+a PostgreSQL URL also works.
 
-The files of a Target are in `<project>/experiments/design/<target_id>/`, in the layout that
+The files of a Target are in two folders with the Target id as their name, in the layout that
 `metis wizard init` writes:
 
-- `inputs/interview_state.json` holds the state of the Interview. `metis wizard resume` reads
-  and writes the same file. The Interview row holds the other parts of the web record: the
-  transcript, the times, and the file references.
-- `inputs/documents/` holds the files of the Interview record, by name. The user uploads these
-  files: the documents of the Interview, the files for the Test Cases, and the files of an answer that
-  the wizard has not accepted yet. The wizard CLI keeps its opening documents in the same folder.
-- `outputs/` is the input folder of the Specification. Give it to
-  `metis engine simulate --input-dir`. It holds `specification.yaml`, `fixtures/`, and
-  `target-binding.yaml` when the Interview has a target connection.
+- `<project>/evaluations/interviews/<target_id>/` holds the Interview.
+  `interview_state.json` holds its state. `metis wizard resume` reads and writes the same file.
+  The Interview row holds the other parts of the web record: the transcript, the times, and the
+  file references. `documents/` holds the files of the Interview record, by name. The user
+  uploads these files: the documents of the Interview, the files for the Test Cases, and the
+  files of an answer that the wizard has not accepted yet. The wizard CLI keeps its opening
+  documents in the same folder.
+- `<project>/evaluations/specifications/<target_id>/` is the input folder of the
+  Specification. Give it to `metis engine simulate --input-dir`. It holds `specification.yaml`,
+  `fixtures/`, and `target-binding.yaml` when the Interview has a target connection.
 
 An Experiment is a folder that the engine writes under `<project>/evaluations/experiments/`. The
 engine copies the input folder into each Experiment folder, so a new Specification does not
@@ -53,8 +54,8 @@ A save writes each upload under a temporary name first, so a read never gets a p
 An upload with the name of a file in the folder moves that file to a backup name, then takes the
 name. A save that fails puts each backup back. Thus it changes no file of the saved record.
 
-Each save of a done Interview writes the Specification row and `outputs/` again. A save of an
-Interview that is not done keeps the last Specification.
+Each save of a done Interview writes the Specification row and the Specification folder again. A
+save of an Interview that is not done keeps the last Specification.
 """
 
 from __future__ import annotations
@@ -116,16 +117,17 @@ if TYPE_CHECKING:
     from sqlalchemy import Table
     from sqlalchemy.engine import Connection, Engine, RowMapping
 
-DATABASE = Path("metis.db")
+DATABASE = Path(project_layout.DATABASE)
 """The default SQLite file of the store, relative to the project folder."""
-DESIGN = Path("experiments") / "design"
-"""The folder of the Target folders. `metis wizard init` writes to the same folder."""
-FILES = Path("inputs") / "documents"
-"""The folder of a Target that holds the files of its Interview record."""
-STATE = Path("inputs") / "interview_state.json"
-"""The file of a Target that holds the state of its Interview. The wizard CLI uses the same file."""
-OUTPUTS = "outputs"
-"""The folder of a Target that `metis engine simulate --input-dir` reads."""
+INTERVIEWS = Path(project_layout.INTERVIEWS)
+"""The folder of the Interview folders. `metis wizard init` writes to the same folder."""
+SPECIFICATIONS = Path(project_layout.SPECIFICATIONS)
+"""The folder of the Specification folders, which `metis engine simulate --input-dir` reads."""
+FILES = Path("documents")
+"""The folder in an Interview folder that holds the files of its Interview record."""
+STATE = Path("interview_state.json")
+"""The file in an Interview folder that holds the state of the Interview. The wizard CLI uses
+the same file."""
 USERS = Path("users")
 """The folder of the server project folder that holds the project folder of each user account,
 on a server with login on."""
@@ -278,11 +280,15 @@ class Store:
     def experiments_dir(self) -> Path:
         return self.project_dir / project_layout.EXPERIMENTS
 
-    def target_dir(self, target_id: str) -> Path:
-        return self.project_dir / DESIGN / _target_id(target_id)
+    def interview_dir(self, target_id: str) -> Path:
+        return self.project_dir / INTERVIEWS / _target_id(target_id)
+
+    def target_dirs(self, target_id: str) -> tuple[Path, Path]:
+        """The Interview folder and the Specification folder of a Target."""
+        return self.interview_dir(target_id), self.input_dir(target_id)
 
     def files_dir(self, target_id: str) -> Path:
-        return self.target_dir(target_id) / FILES
+        return self.interview_dir(target_id) / FILES
 
     @property
     def engine(self) -> Engine:
@@ -290,10 +296,10 @@ class Store:
         return self._engine
 
     def state_path(self, target_id: str) -> Path:
-        return self.target_dir(target_id) / STATE
+        return self.interview_dir(target_id) / STATE
 
     def input_dir(self, target_id: str) -> Path:
-        return self.target_dir(target_id) / OUTPUTS
+        return self.project_dir / SPECIFICATIONS / _target_id(target_id)
 
     def close(self) -> None:
         self._engine.dispose()
@@ -364,13 +370,13 @@ class Store:
                 raise _invalid(f"The record has no file {name}.")
         directory = self.files_dir(target_id)
         state_path = self.state_path(target_id)
-        outputs = self.input_dir(target_id)
+        package = self.input_dir(target_id)
         state = record.state
         done = derive_stage(state) == InterviewStep.DONE and state.pending is None
 
         with self._lock:
             first_save = self._check_owner(target_id, record)
-            input_folder.recover(outputs)
+            input_folder.recover(package)
             for name in references - uploaded.keys():
                 if not (directory / name).is_file():
                     raise _invalid(f"The file {name} was not uploaded.")
@@ -403,14 +409,15 @@ class Store:
                     temporary.replace(path)
                 files = self._specification_files(record, directory) if done else None
                 if files is not None:
-                    specification = input_folder.stage(outputs, files)
+                    specification = input_folder.stage(package, files)
                 self._save_rows(target_id, record, files)
             except BaseException:
                 if specification is not None:
                     shutil.rmtree(specification, ignore_errors=True)
                 if first_save:
-                    # No record owns this folder, so a later save would get `target_exists`.
-                    shutil.rmtree(self.target_dir(target_id), ignore_errors=True)
+                    # No record owns these folders, so a later save would get `target_exists`.
+                    for folder in self.target_dirs(target_id):
+                        shutil.rmtree(folder, ignore_errors=True)
                 else:
                     for path in written:
                         path.unlink(missing_ok=True)
@@ -418,7 +425,7 @@ class Store:
                         backup.replace(path)
                 raise
             if specification is not None:
-                input_folder.swap(outputs, specification)
+                input_folder.swap(package, specification)
             if state_path in backups:
                 backups[state_path].unlink(missing_ok=True)
             # The backups of the fixture folder are files that the record does not refer to.
@@ -428,7 +435,7 @@ class Store:
                     path.unlink(missing_ok=True)
 
     def delete_target(self, target_id: str) -> None:
-        """Delete the rows of the Target and its folder in `experiments/design/`.
+        """Delete the rows of the Target, its Interview folder, and its Specification folder.
 
         The Experiment folders in `evaluations/experiments/` stay on disk.
         """
@@ -444,15 +451,16 @@ class Store:
                     connection.execute(delete(targets).where(targets.c.id == target_id))
             if not owned:
                 raise _not_found(f"The store has no Target {target_id}.")
-            shutil.rmtree(self.target_dir(target_id), ignore_errors=True)
+            for folder in self.target_dirs(target_id):
+                shutil.rmtree(folder, ignore_errors=True)
 
     # Specifications.
 
     def read_specification(self, target_id: str) -> SpecificationRecord:
         with self._lock:
-            outputs = self.input_dir(target_id)
-            input_folder.recover(outputs)
-            document = outputs / input_folder.SPECIFICATION
+            package = self.input_dir(target_id)
+            input_folder.recover(package)
+            document = package / input_folder.SPECIFICATION
             with self._engine.connect() as connection:
                 owned = self._owns(connection, target_id)
                 row = (
@@ -591,14 +599,14 @@ class Store:
         gets no transcript, because the CLI keeps none. Its file references are the files in
         the document folder. The times are the last change of the state file.
         """
-        design = self.project_dir / DESIGN
-        if not design.is_dir():
+        interviews_dir = self.project_dir / INTERVIEWS
+        if not interviews_dir.is_dir():
             return
         with self._lock:
             with self._engine.connect() as connection:
                 # The ids of all user accounts, because a Target id is the key of the table.
                 known = set(connection.execute(select(targets.c.id)).scalars())
-            for folder in sorted(design.iterdir()):
+            for folder in sorted(interviews_dir.iterdir()):
                 target_id = folder.name
                 if target_id in known or not TARGET_ID.fullmatch(target_id):
                     continue
@@ -706,8 +714,9 @@ class Store:
     def _check_owner(self, target_id: str, record: InterviewRecord) -> bool:
         """Return whether this is the first save. Refuse an id that something else uses.
 
-        The `created_at` of a record tells one Interview from another. A folder with no row
-        has no Interview state that the store can read, and the store does not write in it.
+        The `created_at` of a record tells one Interview from another. An Interview folder or a
+        Specification folder with no row has no Interview state that the store can read, and the
+        store does not write in it.
         """
         saved = self._saved_record(target_id)
         if saved is None:
@@ -720,7 +729,7 @@ class Store:
                 raise _exists(
                     f"Another Interview already uses the Target id {target_id}."
                 )
-            if os.path.lexists(self.target_dir(target_id)):
+            if any(os.path.lexists(folder) for folder in self.target_dirs(target_id)):
                 raise _exists(f"A folder already uses the Target id {target_id}.")
             return True
         if not isinstance(saved, dict) or saved.get("created_at") != record.created_at:
@@ -859,10 +868,10 @@ __all__ = [
     "safe_name",
     "user_project_dir",
     "DATABASE",
-    "DESIGN",
     "FILES",
+    "INTERVIEWS",
     "LOCAL_USER_ID",
-    "OUTPUTS",
+    "SPECIFICATIONS",
     "STATE",
     "USERS",
 ]

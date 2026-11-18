@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import create_engine
 
 from metis.api.settings import Settings
-from metis.api.store import LOCAL_USER_ID, STATE, Store
+from metis.api.store import FILES, LOCAL_USER_ID, STATE, Store
 from metis.api.tables import interviews, targets
 from metis.core import execution_layout, project_layout
 from metis.wizard import InterviewState
@@ -59,10 +59,12 @@ def test_the_store_defaults_to_a_sqlite_file_in_the_project_folder(
 ) -> None:
     settings = Settings.from_env(project_dir=tmp_path)
     assert settings.project_dir == tmp_path.resolve()
-    assert settings.database_url == f"sqlite:///{tmp_path.resolve()}/metis.db"
+    assert settings.database_url == (
+        f"sqlite:///{tmp_path.resolve()}/evaluations/metis.db"
+    )
 
     Store(settings.database_url, settings.project_dir).close()
-    assert (tmp_path / "metis.db").is_file()
+    assert (tmp_path / "evaluations" / "metis.db").is_file()
 
     monkeypatch.setenv("METIS_DATABASE_URL", "postgresql://metis:secret@db/metis")
     named = Settings.from_env()
@@ -74,9 +76,7 @@ def test_the_state_of_an_interview_is_the_file_that_the_wizard_cli_uses(
     client: TestClient, project_dir: Path
 ) -> None:
     _saved(client)
-    state_file = (
-        project_dir / "experiments" / "design" / TARGET / export_layout.INTERVIEW_STATE
-    )
+    state_file = project_dir / "evaluations" / "interviews" / TARGET / STATE
 
     assert InterviewState.model_validate_json(state_file.read_text()) == done_state()
 
@@ -123,7 +123,7 @@ def test_a_save_keeps_only_the_files_that_the_record_refers_to(
     assert second.status_code == 204, second.text
     assert client.get(f"{base}/policy.pdf").content == POLICY
     assert client.get(f"{base}/old.txt").status_code == 404
-    folder = project_dir / "experiments" / "design" / TARGET / "inputs" / "documents"
+    folder = project_dir / "evaluations" / "interviews" / TARGET / FILES
     assert sorted(path.name for path in folder.iterdir()) == ["notes.txt", "policy.pdf"]
 
 
@@ -161,7 +161,7 @@ def test_a_save_that_fails_changes_no_file_of_the_saved_record(
 
     assert put_interview(client, record, parts).status_code == 204
     assert client.get(f"{base}/policy.pdf").content == changed
-    folder = project_dir / "experiments" / "design" / TARGET / "inputs" / "documents"
+    folder = project_dir / "evaluations" / "interviews" / TARGET / FILES
     assert sorted(path.name for path in folder.iterdir()) == ["extra.txt", "policy.pdf"]
 
 
@@ -178,7 +178,7 @@ def test_every_file_is_in_place_when_the_record_is_saved(
             ref("extra.txt", b"extra", "text/plain"),
         ],
     )
-    folder = project_dir / "experiments" / "design" / TARGET / "inputs" / "documents"
+    folder = project_dir / "evaluations" / "interviews" / TARGET / FILES
     at_save: dict[str, bytes] = {}
     save_rows = Store._save_rows
 
@@ -328,7 +328,7 @@ def test_two_files_whose_names_differ_only_by_case_get_400_and_change_nothing(
 def test_an_interview_folder_of_the_wizard_cli_is_a_target_of_the_store(
     client: TestClient, project_dir: Path
 ) -> None:
-    folder = project_dir / "experiments" / "design" / TARGET
+    folder = project_dir / "evaluations" / "interviews" / TARGET
     state = done_state()
     state_file = folder / export_layout.INTERVIEW_STATE
     state_file.parent.mkdir(parents=True)
@@ -356,13 +356,7 @@ def test_a_save_into_a_folder_with_no_interview_state_gets_409_and_changes_nothi
     client: TestClient, project_dir: Path
 ) -> None:
     fixture = (
-        project_dir
-        / "experiments"
-        / "design"
-        / TARGET
-        / "outputs"
-        / "fixtures"
-        / "a.txt"
+        project_dir / "evaluations" / "specifications" / TARGET / "fixtures" / "a.txt"
     )
     fixture.parent.mkdir(parents=True)
     fixture.write_bytes(b"cli file")
@@ -404,7 +398,7 @@ def test_a_file_name_that_is_not_portable_gets_400_and_writes_nothing(
 
     assert response.status_code == 400
     assert _files(project_dir) == before
-    assert not (project_dir / "experiments" / "design" / "escape.txt").exists()
+    assert not (project_dir / "evaluations" / "interviews" / "escape.txt").exists()
 
 
 def test_an_unsafe_target_id_or_experiment_id_gets_400_and_writes_nothing(
@@ -452,7 +446,7 @@ def test_a_row_that_no_longer_validates_is_a_problem_in_the_list(
     broken = web_record("broken", done_state())
     state = broken.pop("state")
     state["specification"]["target"] = {"product": "an older shape"}
-    state_file = project_dir / "experiments" / "design" / "broken" / STATE
+    state_file = project_dir / "evaluations" / "interviews" / "broken" / STATE
     state_file.parent.mkdir(parents=True)
     state_file.write_text(json.dumps(state))
     now = datetime.now(UTC)
@@ -532,7 +526,7 @@ def test_a_deleted_experiment_has_no_row_and_its_folder_stays(
     assert (folder / "specification" / "specification.yaml").is_file()
 
 
-def test_a_deleted_target_loses_its_rows_and_design_folder_and_keeps_its_experiments(
+def test_a_deleted_target_loses_its_rows_and_folders_and_keeps_its_experiments(
     client: TestClient, project_dir: Path
 ) -> None:
     _saved(client)
@@ -549,7 +543,8 @@ def test_a_deleted_target_loses_its_rows_and_design_folder_and_keeps_its_experim
     assert client.get(f"/api/v1/targets/{TARGET}/interview").status_code == 404
     assert client.get(f"/api/v1/targets/{TARGET}/specification").status_code == 404
     assert client.get(f"/api/v1/experiments/{experiment_id}").status_code == 404
-    assert not (project_dir / "experiments" / "design" / TARGET).exists()
+    assert not (project_dir / "evaluations" / "interviews" / TARGET).exists()
+    assert not (project_dir / "evaluations" / "specifications" / TARGET).exists()
     assert (folder / "specification" / "specification.yaml").is_file()
 
 
@@ -571,7 +566,7 @@ def test_the_browser_starts_the_specification_and_saves_its_experiment_row(
         json={"target_id": TARGET, "step": "simulate"},
     )
 
-    assert input_dir == f"experiments/design/{TARGET}/outputs"
+    assert input_dir == f"evaluations/specifications/{TARGET}"
     assert saved.status_code == 200, saved.text
     experiment_dir = project_dir / project_layout.EXPERIMENTS / experiment_id
     assert (experiment_dir / execution_layout.FIXTURES / "policy.pdf").read_bytes() == (

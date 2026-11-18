@@ -3,7 +3,7 @@
 The app keeps immutable settings, model clients, and the store for the lifetime of the process.
 The wizard routes keep no Interview state. Each lifecycle request carries the required state in
 its body. The store routes keep the records of each Target in the database that
-``METIS_DATABASE_URL`` names, and their files in `experiments/design/` of the project folder.
+``METIS_DATABASE_URL`` names, and their files in `evaluations/` of the project folder.
 `metis-api --project-dir` names the project folder. `build_dependencies` is the one place that
 constructs the real gateway-backed interviewer and matcher; tests inject a scripted pair instead
 through the router's dependency override.
@@ -61,7 +61,7 @@ unset. It can do nothing else: it reads no record of a user account and starts n
 
 DATABASE_URL_ENV = "METIS_DATABASE_URL"
 """The SQLAlchemy URL of the store database. The default is
-`sqlite:///<project>/metis.db`."""
+`sqlite:///<project>/evaluations/metis.db`."""
 
 
 class InvalidSettingError(ValueError):

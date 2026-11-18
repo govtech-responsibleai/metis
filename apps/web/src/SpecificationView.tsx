@@ -400,7 +400,7 @@ function SpecificationFooter({
   return (
     <div className="mt-3 flex shrink-0 flex-wrap items-center justify-end gap-2">
       <p className="text-sm text-muted-foreground">
-        Extract the download into <code>experiments/design/</code>.
+        Extract the download into <code>evaluations/</code>.
       </p>
       <Button
         type="button"

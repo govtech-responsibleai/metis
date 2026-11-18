@@ -119,7 +119,7 @@ function recordRequests() {
       status: 200,
       headers: {
         "Content-Disposition":
-          'attachment; filename="20261016-223045-manual.zip"',
+          'attachment; filename="20261016-223045-manual-k7mwp.zip"',
       },
     });
   };
@@ -254,7 +254,7 @@ test("run mode with a valid binding sends the connection with the Specification"
     },
   );
 
-  assert.equal(archive?.filename, "20261016-223045-manual.zip");
+  assert.equal(archive?.filename, "20261016-223045-manual-k7mwp.zip");
   assert.deepEqual(requests.paths, [
     "/api/v1/wizard/compile",
     "/api/v1/wizard/package",

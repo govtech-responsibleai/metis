@@ -145,7 +145,7 @@ def fake_engine() -> Iterator[FakeEngine]:
 @pytest.fixture
 def input_dir(project_dir: Path) -> Path:
     """An input folder under the project folder, as the wizard writes it."""
-    return write_input_dir(project_dir / "experiments" / "design" / "t1" / "outputs")
+    return write_input_dir(project_dir / "evaluations" / "specifications" / "t1")
 
 
 @pytest.fixture

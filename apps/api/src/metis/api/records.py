@@ -15,13 +15,14 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter
 
+from metis.core import project_layout
 from metis.wizard import InterviewState, InterviewStep
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-TARGET_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
-"""A Target id is one path segment. The client makes it, and it is also the folder name."""
+TARGET_ID = project_layout.ID
+"""A Target id is the ``<id>`` of its Interview and Specification folders. The client makes it."""
 
 EXPERIMENT_ID = re.compile(r"^[A-Za-z0-9_-][A-Za-z0-9._-]{0,199}$")
 """An Experiment id is the name of one Experiment folder under `evaluations/experiments/`."""

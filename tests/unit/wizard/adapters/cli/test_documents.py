@@ -43,8 +43,11 @@ def started(monkeypatch: pytest.MonkeyPatch) -> list[InterviewStartRequest]:
     return requests
 
 
+ID = "20261117-143000-interview-k7mwp"
+
+
 def _init(out_dir: Path, *documents: Path):
-    arguments = ["init", "A research assistant", "--out-dir", str(out_dir)]
+    arguments = ["init", "A research assistant", "--out-dir", str(out_dir), "--id", ID]
     for path in documents:
         arguments += ["--document", str(path)]
     # A blank capability selection, then the confidence.
@@ -150,16 +153,20 @@ def test_a_test_case_gets_the_bytes_of_the_opening_document_that_it_uses(
     result = _init(out_dir, notes, diagram)
 
     assert result.exit_code == 0, result.output
-    # `resume` reads the originals from the experiment, so both files are kept there.
-    assert sorted(path.name for path in (out_dir / "inputs/documents").iterdir()) == [
+    # `resume` reads the originals from the Interview folder, so both files are kept there.
+    assert sorted(
+        path.name for path in (out_dir / "interviews" / ID / "documents").iterdir()
+    ) == [
         "diagram.png",
         "notes.txt",
     ]
     # The package contains only the file that a Test Case uses.
-    assert [path.name for path in (out_dir / "outputs/fixtures").iterdir()] == [
-        "notes.txt"
-    ]
-    assert (out_dir / "outputs/fixtures/notes.txt").read_bytes() == notes.read_bytes()
+    assert [
+        path.name for path in (out_dir / "specifications" / ID / "fixtures").iterdir()
+    ] == ["notes.txt"]
+    assert (
+        out_dir / "specifications" / ID / "fixtures" / "notes.txt"
+    ).read_bytes() == notes.read_bytes()
 
 
 def test_a_restart_with_new_documents_removes_the_old_copies_from_the_package(
@@ -183,7 +190,7 @@ def test_a_restart_with_new_documents_removes_the_old_copies_from_the_package(
     new = tmp_path / "new.txt"
     new.write_text("The new policy.", encoding="utf-8")
     out_dir = tmp_path / "eval"
-    fixtures = out_dir / "outputs/fixtures"
+    fixtures = out_dir / "specifications" / ID / "fixtures"
 
     assert _init(out_dir, old).exit_code == 0
     # A file that the user adds has bytes of its own, so the export keeps it.
@@ -191,7 +198,15 @@ def test_a_restart_with_new_documents_removes_the_old_copies_from_the_package(
     used[:] = ["new.txt"]
     result = CliRunner().invoke(
         create_cli_app(),
-        ["init", "A research assistant", "--out-dir", str(out_dir), "--restart"]
+        [
+            "init",
+            "A research assistant",
+            "--out-dir",
+            str(out_dir),
+            "--id",
+            ID,
+            "--restart",
+        ]
         + ["--document", str(new)],
         input="end_user\n\nlow\n",
     )
@@ -223,7 +238,7 @@ def test_the_export_names_a_used_file_that_is_not_an_opening_document(
     result = _init(out_dir)
 
     assert result.exit_code == 0, result.output
-    fixtures = out_dir / "outputs/fixtures"
+    fixtures = out_dir / "specifications" / ID / "fixtures"
     assert f"Add records.csv to {fixtures} before you run." in " ".join(
         result.output.split()
     )

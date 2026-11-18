@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 ADMIN = {"Authorization": "Bearer workshop-admin-token"}
 EXPERIMENT = "test-exp-20260101-000000"
-INPUT_DIR = "experiments/design/t1/outputs"
+INPUT_DIR = "evaluations/specifications/t1"
 
 
 class User:

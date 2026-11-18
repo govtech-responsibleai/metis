@@ -55,7 +55,7 @@ class SimulateRequest(BaseModel):
     input_dir: str = Field(
         description=(
             "The input folder, relative to the project folder. "
-            "For example experiments/design/<target id>/outputs."
+            "For example evaluations/specifications/<target id>."
         )
     )
     concurrency: int | None = Field(
