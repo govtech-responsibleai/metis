@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any, NoReturn
 import typer
 import yaml
 
+from metis.core import project_layout
 from metis.core.console import console
 from metis.wizard import (
     InterviewerUnavailable,
@@ -146,7 +147,7 @@ def _drive(
     *,
     interviewer: Interviewer,
     matcher: object,
-    out_dir: Path,
+    folders: _Folders,
     console: Console,
 ) -> InterviewState:
     """Run Interview operations until DONE, persisting returned state after each success.
@@ -176,7 +177,7 @@ def _drive(
             _fail(result)
 
         state = result.state
-        _save(state, out_dir)
+        _save(state, folders)
         if result.outcome == "done":
             return state
 
@@ -241,7 +242,7 @@ def _fail(failure: InterviewFailure) -> NoReturn:
 
 
 def _write_outputs(
-    state: InterviewState, out_dir: Path, *, connection_skipped: bool = False
+    state: InterviewState, folders: _Folders, *, connection_skipped: bool = False
 ) -> None:
     """Save the final state, review, and binding, then publish the completed Specification."""
     from metis.wizard.application.compile import render_review
@@ -265,21 +266,22 @@ def _write_outputs(
         connection_skipped=connection_skipped,
     )
 
-    _save(state, out_dir)
+    _save(state, folders)
+    package = folders.specification
     # The Specification is the last file that this export writes. Remove the last one first, so
     # an export that stops early leaves a folder that `resume` writes again.
-    (out_dir / export_layout.SPECIFICATION).unlink(missing_ok=True)
+    (package / export_layout.SPECIFICATION).unlink(missing_ok=True)
     from metis.wizard.adapters.cli.documents import publish_task_fixtures
 
     missing_fixtures = publish_task_fixtures(
         [task.fixtures for task in specification.tasks],
-        out_dir / export_layout.DOCUMENTS,
-        out_dir / export_layout.FIXTURES,
+        folders.interview / export_layout.DOCUMENTS,
+        package / export_layout.FIXTURES,
     )
-    specification_path = out_dir / export_layout.SPECIFICATION
-    review_path = out_dir / export_layout.REVIEW
+    specification_path = package / export_layout.SPECIFICATION
+    review_path = package / export_layout.REVIEW
     review_path.write_text(review, encoding="utf-8")
-    binding_path = out_dir / export_layout.TARGET_BINDING
+    binding_path = package / export_layout.TARGET_BINDING
     if connection is not None:
         binding_path.write_text(binding_yaml(connection), encoding="utf-8")
     else:
@@ -300,14 +302,12 @@ def _write_outputs(
     typer.echo(f"Wrote {review_path}")
     for name in missing_fixtures:
         typer.echo(
-            f"Add {name} to {out_dir / export_layout.FIXTURES} before you run. "
+            f"Add {name} to {package / export_layout.FIXTURES} before you run. "
             "A Test Case uses this file."
         )
     if connection is not None:
         typer.echo(f"Wrote {binding_path}")
-    typer.echo(
-        f"Run with: metis engine run --input-dir {shlex.quote(str(out_dir / export_layout.OUTPUTS))}"
-    )
+    typer.echo(f"Run with: metis engine run --input-dir {shlex.quote(str(package))}")
     typer.echo("\nModel settings for the run (see docs/guide/models.md):")
     for line in _run_settings(specification):
         typer.echo(line)
@@ -321,35 +321,83 @@ def _write_outputs(
 # ── state persistence (client-held) ────────────────────────────────────────────
 
 
-def _state_path(out_dir: Path) -> Path:
-    return out_dir / export_layout.INTERVIEW_STATE
+@dataclass(frozen=True)
+class _Folders:
+    """The two folders of one Interview, in an `evaluations/` folder.
+
+    `interviews/<id>/` holds the state and the documents, and `specifications/<id>/` holds the
+    Specification that the Interview makes. The same `<id>` names both.
+    """
+
+    evaluations: Path
+    id: str
+
+    @property
+    def interview(self) -> Path:
+        return self.evaluations / export_layout.interview_dir(self.id)
+
+    @property
+    def specification(self) -> Path:
+        return self.evaluations / export_layout.specification_dir(self.id)
+
+    def options(self) -> str:
+        """The options that name these folders, for a command that the CLI prints."""
+        options = f"--id {shlex.quote(self.id)}"
+        if self.evaluations != _default_evaluations():
+            options = f"--out-dir {shlex.quote(str(self.evaluations))} {options}"
+        return options
 
 
-def _save(state: InterviewState, out_dir: Path) -> None:
+def _default_evaluations() -> Path:
+    """`<project>/evaluations/`, the folder that the engine and the API also use."""
+    return project_layout.find_project_root() / project_layout.EVALUATIONS
+
+
+def _folders(out_dir: Path | None, export_id: str) -> _Folders:
+    """The folders of `export_id`. Exits when the id is not one folder name."""
+    if not project_layout.ID.fullmatch(export_id):
+        typer.echo(
+            f"Error: the id {export_id!r} must be 1 to 64 letters, digits, '-' or '_'.",
+            err=True,
+        )
+        raise typer.Exit(1)
+    evaluations = (
+        out_dir.expanduser().absolute()
+        if out_dir is not None
+        else _default_evaluations()
+    )
+    return _Folders(evaluations, export_id)
+
+
+def _state_path(folders: _Folders) -> Path:
+    return folders.interview / export_layout.INTERVIEW_STATE
+
+
+def _save(state: InterviewState, folders: _Folders) -> None:
     """Persist the client-held state so an interrupted interview can resume from it."""
-    _state_path(out_dir).parent.mkdir(parents=True, exist_ok=True)
-    _state_path(out_dir).write_text(state.model_dump_json(), encoding="utf-8")
+    _state_path(folders).parent.mkdir(parents=True, exist_ok=True)
+    _state_path(folders).write_text(state.model_dump_json(), encoding="utf-8")
 
 
-def _load(out_dir: Path) -> InterviewState:
+def _load(folders: _Folders) -> InterviewState:
     return InterviewState.model_validate_json(
-        _state_path(out_dir).read_text(encoding="utf-8")
+        _state_path(folders).read_text(encoding="utf-8")
     )
 
 
-def _complete(out_dir: Path) -> bool:
-    """Whether the folder holds the Specification of a done Interview.
+def _complete(folders: _Folders) -> bool:
+    """Whether the folders hold the Specification of a done Interview.
 
     An Interview that the user opens again after it is done keeps its last Specification. Thus
     the Specification file shows a complete export only when the saved state is also done. A
-    folder with a Specification and no saved state that the CLI can read is a complete export.
+    Specification with no saved state that the CLI can read is a complete export.
     """
-    if not (out_dir / export_layout.SPECIFICATION).is_file():
+    if not (folders.specification / export_layout.SPECIFICATION).is_file():
         return False
-    if not _state_path(out_dir).is_file():
+    if not _state_path(folders).is_file():
         return True
     try:
-        state = _load(out_dir)
+        state = _load(folders)
     except ValueError:
         return True
     return state.pending is None and derive_stage(state) == InterviewStep.DONE
@@ -412,6 +460,19 @@ def _run_settings(specification: Specification) -> list[str]:
 
 # ── commands ───────────────────────────────────────────────────────────────
 
+OutDirOption = typer.Option(
+    None,
+    "--out-dir",
+    help="The evaluations/ folder. Default: evaluations/ in the project folder, the nearest "
+    "folder at or above the working directory that has a pyproject.toml.",
+    show_default=False,
+)
+IdOption = typer.Option(
+    ...,
+    "--id",
+    help="The <id> of the Interview, the name of its folder in interviews/.",
+)
+
 
 @app.command()
 def init(
@@ -420,10 +481,12 @@ def init(
         help="A raw description of the target or agent to evaluate. "
         "Without it, the wizard asks for one.",
     ),
-    out_dir: Path | None = typer.Option(
+    out_dir: Path | None = OutDirOption,
+    export_id: str | None = typer.Option(
         None,
-        "--out-dir",
-        help="Experiment root. Default: experiments/design/YYYYMMDD-HHMMSS-interview-<random>/.",
+        "--id",
+        help="The <id> of the Interview and its Specification folders. "
+        "Default: a new YYYYMMDD-HHMMSS-interview-<random>.",
     ),
     restart: bool = typer.Option(
         False,
@@ -455,11 +518,11 @@ def init(
     # Refuse before anything else — the filesystem check costs no model call and needs no
     # credentials, so an accidental re-run of `init` reports the collision rather than
     # overwriting an interview in progress. `--restart` is the one way past this.
-    if out_dir is None:
-        name = export_layout.experiment_name("interview")
-        out_dir = Path("experiments/design") / f"{name}-{export_layout.random_part()}"
-    state_path = _state_path(out_dir)
-    if not restart and _complete(out_dir):
+    folders = _folders(
+        out_dir, export_layout.new_id("interview") if export_id is None else export_id
+    )
+    state_path = _state_path(folders)
+    if not restart and _complete(folders):
         typer.echo(
             "Error: this export is complete. Use --restart to start a new Interview.",
             err=True,
@@ -468,8 +531,8 @@ def init(
     if state_path.is_file() and not restart:
         typer.echo(
             f"Error: an interview is already in progress at {state_path}.\n\n"
-            f"  metis wizard resume --out-dir {shlex.quote(str(out_dir))}\n"
-            f"  metis wizard init --out-dir {shlex.quote(str(out_dir))} --restart",
+            f"  metis wizard resume {folders.options()}\n"
+            f"  metis wizard init {folders.options()} --restart",
             err=True,
         )
         raise typer.Exit(1)
@@ -522,12 +585,10 @@ def init(
     # Keep the original bytes, so `resume` can put an opening file in the fixture folder.
     copy_opening_documents(
         document_paths,
-        out_dir / export_layout.DOCUMENTS,
-        out_dir / export_layout.FIXTURES,
+        folders.interview / export_layout.DOCUMENTS,
+        folders.specification / export_layout.FIXTURES,
     )
-    typer.echo(
-        f"Resume with: metis wizard resume --out-dir {shlex.quote(str(out_dir))}"
-    )
+    typer.echo(f"Resume with: metis wizard resume {folders.options()}")
     state = _drive(
         InterviewStartRequest(
             description=description,
@@ -539,10 +600,10 @@ def init(
         ),
         interviewer=interviewer,
         matcher=_matcher(interviewer),
-        out_dir=out_dir,
+        folders=folders,
         console=console,
     )
-    _write_outputs(state, out_dir, connection_skipped=opening.connection_skipped)
+    _write_outputs(state, folders, connection_skipped=opening.connection_skipped)
 
 
 def _terminal() -> bool:
@@ -690,26 +751,24 @@ def _load_binding(
 
 @app.command()
 def resume(
-    out_dir: Path = typer.Option(
-        ...,
-        "--out-dir",
-        help="The experiment root holding inputs/interview_state.json.",
-    ),
+    export_id: str = IdOption,
+    out_dir: Path | None = OutDirOption,
 ) -> None:
     """Pick up an interview where it left off."""
     from metis.wizard.adapters.cli.render import render
 
-    if _complete(out_dir):
+    folders = _folders(out_dir, export_id)
+    if _complete(folders):
         typer.echo("This export is complete.")
         return
-    path = _state_path(out_dir)
+    path = _state_path(folders)
     if not path.is_file():
         typer.echo(f"Error: no interview to resume at {path}.", err=True)
         raise typer.Exit(1)
 
-    state = _load(out_dir)
+    state = _load(folders)
     if state.pending is None:
-        _write_outputs(state, out_dir)
+        _write_outputs(state, folders)
         return
 
     env_file = _load_env()
@@ -738,19 +797,16 @@ def resume(
         interview_request,
         interviewer=interviewer,
         matcher=_matcher(interviewer),
-        out_dir=out_dir,
+        folders=folders,
         console=console,
     )
-    _write_outputs(state, out_dir)
+    _write_outputs(state, folders)
 
 
 @app.command()
 def connect(
-    out_dir: Path = typer.Option(
-        ...,
-        "--out-dir",
-        help="The experiment root holding inputs/interview_state.json.",
-    ),
+    export_id: str = IdOption,
+    out_dir: Path | None = OutDirOption,
     binding: Path | None = typer.Option(
         None,
         "--binding",
@@ -762,12 +818,13 @@ def connect(
     A completed export is written again with the binding. An Interview in progress keeps the
     connection, and `resume` writes the binding when the Interview is complete.
     """
-    path = _state_path(out_dir)
+    folders = _folders(out_dir, export_id)
+    path = _state_path(folders)
     if not path.is_file():
         typer.echo(f"Error: no interview at {path}.", err=True)
         raise typer.Exit(1)
-    complete = _complete(out_dir)
-    state = _load(out_dir)
+    complete = _complete(folders)
+    state = _load(folders)
 
     env_file = _load_env()
     if env_file is not None:
@@ -779,10 +836,9 @@ def connect(
 
     state = set_connection(state, connection)
     if complete:
-        _write_outputs(state, out_dir)
+        _write_outputs(state, folders)
     else:
-        _save(state, out_dir)
+        _save(state, folders)
         typer.echo(
-            "Saved the connection. Resume with: "
-            f"metis wizard resume --out-dir {shlex.quote(str(out_dir))}"
+            f"Saved the connection. Resume with: metis wizard resume {folders.options()}"
         )

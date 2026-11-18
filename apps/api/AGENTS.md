@@ -91,42 +91,49 @@ media type is the type in the record when a header can hold it, else `applicatio
 Each Store holds a thread lock for the full time of a save or a delete, so the owner check and
 the write stay together. The store has no lock between processes.
 
-A folder in `experiments/design/` with a state file that validates is an Interview of the wizard
-CLI. The store adds its rows when it opens and at each Target list. Such a row has no transcript,
-and its file references are the files in `inputs/documents/`.
+A folder in `evaluations/interviews/` with a state file that validates is an Interview of the
+wizard CLI. The store adds its rows when it opens and at each Target list. Such a row has no
+transcript, and its file references are the files in its `documents/` folder.
 
-Before a first save, the store checks both the row and the Target folder. A folder with no row
-has no Interview state that the store can read, so PUT returns 409 `target_exists` and leaves it
-unchanged. When a
-first save fails, the store removes the folder that it made. DELETE requires a row. When no row
-exists, it returns 404 `not_found` and leaves any folder unchanged. A delete removes the row and
-then the Target folder.
+Before a first save, the store checks the row, the Interview folder, and the Specification
+folder. A folder with no row has no Interview state that the store can read, so PUT returns 409
+`target_exists` and leaves it unchanged. When a first save fails, the store removes both folders
+that it made. DELETE requires a row. When no row exists, it returns 404 `not_found` and leaves
+any folder unchanged. A delete removes the row, then the Interview folder and the Specification
+folder.
 
 Settings:
 
 - `metis-api --project-dir PATH` names the project folder. The folder must exist. Without the
   option, the API uses the rule of `metis engine simulate`: the nearest folder at or above the
   working directory that has a `pyproject.toml`, else the working directory.
-  The rule is `metis.core.execution_layout.find_project_root`, which the engine also calls.
+  The rule is `metis.core.project_layout.find_project_root`, which the engine and the wizard
+  CLI also call.
 - `METIS_DATABASE_URL` is a SQLAlchemy URL. The default is
-  `sqlite:///<project>/metis.db`. The tables use only portable SQL, so do not add
+  `sqlite:///<project>/evaluations/metis.db`. With login on, the database stays in the
+  `evaluations/` folder of the server project folder, and that folder holds no other files. The tables use only portable SQL, so do not add
   SQLite-only types, JSON1 functions, or `INSERT OR REPLACE`.
 
 `cli.py` gives Uvicorn the app object from `create_app(project_dir=...)`, so the app keeps the
 project folder of the command. The store builds its paths from the constants in `store.py`.
 
-The files of a Target are in the layout that `metis wizard init` writes, under
-`<project>/experiments/design/<target_id>/`. The web app gives a new Target the id
-`YYYYMMDD-HHMMSS-interview-<random>`, the same form as a `metis wizard init` folder. The random
+The files of a Target are in the layout that `metis wizard init` writes, in two folders with the
+Target id as their name: `<project>/evaluations/interviews/<target_id>/` and
+`<project>/evaluations/specifications/<target_id>/`. The Target id follows the `<id>` rule of
+`metis.core.project_layout.ID`. The web app gives a new Target the id
+`YYYYMMDD-HHMMSS-interview-<random>`, the same form as a `metis wizard init` id. The random
 part is five characters, so two people who start in the same second get different ids. When the id is
 taken, the web app adds `-2`, `-3`, and so on. The `created_at` of the record tells one Interview
 from another. A save with the id of another Interview gets 409 `target_exists` and changes
-nothing. `inputs/interview_state.json` holds the state of the Interview, in the file that the
-wizard CLI uses. The Interview row holds the other parts of the record, and each read takes the
-state from the file. `inputs/documents/` holds the files that the user uploads, in the folder of the CLI opening documents. `outputs/` is the folder for `metis engine simulate --input-dir`.
-Each save of a done Interview compiles the Specification, then writes the Specification row and
-`outputs/` again. `outputs/` comes from the `outputs/` files of the package archive, and a new
-folder replaces the old one in two renames. A save is all or nothing: a
+nothing. `interview_state.json` in the Interview folder holds the state of the Interview, in the
+file that the wizard CLI uses. The Interview row holds the other parts of the record, and each
+read takes the state from the file. `documents/` in the Interview folder holds the files that the
+user uploads, in the folder of the CLI opening documents. The Specification folder is the folder
+for `metis engine simulate --input-dir`. Each save of a done Interview compiles the
+Specification, then writes the Specification row and the Specification folder again. The folder
+comes from the `specifications/<id>/` files of the package archive, and a new folder replaces the
+old one in two renames. The staged and old folders sit next to it in `specifications/` for the
+time of the save. A save is all or nothing: a
 compile failure gets 400 `compilation_failed` and changes nothing. A missing row or file gets 404
 `not_found`. A row that this version cannot read gets 409 `unreadable_record` and shows in the
 `problems` list of `GET /api/v1/targets`.
@@ -162,7 +169,7 @@ no folder, and two starts at the same time cannot both pass.
 |---|---|
 | `POST /api/v1/engine/simulate` | Create an experiment from an input folder and run its trials (`simulate`). |
 | `POST /api/v1/engine/simulate/{experiment_id}/resume` | Run again the trials that did not end (`resume_simulation`). |
-| `POST /api/v1/engine/evaluate/{experiment_id}` | Delete the earlier evaluation and grade every trial (`evaluate`). |
+| `POST /api/v1/engine/evaluate/{experiment_id}` | Delete the earlier evaluation and grade every trial (`evaluate`). A complete evaluation needs `regrade: true`. |
 | `POST /api/v1/engine/evaluate/{experiment_id}/resume` | Grade the trials with no evaluation file (`resume_evaluation`). |
 | `POST /api/v1/engine/{experiment_id}/stop` | Set the stop flag of the run. |
 | `GET /api/v1/engine/{experiment_id}` | The phase, the status, and the counts of the experiment. |
@@ -175,13 +182,21 @@ and refuses a path that is absolute or outside the project folder. `concurrency`
 `langfuse_timeout` take their default from a setting when a request leaves them out.
 
 The id of the Specification is the first part of the name of the experiment folder,
-`experiments/execute/<specification id>-<YYYYmmdd-HHMMSS>/`. The id field accepts any text, so
+`evaluations/experiments/<specification id>-<YYYYmmdd-HHMMSS>/`. The id field accepts any text, so
 an id with `/`, `\`, or `..` would name a folder in another place, for example in the project
 folder of another user account. Before `prepare_experiment` makes a folder, the simulate route
 reads the id and refuses an id that is empty, `.`, `..`, or that holds `/`, `\`, or a NUL
 character. After `prepare_experiment`, the route also checks that the new folder is directly in
-`experiments/execute/` of the request. #174 gives the id field this rule in metis-core, for the
+`evaluations/experiments/` of the request. #174 gives the id field this rule in metis-core, for the
 wizard and the CLI too.
+
+A full evaluate deletes the results of the experiment before it grades again. Thus the
+evaluate route refuses an experiment whose evaluation is complete, with 409
+`evaluation_complete`, and keeps the results. The evaluation is complete when `results.json`
+loads (`evaluation_is_complete`). To grade a complete evaluation again, send `regrade: true` in
+the body. A simulate and a resume of a simulation delete the evaluation outputs, so the evaluate
+after them needs no `regrade`. The web app never sends `regrade`. The evaluate resume route has
+no `regrade` field, and a complete evaluation gives it 409 `evaluation_complete` too.
 
 Every check of a start runs in the request, before the thread starts. The routes check in
 this order and return the first error:
@@ -189,19 +204,19 @@ this order and return the first error:
 | Route | Order of the checks |
 |---|---|
 | `simulate` | `validation_error`, `input_dir_outside_project`, `engine_busy`, `invalid_inputs` or `experiment_exists` |
-| resume, evaluate | `validation_error`, `experiment_not_found`, `run_in_progress` or `engine_busy`, `invalid_experiment`, `invalid_langfuse_timeout` (evaluate only), `evaluation_complete` (evaluate resume only) |
+| resume, evaluate | `validation_error`, `experiment_not_found`, `run_in_progress` or `engine_busy`, `invalid_experiment`, `invalid_langfuse_timeout` (evaluate only), `evaluation_complete` (evaluate and evaluate resume) |
 | stop | `experiment_not_found`, `no_run` |
 | status, events | `validation_error` (events only), `experiment_not_found` |
 
 | Status | Code | When |
 |---|---|---|
-| 404 | `experiment_not_found` | No folder in `experiments/execute/` has the id. |
+| 404 | `experiment_not_found` | No folder in `evaluations/experiments/` has the id. |
 | 422 | `input_dir_outside_project` | `input_dir` is absolute, holds a NUL character, or is outside the project folder. |
 | 422 | `invalid_inputs` | The Specification id is not one folder name, or `prepare_experiment` refuses the inputs or the project folder. For the id, the message is the text of the API; else it is the engine text. |
 | 409 | `experiment_exists` | A run of the same Specification started in the same second. |
 | 409 | `run_in_progress` | A start for the experiment that runs now. |
 | 503 | `engine_busy` | A start while another experiment runs. The message names it when it is in the same project folder, else it says that an experiment of another user account runs. It is the only error with `retryable: true`. |
-| 422 | `invalid_experiment` | The folder has no `inputs/` snapshot, or uses the earlier layout. The message is the text of `resolve_experiment_dir`. |
+| 422 | `invalid_experiment` | The folder has no `specification/` snapshot, or uses the earlier layout. The message is the text of `resolve_experiment_dir`. |
 | 422 | `invalid_langfuse_timeout` | `TraceWaitSettings.from_env` refuses the timeout. |
 | 409 | `evaluation_complete` | A resume of an evaluation whose `results.json` loads. |
 | 409 | `no_run` | A stop for an experiment that does not run. |
@@ -272,8 +287,12 @@ and `Origin` for a browser that does not send it. Do not compare with `Host` whe
 ten characters from an alphabet with no characters that look alike. A person cannot choose or
 change them, so each password is random and login needs no rate limit. Keep that rule, or add
 a rate limit. The `users` table keeps a scrypt hash. The `password_hash` column can be empty, for
-a user account of a later login method. The `login_sessions` table keeps the SHA-256 of the
-cookie value, never the value. Records link to the id of a user account, never to its username.
+a user account of a later login method. For debugging, `users/<user id>/user.json` holds the id,
+the username, and the times of creation, last login, and last write. `Accounts` writes it with
+mode 0600 when it makes the user account and at each correct login, and a write that fails is
+only logged. Do not add the password or its hash to the file: a copy of the server folder must
+not be enough to log in. The `login_sessions` table keeps the SHA-256 of the cookie value, never
+the value. Records link to the id of a user account, never to its username.
 
 The admin token in `METIS_ADMIN_TOKEN` can only make and list user accounts. Do not give it
 another power, because a website outside this repository holds it. The user routes return 404
@@ -298,7 +317,7 @@ src/metis/api/
 ├── routes/accounts.py user and auth routes, and the login guard of all /api routes
 ├── accounts.py        user accounts and login sessions: credentials, hashes, and rows
 ├── records.py         the wire models of the store routes
-├── store.py           the store: rows through SQLAlchemy, files in experiments/design/
+├── store.py           the store: rows through SQLAlchemy, files in evaluations/interviews/ and specifications/
 ├── tables.py          the portable tables of the store
 ├── input_folder.py    builds, stages, and swaps the input folder of a Specification
 ├── settings.py        environment-backed settings and the production dependency composition
@@ -324,7 +343,7 @@ settings are missing. Then each Interview route returns 503 `model_unavailable`,
 variables, the `.env` path, and the model guide path in the message.
 
 The report routes find an experiment id among the folder names in
-`<project folder>/experiments/execute/`, so an id cannot name another path.
+`<project folder>/evaluations/experiments/`, so an id cannot name another path.
 `GET /api/v1/experiments/{experiment_id}/report` returns `report.json`, and
 `GET /api/v1/experiments/{experiment_id}/report.html` returns `report.html`. Both are the same
 report in two formats. Both responses are inline, with the file name in `Content-Disposition`, so a

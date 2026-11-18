@@ -38,9 +38,9 @@ MINIMAL_EXPERIMENT = 'schema_version: 1\nid: test-exp\nrunner_factory_ref: tests
 
 
 def _write_snapshot(experiment_dir: Path, content: str = MINIMAL_EXPERIMENT) -> Path:
-    inputs_dir = experiment_dir / "inputs"
-    inputs_dir.mkdir(parents=True)
-    (inputs_dir / "specification.yaml").write_text(content)
+    snapshot_dir = experiment_dir / "specification"
+    snapshot_dir.mkdir(parents=True)
+    (snapshot_dir / "specification.yaml").write_text(content)
     return experiment_dir
 
 
@@ -98,7 +98,7 @@ def _write_experiment_dir(
     content: str = MINIMAL_EXPERIMENT,
 ) -> Path:
     """Write a simulation output directory with its frozen input snapshot."""
-    experiment_dir = root / "experiments" / "execute" / name
+    experiment_dir = root / "evaluations" / "experiments" / name
     experiment_dir.mkdir(parents=True)
     _write_snapshot(experiment_dir, content)
     return experiment_dir
@@ -220,8 +220,10 @@ def test_evaluate_rejects_a_directory_without_an_input_snapshot(tmp_path: Path) 
 def test_evaluate_fails_when_the_input_snapshot_has_no_specification_file(
     tmp_path: Path,
 ) -> None:
-    experiment_dir = tmp_path / "experiments" / "execute" / "test-exp-20260101-010101"
-    (experiment_dir / "inputs").mkdir(parents=True)
+    experiment_dir = (
+        tmp_path / "evaluations" / "experiments" / "test-exp-20260101-010101"
+    )
+    (experiment_dir / "specification").mkdir(parents=True)
 
     result = runner.invoke(app, ["evaluate", "--experiment-dir", str(experiment_dir)])
 

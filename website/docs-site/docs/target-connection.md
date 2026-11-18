@@ -34,7 +34,8 @@ Choose **Build Spec and connect target**, fill in the **Target connection** card
 ![The Target connection card in the browser](./assets/wizard-target-connection.png)
 
 You may also connect after the interview with **Connect target**. In the CLI, choose **Build Spec
-and Run Evals (connect the target)**, or run `metis wizard connect --out-dir <folder>` later.
+and Run Evals (connect the target)**, or run `metis wizard connect --id <id>` later, where `<id>` is the name of the Interview folder in
+`evaluations/interviews/`.
 
 ## Keep secrets in `.env`
 

@@ -32,7 +32,7 @@ Run these commands from the repository root.
 | Build and run without Compose | `make docker-build`, then `make docker-run`. See [Make targets](#make-targets). |
 | Copy an input folder into the volume | `docker compose cp my-input metis:/data/my-input` |
 | Run a simulation | `docker compose exec metis metis engine simulate --project-dir /data --input-dir /data/my-input` |
-| Make the report | `docker compose exec metis metis insights report --results-file /data/experiments/execute/<experiment>/results.json` |
+| Make the report | `docker compose exec metis metis insights report --results-file /data/evaluations/experiments/<experiment>/outputs/reports/results.json` |
 
 `my-input` is a folder on your computer that holds `specification.yaml` and `fixtures/`. Replace
 `<experiment>` with the name of the experiment folder. Give `--project-dir /data` to the `metis`
@@ -113,10 +113,12 @@ volume to keep your data.
 
 | Path | Content |
 |---|---|
-| `/data/metis.db` | The database |
-| `/data/experiments/design/` | The files of each Target |
-| `/data/experiments/execute/` | The experiment folders |
-| `/data/users/<user id>/` | The same folders for each user account, when login is on |
+| `/data/evaluations/metis.db` | The database |
+| `/data/evaluations/interviews/` | The Interview of each Target |
+| `/data/evaluations/specifications/` | The Specification of each Target |
+| `/data/evaluations/experiments/` | The experiment folders |
+| `/data/users/<user id>/evaluations/` | The Interviews, Specifications and experiments of each user account, when login is on. The database stays in `/data/evaluations/`. |
+| `/data/users/<user id>/user.json` | The username and the login times of each user account, for debugging. It holds no password. |
 
 Run only one container on a volume. The container runs as the user `metis` with uid 10001.
 

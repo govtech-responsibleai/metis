@@ -2,8 +2,8 @@
 title: STACK 2026 Workshop
 ---
 
-import toyappApi from '@examples/http-agentic_eval_toyapp-workshop-lite/inputs/toyapp-api.yaml?raw';
-import specification from '@examples/http-agentic_eval_toyapp-workshop-lite/inputs/specification.yaml?raw';
+import toyappApi from '@examples/http-agentic_eval_toyapp-workshop-lite/specification/toyapp-api.yaml?raw';
+import specification from '@examples/http-agentic_eval_toyapp-workshop-lite/specification/specification.yaml?raw';
 
 <TocToggle />
 <StepControls />
@@ -166,7 +166,7 @@ Then:
    <Term>graders</Term>, the <Term>personas</Term>, the <Term>scenarios</Term> and the
    <Term>test cases</Term>. Choose a few of each. You do not need to review every draft.
 5. When the test cases are chosen, select **Download** in the toolbar of the Profile. Extract the ZIP into
-   `experiments/design/`, and press Ctrl-C in the terminal to stop the servers.
+   `evaluations/`, and press Ctrl-C in the terminal to stop the servers.
 
 The specification you built here is for learning. The next steps run a prepared specification, so
 that everyone gets the same results.
@@ -178,7 +178,7 @@ specification**, and the Wizard finishes with what it has drafted so far.
 
 :::tip[Prefer the terminal?]
 `uv run metis wizard init` runs the same interview in the terminal. When you finish, it saves the
-files in `experiments/design/<date>-<time>-interview/`.
+specification in `evaluations/specifications/<date>-<time>-interview-<random>/`.
 :::
 
 ### Connect the target
@@ -187,22 +187,23 @@ A specification says what to test, but not how to reach the app. The **target co
 called the target binding, covers that. It is a second file, which tells METIS how to send a
 message to the app and read the reply. Building one is outside this workshop, so the Wizard only
 drafted the specification for you. The prepared example already has a target connection, named
-[`toyapp-api.yaml`](https://github.com/govtech-responsibleai/metis/blob/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs/toyapp-api.yaml),
+[`toyapp-api.yaml`](https://github.com/govtech-responsibleai/metis/blob/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/specification/toyapp-api.yaml),
 and the line `target_binding: toyapp-api.yaml` in its `specification.yaml` points to it. If you run
 your own specification in step 4, you reuse this file. See
 [Target connection](target-connection.md) to build your own later.
 
 ### Review the prepared files
 
-The prepared example is a folder of inputs that `simulate` reads. Its specification was generated
+The prepared example is a cut-down experiment folder. Its `specification/` folder is the input
+folder that `simulate` reads. Its specification was generated
 earlier by the Wizard, in the same way as the one you just built. Open the folder in your editor:
-[`packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs/`](https://github.com/govtech-responsibleai/metis/tree/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs).
+[`packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/specification/`](https://github.com/govtech-responsibleai/metis/tree/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/specification).
 
 Hover over a file, or over a note beside it, to see what goes with what:
 
 <AnnotatedTree
-  title="inputs/"
-  source={`inputs/
+  title="specification/"
+  source={`specification/
 ├── fixtures/
 │   └── northstar-q2-service-review.md
 ├── specification.yaml
@@ -228,7 +229,7 @@ Hover over a file, or over a note beside it, to see what goes with what:
 
 #### `specification.yaml`
 
-[`specification.yaml`](https://github.com/govtech-responsibleai/metis/tree/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs/specification.yaml)
+[`specification.yaml`](https://github.com/govtech-responsibleai/metis/tree/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/specification/specification.yaml)
 is what the Wizard drafts. It is long, so the page folds the repeated and routine parts, and a
 grey line shows how many lines are folded. Hover over a note to see the part that it explains, or
 select **Show all** to see the whole file:
@@ -278,7 +279,7 @@ Compare it with the specification that you downloaded. Yours will have the same 
 
 #### `toyapp-api.yaml` (the target binding)
 
-[`toyapp-api.yaml`](https://github.com/govtech-responsibleai/metis/tree/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs/toyapp-api.yaml)
+[`toyapp-api.yaml`](https://github.com/govtech-responsibleai/metis/tree/main/packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/specification/toyapp-api.yaml)
 is the target binding, the target connection from the previous part. It is short enough to read in
 full. Hover over a line, or over a note beside it, to see what goes with what:
 
@@ -299,7 +300,7 @@ full. Hover over a line, or over a note beside it, to see what goes with what:
   </YamlNote>
 </AnnotatedYaml>
 
-**Checkpoint:** your specification is in a folder in `experiments/design/`. You can say what
+**Checkpoint:** your specification is in a folder in `evaluations/specifications/`. You can say what
 `toyapp-api.yaml` tells METIS, and which line of `specification.yaml` points to it.
 
 ## Step 4: Simulate user interactions (8 min) {#step-4}
@@ -316,22 +317,22 @@ Everyone gets the same trials and the same results:
 
 ```bash
 uv run metis engine simulate \
-  --input-dir packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs \
+  --input-dir packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/specification \
   -vv
 ```
 
 </Option>
 
 <Option label="Option 2: Your specification from step 3">
-Use the `outputs/` folder inside the folder that you extracted. Replace `<date>-<time>` with the
-date and time in your folder name.
+Use the folder in `evaluations/specifications/` that you extracted. Replace `<id>` with its name,
+for example `20261117-160005-interview-x9abc`.
 
 Your specification has no target connection yet, because you chose **Build Spec only**. Give it the
-prepared one. First copy the file into your `outputs/` folder:
+prepared one. First copy the file into your specification folder:
 
 ```bash
-cp packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/inputs/toyapp-api.yaml \
-  experiments/design/<date>-<time>-interview/outputs/
+cp packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/specification/toyapp-api.yaml \
+  evaluations/specifications/<id>/
 ```
 
 Then open `specification.yaml` in that folder, and add this line below the `id:` line:
@@ -344,7 +345,7 @@ Now run the simulation:
 
 ```bash
 uv run metis engine simulate \
-  --input-dir experiments/design/<date>-<time>-interview/outputs \
+  --input-dir evaluations/specifications/<id> \
   -vv
 ```
 
@@ -366,7 +367,7 @@ prints the output folder and the `evaluate` command.
 **Checkpoint:** six trials finish, and each has a `record.json` file:
 
 ```bash
-ls experiments/execute/<your-experiment>/outputs/trials/*/record.json
+ls evaluations/experiments/<your-experiment>/outputs/trials/*/record.json
 ```
 
 ## Step 5: Inspect the traces in Langfuse (5 min) {#step-5}
@@ -410,7 +411,7 @@ Each trial's `record.json` holds the session ID of its conversation in `target_s
 List the session IDs of all your trials, and pick any one:
 
 ```bash
-grep -H target_session_id experiments/execute/*/outputs/trials/*/record.json
+grep -H target_session_id evaluations/experiments/*/outputs/trials/*/record.json
 ```
 
 Open the [Langfuse UI](https://gcapdev.aip.gov.sg/langfuse/project/cmvp7vt5e0007021vi1dalc3x),
@@ -447,14 +448,14 @@ it chose, and you can open a `search_knowledge_base` step to see what it was cal
 [Run the graders](run-graders.md). Use the output folder that `simulate` printed:
 
 ```bash
-uv run metis engine evaluate --experiment-dir experiments/execute/<your-experiment>
+uv run metis engine evaluate --experiment-dir evaluations/experiments/<your-experiment>
 ```
 
 Each <Term>trial</Term> is graded in turn, with a progress bar for each trial. It ends with a summary:
 
 <TerminalOutput
-  command="uv run metis engine evaluate --experiment-dir experiments/execute/<your-experiment>"
-  output={`Selected experiment: /path/to/metis/experiments/execute/toyapp-workshop-lite-20261102-004033
+  command="uv run metis engine evaluate --experiment-dir evaluations/experiments/<your-experiment>"
+  output={`Selected experiment: /path/to/metis/evaluations/experiments/toyapp-workshop-lite-20261102-004033
   Loaded 6 trial record(s)
 Models: Judge bedrock.claude-sonnet-5-5
 
@@ -479,10 +480,10 @@ Evaluation complete ━━━━━━━━━━━━━━━━━━━━
 
 ============================================================
   EVALUATION COMPLETE - 6 run(s), 0 failed
-  Specification: /path/to/metis/experiments/execute/toyapp-workshop-lite-20261102-004033
-  Log: /path/to/metis/experiments/execute/toyapp-workshop-lite-20261102-004033/logs/evaluate.log
-  Results: /path/to/metis/experiments/execute/toyapp-workshop-lite-20261102-004033/outputs/reports/results.json
-  Report: metis insights report --results-file /path/to/metis/experiments/execute/toyapp-workshop-lite-20261102-004033/outputs/reports/results.json
+  Specification: /path/to/metis/evaluations/experiments/toyapp-workshop-lite-20261102-004033
+  Log: /path/to/metis/evaluations/experiments/toyapp-workshop-lite-20261102-004033/logs/evaluate.log
+  Results: /path/to/metis/evaluations/experiments/toyapp-workshop-lite-20261102-004033/outputs/reports/results.json
+  Report: metis insights report --results-file /path/to/metis/evaluations/experiments/toyapp-workshop-lite-20261102-004033/outputs/reports/results.json
 ============================================================`}
 />
 
@@ -490,7 +491,7 @@ If the command reports missing traces, wait a little and run it again. Langfuse 
 show a trace.
 
 **Checkpoint:** the output ends with "EVALUATION COMPLETE", and
-`experiments/execute/<your-experiment>/outputs/reports/results.json` exists. The goal is `0 failed`. If a
+`evaluations/experiments/<your-experiment>/outputs/reports/results.json` exists. The goal is `0 failed`. If a
 trial failed, run the command again.
 
 ## Step 7: Read the report (5 min) {#step-7}
@@ -514,7 +515,7 @@ packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/outputs/reports/
 Make the report from the results of step 6:
 
 ```bash
-uv run metis insights report --results-file experiments/execute/<your-experiment>/outputs/reports/results.json
+uv run metis insights report --results-file evaluations/experiments/<your-experiment>/outputs/reports/results.json
 ```
 
 Open `outputs/reports/report.html` in the same experiment folder, in your browser.

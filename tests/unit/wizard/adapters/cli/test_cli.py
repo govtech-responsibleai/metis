@@ -20,6 +20,20 @@ from metis.wizard.domain.permissions import InterviewStep
 from tests.fixtures.wizard.context import interview_context
 from tests.fixtures.wizard.specifications import research_assistant
 
+ID = "20261117-143000-interview-k7mwp"
+"""The `--id` of the Interview of these tests. `tmp_path` is its `evaluations/` folder."""
+
+
+def _folders(tmp_path) -> cli._Folders:
+    return cli._Folders(tmp_path, ID)
+
+
+def _state_file(tmp_path):
+    """The state file of the Interview, made ready for a test to write."""
+    path = tmp_path / "interviews" / ID / "interview_state.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
 
 class StubInterviewer:
     """Stands in for the gateway. It suggests no library grader for any Criterion."""
@@ -87,10 +101,7 @@ def test_resume_reports_the_pending_request_stage(
     from metis.wizard.bootstrap import create_cli_app
 
     state = _state_pending_at(InterviewStep.CRITERIA)
-    (tmp_path / "inputs").mkdir(exist_ok=True)
-    (tmp_path / "inputs/interview_state.json").write_text(
-        state.model_dump_json(), encoding="utf-8"
-    )
+    _state_file(tmp_path).write_text(state.model_dump_json(), encoding="utf-8")
     monkeypatch.setattr(cli, "_load_env", lambda: None)
     monkeypatch.setattr(cli, "_new_interviewer", StubInterviewer)
 
@@ -100,7 +111,7 @@ def test_resume_reports_the_pending_request_stage(
     monkeypatch.setattr(render_module, "render", stop_after_heading)
 
     result = CliRunner().invoke(
-        create_cli_app(), ["resume", "--out-dir", str(tmp_path)]
+        create_cli_app(), ["resume", "--out-dir", str(tmp_path), "--id", ID]
     )
 
     assert "Resuming at the criteria step." in result.output
@@ -121,14 +132,16 @@ def test_a_folder_is_complete_only_when_its_saved_state_is_done(
         behaviours_confirmed=True,
         confirmed=True,
     )
-    cli._write_outputs(done, tmp_path)
+    cli._write_outputs(done, _folders(tmp_path))
     app = create_cli_app()
 
-    complete = CliRunner().invoke(app, ["resume", "--out-dir", str(tmp_path)])
+    complete = CliRunner().invoke(
+        app, ["resume", "--out-dir", str(tmp_path), "--id", ID]
+    )
     assert "This export is complete." in complete.output
 
-    cli._save(_state_pending_at(InterviewStep.CRITERIA), tmp_path)
-    assert (tmp_path / "outputs/specification.yaml").is_file()
+    cli._save(_state_pending_at(InterviewStep.CRITERIA), _folders(tmp_path))
+    assert (tmp_path / "specifications" / ID / "specification.yaml").is_file()
     monkeypatch.setattr(cli, "_load_env", lambda: None)
     monkeypatch.setattr(cli, "_new_interviewer", StubInterviewer)
 
@@ -137,9 +150,11 @@ def test_a_folder_is_complete_only_when_its_saved_state_is_done(
 
     monkeypatch.setattr(render_module, "render", stop_after_heading)
 
-    resumed = CliRunner().invoke(app, ["resume", "--out-dir", str(tmp_path)])
+    resumed = CliRunner().invoke(
+        app, ["resume", "--out-dir", str(tmp_path), "--id", ID]
+    )
     assert "Resuming at the criteria step." in resumed.output
-    started = CliRunner().invoke(app, ["init", "--out-dir", str(tmp_path)])
+    started = CliRunner().invoke(app, ["init", "--out-dir", str(tmp_path), "--id", ID])
     assert "already in progress" in started.output
 
 
@@ -195,7 +210,7 @@ def test_a_retryable_failure_is_resent_when_the_user_agrees(
         start,
         interviewer=StubInterviewer(),
         matcher=None,
-        out_dir=tmp_path,
+        folders=_folders(tmp_path),
         console=Console(),
     )
 
@@ -237,7 +252,7 @@ def test_a_non_retryable_failure_stops_without_offering_a_retry(
             ),
             interviewer=StubInterviewer(),
             matcher=None,
-            out_dir=tmp_path,
+            folders=_folders(tmp_path),
             console=Console(),
         )
 
@@ -324,8 +339,7 @@ def test_both_commands_fail_before_any_call_without_credentials(
 
     app = create_cli_app()
 
-    (tmp_path / "inputs").mkdir(exist_ok=True)
-    (tmp_path / "inputs/interview_state.json").write_text(
+    _state_file(tmp_path).write_text(
         _state_pending_at(InterviewStep.CRITERIA).model_dump_json()
     )
     # `init` refuses outright when an interview already exists — its own guard, checked before
@@ -336,9 +350,11 @@ def test_both_commands_fail_before_any_call_without_credentials(
             "A research assistant",
             "--out-dir",
             str(tmp_path),
+            "--id",
+            ID,
             "--restart",
         ],
-        "resume": ["resume", "--out-dir", str(tmp_path)],
+        "resume": ["resume", "--out-dir", str(tmp_path), "--id", ID],
     }
     for argv in invocations.values():
         result = runner.invoke(app, argv)
@@ -362,20 +378,56 @@ def test_init_refuses_when_a_interview_already_exists(tmp_path) -> None:
     from metis.wizard.bootstrap import create_cli_app
 
     original = '{"do not": "overwrite me"}'
-    (tmp_path / "inputs").mkdir(exist_ok=True)
-    (tmp_path / "inputs/interview_state.json").write_text(original)
+    _state_file(tmp_path).write_text(original)
 
-    result = CliRunner().invoke(create_cli_app(), ["init", "--out-dir", str(tmp_path)])
+    result = CliRunner().invoke(
+        create_cli_app(), ["init", "--out-dir", str(tmp_path), "--id", ID]
+    )
 
     assert result.exit_code == 1
     assert "already in progress" in result.output
-    assert str(tmp_path / "inputs/interview_state.json") in result.output
+    assert str(_state_file(tmp_path)) in result.output
     # both ways forward are named, and neither needs a description
     assert "resume" in result.output
     assert "--restart" in result.output
     assert "<description>" not in result.output
     # and the existing interview is untouched
-    assert (tmp_path / "inputs/interview_state.json").read_text() == original
+    assert _state_file(tmp_path).read_text() == original
+
+
+@pytest.mark.parametrize("command", ["init", "resume", "connect"])
+@pytest.mark.parametrize("export_id", ["../escape", "a/b", "a.b", "", "x" * 65])
+def test_an_id_that_is_not_one_folder_name_is_refused_before_any_file(
+    tmp_path, command: str, export_id: str
+) -> None:
+    from typer.testing import CliRunner
+
+    from metis.wizard.bootstrap import create_cli_app
+
+    result = CliRunner().invoke(
+        create_cli_app(), [command, "--out-dir", str(tmp_path), "--id", export_id]
+    )
+
+    assert result.exit_code == 1
+    assert "must be 1 to 64 letters, digits, '-' or '_'" in result.output
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_the_default_evaluations_folder_is_in_the_project_folder(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """`init` in a subfolder of the project uses the folder that the engine also uses."""
+    project = tmp_path / "project"
+    nested = project / "src" / "deep"
+    nested.mkdir(parents=True)
+    (project / "pyproject.toml").write_text('[project]\nname = "project"\n')
+    monkeypatch.chdir(nested)
+
+    folders = cli._folders(None, ID)
+
+    assert folders.interview == project / "evaluations" / "interviews" / ID
+    assert folders.specification == project / "evaluations" / "specifications" / ID
+    assert folders.options() == f"--id {ID}"
 
 
 def test_run_mode_without_a_terminal_or_a_binding_stops_before_any_question(
@@ -390,13 +442,22 @@ def test_run_mode_without_a_terminal_or_a_binding_stops_before_any_question(
 
     result = CliRunner().invoke(
         create_cli_app(),
-        ["init", "A research assistant", "--out-dir", str(tmp_path), "--mode", "run"],
+        [
+            "init",
+            "A research assistant",
+            "--out-dir",
+            str(tmp_path),
+            "--id",
+            ID,
+            "--mode",
+            "run",
+        ],
     )
 
     assert result.exit_code == 1
     assert "--binding" in result.output
     assert not isinstance(result.exception, EOFError)
-    assert not (tmp_path / "inputs").exists()
+    assert not (tmp_path / "interviews").exists()
 
 
 def _fail_on_call(*_args, **_kwargs):
@@ -418,12 +479,14 @@ def test_init_without_a_description_fails_when_no_one_can_answer(
     monkeypatch.setattr(cli, "_new_interviewer", _fail_on_call)
     monkeypatch.setattr(opening, "read_description", _fail_on_call)
 
-    result = CliRunner().invoke(create_cli_app(), ["init", "--out-dir", str(tmp_path)])
+    result = CliRunner().invoke(
+        create_cli_app(), ["init", "--out-dir", str(tmp_path), "--id", ID]
+    )
 
     assert result.exit_code == 1
     assert "no description given" in result.output
     assert "as an argument" in result.output
-    assert not (tmp_path / "inputs/interview_state.json").exists()
+    assert not (tmp_path / "interviews" / ID / "interview_state.json").exists()
 
 
 class _Terminal(io.StringIO):
@@ -473,6 +536,7 @@ def test_init_starts_the_interview_from_the_given_or_typed_description(
         cli.init(
             description=argument,
             out_dir=tmp_path,
+            export_id=ID,
             restart=False,
             documents=None,
             mode=cli.Mode.SPEC,
@@ -562,12 +626,12 @@ def test_export_can_resume_after_a_failed_specification_write(
 
     monkeypatch.setattr(Path, "replace", fail_publish)
     with pytest.raises(OSError, match="write failed"):
-        cli._write_outputs(state, tmp_path)
-    assert not (tmp_path / "outputs/specification.yaml").exists()
-    assert cli._load(tmp_path) == state
+        cli._write_outputs(state, _folders(tmp_path))
+    assert not (tmp_path / "specifications" / ID / "specification.yaml").exists()
+    assert cli._load(_folders(tmp_path)) == state
     monkeypatch.setattr(Path, "replace", replace)
     result = CliRunner().invoke(
-        create_cli_app(), ["resume", "--out-dir", str(tmp_path)]
+        create_cli_app(), ["resume", "--out-dir", str(tmp_path), "--id", ID]
     )
     assert result.exit_code == 0, result.output
-    assert (tmp_path / "outputs/specification.yaml").is_file()
+    assert (tmp_path / "specifications" / ID / "specification.yaml").is_file()

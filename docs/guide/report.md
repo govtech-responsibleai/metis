@@ -14,7 +14,7 @@ The model defaults a missing version to `1` and rejects other explicit values.
 The Insights CLI reads `metis.core.reporting.EvaluationResults` from
 `outputs/reports/results.json`. Each `GraderRecord` in its `records` list is one grader run
 on one session, with one or more `RecordedResult` entries. The command joins records to the
-frozen `inputs/specification.yaml` and to the saved `outputs/trials/*/record.json` files.
+frozen `specification/specification.yaml` and to the saved `outputs/trials/*/record.json` files.
 Trial conversations come from the traces in `outputs/traces/` that `evaluate` saved.
 It writes `report.json` and an offline `report.html` beside the results file. A results
 file in the format from before the grader redesign has `turn_results` or `session_results`.

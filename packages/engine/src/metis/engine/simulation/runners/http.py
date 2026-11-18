@@ -872,9 +872,9 @@ class HttpRunnerFactory:
 
     @classmethod
     def from_specification(
-        cls, specification: Specification, inputs_dir: Path
+        cls, specification: Specification, specification_dir: Path
     ) -> HttpRunnerFactory:
-        """Load ``specification.target_binding`` from the experiment's ``inputs_dir``.
+        """Load ``specification.target_binding`` from the experiment's ``specification_dir``.
 
         :raises TargetBindingError: When the specification names no binding, or the
             binding cannot be loaded.
@@ -884,7 +884,7 @@ class HttpRunnerFactory:
                 "HttpRunnerFactory needs the specification's target_binding, "
                 "which is not set"
             )
-        return cls(load_target_binding(inputs_dir, specification.target_binding))
+        return cls(load_target_binding(specification_dir, specification.target_binding))
 
     @property
     def retry_defaults(self) -> tuple[int, float]:

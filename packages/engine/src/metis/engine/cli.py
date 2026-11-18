@@ -14,10 +14,10 @@ from typing import TYPE_CHECKING, Annotated, Literal
 
 import typer
 
-from metis.core import execution_layout
+from metis.core import execution_layout, project_layout
 from metis.core.console import console
-from metis.core.execution_layout import find_project_root
 from metis.core.phase_events import PhaseEventLog
+from metis.core.project_layout import find_project_root
 from metis.engine import __version__
 from metis.engine.run import (
     EvaluationInputError,
@@ -61,7 +61,7 @@ ProjectDirOption = Annotated[
     typer.Option(
         "--project-dir",
         help=(
-            "Existing project folder that holds experiments/execute/. New runs "
+            "Existing project folder that holds evaluations/experiments/. New runs "
             "go under it, from any working directory. Default: the working "
             "directory or the nearest folder above it that has a pyproject.toml"
         ),
@@ -71,7 +71,7 @@ ProjectDirOption = Annotated[
 
 
 def _project_root(project_dir: Path | None) -> Path:
-    """Return the folder that holds ``experiments/execute/``.
+    """Return the folder that holds ``evaluations/experiments/``.
 
     ``--project-dir`` names it, and it must exist. Without it, the engine
     finds it from the working directory.
@@ -91,7 +91,7 @@ def _project_root(project_dir: Path | None) -> Path:
 
 def _warn_if_outside_project(experiment_dir: Path, project_root: Path) -> None:
     """Tell the user that a resume stays in its own run folder."""
-    if experiment_dir.is_relative_to(project_root / execution_layout.EXECUTIONS):
+    if experiment_dir.is_relative_to(project_root / project_layout.EXPERIMENTS):
         return
     console.print(
         f"Warning: the run folder '{experiment_dir}' is not in the project "
@@ -206,7 +206,7 @@ def _existing_outputs(input_dir: Path, project_root: Path) -> list[Path]:
     experiment_id = _experiment_id(input_dir)
     if experiment_id is None:
         return []
-    experiments_root = project_root / execution_layout.EXECUTIONS
+    experiments_root = project_root / project_layout.EXPERIMENTS
     if not experiments_root.is_dir():
         return []
     pattern = re.compile(rf"^{re.escape(experiment_id)}-\d{{8}}-\d{{6}}$")
@@ -668,7 +668,7 @@ def evaluate(
         "--experiment-dir",
         help=(
             "Output directory that simulate created, "
-            "e.g. experiments/execute/my-eval-20260820-143000/"
+            "e.g. evaluations/experiments/my-eval-20260820-143000/"
         ),
     ),
     langfuse_timeout: int = typer.Option(

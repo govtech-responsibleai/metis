@@ -189,7 +189,7 @@ def test_a_folder_with_no_snapshot_raises_a_run_error(tmp_path: Path, function) 
     with pytest.raises(RunError):
         function(folder, concurrency=1, stop=threading.Event(), console=console)
 
-    assert "no 'inputs/' snapshot" in text.getvalue()
+    assert "no 'specification/' snapshot" in text.getvalue()
     assert list(folder.iterdir()) == []
 
 

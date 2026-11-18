@@ -7,7 +7,7 @@ import shutil
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from metis.core import execution_layout
+from metis.core import execution_layout, project_layout
 from metis.engine.run.errors import (
     EvaluationInputError,
     ExperimentExistsError,
@@ -119,7 +119,8 @@ def _grader_setup_errors(specification: Specification) -> list[str]:
 def prepare_experiment(input_dir: Path, *, project_dir: Path, console: Console) -> Path:
     """Check ``input_dir``, create a new experiment folder, copy the inputs in, and return it.
 
-    The folder is ``<project_dir>/experiments/execute/<specification id>-<YYYYmmdd-HHMMSS>/``.
+    The folder is ``<project_dir>/evaluations/experiments/<specification id>-<YYYYmmdd-HHMMSS>/``,
+    and the copy of ``input_dir`` is its ``specification/`` folder.
     It calls no model and runs no trial, so a caller can name the experiment before the
     trials start. ``project_dir`` must be an existing folder.
 
@@ -139,7 +140,7 @@ def prepare_experiment(input_dir: Path, *, project_dir: Path, console: Console) 
     specification = validate_inputs(source, console=console)
     suffix = datetime.now().strftime("%Y%m%d-%H%M%S")
     experiment_dir = (
-        project_dir / execution_layout.EXECUTIONS / f"{specification.id}-{suffix}"
+        project_dir / project_layout.EXPERIMENTS / f"{specification.id}-{suffix}"
     )
     experiment_dir.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -152,12 +153,12 @@ def prepare_experiment(input_dir: Path, *, project_dir: Path, console: Console) 
         )
         console.print(f"Error: {message}", style="bold red", markup=False)
         raise ExperimentExistsError(message) from None
-    shutil.copytree(source, experiment_dir / execution_layout.INPUTS)
+    shutil.copytree(source, experiment_dir / execution_layout.SPECIFICATION_DIR)
     return experiment_dir
 
 
 def load_snapshot(experiment_dir: Path, *, console: Console) -> Specification:
-    """Load the frozen ``inputs/specification.yaml`` of an experiment folder.
+    """Load the frozen ``specification/specification.yaml`` of an experiment folder.
 
     :raises EvaluationInputError: When the file does not load, for example because an
         older METIS wrote it or it was edited by hand. The error is printed first.
@@ -179,7 +180,7 @@ def load_snapshot(experiment_dir: Path, *, console: Console) -> Specification:
 def resolve_experiment_dir(experiment_dir: Path, *, console: Console) -> Path:
     """Return ``experiment_dir`` resolved, once it is an experiment folder of this layout.
 
-    :raises EvaluationInputError: When it does not exist, has no ``inputs/`` snapshot, or
+    :raises EvaluationInputError: When it does not exist, has no ``specification/`` snapshot, or
         uses the earlier folder layout.
     """
     resolved = experiment_dir.resolve()
@@ -189,10 +190,10 @@ def resolve_experiment_dir(experiment_dir: Path, *, console: Console) -> Path:
             style="bold red",
         )
         raise EvaluationInputError("invalid experiment directory")
-    if not (resolved / execution_layout.INPUTS).is_dir():
+    if not (resolved / execution_layout.SPECIFICATION_DIR).is_dir():
         console.print(
             f"Error: '{resolved}' is not a simulation output directory "
-            "(no 'inputs/' snapshot). Run 'metis engine simulate' first.",
+            "(no 'specification/' snapshot). Run 'metis engine simulate' first.",
             style="bold red",
         )
         raise EvaluationInputError("invalid experiment directory")

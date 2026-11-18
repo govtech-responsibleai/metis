@@ -574,7 +574,7 @@ export function ManualForm({
               className="aria-disabled:cursor-not-allowed aria-disabled:opacity-45"
               title={
                 ready
-                  ? "Extract the download into experiments/design/."
+                  ? "Extract the download into evaluations/."
                   : "Complete the marked fields first."
               }
               onClick={() => void download()}

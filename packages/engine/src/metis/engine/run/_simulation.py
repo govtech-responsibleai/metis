@@ -67,7 +67,7 @@ def simulate(
 
     :raises RunStopped: When ``stop`` was set. A stop before the trials start runs none.
     :raises EvaluationInputError: When ``experiment_dir`` is not an experiment folder of
-        this layout, or its ``inputs/specification.yaml`` does not load. Nothing is
+        this layout, or its ``specification/specification.yaml`` does not load. Nothing is
         written.
     :raises RunError: When the runner cannot be built, or no trial record was written.
     """
@@ -107,7 +107,7 @@ def resume_simulation(
 
     :raises RunStopped: When ``stop`` was set while trials ran.
     :raises EvaluationInputError: When ``experiment_dir`` is not an experiment folder of
-        this layout, or its ``inputs/specification.yaml`` does not load. Nothing is
+        this layout, or its ``specification/specification.yaml`` does not load. Nothing is
         written.
     :raises RunError: When the runner cannot be built, or no trial record exists.
     """
@@ -285,7 +285,9 @@ def _simulate_in(
     from_specification = getattr(factory_cls, "from_specification", None)
     try:
         runner_factory = (
-            from_specification(specification, experiment_dir / execution_layout.INPUTS)
+            from_specification(
+                specification, experiment_dir / execution_layout.SPECIFICATION_DIR
+            )
             if from_specification is not None
             else factory_cls()
         )

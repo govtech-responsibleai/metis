@@ -1,6 +1,6 @@
 """HTTP routes for the Experiment rows in the store.
 
-An Experiment is a folder that the engine writes under `<project>/experiments/execute/`. Its name
+An Experiment is a folder that the engine writes under `<project>/evaluations/experiments/`. Its name
 is the Experiment id. The row keeps the Target, the start time, and the last engine step that the
 web app started. The phase and the progress of an Experiment come from the Experiment folder.
 """
@@ -52,7 +52,7 @@ def put_experiment(
 ) -> ExperimentRecord:
     """Save the last engine step that the web app started for the Experiment.
 
-    The Experiment folder must exist under `experiments/execute/`, else the route gives 400. The
+    The Experiment folder must exist under `evaluations/experiments/`, else the route gives 400. The
     first save keeps the start time.
     """
     return store.put_experiment(experiment_id, body)

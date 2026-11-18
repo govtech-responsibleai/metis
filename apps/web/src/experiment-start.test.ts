@@ -12,7 +12,7 @@ function recording(simulate?: StartCalls["simulate"]) {
         target_id: targetId,
         specification_yaml: "id: shop\n",
         sha256: "0",
-        input_dir: `experiments/design/${targetId}/outputs`,
+        input_dir: `evaluations/specifications/${targetId}`,
         updated_at: "2026-01-02T03:04:05Z",
       };
     },
@@ -42,7 +42,7 @@ test("a start runs the input folder of the Target and saves the row", async () =
 
   assert.deepEqual(calls, [
     "specification t1",
-    "simulate experiments/design/t1/outputs",
+    "simulate evaluations/specifications/t1",
     "save shop-20260102-030405 t1 simulate",
   ]);
   assert.equal(row.experiment_id, "shop-20260102-030405");

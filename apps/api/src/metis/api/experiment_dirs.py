@@ -1,6 +1,6 @@
 """Find an experiment folder from its id.
 
-An experiment id is the name of a folder under ``<project folder>/experiments/execute/``. The
+An experiment id is the name of a folder under ``<project folder>/evaluations/experiments/``. The
 lookup compares the id with the names in that folder, so an id can never name another path.
 
 The project folder of a request is the project folder of the server when login is off, and the
@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 from metis.api.errors import RouteError
 from metis.api.store import user_project_dir
-from metis.core import execution_layout
+from metis.core import project_layout
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -52,11 +52,11 @@ def request_project_dir(request: Request) -> Path:
 def find_experiment_dir(project_dir: Path, experiment_id: str) -> Path:
     """Return the experiment folder named ``experiment_id`` in ``project_dir``.
 
-    :raises ExperimentNotFound: When no folder under ``experiments/execute/`` has the name.
+    :raises ExperimentNotFound: When no folder under ``evaluations/experiments/`` has the name.
     """
-    executions = project_dir / execution_layout.EXECUTIONS
-    if executions.is_dir():
-        for path in executions.iterdir():
+    experiments = project_dir / project_layout.EXPERIMENTS
+    if experiments.is_dir():
+        for path in experiments.iterdir():
             if path.name == experiment_id and path.is_dir():
                 return path
     raise ExperimentNotFound(experiment_id)

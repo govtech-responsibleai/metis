@@ -40,7 +40,7 @@ htmlcov
 .impeccable
 
 # Run output
-experiments
+evaluations
 evaluation
 packages/testbed/results
 packages/testbed/wizard/.reviewer

@@ -40,10 +40,10 @@ yourself and give each its own `--concurrency`.
 If a run stops before all trials finish, continue the same output folder:
 
 ```bash
-metis engine simulate --resume --experiment-dir experiments/execute/<your-experiment>
+metis engine simulate --resume --experiment-dir evaluations/experiments/<your-experiment>
 ```
 
-Give both flags together. Resume reads the specification from the frozen `inputs/` folder in that
+Give both flags together. Resume reads the specification from the frozen `specification/` folder in that
 output folder, not from your source folder. It runs again only the trials that did not end: a trial
 that was interrupted, or one whose record is missing or unreadable. A trial that failed with a
 system error has ended, so it stays failed. To run failed trials again, start a new experiment with
@@ -61,7 +61,7 @@ nothing to re-run, it keeps them.
 
 ```bash
 metis engine run --input-dir my-evaluation
-metis engine run --resume --experiment-dir experiments/execute/<your-experiment>
+metis engine run --resume --experiment-dir evaluations/experiments/<your-experiment>
 ```
 
 `run --resume` resumes the simulation as above, then the grading as in
@@ -81,8 +81,8 @@ during grading keeps the trials it already graded.
 ## Outputs
 
 ```text
-experiments/execute/<your-experiment>/
-├── inputs/
+evaluations/experiments/<your-experiment>/
+├── specification/
 │   ├── specification.yaml
 │   └── fixtures/
 ├── outputs/

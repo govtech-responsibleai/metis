@@ -76,7 +76,7 @@ export interface paths {
          * @description Build one request-scoped engine-ready ZIP without retaining uploaded files.
          *
          *     Send `state` for an Interview or `specification` for a manual export. With `specification`,
-         *     an optional `connection` (a `TargetConnection` as JSON) adds `outputs/target-binding.yaml`
+         *     an optional `connection` (a `TargetConnection` as JSON) adds `target-binding.yaml`
          *     and names the generic runner, the same as an Interview with that connection. An Interview
          *     carries its connection in its state, so `connection` with `state` is rejected. A binding
          *     that fails the `/connection/check` validation gives 400 `validation_error`. The message
@@ -304,7 +304,7 @@ export interface paths {
          * Delete a Target
          * @description Delete the Target, its Interview, its Specification, and its Experiment rows.
          *
-         *     The Experiment folders under `experiments/execute/` stay on disk.
+         *     The Experiment folders under `evaluations/experiments/` stay on disk.
          */
         delete: operations["delete_target_api_v1_targets__target_id__delete"];
         options?: never;
@@ -429,7 +429,7 @@ export interface paths {
          * Save an Experiment
          * @description Save the last engine step that the web app started for the Experiment.
          *
-         *     The Experiment folder must exist under `experiments/execute/`, else the route gives 400. The
+         *     The Experiment folder must exist under `evaluations/experiments/`, else the route gives 400. The
          *     first save keeps the start time.
          */
         put: operations["put_experiment_api_v1_experiments__experiment_id__put"];
@@ -500,7 +500,7 @@ export interface paths {
          * @description Create an experiment folder from the input folder and run every trial in it.
          *
          *     The request checks the inputs as `metis engine simulate --input-dir` does, then creates
-         *     `experiments/execute/<specification id>-<YYYYmmdd-HHMMSS>/`. The trials run after the
+         *     `evaluations/experiments/<specification id>-<YYYYmmdd-HHMMSS>/`. The trials run after the
          *     response.
          */
         post: operations["start_simulation_api_v1_engine_simulate_post"];
@@ -545,6 +545,8 @@ export interface paths {
         /**
          * Grade every trial of an experiment
          * @description Delete the earlier evaluation of the experiment, then grade every trial.
+         *
+         *     A complete evaluation gives 409 evaluation_complete, unless the body has regrade: true.
          */
         post: operations["start_evaluation_api_v1_engine_evaluate__experiment_id__post"];
         delete?: never;
@@ -1652,7 +1654,7 @@ export interface components {
         };
         /**
          * EvaluateRequest
-         * @description Grade the trials of an experiment.
+         * @description Delete the evaluation of an experiment and grade every trial.
          */
         EvaluateRequest: {
             /**
@@ -1665,6 +1667,12 @@ export interface components {
              * @description The longest wait in seconds for the traces of a session, as --langfuse-timeout. Default: a setting, 180 unless the server changes it.
              */
             langfuse_timeout?: number | null;
+            /**
+             * Regrade
+             * @description Grade again an experiment whose evaluation is complete. Without it, an evaluate of a complete evaluation gives 409 evaluation_complete and keeps the results.
+             * @default false
+             */
+            regrade: boolean;
         };
         /** EvidenceItem */
         EvidenceItem: {
@@ -3098,6 +3106,22 @@ export interface components {
             };
         };
         /**
+         * ResumeEvaluationRequest
+         * @description Grade the trials of an experiment that have no evaluation file.
+         */
+        ResumeEvaluationRequest: {
+            /**
+             * Concurrency
+             * @description Sessions at the same time. Default: a setting.
+             */
+            concurrency?: number | null;
+            /**
+             * Langfuse Timeout
+             * @description The longest wait in seconds for the traces of a session, as --langfuse-timeout. Default: a setting, 180 unless the server changes it.
+             */
+            langfuse_timeout?: number | null;
+        };
+        /**
          * ResumeSimulationRequest
          * @description Run again the trials of an experiment that did not end.
          */
@@ -3306,7 +3330,7 @@ export interface components {
         SimulateRequest: {
             /**
              * Input Dir
-             * @description The input folder, relative to the project folder. For example experiments/design/<target id>/outputs.
+             * @description The input folder, relative to the project folder. For example evaluations/specifications/<target id>.
              */
             input_dir: string;
             /**
@@ -5193,7 +5217,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["EvaluateRequest"] | null;
+                "application/json": components["schemas"]["ResumeEvaluationRequest"] | null;
             };
         };
         responses: {

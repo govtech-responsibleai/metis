@@ -61,7 +61,7 @@ The judge has no separate argument for an expected count or other assessment req
 Do not set `criterion` under `grader_args` yourself. The engine reports it as a setup error
 before the run starts.
 
-An experiment copies its specification into `inputs/specification.yaml`, and evaluation reads
+An experiment copies its specification into `specification/specification.yaml`, and evaluation reads
 that copy. To evaluate an existing experiment with new instructions, edit the description in
 that copy, then run evaluation again. To compare the old and new assessments, keep a copy of
 the previous result file first.
@@ -122,7 +122,7 @@ The offline tests do not call a provider. To confirm that your gateway accepts t
 request, use a completed experiment with available traces:
 
 1. Set `JUDGE_API_KEY`, `JUDGE_BASE_URL`, and `JUDGE_MODEL` for your gateway.
-2. Edit the criterion description in the experiment's `inputs/specification.yaml`.
+2. Edit the criterion description in the experiment's `specification/specification.yaml`.
 3. Run the evaluation:
 
    ```bash
