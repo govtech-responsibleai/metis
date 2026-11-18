@@ -93,8 +93,12 @@ make docker-build
 make docker-run
 
 # Build for a server, then push the image.
-make docker-build PLATFORM=linux/amd64
+IMAGE_TAG="<registry>/metis:$(git rev-parse --short HEAD)"
+make docker-build PLATFORM=linux/amd64 IMAGE_TAG="$IMAGE_TAG"
+docker push "$IMAGE_TAG"
 ```
+
+Replace `<registry>` with the address of your container registry.
 
 `docker-run` reads `ENV_FILE` with `docker run --env-file`, which keeps quotes as part of a value.
 It stops when a value in the file is in quotes, so remove those quotes first.
