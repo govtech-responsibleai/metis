@@ -82,9 +82,9 @@ the opening documents in the same way. `src/Documents.tsx` has the plus menu of 
 the document chips. The file upload of the Test Case form is a different
 control: it adds a file for one Test Case and no document.
 
-The id of an Interview is its Target id and the name of its folder in `experiments/design/`.
-`interviewId` makes it from the local time when the user sends the first message:
-`YYYYMMDD-HHMMSS-interview-<random>`, the same form as a `metis wizard init` folder. The random
+The id of an Interview is its Target id and the name of its folders in `evaluations/interviews/`
+and `evaluations/specifications/`. `interviewId` makes it from the local time when the user sends
+the first message: `YYYYMMDD-HHMMSS-interview-<random>`, the same form as a `metis wizard init` id. The random
 part is the five characters of `randomPart`, so two people who start in the same second get different
 ids. When the store
 gives 409 `target_exists` on the first save, `putNew` saves again as `-2`, `-3`, and so on.

@@ -8,7 +8,7 @@ means the target has this file (an ``external_id`` was observed) but METIS
 failed to download it, which is retryable; ``"unavailable"`` means there is
 nothing to retry.
 
-Its ``path`` is a POSIX-style path relative to the experiment root — the
+Its ``path`` is a POSIX-style path relative to the Experiment folder — the
 directory created by ``metis engine simulate`` (or resumed into), containing
 ``specification/`` and ``outputs/trials/``. Storing a relative path keeps experiment output
 directories portable: they can be copied, zipped, or moved without breaking
@@ -116,7 +116,7 @@ class Artifact(BaseModel):
 
 
 def resolve_artifact_path(experiment_root: Path, path: str | None) -> Path | None:
-    """Resolve an ``Artifact.path`` against the experiment root.
+    """Resolve an ``Artifact.path`` against the Experiment folder.
 
     Returns None for a falsy path (covers both the unset and empty-string
     cases) rather than joining onto an empty relative path.
