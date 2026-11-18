@@ -891,14 +891,14 @@ At simulation time (`_simulate_in` in `packages/engine/src/metis/engine/run/_sim
 factory_cls = resolve_runner_factory(specification.runner_factory_ref)
 from_specification = getattr(factory_cls, "from_specification", None)
 runner_factory = (
-    from_specification(specification, experiment_dir / execution_layout.INPUTS)
+    from_specification(specification, experiment_dir / execution_layout.SPECIFICATION_DIR)
     if from_specification is not None
     else factory_cls()
 )
 ```
 
-A factory with a `from_specification` class method is built from the Specification and its
-inputs folder. Any other factory is built with no arguments. All configuration (credentials, URLs, feature flags) should come from environment variables read inside `__init__`.
+A factory with a `from_specification` class method is built from the Specification and the
+experiment's `specification/` folder. Any other factory is built with no arguments. All configuration (credentials, URLs, feature flags) should come from environment variables read inside `__init__`.
 
 #### Removing Playwright Dependencies
 
