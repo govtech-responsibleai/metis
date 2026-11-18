@@ -31,9 +31,10 @@ The caller sets up the process before it calls a function. It loads `.env`, call
 simulation sits after the caller's log level filter, so the caller's log level also decides
 what reaches the per-trial log files.
 
-A process can safely run only one function at a time. Logging, the Langfuse clients in
-`tracing.py`, and `os.environ["LANGFUSE_HOST"]` in `extractor/langfuse.py` are shared by the
-whole process.
+A process can safely run only one function at a time. Logging and the Langfuse clients in
+`tracing.py` are shared by the whole process. An evaluation reads the target's Langfuse
+through a client of its own (`get_langfuse_client`), and closes it before its event loop
+closes, so no run uses a connection of an earlier run's loop.
 
 ## Runner Contract
 
@@ -78,15 +79,18 @@ See `packages/core/schemas/README.md` for the version policy.
 `LANGFUSE_*` names the Langfuse of the system under test. The extractor reads target traces
 from it. The engine traces its own model calls to the METIS-internal Langfuse
 (`METIS_INTERNAL_LANGFUSE_*`, see `src/metis/engine/tracing.py`). Every engine model client is
-the `langfuse.openai` drop-in. A drop-in call that names no Langfuse key goes to whichever
-client is registered, and in `evaluate` that is the target's. So every engine model call must
-name `tracing_key()`:
+the `langfuse.openai` drop-in. A drop-in call that names no Langfuse key does not reliably reach
+the internal project. With no client registered, the SDK builds one from `LANGFUSE_*`, which is
+the target's project. With one client registered it uses that one, and with more than one it
+sends nothing. The extractor's `get_langfuse_client` registers no client, but other code in the
+process can. So every engine model call must name `tracing_key()`:
 
 - A simulation call goes through `parse_completion` or `create_completion`, which pass the key.
 - Code that calls a client it does not own, such as a library grader, runs inside
   `tracing.traced`, which sets the key for every call nested inside.
 
-`tests/unit/engine/test_internal_tracing.py` checks both paths with a target client registered.
+`tests/unit/engine/test_internal_tracing.py` checks both paths with a target client registered,
+as other code in the process may register one.
 
 ## Pyright Configuration
 

@@ -155,7 +155,9 @@ from metis.engine.extractor import get_langfuse_client
 ```
 
 `fetch_session(session_id, langfuse, experiment_root=...)` is a coroutine: `await` it
-from async code, or run it with `asyncio.run`.
+from async code, or run it with `asyncio.run`. `get_langfuse_client()` makes a new client
+whose connections belong to the event loop that first uses them, so make it, use it and
+`await langfuse.aclose()` on one loop.
 
 `build_grader(criterion, default_judge_model=..., env=...)` returns a validated
 `Grader` instance. Keep one instance per Criterion ID. Pass the selected Criteria

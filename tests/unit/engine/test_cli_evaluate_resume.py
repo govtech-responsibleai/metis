@@ -32,6 +32,7 @@ from metis.engine.run import (
     trial_record_files,
 )
 from tests.unit.engine.test_cli_evaluate import (
+    NoLangfuse,
     _patch_evaluation,
     _session,
     _write_experiment_dir,
@@ -140,7 +141,7 @@ async def test_an_interrupted_run_saves_finished_trials_and_resume_grades_only_t
             await asyncio.sleep(30)
         return _session(session_id)
 
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
     task = asyncio.create_task(
         _evaluation._evaluate_records(
@@ -340,7 +341,7 @@ def test_resume_with_unparsable_results_resumes(monkeypatch, tmp_path: Path) -> 
         present_at_fetch.append(results_file.exists())
         return _session(session_id)
 
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
 
     result = _resume(output)
@@ -506,7 +507,7 @@ async def test_the_interrupt_message_names_the_resume_command(
         await asyncio.sleep(30)
         raise AssertionError("unreachable")
 
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
     log = EvaluationLogger(output / "logs")
     task = asyncio.create_task(

@@ -152,8 +152,8 @@ started. Two user accounts can have an experiment folder with the same name, so 
 run of a request only when its project folder and its experiment id are both the same. When
 the thread ends, the API forgets the run.
 
-The API runs one engine run at a time, across all experiments of all user accounts. Logging, the Langfuse clients,
-and `LANGFUSE_HOST` are shared by the whole process, so a second run at the same time is not
+The API runs one engine run at a time, across all experiments of all user accounts. Logging and the
+METIS-internal Langfuse clients are shared by the whole process, so a second run at the same time is not
 safe. A second start gets 503 `engine_busy`, and there is no queue. One lock covers the busy
 check, the checks of the start, and the start of the thread. A refused start therefore creates
 no folder, and two starts at the same time cannot both pass.
