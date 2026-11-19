@@ -2,6 +2,7 @@
 // engine plans its trials, and each event of the engine moves one row to its next status.
 
 import type { PhaseEvent, Specification } from "./transport/api.ts";
+import { webUrl } from "./web-url.ts";
 
 export const TRIAL_STATUSES = [
   "waiting",
@@ -43,6 +44,9 @@ export interface TrialRow extends PlannedTrial {
   status: TrialStatus;
   // Why the trial did not run, or why evaluate could not grade it. Null for every other status.
   reason: string | null;
+  // The page of the trial's session in the target's Langfuse, from the line that ended its
+  // latest simulation. Null until that line, and for a trial whose line has none.
+  sessionUrl: string | null;
 }
 
 // Each Task runs its Persona in its Scenario `num_trials` times. This mirrors
@@ -116,6 +120,7 @@ function unplanned(trial: string): TrialRow {
     scenario: null,
     status: "waiting",
     reason: null,
+    sessionUrl: null,
   };
 }
 
@@ -146,6 +151,10 @@ export function applyEvent(
     ...row,
     status,
     reason: HAS_REASON.has(status) ? (event.reason ?? null) : null,
+    // Each simulating line sets the link, so a new simulation of the trial clears the old one.
+    // An evaluating line keeps it.
+    sessionUrl:
+      event.phase === "simulating" ? webUrl(event.session_url) : row.sessionUrl,
   });
   return next;
 }
@@ -160,7 +169,7 @@ export function trialRows(
   let rows = new Map<string, TrialRow>(
     plan.map((trial) => [
       trial.trial,
-      { ...trial, status: "waiting", reason: null },
+      { ...trial, status: "waiting", reason: null, sessionUrl: null },
     ]),
   );
   for (const event of events) rows = applyEvent(rows, event);

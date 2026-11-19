@@ -197,7 +197,68 @@ test("a trial that the plan does not name gets its own row at the end", () => {
     scenario: null,
     status: "simulated",
     reason: null,
+    sessionUrl: null,
   });
+});
+
+const URL = "https://lf.example/project/p1/sessions/s1";
+const sessionOf = (events: PhaseEvent[]): string | null | undefined =>
+  trialRows(plan, events, true).find((row) => row.trial === "t1-p1-1")
+    ?.sessionUrl;
+const simulated = [
+  event({ trial: "t1-p1-1", attempt: 1 }),
+  event({
+    trial: "t1-p1-1",
+    status: "completed",
+    attempt: 1,
+    session_url: URL,
+  }),
+];
+
+test("a completed trial gets the session URL of its event", () => {
+  assert.equal(sessionOf(simulated), URL);
+  assert.equal(sessionOf([event({ trial: "t1-p1-1", attempt: 1 })]), null);
+});
+
+test("the session URL stays while evaluate grades the trial and after the run", () => {
+  const graded = [
+    ...simulated,
+    event({ phase: "evaluating", total: 12, done: 0 }),
+    event({ phase: "evaluating", trial: "t1-p1-1" }),
+    event({ phase: "evaluating", trial: "t1-p1-1", status: "completed" }),
+    event({ phase: "evaluating", status: "completed" }),
+  ];
+  assert.equal(sessionOf(graded), URL);
+  assert.equal(
+    trialRows(plan, graded, false).find((row) => row.trial === "t1-p1-1")
+      ?.sessionUrl,
+    URL,
+  );
+});
+
+test("a new simulation of the trial clears its session URL", () => {
+  assert.equal(
+    sessionOf([
+      ...simulated,
+      event({ total: 12, done: 0 }),
+      event({ trial: "t1-p1-1", attempt: 1 }),
+    ]),
+    null,
+  );
+});
+
+test("a session URL that is not http or https is dropped", () => {
+  assert.equal(
+    sessionOf([
+      event({
+        trial: "t1-p1-1",
+        status: "completed",
+        attempt: 1,
+        session_url: "javascript:alert(1)",
+      }),
+    ]),
+    null,
+  );
 });
 
 test("the counts add up the rows of each status", () => {

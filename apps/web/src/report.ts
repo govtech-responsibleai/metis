@@ -4,6 +4,7 @@
 
 import type { ExperimentTab } from "./routes.ts";
 import { api, TransportError, type Report } from "./transport/api.ts";
+import { webUrl } from "./web-url.ts";
 
 // What the browser knows about the report of one experiment. The answer of the report route is
 // the only signal for "evaluate is done" until the app has an experiment store.
@@ -346,11 +347,6 @@ function measurementName(key: string): string {
     MEASUREMENT[key] ??
     key.replace(/_/g, " ").replace(/^./, (first) => first.toUpperCase())
   );
-}
-
-// A link the report may open: only an http or https URL, never a javascript: one.
-function webUrl(url: string | null | undefined): string | null {
-  return url && /^https?:\/\//i.test(url) ? url : null;
 }
 
 function trialDetails(report: Report, row: Row): TrialDetail[] {

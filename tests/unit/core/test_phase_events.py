@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 TRIAL = "TC-001-alice-1"
+URL = "https://lf.example/project/p1/sessions/s1"
 
 
 @pytest.fixture
@@ -147,6 +148,29 @@ def test_emit_cuts_a_long_reason_to_one_short_line(tmp_path: Path) -> None:
     assert short_reason("") is None
 
 
+@pytest.mark.parametrize("status", ["completed", "failed", "interrupted"])
+@pytest.mark.parametrize("session_url", [URL, None], ids=["with-url", "without-url"])
+def test_a_simulating_trial_end_line_may_have_a_session_url(
+    status: str, session_url: str | None, schema: dict
+) -> None:
+    line = _line(phase="simulating", status=status, trial=TRIAL, attempt=1)
+    if session_url:
+        line["session_url"] = session_url
+
+    assert PhaseEvent.parse_line(json.dumps(line)).session_url == session_url
+    jsonschema.validate(instance=line, schema=schema)
+
+
+def test_emit_writes_the_session_url_on_a_trial_end_line(tmp_path: Path) -> None:
+    log = PhaseEventLog.for_experiment_dir(tmp_path)
+    log.emit("simulating", "completed", trial=TRIAL, attempt=1, session_url=URL)
+    log.emit("simulating", "completed", trial=TRIAL, attempt=1)
+
+    with_url, without_url = _lines(log.path)
+    assert with_url["session_url"] == URL
+    assert "session_url" not in without_url
+
+
 @pytest.mark.parametrize(
     ("line", "message"),
     [
@@ -160,6 +184,42 @@ def test_emit_cuts_a_long_reason_to_one_short_line(tmp_path: Path) -> None:
             "skipped",
         ),
         (_line(phase="simulating", status="started"), "total"),
+        (
+            _line(
+                phase="simulating",
+                status="started",
+                trial=TRIAL,
+                attempt=1,
+                session_url=URL,
+            ),
+            "session_url",
+        ),
+        (
+            _line(
+                phase="simulating",
+                status="running",
+                trial=TRIAL,
+                attempt=1,
+                turn=1,
+                session_url=URL,
+            ),
+            "session_url",
+        ),
+        (
+            _line(
+                phase="simulating",
+                status="retrying",
+                trial=TRIAL,
+                attempt=1,
+                session_url=URL,
+            ),
+            "session_url",
+        ),
+        (_line(phase="simulating", status="completed", session_url=URL), "session_url"),
+        (
+            _line(phase="evaluating", status="completed", trial=TRIAL, session_url=URL),
+            "session_url",
+        ),
     ],
     ids=[
         "running-without-turn",
@@ -169,6 +229,11 @@ def test_emit_cuts_a_long_reason_to_one_short_line(tmp_path: Path) -> None:
         "running-phase-line",
         "skipped-trial",
         "phase-started-without-total",
+        "trial-started-with-session-url",
+        "trial-running-with-session-url",
+        "trial-retrying-with-session-url",
+        "phase-line-with-session-url",
+        "evaluating-trial-with-session-url",
     ],
 )
 def test_a_line_that_does_not_fit_its_status_is_rejected(

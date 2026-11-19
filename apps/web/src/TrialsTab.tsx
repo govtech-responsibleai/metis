@@ -9,6 +9,7 @@ import {
   CirclePause,
   CircleSlash,
   Clock,
+  ExternalLink,
   Loader,
   Minus,
   Square,
@@ -32,7 +33,7 @@ import {
   type TrialRow,
   type TrialStatus,
 } from "./trials";
-import { Button, cn, Mono, Panel, SelectBox } from "./ui";
+import { Button, cn, Mono, Panel, SelectBox, Tooltip } from "./ui";
 
 // The number is the progress of the whole Experiment, so each step is one half of it.
 function ExperimentProgress({ state }: { state: ExperimentState }) {
@@ -198,6 +199,24 @@ function PhaseSteps({ state }: { state: ExperimentState }) {
   );
 }
 
+// The link repeats on every row, so it is a quiet icon rather than the case drawer's button.
+function SessionLink({ url }: { url: string }) {
+  const label = "Open in Langfuse";
+  return (
+    <Tooltip label={label} hoverOnly className="inline-flex">
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={label}
+        className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 hover:text-foreground"
+      >
+        <ExternalLink size={14} strokeWidth={1.75} aria-hidden />
+      </a>
+    </Tooltip>
+  );
+}
+
 // A trial that did not run is an app error, so it has the destructive colour. A trial with no
 // grade is skipped. A trial that ends a phase has the colour of a done phase, as on the ring.
 function TrialIcon({ status }: { status: TrialStatus }) {
@@ -345,6 +364,7 @@ export function TrialsTab({
               <col className="w-[29%]" />
               <col className="w-[9rem]" />
               <col />
+              <col className="w-[2.5rem]" />
             </colgroup>
             <thead>
               <tr className="border-b border-border bg-muted/60 text-left text-muted-foreground">
@@ -354,6 +374,7 @@ export function TrialsTab({
                 <th className="px-2 py-2.5 font-medium">Scenario</th>
                 <th className="px-2 py-2.5 font-medium">Status</th>
                 <th className="px-2 py-2.5 font-medium">Reason</th>
+                <th className="py-2.5" />
               </tr>
             </thead>
             <tbody>
@@ -385,6 +406,9 @@ export function TrialsTab({
                     </span>
                   </td>
                   <td className="px-2 py-2.5 break-words">{row.reason}</td>
+                  <td className="pr-2 py-1.5">
+                    {row.sessionUrl && <SessionLink url={row.sessionUrl} />}
+                  </td>
                 </tr>
               ))}
             </tbody>
