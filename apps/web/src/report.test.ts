@@ -853,7 +853,7 @@ test("a trial keeps its Langfuse link only when it is an http or https URL", () 
                   stopReason: "goal_achieved",
                   failureSource: "outcome",
                   attempt: 1,
-                  sessionUrl,
+                  target_session_langfuse_url: sessionUrl,
                 },
               ],
             },

@@ -147,10 +147,13 @@ def _record(**extra: object) -> TrialRecord:
 
 
 def test_a_record_without_a_session_url_loads() -> None:
-    assert _record(target_session_id="s-1").target_session_url is None
+    assert _record(target_session_id="s-1").target_session_langfuse_url is None
 
 
 def test_the_session_url_round_trips() -> None:
     url = "https://lf.example/project/p1/sessions/s-1"
-    record = _record(target_session_id="s-1", target_session_url=url)
-    assert TrialRecord.model_validate(record.model_dump()).target_session_url == url
+    record = _record(target_session_id="s-1", target_session_langfuse_url=url)
+    assert (
+        TrialRecord.model_validate(record.model_dump()).target_session_langfuse_url
+        == url
+    )

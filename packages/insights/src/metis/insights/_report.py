@@ -150,8 +150,8 @@ class _SessionLinks:
         self._looked_up = False
 
     def url(self, record: TrialRecord) -> str | None:
-        if record.target_session_url:
-            return record.target_session_url
+        if record.target_session_langfuse_url:
+            return record.target_session_langfuse_url
         if not record.target_session_id:
             return None
         if not self._looked_up:
@@ -204,7 +204,7 @@ def _load_trial_records(run_dir: Path) -> list[dict[str, Any]]:
                 "task_id": config.task_id,
                 "trial_index": config.trial_index,
                 "session": session or "",
-                "sessionUrl": links.url(record),
+                "target_session_langfuse_url": links.url(record),
                 "persona": config.persona,
                 "scenario": config.scenario,
                 "stopReason": stop_reason,

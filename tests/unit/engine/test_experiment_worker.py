@@ -1180,7 +1180,7 @@ class TestSessionUrl:
             TargetProject("https://lf.example/langfuse", "p1"),
         )
         assert (
-            record.target_session_url
+            record.target_session_langfuse_url
             == "https://lf.example/langfuse/project/p1/sessions/sess-mock-123"
         )
 
@@ -1190,7 +1190,7 @@ class TestSessionUrl:
     ) -> None:
         record = await self._run(simple_scenario, simple_persona, tmp_path, None)
         assert record.target_session_id == "sess-mock-123"
-        assert record.target_session_url is None
+        assert record.target_session_langfuse_url is None
 
     @pytest.mark.asyncio
     async def test_a_trial_without_a_session_has_no_url(
@@ -1205,4 +1205,4 @@ class TestSessionUrl:
             TargetProject("https://lf.example", "p1"),
             session_id=None,
         )
-        assert record.target_session_url is None
+        assert record.target_session_langfuse_url is None

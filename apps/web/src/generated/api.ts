@@ -3080,8 +3080,8 @@ export interface components {
             id: string;
             /** Session */
             session: string;
-            /** Sessionurl */
-            sessionUrl?: string | null;
+            /** Target Session Langfuse Url */
+            target_session_langfuse_url?: string | null;
             /** Persona */
             persona: string;
             /** Scenario */
@@ -3585,8 +3585,8 @@ export interface components {
             id: string;
             /** Session */
             session: string;
-            /** Sessionurl */
-            sessionUrl?: string | null;
+            /** Target Session Langfuse Url */
+            target_session_langfuse_url?: string | null;
             /** Persona */
             persona: string;
             /** Scenario */
