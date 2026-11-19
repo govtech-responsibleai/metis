@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 
     from rich.console import Console
 
+    from metis.core.langfuse_links import TargetProject
     from metis.core.phase_events import PhaseEventLog
     from metis.engine.logging import LogRouter, OrchestrationLogger
     from metis.engine.tui import SimulationState, TUIContext
@@ -121,13 +122,15 @@ def execute_experiment(
     tui_ctx: TUIContext | None = None,
     stop: threading.Event | None = None,
     events: PhaseEventLog | None = None,
+    target_project: TargetProject | None = None,
     console: Console,
 ) -> None:
     """Run a full experiment (all scenario x persona pairs).
 
     Sync entry point — delegates to the async orchestrator via asyncio.run(). With
     ``events``, each trial writes its start, turns, retries and end to the event log.
-    Progress lines and the summary go to ``console``.
+    Progress lines and the summary go to ``console``. With ``target_project``, each saved
+    record links to its target session in that Langfuse project.
     """
     asyncio.run(
         _execute_experiment_async(
@@ -146,6 +149,7 @@ def execute_experiment(
             tui_ctx=tui_ctx,
             stop=stop,
             events=events,
+            target_project=target_project,
             console=console,
         )
     )
@@ -168,6 +172,7 @@ async def _execute_experiment_async(
     stop: threading.Event | None = None,
     events: PhaseEventLog | None = None,
     *,
+    target_project: TargetProject | None = None,
     console: Console | None = None,
 ) -> None:
     """Async experiment orchestrator with concurrent runner contexts.
@@ -241,6 +246,7 @@ async def _execute_experiment_async(
                         tui_ctx=tui_ctx,
                         stop=stop,
                         events=events,
+                        target_project=target_project,
                         console=console,
                     )
                 )
@@ -298,6 +304,7 @@ async def _worker(
     runner_agent_model: str | None = None,
     experiment_id: str | None = None,
     events: PhaseEventLog | None = None,
+    target_project: TargetProject | None = None,
     console: Console | None = None,
 ) -> list[TrialRecord]:
     """One concurrent worker: creates a fresh runner per trial for isolation.
@@ -311,6 +318,9 @@ async def _worker(
 
     Each attempt is one trace in the METIS-internal Langfuse. Its session is the trial's
     (``tracing.trial_session_id``), which the trial's grading traces share.
+
+    With ``target_project``, each record gets ``target_session_langfuse_url``: the page of its
+    target session in the target's Langfuse project.
     """
     structlog.contextvars.clear_contextvars()
     structlog.contextvars.bind_contextvars(worker=f"w{worker_id}")
@@ -676,6 +686,11 @@ async def _worker(
             async with console_lock:
                 if tui_ctx:
                     tui_ctx.refresh()
+
+            if target_project is not None and record.target_session_id:
+                record.target_session_langfuse_url = target_project.session_url(
+                    record.target_session_id
+                )
 
             # Save trial record to disk
             _save_trial_record(record, run_dir)

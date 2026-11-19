@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 import pytest
+import structlog
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
@@ -158,6 +159,8 @@ def test_report_generation_methods_match(
         ["report", "--results-file", str(copy / execution_layout.RESULTS)],
     )
     assert cli.exit_code == 0, cli.output
+    # The CLI sent structlog to the runner's stream, which is closed by now.
+    structlog.reset_defaults()
 
     report = client.get(f"/api/v1/experiments/{experiment_dir.name}/report")
     page = client.get(f"/api/v1/experiments/{experiment_dir.name}/report.html")

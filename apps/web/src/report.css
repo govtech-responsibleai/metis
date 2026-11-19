@@ -1109,6 +1109,19 @@
   font-weight: 700;
   margin-bottom: 10px;
 }
+.report .td-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.report .td-head .td-title {
+  margin-bottom: 0;
+}
+.report .td-link {
+  white-space: nowrap;
+  text-decoration: none;
+}
 .report .endnote {
   background: var(--tree);
   border-radius: 6px;

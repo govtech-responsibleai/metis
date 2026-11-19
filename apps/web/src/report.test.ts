@@ -556,6 +556,7 @@ test("a test case has the descriptions of its Persona and Scenario and the detai
         { turn: 2, user: null, target: null, errors: ["The request failed."] },
       ],
       conversationProblem: "The trace is not complete",
+      sessionUrl: null,
       criteria: [
         {
           criterionId: "c1",
@@ -830,4 +831,39 @@ test("the page arrives at Report by itself only when the bare URL moves from Tri
   assert.equal(arrivedAtReport("report", "trials", "report"), false);
   assert.equal(arrivedAtReport(null, null, "report"), false);
   assert.equal(arrivedAtReport(null, "report", "trials"), false);
+});
+
+test("a trial keeps its Langfuse link only when it is an http or https URL", () => {
+  const withUrl = (sessionUrl: string | null) =>
+    reportPage(
+      report({
+        resultTable: {
+          ...report().resultTable,
+          rows: [
+            {
+              task_id: "t1",
+              persona: "p1",
+              scenario: "s1",
+              results: {},
+              trials: [
+                {
+                  trial_index: 1,
+                  category: "succeeded",
+                  message: "",
+                  stopReason: "goal_achieved",
+                  failureSource: "outcome",
+                  attempt: 1,
+                  sessionUrl,
+                },
+              ],
+            },
+          ],
+        },
+      } as unknown as Partial<Report>),
+    ).cases.rows[0]?.trials[0]?.sessionUrl;
+
+  const url = "https://lf.example/langfuse/project/p1/sessions/s%2F1";
+  assert.equal(withUrl(url), url);
+  assert.equal(withUrl(null), null);
+  assert.equal(withUrl("javascript:alert(1)"), null);
 });

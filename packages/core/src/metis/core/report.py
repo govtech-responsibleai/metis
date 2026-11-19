@@ -28,6 +28,7 @@ class Trial(BaseModel):
     trial_index: int = 1
     id: str
     session: str
+    sessionUrl: str | None = None
     persona: str
     scenario: str
     stopReason: str
