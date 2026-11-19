@@ -62,6 +62,11 @@ it to participants. Set both admin variables or neither. At each start, the cont
 admin user account or sets its password. Login has no limit on the number of tries, so use a
 long random password, for example from `openssl rand -hex 16`.
 
+Log in, select your username at the foot of the left rail, then select **Manage accounts**. Only
+an admin sees this item. On this page you can make a user account, reset a password, and delete a
+user account with all its Targets and Experiments. A new password shows one time, so copy it
+before you close the dialog. You cannot delete your own user account or the admin of `.env`.
+
 If you forget your admin password, change `METIS_ADMIN_PASSWORD` and start the container again.
 
 From a script, send the admin token in an `Authorization: Bearer` header:

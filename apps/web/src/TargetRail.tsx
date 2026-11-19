@@ -1,8 +1,9 @@
 // The left rail: "New target", the list of Targets, and at its foot the colour theme. With
-// login on, the foot also has the current user and the logout control. The selected row
-// follows the URL.
+// login on, the foot has the account menu of the current user, and the colour theme is in that
+// menu. The selected row follows the URL.
 
 import {
+  ChevronsUpDown,
   CirclePlus,
   FolderClosed,
   LogOut,
@@ -10,16 +11,26 @@ import {
   Moon,
   PanelLeft,
   Sun,
+  SunMoon,
   Trash2,
+  UsersRound,
 } from "lucide-react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { Link } from "wouter";
-import { useLoginSession } from "./LoginGate";
+import { useLoginSession, type LoginSession } from "./LoginGate";
 import type { TargetSummary } from "./targets";
 import { useThemeChoice, type ThemeChoice } from "./theme";
 import type { StorageProblem } from "./storage/repository";
 import { relativeTime } from "./relative-time";
 import { paths } from "./routes";
-import { buttonClass, cn } from "./ui";
+import { Avatar, buttonClass, cn } from "./ui";
 
 export function TargetRail({
   targets,
@@ -39,6 +50,7 @@ export function TargetRail({
   onDelete: (id: string) => void;
   onCollapse?: () => void;
 }) {
+  const session = useLoginSession();
   return (
     <nav className="flex h-full w-[15%] min-w-[14rem] flex-col border-r border-border bg-muted">
       <div className="flex items-center justify-between gap-2 px-3 pt-3">
@@ -167,65 +179,318 @@ export function TargetRail({
         ))}
       </ul>
       <div className="flex flex-col gap-2 border-t border-border p-3">
-        <CurrentUser />
-        <ThemeSwitch />
+        {session ? <AccountMenu /> : <ThemeSwitch />}
       </div>
     </nav>
   );
 }
 
-// The user account of the login session and the logout control. With login off, the app has
-// no user account and this shows nothing.
-function CurrentUser() {
-  const session = useLoginSession();
-  if (!session) return null;
+// The rail when the user hides it: a strip that shows the rail again, and the account menu at
+// its foot, so the user can still log out.
+export function CollapsedRail({ onExpand }: { onExpand: () => void }) {
   return (
-    <span className="flex min-w-0 items-center justify-between gap-1">
-      <span
-        className="min-w-0 truncate text-sm text-foreground"
-        title={session.user.username}
-      >
-        {session.user.username}
-      </span>
+    <div className="flex h-full w-8 shrink-0 flex-col border-r border-border bg-muted/30">
       <button
         type="button"
-        aria-label="Log out"
-        title="Log out"
-        onClick={session.logout}
-        className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:text-foreground"
+        aria-label="Show targets"
+        title="Show targets"
+        onClick={onExpand}
+        className="flex flex-1 items-start justify-center pt-4 text-muted-foreground hover:bg-muted hover:text-foreground"
       >
-        <LogOut size={14} strokeWidth={1.75} aria-hidden />
+        <PanelLeft size={16} strokeWidth={1.75} aria-hidden />
       </button>
-    </span>
+      <AccountMenu compact />
+    </div>
   );
 }
 
+// The user account of the login session, as a button that opens a menu above it. With login
+// off, the app has no user account and this shows nothing. `compact` shows only the avatar, for
+// the strip of a hidden rail.
+function AccountMenu({ compact = false }: { compact?: boolean }) {
+  const session = useLoginSession();
+  // The menu holds the theme choice while it is closed, so a System choice keeps following the
+  // operating system setting.
+  const [theme, setTheme] = useThemeChoice();
+  const [open, setOpen] = useState(false);
+  const host = useRef<HTMLDivElement | null>(null);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  const menuId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: MouseEvent) => {
+      if (host.current?.contains(event.target as Node)) return;
+      setOpen(false);
+      trigger.current?.focus();
+    };
+    document.addEventListener("mousedown", outside);
+    return () => document.removeEventListener("mousedown", outside);
+  }, [open]);
+
+  if (!session) return null;
+  const close = () => {
+    setOpen(false);
+    trigger.current?.focus();
+  };
+  const { username } = session.user;
+  return (
+    <div
+      ref={host}
+      className={cn("relative", compact && "flex justify-center pb-3")}
+    >
+      <button
+        ref={trigger}
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        aria-label={compact ? `Account menu of ${username}` : undefined}
+        title={username}
+        onClick={() => setOpen(!open)}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+          event.preventDefault();
+          setOpen(true);
+        }}
+        className={cn(
+          "flex items-center rounded-md text-foreground transition-colors duration-150 hover:bg-background",
+          open && "bg-background",
+          compact ? "p-0.5" : "w-full gap-2 px-2 py-1.5",
+        )}
+      >
+        {compact ? (
+          <Avatar username={username} size="sm" />
+        ) : (
+          <>
+            <Avatar username={username} size="sm" />
+            <span className="min-w-0 flex-1 truncate text-left text-sm font-medium">
+              {username}
+            </span>
+            <ChevronsUpDown
+              size={14}
+              strokeWidth={1.75}
+              aria-hidden
+              className="shrink-0 text-muted-foreground"
+            />
+          </>
+        )}
+      </button>
+      {open && (
+        <AccountMenuList
+          id={menuId}
+          session={session}
+          theme={theme}
+          onTheme={setTheme}
+          className={cn(
+            "absolute bottom-full mb-1",
+            compact ? "left-1 w-56" : "inset-x-0",
+          )}
+          onClose={close}
+        />
+      )}
+    </div>
+  );
+}
+
+// The username, then the items of the account menu. Arrow Up and Arrow Down move between the
+// rows, and Home and End go to the first and the last. On the Appearance row, Arrow Left and Arrow
+// Right move between the three themes, and a theme applies at once with the menu still open.
+// Escape and Tab close the menu.
+export function AccountMenuList({
+  id,
+  session,
+  theme,
+  onTheme,
+  className,
+  onClose,
+}: {
+  id?: string;
+  session: LoginSession;
+  theme: ThemeChoice;
+  onTheme: (choice: ThemeChoice) => void;
+  className?: string;
+  onClose: () => void;
+}) {
+  const menu = useRef<HTMLDivElement | null>(null);
+  const rows = () => [
+    ...(menu.current?.querySelectorAll<HTMLElement>(
+      '[role="menuitem"], [role="group"]',
+    ) ?? []),
+  ];
+  useEffect(() => {
+    focusRow(rows()[0]);
+  }, []);
+
+  const move = (event: KeyboardEvent<HTMLDivElement>) => {
+    const all = rows();
+    const at = all.findIndex((row) => row.contains(document.activeElement));
+    const next = {
+      ArrowDown: (at + 1) % all.length,
+      ArrowUp: (at - 1 + all.length) % all.length,
+      Home: 0,
+      End: all.length - 1,
+    }[event.key];
+    const side = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
+    const row = all[at];
+    if (next !== undefined) {
+      event.preventDefault();
+      focusRow(all[next]);
+    } else if (side !== undefined && row?.getAttribute("role") === "group") {
+      event.preventDefault();
+      const options = [
+        ...row.querySelectorAll<HTMLElement>('[role="menuitemradio"]'),
+      ];
+      const from = options.indexOf(document.activeElement as HTMLElement);
+      options[(from + side + options.length) % options.length]?.focus();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+    } else if (event.key === "Tab") {
+      onClose();
+    } else if (
+      event.key === " " &&
+      document.activeElement instanceof HTMLAnchorElement
+    ) {
+      event.preventDefault();
+      document.activeElement.click();
+    }
+  };
+
+  return (
+    <div
+      className={cn(
+        "animate-arrive z-50 flex flex-col rounded-lg border border-border bg-card p-1 text-card-foreground shadow-lg",
+        className,
+      )}
+    >
+      <p className="flex items-center gap-2 px-2 py-1.5 text-sm font-medium">
+        <Avatar username={session.user.username} size="sm" />
+        <span className="min-w-0 truncate">{session.user.username}</span>
+      </p>
+      <div
+        ref={menu}
+        id={id}
+        role="menu"
+        aria-label="Account"
+        onKeyDown={move}
+        className="flex flex-col"
+      >
+        {session.user.admin && (
+          <Link
+            href={paths.admin()}
+            role="menuitem"
+            tabIndex={-1}
+            onClick={onClose}
+            className={MENU_ITEM}
+          >
+            <MenuIcon>
+              <UsersRound size={15} strokeWidth={1.75} aria-hidden />
+            </MenuIcon>
+            Manage accounts
+          </Link>
+        )}
+        <AppearanceRow choice={theme} onChoose={onTheme} />
+        <div role="separator" className="-mx-1 my-1 h-px bg-border" />
+        <button
+          type="button"
+          role="menuitem"
+          tabIndex={-1}
+          onClick={session.logout}
+          className={MENU_ITEM}
+        >
+          <MenuIcon>
+            <LogOut size={15} strokeWidth={1.75} aria-hidden />
+          </MenuIcon>
+          Log out
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// A group row of the menu takes the focus on its chosen theme.
+function focusRow(row: HTMLElement | undefined) {
+  if (row?.getAttribute("role") === "group") {
+    row.querySelector<HTMLElement>('[aria-checked="true"]')?.focus();
+  } else {
+    row?.focus();
+  }
+}
+
+// The colour theme as one row of the account menu.
+export function AppearanceRow({
+  choice,
+  onChoose,
+}: {
+  choice: ThemeChoice;
+  onChoose: (choice: ThemeChoice) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Appearance"
+      className="flex items-center gap-2 px-2 py-1 text-sm text-foreground"
+    >
+      <MenuIcon>
+        <SunMoon size={15} strokeWidth={1.75} aria-hidden />
+      </MenuIcon>
+      <span aria-hidden className="flex-1">
+        Appearance
+      </span>
+      <ThemeOptions choice={choice} onChoose={onChoose} role="menuitemradio" />
+    </div>
+  );
+}
+
+const MENU_ITEM =
+  "flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground outline-none transition-colors duration-150 hover:bg-muted focus:bg-muted";
+
+function MenuIcon({ children }: { children: ReactNode }) {
+  return <span className="shrink-0 text-muted-foreground">{children}</span>;
+}
+
 const THEMES: Array<{ id: ThemeChoice; label: string; Icon: typeof Sun }> = [
-  { id: "system", label: "System theme", Icon: Monitor },
-  { id: "light", label: "Light theme", Icon: Sun },
-  { id: "dark", label: "Dark theme", Icon: Moon },
+  { id: "system", label: "System", Icon: Monitor },
+  { id: "light", label: "Light", Icon: Sun },
+  { id: "dark", label: "Dark", Icon: Moon },
 ];
 
-// The chosen option takes the background fill, and the others stay muted.
+// The colour theme at the foot of the rail, when login is off and the rail has no account menu.
 function ThemeSwitch() {
   const [choice, setChoice] = useThemeChoice();
   return (
-    <div
-      role="radiogroup"
-      aria-label="Colour theme"
-      className="flex w-fit items-center gap-0.5 rounded-md border border-border bg-background p-0.5"
-    >
+    <div role="radiogroup" aria-label="Colour theme">
+      <ThemeOptions choice={choice} onChoose={setChoice} role="radio" />
+    </div>
+  );
+}
+
+// The three themes as icon buttons. The chosen one takes the muted fill, and the others stay
+// muted text.
+function ThemeOptions({
+  choice,
+  onChoose,
+  role,
+}: {
+  choice: ThemeChoice;
+  onChoose: (choice: ThemeChoice) => void;
+  role: "radio" | "menuitemradio";
+}) {
+  return (
+    <div className="flex w-fit items-center gap-0.5 rounded-md border border-border bg-background p-0.5">
       {THEMES.map(({ id, label, Icon }) => (
         <button
           key={id}
           type="button"
-          role="radio"
+          role={role}
           aria-checked={choice === id}
           aria-label={label}
           title={label}
-          onClick={() => setChoice(id)}
+          tabIndex={role === "menuitemradio" ? -1 : undefined}
+          onClick={() => onChoose(id)}
           className={cn(
-            "rounded p-1.5 transition-colors",
+            "rounded p-1 transition-colors",
             choice === id
               ? "bg-muted text-foreground"
               : "text-muted-foreground hover:text-foreground",

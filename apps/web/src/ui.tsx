@@ -4,7 +4,7 @@
 // surfaces — sentence case left to the package's own strings.
 
 import { ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { createPortal } from "react-dom";
 
@@ -96,8 +96,24 @@ export function Tooltip({
 }) {
   const id = useId();
   const triggerRef = useRef<HTMLDivElement | null>(null);
+  const tipRef = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState({ left: 0, top: 0 });
+  // How far the tooltip moves from the centre of its trigger to stay inside the window. The arrow
+  // moves back by the same distance, so it still points at the trigger.
+  const [shift, setShift] = useState(0);
+
+  useLayoutEffect(() => {
+    const width = tipRef.current?.offsetWidth;
+    if (!visible || width === undefined) return;
+    const margin = 8;
+    const half = width / 2;
+    const left = Math.min(
+      Math.max(position.left, half + margin),
+      window.innerWidth - half - margin,
+    );
+    setShift(left - position.left);
+  }, [visible, position.left, label]);
 
   const showBelowTrigger = () => {
     const bounds = triggerRef.current?.getBoundingClientRect();
@@ -130,9 +146,10 @@ export function Tooltip({
         typeof document !== "undefined" &&
         createPortal(
           <div
+            ref={tipRef}
             id={id}
             role="tooltip"
-            style={{ left: position.left, top: position.top }}
+            style={{ left: position.left + shift, top: position.top }}
             className={cn(
               "pointer-events-none fixed z-[100] w-max max-w-72 -translate-x-1/2",
               "rounded-[8px] border border-border bg-foreground px-3 py-2",
@@ -141,6 +158,7 @@ export function Tooltip({
           >
             <span
               aria-hidden
+              style={{ marginLeft: -shift }}
               className="absolute left-1/2 -top-1.5 h-3 w-3 -translate-x-1/2 rotate-45 border-l border-t border-border bg-foreground"
             />
             <span className="relative">{label}</span>
@@ -231,6 +249,39 @@ export function Chip({
       )}
     >
       {children}
+    </span>
+  );
+}
+
+// The initials of a username: the first letter of each of its first two hyphen parts, so
+// "curious-otter" gives "CO" and "admin" gives "A".
+export function initials(username: string): string {
+  return username
+    .split("-")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+// A round mark with the initials of a user account. It is decoration, because the username is
+// always next to it or in the label of its control.
+export function Avatar({
+  username,
+  size = "md",
+}: {
+  username: string;
+  size?: "sm" | "md";
+}) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "inline-flex shrink-0 select-none items-center justify-center rounded-full bg-border font-semibold text-muted-foreground",
+        size === "sm" ? "h-6 w-6 text-[10px]" : "h-7 w-7 text-[11px]",
+      )}
+    >
+      {initials(username)}
     </span>
   );
 }

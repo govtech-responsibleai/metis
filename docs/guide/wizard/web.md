@@ -83,7 +83,7 @@ On your own computer, the web app has no login. A server that many people use ca
 on. Then the web app opens on a login page. Type the username and the password that you got for
 that server, and select **Log in**.
 
-The foot of the left rail shows your username. Select the icon beside it to log out. A login
+The foot of the left rail shows your username. Select it, then select **Log out**. A login
 lasts 30 days. After that, the login page shows again, and you log in with the same username
 and password.
 
@@ -93,8 +93,9 @@ To turn login on and to make a user account, see
 ## Targets and their pages
 
 Each Interview makes one Target. The rail on the left lists the Targets, newest first. Select
-**New target** at the top of the rail to start a new Interview. At the foot of the rail, the
-theme switch sets the colour theme.
+**New target** at the top of the rail to start a new Interview. To set the colour theme, select
+System, Light, or Dark. With login off, these are at the foot of the rail. With login on, select
+your username at the foot of the rail, and they are on the **Appearance** row of the menu.
 
 A Target page has two tabs:
 

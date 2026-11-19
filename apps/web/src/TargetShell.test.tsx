@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Router } from "wouter";
 import { ComparePage } from "./ExperimentPages";
@@ -14,7 +15,13 @@ import { at, control, tab, text } from "./markup.test-helper";
 import { ProfileToolbar } from "./ProfileToolbar";
 import type { ListLoad, RowLoad } from "./ExperimentList";
 import { ExperimentsTabView, TargetTabs } from "./TargetPage";
-import { TargetRail } from "./TargetRail";
+import {
+  AccountMenuList,
+  AppearanceRow,
+  CollapsedRail,
+  TargetRail,
+} from "./TargetRail";
+import { THEME_STORAGE_KEY, useThemeChoice } from "./theme";
 
 const startButton = (markup: string) => control(markup, "Start an experiment");
 
@@ -40,43 +47,174 @@ test("the rail links New target and each Target", () => {
   assert.match(control(markup, "New target"), /^<a[^>]*href="\/targets\/new"/);
   assert.match(control(markup, "Bank bot"), /^<a[^>]*href="\/targets\/a"/);
   assert.match(control(markup, "Shop bot"), /^<a[^>]*href="\/targets\/b"/);
-  assert.match(markup, /role="radiogroup" aria-label="Colour theme"/);
   assert.doesNotMatch(markup, /aria-current/);
 });
 
-test("the rail has no user and no logout control when login is off", () => {
+test("with login off, the rail foot has the colour theme and no account menu", () => {
   const markup = rail(null);
 
+  assert.match(markup, /role="radiogroup" aria-label="Colour theme"/);
+  assert.deepEqual(
+    [...markup.matchAll(/role="radio"[^>]*aria-label="(\w+)"/g)].map(
+      ([, label]) => label,
+    ),
+    ["System", "Light", "Dark"],
+  );
+  assert.doesNotMatch(markup, /aria-haspopup="menu"/);
   assert.doesNotMatch(markup, /Log out/);
 });
 
-test("the rail names the current user and offers logout in a login session", () => {
-  const user = {
-    id: "3f6c2a9d5b7e4c1e8a0f2d4b6c8e0a1c",
-    username: "curious-otter",
-    created_at: "2026-11-14T08:30:00Z",
-    admin: false,
-  };
+const otter = {
+  id: "3f6c2a9d5b7e4c1e8a0f2d4b6c8e0a1c",
+  username: "curious-otter",
+  created_at: "2026-11-14T08:30:00Z",
+  admin: false,
+};
 
+test("the rail shows the avatar and the name of the current user on a closed account menu button", () => {
   const markup = renderToStaticMarkup(
-    <LoginSessionProvider value={{ user, logout: () => {} }}>
-      {
-        <Router ssrPath="/">
-          <TargetRail
-            targets={[]}
-            problems={[]}
-            selectedId={null}
-            activeIds={new Set()}
-            onNew={() => {}}
-            onDelete={() => {}}
-          />
-        </Router>
-      }
+    <LoginSessionProvider value={{ user: otter, logout: () => {} }}>
+      <Router ssrPath="/">
+        <TargetRail
+          targets={[]}
+          problems={[]}
+          selectedId={null}
+          activeIds={new Set()}
+          onNew={() => {}}
+          onDelete={() => {}}
+        />
+        <CollapsedRail onExpand={() => {}} />
+      </Router>
     </LoginSessionProvider>,
   );
+  const [open, compact] = [
+    ...markup.matchAll(
+      /<button[^>]*aria-haspopup="menu"[^>]*>(.*?)<\/button>/g,
+    ),
+  ];
 
-  assert.match(text(markup), /curious-otter/);
-  assert.match(markup, /<button[^>]*aria-label="Log out"/);
+  assert.match(open?.[0] ?? "", /aria-expanded="false"/);
+  assert.match(text(open?.[1] ?? ""), /^COcurious-otter$/);
+  assert.equal(text(compact?.[1] ?? ""), "CO");
+  assert.match(open?.[1] ?? "", /lucide-chevrons-up-down/);
+  assert.match(
+    compact?.[0] ?? "",
+    /aria-label="Account menu of curious-otter"/,
+  );
+  assert.doesNotMatch(markup, /role="menu"/);
+  assert.doesNotMatch(markup, /Log out/);
+  assert.doesNotMatch(markup, /role="radio/);
+});
+
+test("the account menu shows the avatar and the username, then Manage accounts for an admin, Appearance, and Log out", () => {
+  const menu = (admin: boolean) => {
+    const markup = at(
+      "/",
+      <AccountMenuList
+        session={{ user: { ...otter, admin }, logout: () => {} }}
+        theme="dark"
+        onTheme={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    const rows = [
+      ...markup.matchAll(
+        /<(a|button)[^>]*role="menuitem"[^>]*>(.*?)<\/\1>|role="group" aria-label="(Appearance)"/g,
+      ),
+    ].map(([item, , inner, group]) => ({
+      item,
+      label: group ?? text(inner ?? ""),
+    }));
+    return { markup, rows };
+  };
+
+  const participant = menu(false);
+  assert.match(
+    participant.markup,
+    /^<div[^>]*><p[^>]*><span[^>]*>CO<\/span><span[^>]*>curious-otter<\/span><\/p><div[^>]*role="menu"/,
+  );
+  assert.deepEqual(
+    participant.rows.map(({ label }) => label),
+    ["Appearance", "Log out"],
+  );
+  const options = [
+    ...participant.markup.matchAll(/<button[^>]*role="menuitemradio"[^>]*>/g),
+  ].map(([option]) => option);
+  assert.deepEqual(
+    options.map((option) => /aria-label="(\w+)"/.exec(option)?.[1]),
+    ["System", "Light", "Dark"],
+  );
+  assert.deepEqual(
+    options.map((option) => /aria-checked="(\w+)"/.exec(option)?.[1]),
+    ["false", "false", "true"],
+  );
+
+  const admin = menu(true);
+  assert.deepEqual(
+    admin.rows.map(({ label }) => label),
+    ["Manage accounts", "Appearance", "Log out"],
+  );
+  assert.match(admin.rows[0]?.item ?? "", /href="\/admin"/);
+});
+
+// The element of `node` that matches `found`, with each function component called to give its
+// elements. It works only for components that use no hooks.
+function elementIn(
+  node: ReactNode,
+  found: (props: Record<string, unknown>) => boolean,
+): ReactElement<Record<string, unknown>> | undefined {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const match = elementIn(child as ReactNode, found);
+      if (match) return match;
+    }
+    return undefined;
+  }
+  if (!isValidElement<Record<string, unknown>>(node)) return undefined;
+  if (typeof node.type === "function") {
+    return elementIn(
+      (node.type as (props: unknown) => ReactNode)(node.props),
+      found,
+    );
+  }
+  if (found(node.props)) return node;
+  return elementIn(node.props.children as ReactNode, found);
+}
+
+test("picking a theme in the account menu stores the theme choice", () => {
+  const stored = new Map<string, string>();
+  Object.assign(globalThis, {
+    window: {
+      localStorage: {
+        getItem: (key: string) => stored.get(key) ?? null,
+        setItem: (key: string, value: string) => stored.set(key, value),
+        removeItem: (key: string) => stored.delete(key),
+      },
+    },
+  });
+  try {
+    let row: ReactNode = null;
+    function Menu() {
+      const [choice, setChoice] = useThemeChoice();
+      row = <AppearanceRow choice={choice} onChoose={setChoice} />;
+      return null;
+    }
+    renderToStaticMarkup(<Menu />);
+    const pick = (label: string) =>
+      (
+        elementIn(row, (props) => props["aria-label"] === label)?.props
+          .onClick as () => void
+      )();
+
+    pick("Dark");
+    assert.equal(stored.get(THEME_STORAGE_KEY), "dark");
+    pick("Light");
+    assert.equal(stored.get(THEME_STORAGE_KEY), "light");
+    pick("System");
+    assert.equal(stored.has(THEME_STORAGE_KEY), false);
+  } finally {
+    Reflect.deleteProperty(globalThis, "window");
+  }
 });
 
 test("the login page asks for a username and a password", () => {
