@@ -13,7 +13,7 @@ from metis.api.store import LOCAL_USER_ID, Store
 from metis.api.tables import targets, users
 from tests.fixtures.api.records import done_state, put_interview, ref, web_record
 
-ADMIN = {"Authorization": "Bearer workshop-admin-token"}
+JOIN = {"Authorization": "Bearer workshop-join-token"}
 TARGET = "20261114-101500-interview-k7mwp"
 OTHER_TARGET = "20261114-101500-interview-x3r9t"
 EXPERIMENT = "bank-bot-20261114-101500"
@@ -23,7 +23,7 @@ MakeClient = Callable[..., TestClient]
 @pytest.fixture
 def login_on(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("METIS_LOGIN", "1")
-    monkeypatch.setenv("METIS_ADMIN_TOKEN", "workshop-admin-token")
+    monkeypatch.setenv("METIS_JOIN_TOKEN", "workshop-join-token")
     monkeypatch.delenv("HOST", raising=False)
 
 
@@ -31,7 +31,7 @@ def _user(make_client: MakeClient) -> tuple[TestClient, str]:
     """A browser of a new user account in a login session, and the id of the account."""
     client = make_client()
     client.__enter__()
-    user = client.post("/api/v1/users", headers=ADMIN).json()
+    user = client.post("/api/v1/users", headers=JOIN).json()
     login = client.post(
         "/api/v1/auth/login",
         json={"username": user["username"], "password": user["password"]},
@@ -187,7 +187,7 @@ def test_a_user_sees_their_records_from_a_new_browser(
     login_on: None, make_client: MakeClient
 ) -> None:
     with make_client() as first, make_client() as second:
-        user = first.post("/api/v1/users", headers=ADMIN).json()
+        user = first.post("/api/v1/users", headers=JOIN).json()
         credentials = {"username": user["username"], "password": user["password"]}
         assert first.post("/api/v1/auth/login", json=credentials).status_code == 200
         _save(first, "Bank bot", b"policy")
@@ -224,7 +224,7 @@ def test_a_user_does_not_see_the_records_of_the_local_user_account(
     with make_client() as laptop:
         _save(laptop, "Bank bot", b"policy")
     monkeypatch.setenv("METIS_LOGIN", "1")
-    monkeypatch.setenv("METIS_ADMIN_TOKEN", "workshop-admin-token")
+    monkeypatch.setenv("METIS_JOIN_TOKEN", "workshop-join-token")
     client, _ = _user(make_client)
     with client:
         assert client.get("/api/v1/targets").json()["targets"] == []
@@ -241,7 +241,7 @@ def test_with_login_on_the_input_folder_starts_in_the_folder_of_the_user_account
     project_dir: Path,
 ) -> None:
     client = make_engine_client()
-    account = client.post("/api/v1/users", headers=ADMIN).json()
+    account = client.post("/api/v1/users", headers=JOIN).json()
     client.post(
         "/api/v1/auth/login",
         json={"username": account["username"], "password": account["password"]},

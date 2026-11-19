@@ -674,7 +674,7 @@ export interface paths {
         };
         /**
          * List the user accounts
-         * @description Return each user account with its id, username, and creation time.
+         * @description Return each user account with its id, username, creation time, and admin flag.
          */
         get: operations["list_users_api_v1_users_get"];
         put?: never;
@@ -683,7 +683,9 @@ export interface paths {
          * @description Make a user account and return its username and password.
          *
          *     METIS makes both values. This response is the only one that has the password. Each request
-         *     makes one more user account.
+         *     makes one more user account. An admin makes a user account of each kind. The join token
+         *     makes a user account that is not an admin, and `{"admin": true}` with the join token gets
+         *     403 `admin_required`.
          */
         post: operations["create_user_api_v1_users_post"];
         delete?: never;
@@ -2503,7 +2505,7 @@ export interface components {
         };
         /**
          * NewUserAccountBody
-         * @description A new user account with its password. No later response gives the password again.
+         * @description A user account with its new password. No later response gives the password again.
          */
         NewUserAccountBody: {
             /** Id */
@@ -2515,8 +2517,21 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Admin */
+            admin: boolean;
             /** Password */
             password: string;
+        };
+        /**
+         * NewUserRequest
+         * @description The kind of user account to make. Only an admin can make an admin.
+         */
+        NewUserRequest: {
+            /**
+             * Admin
+             * @default false
+             */
+            admin: boolean;
         };
         /**
          * Option
@@ -3704,7 +3719,8 @@ export interface components {
         };
         /**
          * UserAccountBody
-         * @description One user account. It never holds a password or a password hash.
+         * @description One user account. It never holds a password or a password hash. ``admin`` is true for an
+         *     admin.
          */
         UserAccountBody: {
             /** Id */
@@ -3716,6 +3732,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Admin */
+            admin: boolean;
         };
         /**
          * UserAccountList
@@ -5456,6 +5474,15 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -5492,7 +5519,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["NewUserRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             201: {
@@ -5505,6 +5536,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5572,6 +5612,15 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -5619,6 +5668,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5675,6 +5733,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

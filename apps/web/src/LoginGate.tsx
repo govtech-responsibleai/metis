@@ -307,13 +307,10 @@ export function LoginPage({
   );
 }
 
-// A wrong token gets 401, and a server with no admin token gets 404.
+// A wrong join token gets 401. A server with no join token gives the same answer.
 export function joinFailure(failure: unknown): string {
-  if (failure instanceof TransportError) {
-    if (failure.status === 401) return "Incorrect, please try again.";
-    if (failure.status === 404)
-      return "This METIS server has no workshop joining.";
-  }
+  if (failure instanceof TransportError && failure.status === 401)
+    return "The join token is not correct. Try again.";
   return failure instanceof Error ? failure.message : "The join failed.";
 }
 
@@ -330,7 +327,7 @@ function JoinWorkshop({
     event.preventDefault();
     setSending(true);
     setError(null);
-    users.create(token.trim()).then(onJoined, (failure: unknown) => {
+    users.join(token.trim()).then(onJoined, (failure: unknown) => {
       setSending(false);
       setError(joinFailure(failure));
     });
@@ -346,7 +343,7 @@ function JoinWorkshop({
           Joining a workshop?
         </h2>
         <p className="text-sm text-muted-foreground">
-          Enter the admin token to create an account.
+          Enter the join token to create an account.
         </p>
       </div>
       <div className="flex gap-2">

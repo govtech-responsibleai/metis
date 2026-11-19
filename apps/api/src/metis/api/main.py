@@ -104,9 +104,10 @@ _OPENAPI_TAGS = [
     {
         "name": "users",
         "description": (
-            "Make and list user accounts. Each request needs the admin token of the server "
-            "in an Authorization: Bearer header. The routes are off when the server has no "
-            "admin token."
+            "Make and list user accounts. The login "
+            "session of an admin, or the admin token in an Authorization: Bearer header, "
+            "opens each user route. The join token in that header can only make a user "
+            "account that is not an admin."
         ),
     },
     {
@@ -139,7 +140,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     The app builds the store from the settings when the caller did not give one. The user
     accounts use the database of the store.
 
-    Login settings that disagree stop the start. See ``login_from_env``.
+    Login settings that disagree stop the start. See ``login_from_env``. When the environment
+    names an admin, the app makes that admin or sets its password before the first request.
 
     Before it accepts a request, the app sets up the process for the engine one time. At
     shutdown it stops the engine run and waits for it, for at most the stop time limit.
@@ -161,12 +163,16 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     if getattr(app.state, "store", None) is None:
         owned = Store(settings.database_url, settings.project_dir)
         app.state.store = owned
-    app.state.login = settings.login
-    app.state.admin_token = settings.admin_token
+    app.state.login = settings.login.login
+    app.state.join_token = settings.login.join_token
+    app.state.admin_token = settings.login.admin_token
     app.state.secure_cookie = settings.secure_cookie
-    app.state.accounts = Accounts(
-        app.state.store.engine, server_dir=app.state.store.project_dir
-    )
+    accounts = Accounts(app.state.store.engine, server_dir=app.state.store.project_dir)
+    app.state.accounts = accounts
+    admin = settings.login.admin
+    app.state.environment_admin = admin.username if admin is not None else None
+    if admin is not None:
+        await asyncio.to_thread(accounts.ensure_admin, admin.username, admin.password)
     try:
         yield
     finally:

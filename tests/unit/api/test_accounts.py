@@ -1,4 +1,4 @@
-"""User accounts, the admin token, login sessions, and the guard of the other routes."""
+"""User accounts, admins, the two tokens, login sessions, and the guard of the other routes."""
 
 from __future__ import annotations
 
@@ -15,11 +15,15 @@ from sqlalchemy import select, update
 
 from metis.api.accounts import Accounts, hash_password, verify_password
 from metis.api.main import create_app
+from metis.api.routes.accounts import users_router
 from metis.api.settings import Settings, SettingsError
 from metis.api.store import Store
 from metis.api.tables import login_sessions, users
 
-ADMIN = {"Authorization": "Bearer workshop-admin-token"}
+JOIN = {"Authorization": "Bearer workshop-join-token"}
+ADMIN_TOKEN = {"Authorization": "Bearer facilitator-admin-token"}
+ADMIN_USERNAME = "workshop-lead"
+ADMIN_PASSWORD = "Lead-Pass-For-The-Workshop"
 USERS = "/api/v1/users"
 LOGIN = "/api/v1/auth/login"
 LOGOUT = "/api/v1/auth/logout"
@@ -30,9 +34,12 @@ MakeClient = Callable[..., TestClient]
 
 @pytest.fixture
 def login_on(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A server with login on and an admin token."""
+    """A server with login on, a join token, an admin token, and an admin in the environment."""
     monkeypatch.setenv("METIS_LOGIN", "1")
-    monkeypatch.setenv("METIS_ADMIN_TOKEN", "workshop-admin-token")
+    monkeypatch.setenv("METIS_JOIN_TOKEN", "workshop-join-token")
+    monkeypatch.setenv("METIS_ADMIN_TOKEN", "facilitator-admin-token")
+    monkeypatch.setenv("METIS_ADMIN_USERNAME", ADMIN_USERNAME)
+    monkeypatch.setenv("METIS_ADMIN_PASSWORD", ADMIN_PASSWORD)
     monkeypatch.delenv("HOST", raising=False)
 
 
@@ -43,10 +50,25 @@ def browser(login_on: None, make_client: MakeClient) -> TestClient:
         yield client
 
 
+@pytest.fixture
+def admin(login_on: None, make_client: MakeClient) -> TestClient:
+    """A browser in a login session of the admin of the environment."""
+    with make_client() as client:
+        response = client.post(
+            LOGIN, json={"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD}
+        )
+        assert response.status_code == 200
+        yield client
+
+
 def _new_user(client: TestClient) -> dict[str, str]:
-    response = client.post(USERS, headers=ADMIN)
+    response = client.post(USERS, headers=JOIN)
     assert response.status_code == 201
     return response.json()
+
+
+def _account(user: dict[str, str]) -> dict[str, object]:
+    return {key: user[key] for key in ("id", "username", "created_at", "admin")}
 
 
 def _log_in(client: TestClient, user: dict[str, str]):
@@ -55,26 +77,52 @@ def _log_in(client: TestClient, user: dict[str, str]):
     )
 
 
-def test_the_admin_token_makes_user_accounts_and_lists_them_without_a_password(
+def test_the_join_token_makes_user_accounts_that_are_not_admins(
     browser: TestClient, store: Store
 ) -> None:
     first = _new_user(browser)
-    second = _new_user(browser)
+    second = browser.post(USERS, headers=JOIN, json={"admin": False}).json()
 
     assert re.fullmatch(r"[a-z]+-[a-z]+", first["username"])
     assert re.fullmatch(r"[a-hj-km-np-z2-9]{5}-[a-hj-km-np-z2-9]{5}", first["password"])
+    assert first["admin"] is False
+    assert second["admin"] is False
     with store.engine.connect() as connection:
         saved = connection.execute(select(users).where(users.c.id == first["id"])).one()
     assert first["password"] not in saved.password_hash
     assert verify_password(first["password"], saved.password_hash)
 
-    listed = browser.get(USERS, headers=ADMIN)
 
+def test_the_join_token_cannot_make_an_admin(browser: TestClient) -> None:
+    response = browser.post(USERS, headers=JOIN, json={"admin": True})
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "admin_required"
+
+
+def test_an_admin_lists_the_user_accounts_and_makes_an_admin(
+    admin: TestClient, make_client: MakeClient
+) -> None:
+    participant = _new_user(admin)
+
+    made = admin.post(USERS, json={"admin": True})
+
+    assert made.status_code == 201
+    second_admin = made.json()
+    assert second_admin["admin"] is True
+    listed = admin.get(USERS)
     assert listed.status_code == 200
-    assert listed.json()["users"] == [
-        {key: user[key] for key in ("id", "username", "created_at")}
-        for user in (first, second)
+    rows = listed.json()["users"]
+    assert [row["username"] for row in rows] == [
+        ADMIN_USERNAME,
+        participant["username"],
+        second_admin["username"],
     ]
+    assert [row["admin"] for row in rows] == [True, False, True]
+    assert all("password" not in row for row in rows)
+    with make_client() as other:
+        assert _log_in(other, second_admin).json()["user"]["admin"] is True
+        assert other.get(USERS).status_code == 200
 
 
 def test_a_taken_username_gets_another_name(
@@ -90,57 +138,154 @@ def test_a_taken_username_gets_another_name(
     assert re.fullmatch(r"calm-heron-\d{3}", made[2])
 
 
+def _user_routes(username: str) -> tuple[tuple[str, str], ...]:
+    return (
+        ("get", USERS),
+        ("post", USERS),
+    )
+
+
 @pytest.mark.parametrize(
     "headers",
     [
-        {},
         {"Authorization": "Bearer wrong-token"},
-        {"Authorization": "Basic workshop-admin-token"},
-        {"Authorization": "workshop-admin-token"},
+        {"Authorization": "Basic facilitator-admin-token"},
+        {"Authorization": "facilitator-admin-token"},
+        {"Authorization": ""},
     ],
 )
-def test_the_user_routes_refuse_a_request_without_the_admin_token(
-    browser: TestClient, headers: dict[str, str]
+def test_a_wrong_token_gets_no_user_route_even_with_the_cookie_of_an_admin(
+    admin: TestClient, headers: dict[str, str]
 ) -> None:
-    for response in (
-        browser.post(USERS, headers=headers),
-        browser.get(USERS, headers=headers),
-    ):
-        assert response.status_code == 401
-        assert response.json()["code"] == "invalid_admin_token"
+    user = _new_user(admin)
+
+    for method, path in _user_routes(user["username"]):
+        response = admin.request(method, path, headers=headers)
+        assert response.status_code == 401, path
+        assert response.json()["code"] == "invalid_token"
         assert response.headers["WWW-Authenticate"] == "Bearer"
-    assert browser.get(USERS, headers=ADMIN).json() == {"users": []}
+    assert [row["username"] for row in admin.get(USERS).json()["users"]] == [
+        ADMIN_USERNAME,
+        user["username"],
+    ]
+    assert _log_in(admin, user).status_code == 200
 
 
-def test_the_api_description_names_the_admin_token_for_the_user_routes(
+def test_the_admin_token_opens_each_user_route_with_no_login_session(
+    login_on: None, make_client: MakeClient
+) -> None:
+    with make_client() as script:
+        participant = script.post(USERS, headers=ADMIN_TOKEN)
+        made_admin = script.post(USERS, headers=ADMIN_TOKEN, json={"admin": True})
+        listed = script.get(USERS, headers=ADMIN_TOKEN)
+        username = participant.json()["username"]
+
+        assert script.cookies.get("metis_login") is None
+        assert (participant.status_code, participant.json()["admin"]) == (201, False)
+        assert (made_admin.status_code, made_admin.json()["admin"]) == (201, True)
+        assert listed.status_code == 200
+        assert [row["username"] for row in listed.json()["users"]] == [
+            ADMIN_USERNAME,
+            username,
+            made_admin.json()["username"],
+        ]
+
+
+def test_the_join_token_opens_no_user_route_but_the_join(browser: TestClient) -> None:
+    user = _new_user(browser)
+
+    for method, path in _user_routes(user["username"]):
+        response = browser.request(
+            method,
+            path,
+            headers=JOIN,
+            json={"admin": True} if method == "post" else None,
+        )
+        assert response.status_code == 403, path
+        assert response.json()["code"] == "admin_required"
+    assert _log_in(browser, user).status_code == 200
+
+
+def test_the_user_routes_need_the_login_session_of_an_admin(
+    browser: TestClient,
+) -> None:
+    user = _new_user(browser)
+    routes = _user_routes(user["username"])
+    for method, path in routes:
+        response = browser.request(method, path)
+        assert response.status_code == 401, path
+        assert response.json()["code"] == "login_required"
+
+    assert _log_in(browser, user).status_code == 200
+
+    for method, path in routes:
+        response = browser.request(method, path)
+        assert response.status_code == 403, path
+        assert response.json()["code"] == "admin_required"
+
+
+def test_each_user_route_refuses_a_request_with_no_credentials(
+    browser: TestClient,
+) -> None:
+    for route in users_router.routes:
+        for method in route.methods:
+            path = route.path.replace("{username}", ADMIN_USERNAME)
+            response = browser.request(method, path)
+            assert response.status_code == 401, f"{method} {route.path}"
+            assert response.json()["code"] == "login_required"
+
+
+def test_the_api_description_names_the_credentials_of_the_user_routes(
     browser: TestClient,
 ) -> None:
     schema = browser.app.openapi()
 
-    assert schema["components"]["securitySchemes"]["AdminToken"]["scheme"] == "bearer"
-    for method in ("post", "get"):
-        assert schema["paths"][USERS][method]["security"] == [{"AdminToken": []}]
+    schemes = schema["components"]["securitySchemes"]
+    assert schemes["JoinToken"]["scheme"] == "bearer"
+    assert schemes["AdminToken"]["scheme"] == "bearer"
+    assert schemes["LoginSession"] == {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "metis_login",
+        "description": "The cookie of a login session, which the login route sets.",
+    }
+    assert schema["paths"][USERS]["post"]["security"] == [
+        {"JoinToken": []},
+        {"LoginSession": []},
+        {"AdminToken": []},
+    ]
+    for path, method in ((USERS, "get"),):
+        assert schema["paths"][path][method]["security"] == [
+            {"LoginSession": []},
+            {"AdminToken": []},
+        ]
     assert "security" not in schema["paths"][LOGIN]["post"]
 
 
-def test_the_user_routes_are_off_when_the_server_has_no_admin_token(
+def test_a_server_without_tokens_refuses_each_token_and_keeps_the_admin_routes(
     make_client: MakeClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("METIS_LOGIN", "1")
+    monkeypatch.setenv("METIS_ADMIN_USERNAME", ADMIN_USERNAME)
+    monkeypatch.setenv("METIS_ADMIN_PASSWORD", ADMIN_PASSWORD)
     with make_client() as client:
-        for response in (
-            client.post(USERS, headers=ADMIN),
-            client.get(USERS, headers=ADMIN),
-        ):
-            assert response.status_code == 404
-            assert response.json()["code"] == "not_found"
+        for headers in (JOIN, ADMIN_TOKEN, {"Authorization": "Bearer "}):
+            joined = client.post(USERS, headers=headers)
+            assert joined.status_code == 401
+            assert joined.json()["code"] == "invalid_token"
+
+        body = {"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD}
+        assert client.post(LOGIN, json=body).status_code == 200
+        assert client.post(USERS).status_code == 201
+        assert len(client.get(USERS).json()["users"]) == 2
 
 
-def test_the_admin_token_does_not_open_the_other_routes(browser: TestClient) -> None:
-    response = browser.get("/api/v1/targets", headers=ADMIN)
+def test_the_tokens_do_not_open_the_other_routes(browser: TestClient) -> None:
+    for headers in (JOIN, ADMIN_TOKEN):
+        response = browser.get("/api/v1/targets", headers=headers)
 
-    assert response.status_code == 401
-    assert response.json()["code"] == "login_required"
+        assert response.status_code == 401
+        assert response.json()["code"] == "login_required"
 
 
 def test_a_route_needs_a_login_session_when_login_is_on(browser: TestClient) -> None:
@@ -164,7 +309,7 @@ def test_a_login_gives_a_cookie_that_opens_the_routes_until_logout(
     logged_in = _log_in(browser, user)
 
     assert logged_in.status_code == 200
-    account = {key: user[key] for key in ("id", "username", "created_at")}
+    account = _account(user)
     assert logged_in.json() == {"login": True, "user": account}
     cookie = logged_in.headers["set-cookie"]
     assert "HttpOnly" in cookie
@@ -356,22 +501,142 @@ def test_with_login_off_each_route_is_open_and_no_user_is_current(
         assert client.post(LOGOUT).status_code == 204
         login = client.post(LOGIN, json={"username": "a", "password": "b"})
         assert login.status_code == 404
-        assert client.get(USERS, headers=ADMIN).status_code == 404
+        assert client.get(USERS, headers=JOIN).status_code == 404
+        assert client.post(USERS, headers=JOIN).status_code == 404
 
 
+@pytest.mark.parametrize(
+    ("env", "message"),
+    [
+        ({"METIS_JOIN_TOKEN": "workshop-join-token"}, "METIS_LOGIN=1"),
+        ({"METIS_ADMIN_TOKEN": "facilitator-admin-token"}, "METIS_LOGIN=1"),
+        (
+            {
+                "METIS_LOGIN": "1",
+                "METIS_JOIN_TOKEN": "one-token",
+                "METIS_ADMIN_TOKEN": "one-token",
+            },
+            "are the same",
+        ),
+        (
+            {
+                "METIS_ADMIN_USERNAME": ADMIN_USERNAME,
+                "METIS_ADMIN_PASSWORD": ADMIN_PASSWORD,
+            },
+            "METIS_LOGIN=1",
+        ),
+        (
+            {"METIS_LOGIN": "1", "METIS_ADMIN_USERNAME": ADMIN_USERNAME},
+            "set METIS_ADMIN_PASSWORD too",
+        ),
+        (
+            {"METIS_LOGIN": "1", "METIS_ADMIN_PASSWORD": ADMIN_PASSWORD},
+            "set METIS_ADMIN_USERNAME too",
+        ),
+        (
+            {
+                "METIS_LOGIN": "1",
+                "METIS_ADMIN_USERNAME": "Workshop Lead",
+                "METIS_ADMIN_PASSWORD": ADMIN_PASSWORD,
+            },
+            "lower-case letters, digits, and hyphens",
+        ),
+        ({"METIS_LOGIN": "yes"}, "METIS_LOGIN must be 1 or 0"),
+    ],
+)
 def test_the_server_does_not_start_with_login_settings_that_are_wrong(
-    store: Store, monkeypatch: pytest.MonkeyPatch
+    store: Store,
+    monkeypatch: pytest.MonkeyPatch,
+    env: dict[str, str],
+    message: str,
 ) -> None:
-    monkeypatch.setenv("METIS_ADMIN_TOKEN", "workshop-admin-token")
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
     with (
-        pytest.raises(SettingsError, match="METIS_LOGIN=1"),
+        pytest.raises(SettingsError, match=message),
         TestClient(create_app(store=store)),
     ):
         pass
 
-    monkeypatch.setenv("METIS_LOGIN", "yes")
-    with pytest.raises(SettingsError, match="METIS_LOGIN must be 1 or 0"):
-        Settings.from_env()
+
+def test_the_settings_repr_shows_no_login_secret(
+    login_on: None,
+) -> None:
+    settings = Settings.from_env()
+
+    assert "workshop-join-token" not in repr(settings)
+    assert "facilitator-admin-token" not in repr(settings)
+    assert ADMIN_PASSWORD not in repr(settings)
+
+
+def test_the_admin_of_the_environment_logs_in_with_the_case_of_its_password(
+    browser: TestClient, project_dir: Path
+) -> None:
+    wrong_case = browser.post(
+        LOGIN, json={"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD.lower()}
+    )
+    assert wrong_case.status_code == 401
+
+    response = browser.post(
+        LOGIN,
+        json={"username": ADMIN_USERNAME.upper(), "password": f" {ADMIN_PASSWORD} "},
+    )
+
+    assert response.status_code == 200
+    user = response.json()["user"]
+    assert user["username"] == ADMIN_USERNAME
+    assert user["admin"] is True
+    assert browser.get(ME).json()["user"]["admin"] is True
+    user_file = project_dir / "users" / user["id"] / "user.json"
+    assert ADMIN_PASSWORD not in user_file.read_text()
+
+
+def test_a_new_password_in_the_environment_replaces_the_old_one_at_the_next_start(
+    admin: TestClient, make_client: MakeClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first_id = admin.get(ME).json()["user"]["id"]
+    new_password = "A-New-Pass-For-The-Workshop"
+    monkeypatch.setenv("METIS_ADMIN_PASSWORD", new_password)
+
+    with make_client() as restarted:
+        assert restarted.get(USERS).status_code == 401
+        old = {"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD}
+        assert restarted.post(LOGIN, json=old).status_code == 401
+        new = {"username": ADMIN_USERNAME, "password": new_password}
+        logged_in = restarted.post(LOGIN, json=new)
+        assert logged_in.status_code == 200
+        assert logged_in.json()["user"]["id"] == first_id
+        assert len(restarted.get(USERS).json()["users"]) == 1
+    assert admin.get(ME).status_code == 401
+
+
+def test_a_start_with_the_same_admin_keeps_its_login_sessions(
+    admin: TestClient, make_client: MakeClient
+) -> None:
+    with make_client() as restarted:
+        assert restarted.get("/health").status_code == 200
+
+    assert admin.get(ME).status_code == 200
+
+
+def test_the_environment_makes_an_existing_user_account_an_admin(
+    store: Store, make_client: MakeClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    existing = Accounts(store.engine).create()
+    monkeypatch.setenv("METIS_LOGIN", "1")
+    monkeypatch.setenv("METIS_ADMIN_USERNAME", existing.account.username)
+    monkeypatch.setenv("METIS_ADMIN_PASSWORD", ADMIN_PASSWORD)
+
+    with make_client() as client:
+        body = {"username": existing.account.username, "password": ADMIN_PASSWORD}
+        response = client.post(LOGIN, json=body)
+
+    assert response.json()["user"] == {
+        "id": existing.account.id,
+        "username": existing.account.username,
+        "created_at": existing.account.created_at.isoformat().replace("+00:00", "Z"),
+        "admin": True,
+    }
 
 
 def test_a_user_account_without_a_password_hash_accepts_no_password() -> None:

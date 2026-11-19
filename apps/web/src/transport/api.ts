@@ -793,12 +793,12 @@ export const auth = {
   },
 };
 
-// The user routes need the admin token of the server. The caller keeps the token in memory only.
+// `join` sends the join token of the server, and the caller keeps the token in memory only.
 export const users = {
-  create: (adminToken: string) =>
+  join: (joinToken: string) =>
     call<NewUserAccount>("/api/v1/users", {
       method: "POST",
-      headers: { Authorization: `Bearer ${adminToken}` },
+      headers: { Authorization: `Bearer ${joinToken}` },
     }),
 };
 

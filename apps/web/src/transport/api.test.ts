@@ -573,7 +573,7 @@ test("login sends the credentials as JSON and logout sends a POST", async () => 
   ]);
 });
 
-test("a new user account sends the admin token as a bearer token", async () => {
+test("a join sends the join token as a bearer token", async () => {
   let asked = 0;
   const stop = onLoginRequired(() => {
     asked += 1;
@@ -592,6 +592,7 @@ test("a new user account sends the admin token as a bearer token", async () => {
             id: "u1",
             username: "brave-otter",
             created_at: "2026-11-17T00:00:00Z",
+            admin: false,
             password: "k3m7p-x9q2r",
           }),
           { status: 201 },
@@ -599,8 +600,8 @@ test("a new user account sends the admin token as a bearer token", async () => {
       : failure(401, "invalid_admin_token", "The request needs the token.");
   };
 
-  const account = await users.create("workshop-token");
-  await assert.rejects(users.create("wrong"), { status: 401 });
+  const account = await users.join("workshop-token");
+  await assert.rejects(users.join("wrong"), { status: 401 });
 
   assert.equal(account.password, "k3m7p-x9q2r");
   assert.deepEqual(calls, [

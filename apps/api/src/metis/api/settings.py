@@ -15,6 +15,7 @@ roles, and each Interview route returns 503 `model_unavailable`.
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, TypeAlias
@@ -53,11 +54,24 @@ _LOCAL_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 
 LOGIN_ENV = "METIS_LOGIN"
 """`1` turns login on. Then each `/api` route needs a login session, except the login route, the
-logout route, and the user routes that the admin token protects. Login is off when the variable is unset or `0`."""
+logout route, and the route that makes a user account. Login is off when the variable is unset or `0`."""
+
+JOIN_TOKEN_ENV = "METIS_JOIN_TOKEN"
+"""The join token: it makes user accounts that are not admins. It can do nothing else: it lists
+no user account, reads no record, and starts no login session. Participants of a workshop know
+it."""
 
 ADMIN_TOKEN_ENV = "METIS_ADMIN_TOKEN"
-"""The token of the routes that make and list user accounts. Those routes are off when it is
-unset. It can do nothing else: it reads no record of a user account and starts no login session."""
+"""The admin token: a script or a curl command sends it to use each user route with the power of
+an admin, with no login session. It opens no other route. Only the operator keeps it."""
+
+ADMIN_USERNAME_ENV = "METIS_ADMIN_USERNAME"
+"""The username of the admin that the environment names. Set it with ``METIS_ADMIN_PASSWORD``."""
+
+ADMIN_PASSWORD_ENV = "METIS_ADMIN_PASSWORD"
+"""The password of the admin that the environment names. Set it with ``METIS_ADMIN_USERNAME``."""
+
+_USERNAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 
 DATABASE_URL_ENV = "METIS_DATABASE_URL"
 """The SQLAlchemy URL of the store database. The default is
@@ -156,24 +170,89 @@ def is_local_host() -> bool:
     return os.environ.get("HOST", DEFAULT_HOST).strip() in _LOCAL_HOSTS
 
 
-def login_from_env() -> tuple[bool, str]:
-    """Whether login is on, and the admin token. An unset token is the empty text.
+@dataclass(frozen=True)
+class AdminCredentials:
+    """The username and the password of the admin that the environment names.
 
-    Raises ``SettingsError`` for an admin token with login off. The token makes user accounts,
-    and a user account has a purpose only when login is on. A server in that state is open to
-    all, which the person who set the token did not intend.
+    ``repr`` leaves out the password.
+    """
+
+    username: str
+    password: str = field(repr=False)
+
+
+@dataclass(frozen=True)
+class LoginSettings:
+    """Whether login is on, the two tokens, and the admin of the environment.
+
+    An unset token is the empty text. ``admin`` is ``None`` when the environment names no admin.
+    ``repr`` leaves out the tokens.
+    """
+
+    login: bool = False
+    join_token: str = field(default="", repr=False)
+    admin_token: str = field(default="", repr=False)
+    admin: AdminCredentials | None = None
+
+
+def login_from_env() -> LoginSettings:
+    """Read the login settings.
+
+    Raises ``SettingsError`` for a token or an admin with login off. They make and use user
+    accounts, and a user account has a purpose only when login is on. A server in that state is
+    open to all, which the person who set them did not intend. Raises ``SettingsError`` for a
+    join token that is the same as the admin token, because then each participant has the power
+    of an admin. Raises ``SettingsError`` also for an admin username without a password, or the
+    opposite, or a username that is not lower-case letters, digits, and hyphens.
     """
     flag = os.environ.get(LOGIN_ENV, "").strip()
     if flag not in ("", "0", "1"):
         raise SettingsError(f"{LOGIN_ENV} must be 1 or 0, but it is '{flag}'.")
     login = flag == "1"
+    for variable in (
+        JOIN_TOKEN_ENV,
+        ADMIN_TOKEN_ENV,
+        ADMIN_USERNAME_ENV,
+        ADMIN_PASSWORD_ENV,
+    ):
+        if os.environ.get(variable, "").strip() and not login:
+            raise SettingsError(
+                f"{variable} is set, but login is off. Set {LOGIN_ENV}=1 to turn login on, "
+                f"or remove {variable}."
+            )
+    join_token = os.environ.get(JOIN_TOKEN_ENV, "").strip()
     admin_token = os.environ.get(ADMIN_TOKEN_ENV, "").strip()
-    if admin_token and not login:
+    if join_token and join_token == admin_token:
         raise SettingsError(
-            f"{ADMIN_TOKEN_ENV} is set, but login is off. Set {LOGIN_ENV}=1 to turn login on, "
-            f"or remove {ADMIN_TOKEN_ENV}."
+            f"{JOIN_TOKEN_ENV} and {ADMIN_TOKEN_ENV} are the same. Participants know the "
+            "join token, so give the admin token a different value."
         )
-    return login, admin_token
+    return LoginSettings(
+        login=login,
+        join_token=join_token,
+        admin_token=admin_token,
+        admin=_admin_from_env(),
+    )
+
+
+def _admin_from_env() -> AdminCredentials | None:
+    username = os.environ.get(ADMIN_USERNAME_ENV, "").strip()
+    password = os.environ.get(ADMIN_PASSWORD_ENV, "").strip()
+    if not username and not password:
+        return None
+    if not username or not password:
+        given, missing = (
+            (ADMIN_USERNAME_ENV, ADMIN_PASSWORD_ENV)
+            if username
+            else (ADMIN_PASSWORD_ENV, ADMIN_USERNAME_ENV)
+        )
+        raise SettingsError(f"{given} is set, so set {missing} too, or remove {given}.")
+    if not _USERNAME.fullmatch(username) or len(username) > 64:
+        raise SettingsError(
+            f"{ADMIN_USERNAME_ENV} must have only lower-case letters, digits, and hyphens, "
+            "with a letter or a digit at each end, and at most 64 characters."
+        )
+    return AdminCredentials(username=username, password=password)
 
 
 @dataclass(frozen=True)
@@ -185,9 +264,9 @@ class Settings:
 
     ``env`` is a copy of the process environment, so it holds keys. ``repr`` leaves it out.
     ``database_url`` can hold a password, so ``repr`` leaves it out too. ``repr`` also leaves
-    out ``admin_token``.
+    out the tokens and the admin password.
 
-    ``login`` and ``admin_token`` come from ``login_from_env``. ``secure_cookie`` is on for an
+    ``login`` comes from ``login_from_env``. ``secure_cookie`` is on for an
     API that other computers can reach, so the browser sends the login cookie only over HTTPS.
     """
 
@@ -197,8 +276,7 @@ class Settings:
     project_dir: Path = field(default_factory=find_project_root)
     database_url: str = field(default="", repr=False)
     engine: EngineSettings = field(default_factory=EngineSettings)
-    login: bool = False
-    admin_token: str = field(default="", repr=False)
+    login: LoginSettings = field(default_factory=LoginSettings)
     secure_cookie: bool = False
 
     @classmethod
@@ -213,7 +291,7 @@ class Settings:
         Raises ``SettingsError`` when the login settings disagree. See ``login_from_env``.
         :raises InvalidSettingError: When an engine setting is not valid.
         """
-        login, admin_token = login_from_env()
+        login = login_from_env()
         project_dir = (project_dir or find_project_root()).resolve()
         database_url = (
             os.environ.get(DATABASE_URL_ENV, "").strip()
@@ -227,7 +305,6 @@ class Settings:
             database_url=database_url,
             engine=EngineSettings.from_env(os.environ),
             login=login,
-            admin_token=admin_token,
             secure_cookie=not is_local_host(),
         )
 
@@ -278,7 +355,11 @@ def build_dependencies(settings: Settings) -> WizardDependencies:
 
 
 __all__ = [
+    "ADMIN_PASSWORD_ENV",
     "ADMIN_TOKEN_ENV",
+    "ADMIN_USERNAME_ENV",
+    "JOIN_TOKEN_ENV",
+    "AdminCredentials",
     "DEFAULT_HOST",
     "LOGIN_ENV",
     "API_ROLES",
@@ -287,6 +368,7 @@ __all__ = [
     "EngineSettings",
     "InterviewHandler",
     "InvalidSettingError",
+    "LoginSettings",
     "Settings",
     "SettingsError",
     "WizardDependencies",
