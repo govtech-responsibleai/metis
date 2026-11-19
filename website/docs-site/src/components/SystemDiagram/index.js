@@ -9,9 +9,8 @@ const IN_USE = {
   beginner: {
     1: ['app', 'langfuse', 'logTraces'], // try a demo session and open its trace
     3: ['metis'], // build the specification in the Wizard
-    4: ['metis', 'app', 'langfuse', 'callApp', 'logTraces', 'readTraces'], // simulate and grade
-    5: ['metis', 'langfuse', 'openSession'], // open a trace from the Trials tab
-    6: ['metis'], // read the report
+    4: ['metis', 'app', 'langfuse', 'callApp', 'logTraces', 'readTraces', 'openSession'], // simulate, grade, and open a trial's session
+    5: ['metis'], // read the report
   },
   advanced: {
     2: ['app'], // look at the target application
