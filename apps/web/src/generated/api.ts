@@ -174,9 +174,10 @@ export interface paths {
          *     `localhost`, or `::1`). `METIS_API_CONNECTION_CHECK=1` or `0` overrides this. When the check
          *     is off, `live` is false and `status` is `unchecked`.
          *
-         *     The API never puts a value from its own environment into a URL that it requests. A URL that
-         *     names a `${NAME}` variable is not requested, and its probe tells the user to check it with
-         *     `metis wizard connect`.
+         *     The API puts a value from its own environment into a URL that it requests only for a
+         *     variable that `METIS_WORKSHOP_ENV` names, because each user account can already read those
+         *     values. A URL that names any other `${NAME}` variable is not requested, and its probe tells
+         *     the user to check it with `metis wizard connect`.
          */
         post: operations["check_target_connection_api_v1_wizard_connection_check_post"];
         delete?: never;

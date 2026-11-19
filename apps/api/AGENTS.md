@@ -371,7 +371,9 @@ and makes it an admin. A changed password ends its login sessions.
 values from `Settings.env`, which includes the project `.env`, and leaves out a name with no
 value. `routes/workshop.py` returns them in the same order, and 404 `not_found` when the
 setting is unset. Each user account with a login session can read them, so the login guard is
-their only protection. Do not add the route to `_OPEN_PATHS`. The API does not start when the
+their only protection. Do not add the route to `_OPEN_PATHS`. `POST /wizard/connection/check`
+expands only these variables into a URL that it requests, and it expands no other variable of
+`Settings.env`, because a client gives the URL. The API does not start when the
 setting is set and login is off, or when it has a name that is not a variable name, a name that
 starts with `METIS_`, or a name more than one time.
 
