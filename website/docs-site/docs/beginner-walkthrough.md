@@ -211,7 +211,7 @@ test cases.
 If you have not already started the experiment, select the **Experiments** tab and press
 **Start an experiment**.
 
-![The Start Experiment dialog with environment checks](./assets/web-experiment-dialog.png)
+![The Experiments tab, with the Start an experiment button and a list of experiments](./assets/web-experiments-tab.png)
 
 All checks should show a green **pass**. If any check fails, ask the facilitator.
 Select **Run experiment**.
@@ -231,7 +231,8 @@ Wait for all trials to finish.
 ### 6a. Open a trace from the Trials tab
 
 In the Trials tab, each completed test case shows a Langfuse link. Click on the link to open the
-trace directly in Langfuse. If Langfuse asks you to log in, use the login from step 1c.
+trace directly in Langfuse. Langfuse asks you to log in. Use the Langfuse login that the workshop
+facilitators give you.
 
 ![A completed trial with a Langfuse link](./assets/web-trials-langfuse-link.png)
 
