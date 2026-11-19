@@ -1,9 +1,9 @@
 ---
-title: Advanced (CLI) Workshop
+title: Advanced (CLI) Walkthrough
 ---
 
 <TocToggle />
-<StepControls storageKey="metis-advanced-workshop-steps" />
+<StepControls storageKey="metis-advanced-walkthrough-steps" />
 
 :::warning
 
@@ -14,7 +14,7 @@ guidance.
 :::
 
 :::tip[New to METIS?]
-Try the [Beginner (Web) Workshop](beginner-workshop.md) — it runs entirely in the browser with no
+Try the [Beginner (Web) Walkthrough](beginner-walkthrough.md) — it runs entirely in the browser with no
 setup.
 :::
 

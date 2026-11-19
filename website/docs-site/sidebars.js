@@ -10,8 +10,8 @@ const sidebars = {
       label: 'Walkthrough',
       collapsed: false,
       items: [
-        {type: 'doc', id: 'beginner-workshop', label: 'Beginner (Web)'},
-        {type: 'doc', id: 'advanced-workshop', label: 'Advanced (CLI)'},
+        {type: 'doc', id: 'beginner-walkthrough', label: 'Beginner (Web)'},
+        {type: 'doc', id: 'advanced-walkthrough', label: 'Advanced (CLI)'},
       ],
     },
     {

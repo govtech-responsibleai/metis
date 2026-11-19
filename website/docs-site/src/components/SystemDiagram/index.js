@@ -1,7 +1,7 @@
 import {useId} from 'react';
 import styles from './styles.module.css';
 
-// What each step of the workshop walkthrough uses. A part that the step does not use is dimmed.
+// What each step of a walkthrough uses. A part that the step does not use is dimmed.
 // Without a `step`, every part is lit, which gives the overview.
 //
 // Advanced (CLI) walkthrough steps:

@@ -2,7 +2,7 @@ import {useEffect, useState} from 'react';
 import {createPortal} from 'react-dom';
 import styles from './styles.module.css';
 
-const DEFAULT_KEY = 'metis-stack-2026-workshop-steps';
+const DEFAULT_KEY = 'metis-walkthrough-steps';
 
 const STEP_HEADINGS = 'h2[id^="step-"]';
 

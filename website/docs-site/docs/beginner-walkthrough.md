@@ -1,9 +1,9 @@
 ---
-title: Beginner (Web) Workshop
+title: Beginner (Web) Walkthrough
 ---
 
 <TocToggle />
-<StepControls storageKey="metis-beginner-workshop-steps" />
+<StepControls storageKey="metis-beginner-walkthrough-steps" />
 
 :::warning
 
@@ -13,12 +13,12 @@ The URL and credentials to access METIS will be shown on the presentation slides
 The addresses you need:
 
 1. METIS web app: [https://demo1-web.metis.aip.gov.sg/](https://demo1-web.metis.aip.gov.sg/)
-2. Toy app: [https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/openapi](https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/openapi)
+2. Toy app: [https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/](https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/)
 3. Toy app source code: [https://github.com/govtech-responsibleai/agentic-eval-toyapp](https://github.com/govtech-responsibleai/agentic-eval-toyapp)
 :::
 
 :::tip[Comfortable with the terminal?]
-Try the [Advanced (CLI) Workshop](advanced-workshop.md) for the full command-line experience.
+Try the [Advanced (CLI) Walkthrough](advanced-walkthrough.md) for the full command-line experience.
 :::
 
 <SystemDiagram />
