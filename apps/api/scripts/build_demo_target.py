@@ -21,7 +21,7 @@ from typing import Any
 
 import yaml
 
-from metis.api.demo import DEMO_FILES, EXPERIMENT, INTERVIEW
+from metis.api.demo import DEMO_FILES, EXPERIMENTS, INTERVIEW, RECORD
 from metis.api.store import FILES
 from metis.core import execution_layout
 from metis.core.target_binding import TargetBinding
@@ -76,14 +76,14 @@ def _made_up_ids(texts: list[str]) -> dict[str, str]:
 
 def build(example: Path, experiment: Path, output: Path) -> None:
     shutil.rmtree(output, ignore_errors=True)
-    (output / FILES).mkdir(parents=True)
-    (output / INTERVIEW).write_text(
+    (output / INTERVIEW / FILES).mkdir(parents=True)
+    (output / INTERVIEW / RECORD).write_text(
         json.dumps(_interview(example), indent=1) + "\n", encoding="utf-8"
     )
     for fixture in sorted((example / "fixtures").iterdir()):
-        shutil.copyfile(fixture, output / FILES / fixture.name)
+        shutil.copyfile(fixture, output / INTERVIEW / FILES / fixture.name)
 
-    folder = output / EXPERIMENT / experiment.name
+    folder = output / EXPERIMENTS / experiment.name
     shutil.copytree(
         experiment / execution_layout.SPECIFICATION_DIR,
         folder / execution_layout.SPECIFICATION_DIR,

@@ -2,8 +2,9 @@
 
 The demo Target is the toy app, the Northstar Policy & Report Assistant. It has a done
 Interview, its Specification and Target binding, and one finished Experiment with its report.
-The files are in `demo_target/`. `apps/api/scripts/build_demo_target.py` builds them from the
-engine example `http-agentic_eval_toyapp-workshop-lite` and one Experiment of it.
+The files are in `demo_target/`, in the same layout as a project folder.
+`apps/api/scripts/build_demo_target.py` builds them from the engine example
+`http-agentic_eval_toyapp-workshop-lite` and one Experiment of it.
 
 A user account gets its own copy one time, when the API makes the account. The copy is an
 ordinary Target after that, so the user can change it or delete it, and a deleted demo does not
@@ -30,14 +31,16 @@ from metis.api.records import (
 )
 from metis.api.store import FILES, LOCAL_USER_ID, Store, Upload
 from metis.api.tables import users
-from metis.core import execution_layout
+from metis.core import execution_layout, project_layout
 from metis.wizard import InterviewStep
 
 DEMO_FILES = Path(__file__).parent / "demo_target"
 """The folder of the demo files."""
-INTERVIEW = Path("interview.json")
-"""The title, the state and the transcript of the demo Interview."""
-EXPERIMENT = Path("experiment")
+INTERVIEW = Path(project_layout.INTERVIEWS) / "demo"
+"""The folder of the demo Interview: its documents and `interview.json`."""
+RECORD = Path("interview.json")
+"""The title, the state and the transcript of the demo Interview, in its folder."""
+EXPERIMENTS = Path(project_layout.EXPERIMENTS)
 """The folder that holds the one Experiment folder of the demo."""
 
 _REPORT_ORDER = (
@@ -53,8 +56,8 @@ def add_demo_target(store: Store) -> str:
     """Give the user account of ``store`` its own demo Target. Return the Target id."""
     now = datetime.now()
     target_id = f"{now:%Y%m%d-%H%M%S}-interview-{secrets.token_hex(4)}"
-    saved = json.loads((DEMO_FILES / INTERVIEW).read_text(encoding="utf-8"))
-    documents = sorted((DEMO_FILES / FILES).iterdir())
+    saved = json.loads((DEMO_FILES / INTERVIEW / RECORD).read_text(encoding="utf-8"))
+    documents = sorted((DEMO_FILES / INTERVIEW / FILES).iterdir())
     record = InterviewRecord(
         id=target_id,
         title=saved["title"],
@@ -80,7 +83,7 @@ def add_demo_target(store: Store) -> str:
             for path in documents
         ],
     )
-    for source in sorted((DEMO_FILES / EXPERIMENT).iterdir()):
+    for source in sorted((DEMO_FILES / EXPERIMENTS).iterdir()):
         folder = store.experiments_dir / source.name
         shutil.copytree(source, folder, dirs_exist_ok=True)
         for relative in _REPORT_ORDER:
@@ -108,8 +111,9 @@ def add_demo_target_to_new_local_user(store: Store) -> None:
 
 __all__ = [
     "DEMO_FILES",
-    "EXPERIMENT",
+    "EXPERIMENTS",
     "INTERVIEW",
+    "RECORD",
     "add_demo_target",
     "add_demo_target_to_new_local_user",
 ]

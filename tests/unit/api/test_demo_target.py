@@ -11,7 +11,7 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
-from metis.api.demo import DEMO_FILES, add_demo_target_to_new_local_user
+from metis.api.demo import DEMO_FILES, EXPERIMENTS, add_demo_target_to_new_local_user
 from metis.api.main import create_app
 from metis.api.store import Store
 
@@ -190,18 +190,18 @@ def test_the_demo_files_are_only_the_files_that_the_web_app_reads() -> None:
         for path in DEMO_FILES.rglob("*")
         if path.is_file()
     )
-    [experiment] = [path.name for path in (DEMO_FILES / "experiment").iterdir()]
+    [experiment] = [path.name for path in (DEMO_FILES / EXPERIMENTS).iterdir()]
 
     assert files == [
-        "documents/northstar-q2-service-review.md",
-        f"experiment/{experiment}/logs/events.jsonl",
-        f"experiment/{experiment}/outputs/reports/report.html",
-        f"experiment/{experiment}/outputs/reports/report.json",
-        f"experiment/{experiment}/outputs/reports/results.json",
-        f"experiment/{experiment}/specification/fixtures/northstar-q2-service-review.md",
-        f"experiment/{experiment}/specification/specification.yaml",
-        f"experiment/{experiment}/specification/toyapp-api.yaml",
-        "interview.json",
+        f"evaluations/experiments/{experiment}/logs/events.jsonl",
+        f"evaluations/experiments/{experiment}/outputs/reports/report.html",
+        f"evaluations/experiments/{experiment}/outputs/reports/report.json",
+        f"evaluations/experiments/{experiment}/outputs/reports/results.json",
+        f"evaluations/experiments/{experiment}/specification/fixtures/northstar-q2-service-review.md",
+        f"evaluations/experiments/{experiment}/specification/specification.yaml",
+        f"evaluations/experiments/{experiment}/specification/toyapp-api.yaml",
+        "evaluations/interviews/demo/documents/northstar-q2-service-review.md",
+        "evaluations/interviews/demo/interview.json",
     ]
 
 
