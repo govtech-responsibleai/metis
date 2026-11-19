@@ -30,16 +30,16 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 
+_DEFAULT_BASE_URL = "https://cloud.langfuse.com"
+"""Langfuse Cloud, which the Langfuse SDK uses when no base URL is set."""
+
+_DEFAULT_TIMEOUT_SECONDS = 5.0
+
+
 def _warn(reason: str) -> None:
     # The logger is fetched for each warning, not once at import. A logger cached on first
     # use keeps the stream of that moment, which a CLI run in the same process may close.
     get_logger(__name__).warning("target_langfuse_project_unavailable", reason=reason)
-
-
-DEFAULT_BASE_URL = "https://cloud.langfuse.com"
-"""Langfuse Cloud, which the Langfuse SDK uses when no base URL is set."""
-
-DEFAULT_TIMEOUT_SECONDS = 5.0
 
 
 @dataclass(frozen=True)
@@ -69,9 +69,9 @@ def session_url(base_url: str, project_id: str, session_id: str) -> str:
 
 def _timeout(env: Mapping[str, str]) -> float:
     try:
-        return float(env.get("LANGFUSE_TIMEOUT") or DEFAULT_TIMEOUT_SECONDS)
+        return float(env.get("LANGFUSE_TIMEOUT") or _DEFAULT_TIMEOUT_SECONDS)
     except ValueError:
-        return DEFAULT_TIMEOUT_SECONDS
+        return _DEFAULT_TIMEOUT_SECONDS
 
 
 def target_langfuse_project(
@@ -84,7 +84,8 @@ def target_langfuse_project(
     The base URL is ``LANGFUSE_BASE_URL``, then ``LANGFUSE_HOST``, then Langfuse Cloud, as the
     engine's trace reader reads it. The timeout is ``LANGFUSE_TIMEOUT`` seconds, 5 when it is
     not set or not a number. It returns ``None`` and logs a warning when a key is missing, the
-    request fails, or Langfuse lists no project. The warning names the reason, never a key.
+    base URL is malformed, the request fails, or Langfuse lists no project. The warning names
+    the reason, never a key.
     """
     env = os.environ if env is None else env
     public, secret = env.get("LANGFUSE_PUBLIC_KEY"), env.get("LANGFUSE_SECRET_KEY")
@@ -92,7 +93,7 @@ def target_langfuse_project(
         _warn("LANGFUSE_PUBLIC_KEY or LANGFUSE_SECRET_KEY is not set")
         return None
     base_url = (
-        env.get("LANGFUSE_BASE_URL") or env.get("LANGFUSE_HOST") or DEFAULT_BASE_URL
+        env.get("LANGFUSE_BASE_URL") or env.get("LANGFUSE_HOST") or _DEFAULT_BASE_URL
     ).rstrip("/")
     try:
         with httpx.Client(
@@ -106,7 +107,8 @@ def target_langfuse_project(
     except httpx.HTTPStatusError as exc:
         _warn(f"HTTP {exc.response.status_code}")
         return None
-    except (httpx.HTTPError, ValueError) as exc:
+    # InvalidURL, for a base URL such as "http://host:abc", is not an HTTPError.
+    except (httpx.HTTPError, httpx.InvalidURL, ValueError) as exc:
         _warn(type(exc).__name__)
         return None
     projects = body.get("data") if isinstance(body, dict) else None

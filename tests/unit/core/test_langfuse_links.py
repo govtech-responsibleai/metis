@@ -135,3 +135,12 @@ def test_session_url_without_prefix() -> None:
 def test_project_builds_session_urls() -> None:
     project = TargetProject("https://x/langfuse", "p1")
     assert project.session_url("s-1") == "https://x/langfuse/project/p1/sessions/s-1"
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    ["http://host:abc", "https://cloud.langfuse.com:443x", "https://lf.example\t/x"],
+)
+def test_a_malformed_base_url_gives_no_project(base_url: str) -> None:
+    env = {**_KEYS, "LANGFUSE_BASE_URL": base_url}
+    assert target_langfuse_project(env) is None

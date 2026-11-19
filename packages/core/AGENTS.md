@@ -58,6 +58,11 @@ Private runtime models and API models stay in their owning packages. See the
   (`TrialConfig`, `TrialOutcome`, `TrialFailure`, `GraderRef`). The engine writes and resumes
   from it; the report reads it. Version-guarded by `_TRIAL_RECORD_VERSION`, no published
   schema file.
+- `langfuse_links.py`: the link from a trial to its session in the target's Langfuse.
+  `target_langfuse_project` reads only `LANGFUSE_*`, never `METIS_INTERNAL_LANGFUSE_*`, and
+  returns `None` with a warning on any failure, so a lookup never fails a simulate run or a
+  report build. The engine saves the URL in `TrialRecord.target_session_langfuse_url`;
+  metis-insights falls back to one lookup per build for older records.
 - `phase_events.py`: `PhaseEvent` (one line of `logs/events.jsonl`: `seq`, `at`, `phase`,
   `trial` and `status`, plus the extra fields that `_SHAPES` gives each status) and
   `PhaseEventLog`, the one writer. It numbers lines with `seq`, continues from the last line

@@ -304,8 +304,8 @@ async def _worker(
     runner_agent_model: str | None = None,
     experiment_id: str | None = None,
     events: PhaseEventLog | None = None,
-    console: Console | None = None,
     target_project: TargetProject | None = None,
+    console: Console | None = None,
 ) -> list[TrialRecord]:
     """One concurrent worker: creates a fresh runner per trial for isolation.
 
