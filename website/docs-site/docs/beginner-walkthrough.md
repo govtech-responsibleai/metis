@@ -268,12 +268,10 @@ to its <Term>features</Term>, <Term>expected behaviours</Term>, and <Term>criter
 ### 7b. Find a failing criterion
 
 Select a criterion to see its <Term>grader</Term>, the judge model, the pass mark, and per-test-case
-results. Look for **Follows explicit response instructions** (AC-2-2) — it checks whether the app
-follows the employee's explicit instructions. A related criterion, **States when policy information
-is unavailable** (AC-3-2), is under the behaviour **Resolves material ambiguity or missing
-information appropriately**.
+results.
 
-**Checkpoint:** the report shows a result for each criterion, and you can find AC-2-2 and AC-3-2.
+**Checkpoint:** the report shows a result for each criterion, and you can open one with a low pass
+rate.
 
 ## Step 8: Wrap-up and feedback (10 min) {#step-8}
 
