@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   START_BLOCKED,
+  completesNow,
   interviewReady,
   placeholderModel,
   stateForDownload,
@@ -117,4 +118,14 @@ test("the runner agent placeholder follows the user agent model, as the engine d
     placeholderModel("user_agent", statuses, { user_agent: "typed-ua" }),
     "env-ua",
   );
+});
+
+test("the run settings step opens on every path that completes the Interview", () => {
+  const inProgress = { id: "a", done: false };
+  const done = { id: "a", done: true };
+  assert.equal(completesNow(inProgress, done), true);
+  assert.equal(completesNow(null, done), false);
+  assert.equal(completesNow({ id: "b", done: false }, done), false);
+  assert.equal(completesNow(done, done), false);
+  assert.equal(completesNow(done, inProgress), false);
 });

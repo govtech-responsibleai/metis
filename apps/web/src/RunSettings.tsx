@@ -111,6 +111,18 @@ export function interviewReady(statuses: readonly ModelStatus[]): boolean {
   );
 }
 
+// The Interview on screen and whether it is done.
+export type Completion = { id: string; done: boolean };
+
+// The run settings step opens each time the Interview on screen changes from in progress to
+// done, on any path. An Interview that opens already done goes to the Done panel.
+export function completesNow(
+  before: Completion | null,
+  after: Completion,
+): boolean {
+  return before?.id === after.id && !before.done && after.done;
+}
+
 // The text on the greyed-out start control while the interview role has no key.
 export const START_BLOCKED = "Configure API keys to start interview";
 

@@ -44,11 +44,13 @@ import { AddButton, AddOptions, DocumentList } from "./Documents";
 import { Done } from "./Done";
 import {
   START_BLOCKED,
+  completesNow,
   interviewReady,
   RunSettings,
   runModels,
   runRoles,
   stateForDownload,
+  type Completion,
   type RunModels,
 } from "./RunSettings";
 import {
@@ -280,7 +282,7 @@ export function App() {
   > | null>(null);
   const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([]);
   const [runModelDrafts, setRunModelDrafts] = useState<RunModels | null>(null);
-  // The Interview whose finish waits on the run settings step. The download starts when the
+  // The completed Interview that waits on the run settings step. The download starts when the
   // user continues from that step.
   const [runSettingsFor, setRunSettingsFor] = useState<string | null>(null);
 
@@ -293,6 +295,14 @@ export function App() {
     if (redirect) navigate(redirect, { replace: true });
   }, [redirect, navigate]);
   const review = view && !view.done ? activeReview(view.requests) : null;
+  // The run settings step comes before the Done panel, so the first ZIP holds the chosen
+  // models. The check runs during render, so the Done panel never shows first.
+  const [completion, setCompletion] = useState<Completion | null>(null);
+  if (view && (completion?.id !== view.id || completion.done !== view.done)) {
+    const next = { id: view.id, done: view.done };
+    if (completesNow(completion, next)) setRunSettingsFor(view.id);
+    setCompletion(next);
+  }
   const conversationScrollRef = useRef<HTMLDivElement | null>(null);
   const conversationRevision = conversationScrollRevision(
     view?.id ?? null,
@@ -677,10 +687,7 @@ export function App() {
       record.id,
       async () => {
         const result = await api.end(record.state);
-        const next = applyEnd(record, result);
-        await operations.save(next);
-        // The run settings step comes first, so the first ZIP holds the chosen models.
-        if (result.outcome === "done") setRunSettingsFor(next.id);
+        await operations.save(applyEnd(record, result));
       },
       finish,
     );
