@@ -25,6 +25,9 @@ install anything, but these services are not generally open to the public:
 
 To log in to METIS, you need the join token given by the facilitators, who also give you the
 login for Langfuse.
+
+The [workshop slides](https://view.ducks.ai.tech.gov.sg/p/metis/) go with this walkthrough, and you
+can open them without logging in.
 :::
 
 :::tip[Comfortable with the terminal?]
