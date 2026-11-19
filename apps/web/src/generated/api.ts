@@ -2756,6 +2756,11 @@ export interface components {
             turn?: number | null;
             /** Reason */
             reason?: string | null;
+            /**
+             * Session Url
+             * @description The page of the trial's session in the target's Langfuse.
+             */
+            session_url?: string | null;
         } & ({
             /** @constant */
             status?: "started";

@@ -11,6 +11,7 @@ import json
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, NamedTuple
+from urllib.parse import urlsplit
 
 import structlog
 
@@ -704,6 +705,7 @@ async def _worker(
                     trial=folder_name,
                     attempt=record.attempt_number,
                     reason=trial_end_reason(record),
+                    session_url=trial_end_session_url(record),
                 )
 
             if not tui_ctx and console is not None:
@@ -776,6 +778,29 @@ def trial_end_reason(record: TrialRecord) -> str | None:
     return record.outcome.failure_message or (
         record.prior_failures[-1].error_message if record.prior_failures else None
     )
+
+
+def trial_end_session_url(record: TrialRecord) -> str | None:
+    """The Langfuse URL for the end event of a trial, or ``None``.
+
+    Only a completed trial gets one: its record's ``target_session_langfuse_url``, when that
+    is an ``http`` or ``https`` URL without a user or a password. A ``LANGFUSE_BASE_URL``
+    such as ``https://user:pass@host`` gives such a URL, which must not reach the events
+    log, so it is left out with a warning. The record keeps its URL either way.
+    """
+    url = record.target_session_langfuse_url
+    if url is None or trial_end_status(record) != "completed":
+        return None
+    parts = urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        return None
+    if parts.username is not None or parts.password is not None:
+        logger.warning(
+            "[experiment] The Langfuse URL has a user or a password, "
+            "so the end event of the trial has no session_url"
+        )
+        return None
+    return url
 
 
 def _emit_retry(

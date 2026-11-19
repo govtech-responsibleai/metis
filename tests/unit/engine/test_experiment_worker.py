@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import structlog
 
+from metis.core.phase_events import PhaseEventLog
 from metis.core.trials import TrialConfig, TrialOutcome, TrialRecord
 from metis.engine.simulation.exceptions import ConsecutiveFailureEscalation
 from metis.engine.simulation.experiment import (
@@ -1141,10 +1144,12 @@ class TestSessionUrl:
         tmp_path: Path,
         target_project: object,
         session_id: str | None = "sess-mock-123",
+        stop_reason: str = "goal_achieved",
     ) -> TrialRecord:
         canned = _make_canned_record(scenario, persona).model_copy(
             update={"target_session_id": session_id}
         )
+        canned.outcome.stop_reason = stop_reason  # type: ignore[assignment]
         with patch("metis.engine.simulation.trial.Orchestrator") as mock_orch_cls:
             mock_orch_cls.return_value = AsyncMock(
                 execute=AsyncMock(return_value=canned)
@@ -1161,6 +1166,7 @@ class TestSessionUrl:
                 trial_max_retries=0,
                 trial_retry_delay_seconds=0,
                 target_project=target_project,  # type: ignore[arg-type]
+                events=PhaseEventLog.for_experiment_dir(tmp_path),
             )
         folder = trial_folder_name(scenario, persona, 1)
         return TrialRecord.load_file(
@@ -1206,3 +1212,100 @@ class TestSessionUrl:
             session_id=None,
         )
         assert record.target_session_langfuse_url is None
+
+    @staticmethod
+    def _events(tmp_path: Path) -> list[dict]:
+        path = PhaseEventLog.for_experiment_dir(tmp_path).path
+        return [json.loads(line) for line in path.read_text().splitlines()]
+
+    @pytest.mark.asyncio
+    async def test_a_completed_trial_end_event_has_the_record_url(
+        self, simple_scenario: Scenario, simple_persona: Persona, tmp_path: Path
+    ) -> None:
+        from metis.core.langfuse_links import TargetProject
+
+        record = await self._run(
+            simple_scenario,
+            simple_persona,
+            tmp_path,
+            TargetProject("https://lf.example", "p1"),
+            stop_reason="max_turns",
+        )
+        *others, end = self._events(tmp_path)
+        assert end["status"] == "completed"
+        assert end["session_url"] == record.target_session_langfuse_url
+        assert (
+            end["session_url"] == "https://lf.example/project/p1/sessions/sess-mock-123"
+        )
+        assert all("session_url" not in event for event in others)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("stop_reason", "status"),
+        [("system_error", "failed"), ("interrupted", "interrupted")],
+    )
+    async def test_a_trial_that_did_not_complete_has_no_url_in_its_end_event(
+        self,
+        simple_scenario: Scenario,
+        simple_persona: Persona,
+        tmp_path: Path,
+        stop_reason: str,
+        status: str,
+    ) -> None:
+        from metis.core.langfuse_links import TargetProject
+
+        record = await self._run(
+            simple_scenario,
+            simple_persona,
+            tmp_path,
+            TargetProject("https://lf.example", "p1"),
+            stop_reason=stop_reason,
+        )
+        events = self._events(tmp_path)
+        assert events[-1]["status"] == status
+        assert record.target_session_langfuse_url is not None
+        assert all("session_url" not in event for event in events)
+
+    @pytest.mark.asyncio
+    async def test_no_event_has_a_url_without_a_project(
+        self, simple_scenario: Scenario, simple_persona: Persona, tmp_path: Path
+    ) -> None:
+        await self._run(simple_scenario, simple_persona, tmp_path, None)
+        events = self._events(tmp_path)
+        assert events[-1]["status"] == "completed"
+        assert all("session_url" not in event for event in events)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "base_url",
+        [
+            "https://user:s3cret@lf.example",
+            "https://user@lf.example",
+            "ftp://lf.example",
+        ],
+        ids=["user-and-password", "user", "not-http"],
+    )
+    async def test_an_unsafe_url_stays_out_of_the_end_event(
+        self,
+        simple_scenario: Scenario,
+        simple_persona: Persona,
+        tmp_path: Path,
+        base_url: str,
+    ) -> None:
+        from metis.core.langfuse_links import TargetProject
+
+        with structlog.testing.capture_logs() as logs:
+            record = await self._run(
+                simple_scenario,
+                simple_persona,
+                tmp_path,
+                TargetProject(base_url, "p1"),
+            )
+        events = self._events(tmp_path)
+        assert events[-1]["status"] == "completed"
+        assert all("session_url" not in event for event in events)
+        assert record.target_session_langfuse_url is not None
+        if "@" in base_url:
+            warnings = [log for log in logs if log["log_level"] == "warning"]
+            assert len(warnings) == 1
+            assert "s3cret" not in str(warnings[0])

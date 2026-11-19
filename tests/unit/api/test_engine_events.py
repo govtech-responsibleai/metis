@@ -57,6 +57,22 @@ def test_the_events_after_a_seq_are_the_lines_as_the_engine_wrote_them(
         PhaseEvent.model_validate(event)
 
 
+def test_a_line_with_a_session_url_returns_it(
+    engine_client: TestClient, experiment_dir: Path
+) -> None:
+    url = "https://lf.example/project/p1/sessions/s1"
+    events = PhaseEventLog.for_experiment_dir(experiment_dir)
+    events.emit("simulating", "started", trial="TC-001-alice-1", attempt=1)
+    events.emit(
+        "simulating", "completed", trial="TC-001-alice-1", attempt=1, session_url=url
+    )
+
+    started, completed = _get(engine_client, experiment_dir.name)
+
+    assert completed["session_url"] == url
+    assert "session_url" not in started
+
+
 def test_with_no_after_every_event_is_returned(
     engine_client: TestClient, experiment_dir: Path
 ) -> None:
