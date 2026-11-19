@@ -302,8 +302,11 @@ def test_a_trial_links_to_its_langfuse_session(experiment: Path) -> None:
     html = open_case(_with_session_url(build(experiment), url), "T-1")
     assert (
         f'<a class="td-link" href="{url}" target="_blank" rel="noopener noreferrer">'
-        "Open in Langfuse ↗</a>"
     ) in html
+    # The official Langfuse icon, inline and hidden from screen readers, then the label.
+    assert 'viewBox="0 0 512 512" fill="none" aria-hidden="true">' in html
+    assert 'fill="#4E9CFF"' in html
+    assert "</svg>Open in Langfuse</a>" in html
 
 
 def test_a_trial_without_a_session_url_has_no_link(experiment: Path) -> None:

@@ -1111,23 +1111,16 @@
 }
 .report .td-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
 }
 .report .td-head .td-title {
   margin-bottom: 0;
 }
 .report .td-link {
-  font-size: 13px;
-  color: var(--mark);
-  text-decoration: none;
   white-space: nowrap;
-}
-.report .td-link:hover,
-.report .td-link:focus-visible {
-  text-decoration: underline;
+  text-decoration: none;
 }
 .report .endnote {
   background: var(--tree);

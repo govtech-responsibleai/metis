@@ -15,7 +15,7 @@ import type {
   TrialDetail,
 } from "./report";
 import { OUTCOME, RateText, Tip } from "./ReportParts";
-import { cn, Modal } from "./ui";
+import { buttonClass, cn, Modal } from "./ui";
 
 const ENDING: Record<string, string> = {
   succeeded: "Reached its goal",
@@ -468,12 +468,14 @@ function TrialSection({
         <h4 className="td-title">Trial {trial.index}</h4>
         {trial.sessionUrl && (
           <a
-            className="td-link"
+            className={cn(buttonClass("secondary"), "td-link")}
             href={trial.sessionUrl}
             target="_blank"
             rel="noopener noreferrer"
           >
-            Open in Langfuse ↗
+            {/* The official Langfuse icon (https://langfuse.com/brand), unchanged. */}
+            <img src="/langfuse-icon.svg" alt="" className="h-4 w-4" />
+            Open in Langfuse
           </a>
         )}
       </div>
