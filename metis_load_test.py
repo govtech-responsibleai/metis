@@ -21,11 +21,20 @@ import json
 import math
 import re
 import shutil
+import signal
+import sys
+import threading
+import time
+import urllib.error
+import urllib.request
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from metis.core.console import console
 from metis.core.project_layout import find_project_root
 
 if TYPE_CHECKING:
@@ -41,6 +50,11 @@ DEFAULT_USERS = 4
 DEFAULT_URL = "http://127.0.0.1:8001"
 DEFAULT_INPUT = Path("packages/engine/examples/http-agentic_eval_toyapp-1")
 DEFAULT_TIMEOUT_SECONDS = 1800.0
+POLL_SECONDS = 2.0
+"""As often as an open experiment page polls the status route."""
+REQUEST_TIMEOUT_SECONDS = 30.0
+STOP_WAIT_SECONDS = 60.0
+"""How long the clean-up waits for the stopped runs to end."""
 
 # The top-level `id:` of a specification.yaml. Indented ids (of features, behaviours, and so on)
 # do not match, because the line must start with `id:`.
@@ -211,7 +225,7 @@ class Outcome:
     latencies: list[float]
     """The seconds of each status request that got an answer."""
     status_errors: int
-    """Status requests that got no answer."""
+    """Status requests that failed: no answer, or an HTTP error."""
     timed_out: bool
     interrupted: bool
     elapsed_seconds: float
@@ -245,7 +259,7 @@ def verdict_reasons(
     elif p95 >= p95_limit:
         reasons.append(f"status route p95 {p95:.2f} s is not under {p95_limit:g} s")
     if outcome.status_errors:
-        reasons.append(f"{outcome.status_errors} status requests got no answer")
+        reasons.append(f"{outcome.status_errors} status requests failed")
     if outcome.timed_out:
         reasons.append("the timeout passed before every experiment ended")
     if outcome.interrupted:
@@ -438,3 +452,271 @@ def format_header(
         f"queued {counts['queued']}  ended {sum(t.ended for t in experiments)}  "
         f"status p95 {'-' if p95 is None else f'{p95:.2f}'} s"
     )
+
+
+# --- the run against the API ------------------------------------------------------------------
+
+
+class LoadTestError(RuntimeError):
+    """The load test cannot start, for example because the API does not answer."""
+
+
+def _request(
+    method: str, url: str, payload: dict[str, object] | None = None
+) -> tuple[int, dict[str, Any]]:
+    """Send one JSON request and return the HTTP status and the body. An HTTP error is an answer.
+
+    :raises OSError: the request got no HTTP answer.
+    """
+    request = urllib.request.Request(
+        url,
+        data=None if payload is None else json.dumps(payload).encode(),
+        method=method,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(
+            request, timeout=REQUEST_TIMEOUT_SECONDS
+        ) as response:  # noqa: S310 — the URL is a setting
+            status, raw = response.status, response.read()
+    except urllib.error.HTTPError as error:
+        status, raw = error.code, error.read()
+    try:
+        body = json.loads(raw) if raw else {}
+    except ValueError:
+        body = {}
+    return status, body if isinstance(body, dict) else {}
+
+
+def _start(url: str, copy: InputCopy, barrier: threading.Barrier) -> StartResult:
+    """Wait for every other user at `barrier`, then start one simulate. It never raises."""
+    try:
+        barrier.wait()
+        status, body = _request(
+            "POST", f"{url}/api/v1/engine/simulate", {"input_dir": copy.input_dir}
+        )
+    except Exception as error:  # noqa: BLE001 — every failure of a start is a result
+        return StartResult(copy.user, None, None, "request_failed", str(error), None)
+    experiment_id = body.get("experiment_id")
+    if status == 202 and isinstance(experiment_id, str):
+        return StartResult(
+            copy.user, experiment_id, status, None, None, time.monotonic()
+        )
+    code, message = body.get("code"), body.get("message")
+    return StartResult(
+        copy.user,
+        None,
+        status,
+        code if isinstance(code, str) else "unexpected_answer",
+        message if isinstance(message, str) else None,
+        None,
+    )
+
+
+def _poll(url: str, tracked: Tracked) -> float | None:
+    """Read the status of one experiment. Return the seconds it took, or None if it failed."""
+    began = time.perf_counter()
+    try:
+        status, body = _request("GET", f"{url}/api/v1/engine/{tracked.experiment_id}")
+    except OSError:
+        return None
+    seconds = time.perf_counter() - began
+    if status != 200:
+        return None
+    tracked.observe(body, time.monotonic())
+    return seconds
+
+
+def _follow(
+    url: str,
+    experiments: list[Tracked],
+    pool: ThreadPoolExecutor,
+    *,
+    began: float,
+    deadline: float,
+    latencies: list[float],
+) -> tuple[int, bool]:
+    """Poll every live experiment every two seconds until all have ended or `deadline` passes.
+
+    Each round prints a header and one line for each experiment that was alive at its start,
+    so an experiment that ends gets its last line once. Return the failed requests and
+    whether the deadline passed.
+    """
+    errors = 0
+    while True:
+        alive = [tracked for tracked in experiments if not tracked.ended]
+        if not alive:
+            return errors, False
+        if time.monotonic() >= deadline:
+            return errors, True
+        round_began = time.monotonic()
+        for seconds in pool.map(lambda tracked: _poll(url, tracked), alive):
+            if seconds is None:
+                errors += 1
+            else:
+                latencies.append(seconds)
+        elapsed = time.monotonic() - began
+        console.out(format_header(elapsed, experiments, latencies), highlight=False)
+        for tracked in alive:
+            console.out(format_line(elapsed, tracked), highlight=False)
+        time.sleep(max(0.0, round_began + POLL_SECONDS - time.monotonic()))
+
+
+def _stop_alive(url: str, experiments: list[Tracked], pool: ThreadPoolExecutor) -> None:
+    """Stop every experiment that has not ended, and wait until they end.
+
+    A stop removes a queued run from the queue. 409 no_run means that the run ended already.
+    """
+    alive = [tracked for tracked in experiments if not tracked.ended]
+    if not alive:
+        return
+    console.out(
+        f"Stopping {len(alive)} experiments that are still alive.", highlight=False
+    )
+    for tracked in alive:
+        try:
+            _request("POST", f"{url}/api/v1/engine/{tracked.experiment_id}/stop")
+        except OSError as error:
+            console.out(
+                f"Could not stop {tracked.experiment_id}: {error}", highlight=False
+            )
+    deadline = time.monotonic() + STOP_WAIT_SECONDS
+    while alive and time.monotonic() < deadline:
+        time.sleep(POLL_SECONDS)
+        list(pool.map(lambda tracked: _poll(url, tracked), alive))
+        alive = [tracked for tracked in alive if not tracked.ended]
+    for tracked in alive:
+        console.out(
+            f"Still alive after {STOP_WAIT_SECONDS:g} s: {tracked.experiment_id}. "
+            f"Stop it with POST {url}/api/v1/engine/{tracked.experiment_id}/stop.",
+            highlight=False,
+        )
+
+
+def _ignore_interrupts() -> Any:
+    """Ignore Ctrl-C and return the previous handler, so the clean-up is not cut short.
+
+    `make` and `uv run` pass Ctrl-C on a second time.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        return None
+    return signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
+def run(config: Config) -> Outcome:
+    """Start `config.users` experiments at the same moment and follow them to the end.
+
+    :raises LoadTestError: the API does not answer, or the input folder cannot be copied.
+    """
+    try:
+        _request("GET", f"{config.url}/health")
+    except OSError as error:
+        raise LoadTestError(
+            f"The API does not answer at {config.url} ({error}). Start it with make run-api."
+        ) from None
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    try:
+        copies = make_input_copies(
+            config.input_dir.resolve(), config.project_dir, config.users, stamp=stamp
+        )
+    except (OSError, ValueError) as error:
+        raise LoadTestError(f"Cannot copy the input folder: {error}") from None
+    copies_dir = config.project_dir / LOAD_TEST_DIR / stamp
+    console.out(f"Input copies: {copies_dir}", highlight=False)
+    console.out(
+        f"Starting {config.users} experiments at {config.url}.", highlight=False
+    )
+
+    latencies: list[float] = []
+    experiments: list[Tracked] = []
+    errors, timed_out, interrupted = 0, False, False
+    began = time.monotonic()
+    pool = ThreadPoolExecutor(max_workers=config.users)
+    barrier = threading.Barrier(config.users)
+    futures = [pool.submit(_start, config.url, copy, barrier) for copy in copies]
+    try:
+        starts = [future.result() for future in futures]
+        experiments = _tracked(starts)
+        errors, timed_out = _follow(
+            config.url,
+            experiments,
+            pool,
+            began=began,
+            deadline=began + config.timeout,
+            latencies=latencies,
+        )
+    except KeyboardInterrupt:
+        interrupted = True
+    previous = _ignore_interrupts()
+    try:
+        # Ctrl-C can come while starts are in flight. Wait for each of them, so a start that
+        # the API accepts after the Ctrl-C is stopped too.
+        starts = [future.result() for future in futures]
+        if not experiments:
+            experiments = _tracked(starts)
+        elapsed = time.monotonic() - began
+        if interrupted or timed_out:
+            _stop_alive(config.url, experiments, pool)
+    finally:
+        pool.shutdown(wait=True)
+        if previous is not None:
+            signal.signal(signal.SIGINT, previous)
+    return Outcome(
+        users=config.users,
+        url=config.url,
+        starts=starts,
+        experiments=experiments,
+        latencies=latencies,
+        status_errors=errors,
+        timed_out=timed_out,
+        interrupted=interrupted,
+        elapsed_seconds=elapsed,
+        copies_dir=copies_dir,
+        project_dir=config.project_dir,
+    )
+
+
+def _tracked(starts: list[StartResult]) -> list[Tracked]:
+    tracked: list[Tracked] = []
+    for start in starts:
+        if start.experiment_id is not None and start.accepted_at is not None:
+            console.out(f"user {start.user}: {start.experiment_id}", highlight=False)
+            tracked.append(Tracked(start.user, start.experiment_id, start.accepted_at))
+        else:
+            console.out(
+                f"user {start.user}: start failed, {start.http_status} {start.code}: "
+                f"{start.message}",
+                highlight=False,
+            )
+    return tracked
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run the load test. Return 0 when the verdict is yes, else 1."""
+    config = parse_config(argv)
+    try:
+        outcome = run(config)
+    except LoadTestError as error:
+        console.out(f"Error: {error}", highlight=False)
+        return 1
+    summary = summarise(outcome)
+    reasons = verdict_reasons(outcome)
+    console.out("", highlight=False)
+    if reasons:
+        console.out(f"Verdict: no. {'; '.join(reasons)}.", highlight=False)
+    else:
+        console.out(
+            f"Verdict: yes. The API carried {config.users} users comfortably.",
+            highlight=False,
+        )
+    hint = summary_hint(outcome)
+    if hint:
+        console.out(hint, highlight=False)
+    console.out(f"Input copies: {summary['input_copies']}", highlight=False)
+    console.out(f"Experiments: {summary['experiments']}", highlight=False)
+    console.out(json.dumps(summary, indent=2, sort_keys=True), highlight=False)
+    return 1 if reasons else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
