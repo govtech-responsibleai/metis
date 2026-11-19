@@ -372,7 +372,8 @@ values from `Settings.env`, which includes the project `.env`, and leaves out a 
 value. `routes/workshop.py` returns them in the same order, and 404 `not_found` when the
 setting is unset. Each user account with a login session can read them, so the login guard is
 their only protection. Do not add the route to `_OPEN_PATHS`. The API does not start when the
-setting is set and login is off, or when it has a name that is not a variable name.
+setting is set and login is off, or when it has a name that is not a variable name, a name that
+starts with `METIS_`, or a name more than one time.
 
 `Store.delete_user_account` holds the lock of a save and deletes the rows of the user account in
 one transaction, then its folder `users/<user id>/`. The route checks in this order: 404
