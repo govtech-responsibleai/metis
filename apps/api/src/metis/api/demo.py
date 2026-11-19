@@ -48,8 +48,8 @@ _REPORT_ORDER = (
     execution_layout.REPORT_JSON,
     execution_layout.REPORT_HTML,
 )
-"""The report files, oldest first. A report that is older than its results is built again, and
-the demo has no traces to build the conversations from."""
+"""The report files, oldest first. A report that is older than its results is built again, so the
+copy touches them in this order and keeps the report that the build script made."""
 
 
 def add_demo_target(store: Store) -> str:

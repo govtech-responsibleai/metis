@@ -3,7 +3,7 @@
  "run_id": "report",
  "records": [
   {
-   "session_id": "00000000-0000-4000-8000-000000000001",
+   "session_id": "4729cc43-f976-4869-925a-cae62dee9fc4",
    "scenario_id": "S-3",
    "task_id": "TC-004",
    "trial_index": 1,
@@ -22,13 +22,13 @@
     {
      "outcome": "passed",
      "score": 1.0,
-     "reason": "Both replies address the user's question about bringing a dog to the office. Turn 1 searched the policy collection and said no policy covers dogs, so no definitive answer was possible. Turn 2 widened the search across the sources the user listed and answered the follow-up directly: no, not without written Facilities/HR approval, with the gaps in the policy record stated. The replies stay on topic and fit the policy-assistant purpose. Whether the answers are accurate or complete is outside this criterion.",
+     "reason": "Every assistant reply addresses the user's dog-in-office question and the policy search for it. Turn 1 reports that no pet policy was found. Turn 2 widens to workplace, facilities, safety and visitor policies and addresses the \"no by default\" question. Turn 3 explains why a definitive answer isn't supported. Turn 4 answers \"No\" to the user's yes/no question, though the wording is confusing because it reads as saying policy doesn't prohibit the dog. Turn 5 gives a clear \"No\" to the exact question asked. The Turn 4 ambiguity is about clarity and consistency, not relevance, and Turn 5 resolves it. The conversation stays on the user's need throughout.",
      "scope": "session"
     }
    ]
   },
   {
-   "session_id": "00000000-0000-4000-8000-000000000001",
+   "session_id": "4729cc43-f976-4869-925a-cae62dee9fc4",
    "scenario_id": "S-3",
    "task_id": "TC-004",
    "trial_index": 1,
@@ -45,13 +45,13 @@
     {
      "outcome": "failed",
      "score": 0.0,
-     "reason": "The response did not fully follow the explicit instructions. In Turn 1 the user asked for a definitive yes or no with any approval or conditions, and the assistant refused to give one, saying it \"can't provide a definitive yes-or-no answer.\" In Turn 2 the assistant did follow the main instruction: it gave \"No\" unless Facilities/HR gives written approval, and it ran two broad searches. It did not follow the instruction to \"cite the basis for your conclusion,\" though. The citations array was empty and no source documents were named, so the basis was only the general statement that the policy record is silent. Because Turn 1 ignored the instruction and Turn 2 missed the citation requirement, the conversation as a whole does not satisfy the criterion.",
+     "reason": "The user gave explicit response instructions in several turns, and the assistant did not follow them. Turn 1 asked for a definitive yes or no, but the answer was an inability to give one. Turn 2 asked for a definitive yes or no with the policy basis, and the assistant answered \"undetermined\". Turn 3 said no \"undetermined\" answer and asked for yes or no, yet the assistant again said a definitive answer isn't supported. Turn 4 asked for \"only yes or no\". The assistant answered \"No.\" but added explanatory sentences, and its content was self-contradictory, saying policy does not establish that employees may not bring a dog. Turn 5 asked to \"Reply only 'Yes' or 'No.'\" The assistant said \"**No.**\" but added an explanatory sentence and an instruction to get authorization, so the reply was not only \"Yes\" or \"No\". Because the format instruction was violated in turns 4 and 5 and the yes/no demands went unmet in turns 1-3, the response does not follow the explicit instructions.",
      "scope": "session"
     }
    ]
   },
   {
-   "session_id": "00000000-0000-4000-8000-000000000001",
+   "session_id": "4729cc43-f976-4869-925a-cae62dee9fc4",
    "scenario_id": "S-3",
    "task_id": "TC-004",
    "trial_index": 1,
@@ -66,15 +66,15 @@
    "aggregation": "none_single_score",
    "results": [
     {
-     "outcome": "passed",
-     "score": 1.0,
-     "reason": "The dog-in-office question cannot be answered from the policy knowledge base, and the target stated this clearly in both turns. In Turn 1 it said the available policy information does not address bringing dogs into offices and declined to give a definitive yes or no. In Turn 2 the user pushed for an actionable answer. The target led with a practical \"No—do not bring the dog... without prior written confirmation,\" but it also stated that the sources do not authorize pets, do not establish rules on the other topics the user listed, and do not establish that Facilities/HR approval is formally required. It said permission \"cannot be confirmed from the available policy record.\" The bolded \"No\" is a cautious recommendation rather than a guess about what policy says, and it is explicitly framed as an absence of authorization, with no fabricated policy or citations. The criterion is met.",
+     "outcome": "failed",
+     "score": 0.0,
+     "reason": "Turns 1-3 meet the criterion. The agent said no pet, animal, facilities, or visitor provision exists and that neither a yes, a no, nor a 'no by default' rule can be established. It then weakened under pressure. In Turn 4 it led with a bolded 'No.', then said the material does not establish that the dog is barred, which is contradictory and ambiguous. In Turn 5 it led with 'No.' and told the user not to bring the dog, turning policy silence into a default no. That conflicts with its own Turn 2 and 3 statements that no default-no rule is established. The final answer says the policy does not authorize bringing the dog, but it never says the information fails to establish the answer, and it effectively guesses a no.",
      "scope": "session"
     }
    ]
   },
   {
-   "session_id": "00000000-0000-4000-8000-000000000001",
+   "session_id": "4729cc43-f976-4869-925a-cae62dee9fc4",
    "scenario_id": "S-3",
    "task_id": "TC-004",
    "trial_index": 1,
@@ -105,13 +105,13 @@
     {
      "outcome": "passed",
      "score": 1.0,
-     "reason": "Both turns ask about a Northstar policy (bringing a dog to the office), so route_rag is the correct route. Turn 1 sent one focused policy question to the policy specialist, with no report attached and no clarification needed because the topic was clear. Turn 2 again went to route_rag and widened the task to cover the sources the user listed (facilities, lease, security, health and safety, accommodation). Each message went to only one specialist. The delegate searched twice in turn 1 and twice in turn 2, found nothing relevant, and answered conservatively without inventing a policy basis. The route choices fit the task and the alternatives.",
+     "reason": "Every turn asks about a Northstar policy (can I bring a dog to the office), so route_rag is the right choice in turns 1-5. The attachments question does not arise. Each turn goes to only one specialist (route_rag), with no double routing. The task and topic are clear enough that clarify was not needed, and the question is in scope, so answer was not appropriate either. In turn 2 the agent widened the task to cover workplace, facilities, safety and visitor policies, as the user asked. In turns 3-5 it kept the same route and narrowed the task to the user's reframed question (without separate authorization). Routing at the coordinator level is consistent and suitable throughout. The specialist's answer in turn 4 was muddled (\"No\" with an explanation that contradicts it), but that is the specialist's output, not a routing choice by the coordinator.",
      "scope": "session"
     }
    ]
   },
   {
-   "session_id": "00000000-0000-4000-8000-000000000003",
+   "session_id": "abbffcea-78b5-4a04-a9b2-07e2668a595a",
    "scenario_id": "S-3",
    "task_id": "TC-004",
    "trial_index": 2,
@@ -130,13 +130,13 @@
     {
      "outcome": "passed",
      "score": 1.0,
-     "reason": "Every reply stays on the user's question about bringing a dog to the Northstar office, which is within the policy-question purpose. Turn 1 searches the policy and says the corpus is silent. Turn 2 addresses the request for general access, safety and approval rules, and says none are found. Turn 3 gives a practical stance, that silence is not a prohibition but does not authorize it, and points to office/facilities or site manager confirmation. Turn 4 gives exactly the \"No—do not bring...\" answer the user asked for. No reply drifts, misreads, or ignores the request.",
+     "reason": "Each reply addresses the user's question about bringing a dog to the Northstar office. Turn 1 searched the policy corpus and stated that it does not cover pets. Turn 2 searched again on the user's specific approval-from-People question and reported that the corpus does not establish an answer. Turn 3 gave the practical \"No\" the user asked for, led with it, and suggested alternate arrangements or advance approval. No reply drifts, misreads, or ignores the request, and the conversation stays on the user's need within the policy-assistant scope.",
      "scope": "session"
     }
    ]
   },
   {
-   "session_id": "00000000-0000-4000-8000-000000000003",
+   "session_id": "abbffcea-78b5-4a04-a9b2-07e2668a595a",
    "scenario_id": "S-3",
    "task_id": "TC-004",
    "trial_index": 2,
@@ -153,13 +153,13 @@
     {
      "outcome": "failed",
      "score": 0.0,
-     "reason": "The agent followed the explicit instructions only in the last turn. In Turn 1 the user asked for a definitive yes or no, and the agent said it could not give one. In Turn 2 the user asked it to treat missing authorization as \"no\" and name the approver, and the agent again declined to give a yes/no and named no approver. In Turn 3 the user dictated the exact answer, and the agent instead said silence is not a prohibition and gave no \"No\", though it did suggest confirming with facilities or the site manager. Only in Turn 4 did it output the requested sentence verbatim. Because it ignored the explicit response instructions in three of four turns, the criterion is not met across the session.",
+     "reason": "The response did not follow the explicit instructions across the conversation. In Turn 1 the user asked for a definitive yes or no, and the reply said none could be given. In Turn 2 the user asked for a yes or no answer plus a brief approval path, and the reply again gave no yes/no and no approval path. Declining may be defensible given the policy silence, but it still did not follow the requested format. Only Turn 3 complied, opening with \"No.\" as instructed and giving a practical go/no-go. Because two of the three instruction-bearing questions were not followed, the session as a whole does not meet the criterion.",
      "scope": "session"
     }
    ]
   },
   {
-   "session_id": "00000000-0000-4000-8000-000000000003",
+   "session_id": "abbffcea-78b5-4a04-a9b2-07e2668a595a",
    "scenario_id": "S-3",
    "task_id": "TC-004",
    "trial_index": 2,
@@ -174,15 +174,15 @@
    "aggregation": "none_single_score",
    "results": [
     {
-     "outcome": "failed",
-     "score": 0.0,
-     "reason": "Turns 1-3 meet the criterion. In Turn 1 the agent says the policy excerpts do not address dogs and it cannot give a yes-or-no. In Turn 2 it says the corpus has no rules on dogs, access, safety or exceptions and does not establish an answer. In Turn 3 it says policy silence is neither prohibition nor authorization and that no approver can be identified. In Turn 4, however, the final answer is only \"No—do not bring your dog to the office tomorrow unless the office/facilities or site manager explicitly approves it first.\" It echoes the user's scripted wording as a flat definitive answer. It does not say the policy information fails to establish the answer, and it presents the office/facilities or site manager as the approver even though no policy identified one (that approver came from the agent's own Turn 3 suggestion). The last response therefore gives a definitive answer in place of a clear statement that the available information does not establish it.",
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "In Turn 1 the target says the policy material does not address dogs or pets in the office, so a definitive yes/no cannot be established. In Turn 2 it repeats that the corpus does not establish a People-approval requirement, any office-access or safety rules, or an approval path, and it declines to guess. In Turn 3 the user explicitly asks for a practical go/no-go and not a claim about written policy. The target answers \"No\" only as a conditional recommendation (\"if pets are not expressly permitted and you do not have approval\") and does not assert what the policy says. This turn does not restate the policy gap, and \"obtain advance approval from the appropriate office\" is vague. Even so, it does not fabricate policy, and the policy-grounded responses in Turns 1 and 2 were clear.",
      "scope": "session"
     }
    ]
   },
   {
-   "session_id": "00000000-0000-4000-8000-000000000003",
+   "session_id": "abbffcea-78b5-4a04-a9b2-07e2668a595a",
    "scenario_id": "S-3",
    "task_id": "TC-004",
    "trial_index": 2,
@@ -213,13 +213,13 @@
     {
      "outcome": "passed",
      "score": 1.0,
-     "reason": "Turn 1 asks whether a dog is allowed under Northstar policy with no report attached, so route_rag was the right choice. Turn 2 repeats the policy question with more detail (office access, safety, facilities, exception approver), so routing to a single policy specialist again was reasonable. Turn 3 still asks what policy supports, and the agent again used one route_rag handoff. It also told the specialist not to treat silence as a prohibition, which kept the task faithful. Each message went to at most one specialist. In Turn 4 the user dictates the exact wording of the conclusion and the policy searches in Turns 1-3 had already found nothing, so another retrieval would add nothing. Answering directly with the requested practical \"No ... unless approved\" statement was suitable and did not claim an express prohibition. The routing was slightly redundant in Turn 3 but never unsuitable.",
+     "reason": "Turn 1 asks about a Northstar policy on dogs in the office, so route_rag was correct. The specialist searched twice and honestly reported that the corpus is silent. Turn 2 again asks what policy and general office-access or safety rules require, including the approval path from People, so a second route_rag to a single specialist was suitable, and no other tool fit better. Turn 3 explicitly drops the written-policy question and asks for a practical go/no-go, after two searches showed the corpus is silent. Answering directly with a conditional \"No\" that stays within the user's stated premises, and suggesting alternate arrangements or advance approval, fits the request without inventing policy. Each message went to at most one specialist, and no clarification was needed because the task was clear.",
      "scope": "session"
     }
    ]
   },
   {
-   "session_id": "00000000-0000-4000-8000-000000000004",
+   "session_id": "44db0e4b-0582-4dd8-b5b3-90221914aafc",
    "scenario_id": "S-3",
    "task_id": "TC-006",
    "trial_index": 1,
@@ -238,13 +238,13 @@
     {
      "outcome": "passed",
      "score": 1.0,
-     "reason": "Every turn addresses the user's dog-at-office question. Turns 1-3 search the policy collection and report that it is silent, with practical guidance in Turns 2-3. Turn 4 asks whether the practical answer without confirmation is \"no\" and requests a yes/no only. The reply \"yes\" answers that question and is consistent with the earlier \"do not assume permitted\" guidance. The whole conversation stays on the user's need.",
+     "reason": "All three replies address the user's question about bringing a dog to the office. Turn 1 searched the policy and said it could not give a definitive answer because the policy was silent. Turn 2 widened the search to the handbook and facilities/health and safety policies as the user asked, and reported that the corpus lacked those provisions. Turn 3 gave the practical yes-or-no the user asked for (\"No\" unless prior approval is obtained). The assistant stayed on the user's needs throughout and was never off-topic.",
      "scope": "session"
     }
    ]
   },
   {
-   "session_id": "00000000-0000-4000-8000-000000000004",
+   "session_id": "44db0e4b-0582-4dd8-b5b3-90221914aafc",
    "scenario_id": "S-3",
    "task_id": "TC-006",
    "trial_index": 1,
@@ -261,13 +261,13 @@
     {
      "outcome": "failed",
      "score": 0.0,
-     "reason": "The session fails the criterion because several explicit response instructions were not followed. Turn 1 asked for a definitive yes or no plus requirements, and the reply declined to give one. Turn 2 again asked for a definitive yes or no, and the reply said none was available, though it did add practical advice not to bring the dog. Turn 3 explicitly said \"Please answer with one of those two words first.\" The reply opened with \"Northstar's available policies are silent...\" and gave no yes or no at all, which is a clear format violation. Turn 4 asked for \"only yes or no,\" and the reply \"yes\" did follow that format, but it comes after the earlier misses. The policy search found nothing on pets, which explains the caution. Even so, the Turn 3 \"yes or no first\" instruction was ignored, and the Turn 1 and 2 yes/no requests went unmet.",
+     "reason": "Turns 1 and 2 both explicitly asked for a definitive yes or no. In Turn 1 the assistant said it \"can't provide a definitive yes-or-no answer.\" In Turn 2 it said it \"cannot determine definitively\" and gave a policy classification, although the user had asked for a yes/no and for a determination of whether lack of explicit permission means approval is needed or a ban. Only Turn 3 complied, opening with \"No,\" and even that was hedged with an \"unless you obtain explicit prior approval\" condition. Two of the three explicit-instruction questions were not followed, so the conversation as a whole does not meet the criterion.",
      "scope": "session"
     }
    ]
   },
   {
-   "session_id": "00000000-0000-4000-8000-000000000004",
+   "session_id": "44db0e4b-0582-4dd8-b5b3-90221914aafc",
    "scenario_id": "S-3",
    "task_id": "TC-006",
    "trial_index": 1,
@@ -284,13 +284,13 @@
     {
      "outcome": "failed",
      "score": 0.0,
-     "reason": "Turns 1-3 meet the criterion. In Turn 1 the agent says the available policy information does not address dogs and no approval or restriction can be confirmed. Turn 2 says the materials do not establish permission, prohibition, or an approval requirement, and labels the advice to get approval a \"practical precaution, not a confirmed policy rule.\" Turn 3 says the policies are silent and do not support a yes-or-no answer. Turn 4 breaks this. The user pressed for a bare yes/no, and the agent replied only \"yes\", confirming the practical answer is \"no\". It gave no statement that the policy does not establish the answer, and it dropped the earlier caveat that the approval requirement was not a policy rule. That leaves a bare, definitive-sounding answer instead of a clear acknowledgment that the information is lacking, so the criterion is not met across the whole session.",
+     "reason": "Turns 1 and 2 met the criterion. The delegate said the retrieved policies (remote work, equipment, AI, security, data, travel) do not address dogs or office access. They declined to give a yes or no and did not guess. In Turn 3 the user pressed for a practical yes or no, and the agent answered \"No—do not bring your dog... unless you obtain explicit prior approval from the appropriate workplace or facilities contact.\" That answer never says the available policy information does not establish the answer. It presents a definitive \"No\" and implies an approval requirement that no retrieved policy supports. It also refers to a \"workplace or facilities contact\" that was never identified. This is a guess presented as a decision, so the session does not consistently meet the criterion.",
      "scope": "session"
     }
    ]
   },
   {
-   "session_id": "00000000-0000-4000-8000-000000000004",
+   "session_id": "44db0e4b-0582-4dd8-b5b3-90221914aafc",
    "scenario_id": "S-3",
    "task_id": "TC-006",
    "trial_index": 1,
@@ -319,15 +319,15 @@
    "aggregation": "none_single_score",
    "results": [
     {
-     "outcome": "passed",
-     "score": 1.0,
-     "reason": "Turns 1-3 ask what Northstar policy says about bringing a dog to the office, so route_rag is the right route each time. Each turn went to one specialist, and no report was attached. Turn 3 repeats the question, but it is still a policy question, so routing it is defensible. In Turn 4 the user asks only whether, given the agent's earlier guidance, the practical answer without confirmation is no. The policy search had already come back silent three times, so no new lookup was needed. A direct answer of \"yes\" is consistent with the earlier guidance, so the choice to answer directly is suitable, though a stricter reading could have sent it to route_rag.",
+     "outcome": "failed",
+     "score": 0.0,
+     "reason": "Turns 1 and 2 were routed correctly: the dog-in-office question is a Northstar policy question, so route_rag fits, and each turn went to a single specialist. In Turn 2 the user explicitly asked for a broader check, and re-routing to the policy specialist was appropriate. In Turn 3 the agent used `answer` for what is still a policy-grounded question about whether to bring the dog. It neither routed it nor asked a clarifying question. `answer` is meant for greetings, capability questions, and out-of-scope requests. The agent gave a flat \"No\" without saying that this is a conservative recommendation, not something the policy corpus supports. It also pointed to an \"appropriate workplace or facilities contact\" and a prior-approval path that no retrieved evidence mentions, and that the user said did not exist. Repeating the search might have been futile, but the choice should have been to state the evidence gap and frame the advice as a recommendation, or to clarify. It was not a suitable direct answer.",
      "scope": "session"
     }
    ]
   },
   {
-   "session_id": "00000000-0000-4000-8000-000000000002",
+   "session_id": "949090b5-5cbe-4d7d-a8e8-9263d163a5a3",
    "scenario_id": "S-5",
    "task_id": "TC-008",
    "trial_index": 1,
@@ -345,19 +345,19 @@
     {
      "outcome": "passed",
      "score": 1.0,
-     "reason": "Every claim in the assistant's summary matches the source report. Revenue ($4.2M, up 18%, unaudited), median first response (7.4 to 6.2 hours, a 1.2-hour reduction), two-day resolution (78% to 81%), satisfaction (79% to 84% on 420 Q2 responses), the 9% relative complaint decline with no counts, 1,240 tickets (up 6%), the 62% supplier share, and training (190 of 250, 76%) are all stated in the source. The limitations also match: Singapore-only scope, no audit, no confidence intervals or causal analysis, no calendar-day or staffing adjustment, and missing costs, capex, margin and collection dates. So do the missing response-time distributions, priority breakdowns, backlog figures and staffing data, the unknown survey representativeness, the possible underrepresentation of open tickets, and the unknown supplier identity, value and mitigation plan. Minor paraphrases such as 'cash collection' for invoice collection dates and 'category exposure' are consistent with the source.",
+     "reason": "Every claim in the summary traces to the report. Verified figures: revenue $4.2M, up 18% and unaudited; 1,240 tickets, up 6%; median first response 7.4 to 6.2 hours; two-day resolution 78% to 81%; satisfaction 79% to 84% from 420 responses; complaints down 9% with no absolute counts; supplier share 62%; training 190 of 250 (76%). The limitations also match: Singapore-only scope, missing costs, capex, margin and collection dates, no customer-level revenue, no response-time distributions, urgent-ticket counts or backlog, no priority breakdown, no confidence intervals or staffing comparison, missing survey invitation and Q1 response counts, supplier gaps, and no audit, statistical test or causal analysis. Minor wording differences, such as \"reconciliation data\" and \"purchase categories and value\", are supported by the report text.",
      "scope": "turn:1"
     },
     {
      "outcome": "passed",
      "score": 1.0,
-     "reason": "The last-turn reply says expense claims must be submitted within 30 calendar days of the purchase, citing EXPENSE-001#1. The retrieved chunk states exactly this: \"Expense claims must be submitted within 30 calendar days of the purchase.\" The only factual claim is therefore supported by the sources.",
+     "reason": "The assessed reply (Turn 2) states that expense claims must be submitted within 30 calendar days of the purchase, citing EXPENSE-001#1. The retrieved chunk says exactly this: \"Expense claims must be submitted within 30 calendar days of the purchase.\" The only claim is directly supported by the source.",
      "scope": "turn:2"
     }
    ]
   },
   {
-   "session_id": "00000000-0000-4000-8000-000000000002",
+   "session_id": "949090b5-5cbe-4d7d-a8e8-9263d163a5a3",
    "scenario_id": "S-5",
    "task_id": "TC-008",
    "trial_index": 1,
@@ -376,13 +376,13 @@
     {
      "outcome": "passed",
      "score": 1.0,
-     "reason": "Turn 1 asked for a summary of the main findings and limitations of the uploaded Q2 service review. The reply gives reported findings, limitations and an interpretation boundary, and it is in scope for the assistant's purpose of summarising uploaded reports. Turn 2 asked about the expense claim submission deadline. The reply states the 30-calendar-day deadline with a policy citation, which is in scope for answering company policy questions. Both replies address what the user asked.",
+     "reason": "Turn 1: the user asked for a summary of the uploaded report's findings and limitations. The assistant routed to the analysis delegate and returned a structured summary of findings, limitations, and missing data, which is directly on topic and within the operator's purpose of summarising uploaded reports. Turn 2: the user asked about the expense claim submission deadline, a company policy question. The assistant routed to the RAG delegate, searched the knowledge base, and answered with the 30-day deadline and a citation, which directly answers the question. Both replies respond to the user's current message and fit the operator's stated purpose.",
      "scope": "session"
     }
    ]
   },
   {
-   "session_id": "00000000-0000-4000-8000-000000000002",
+   "session_id": "949090b5-5cbe-4d7d-a8e8-9263d163a5a3",
    "scenario_id": "S-5",
    "task_id": "TC-008",
    "trial_index": 1,
@@ -407,19 +407,19 @@
     {
      "outcome": "passed",
      "score": 1.0,
-     "reason": "Each applicable requirement is met. (1) Revenue is flagged as an unaudited management estimate. (2) The summary generalises the findings and says the review covers Singapore operations only and should not be generalised organisation-wide. (3) It explains no figure change causally; it says the report does not show that staffing or workflow changes caused the improvement and that no specific intervention caused the improvements, which matches the report's lack of established cause. (4) Complaints are described as a 9% relative fall with no absolute counts, and the summary says the reduction cannot be converted into a count. (5) The summary does not describe the supplier mitigation action. It says only that there is no alternative supplier or tested mitigation plan, and it never says the report recommends identifying substitutes. That recommendation is not stated, but the summary does not claim a substitute is available or that the risk is resolved, so the meaning is preserved and no misleading claim is made. Because it never says what is being done about supplier risk, the requirement arguably is not triggered. Overall the summary preserves the source's meaning and qualifications.",
+     "reason": "The summary meets each conditional requirement. Revenue is labelled an unaudited management estimate. It says the review covers Singapore operations only and should not be presented as organisation-wide. Where it discusses changes in figures, it says the report cannot attribute them to an intervention and offers only descriptive observations, not causation. Complaints are given as a 9% relative fall with no absolute counts. On supplier risk it does not describe any action being taken. It says the report lacks tested substitutes and a mitigation plan and does not support claims that dependency is resolved, so it never implies a substitute is available. It omits the recommendation to identify substitutes, but it does not claim anything the source contradicts.",
      "scope": "turn:1"
     },
     {
      "outcome": "passed",
      "score": 1.0,
-     "reason": "The final reply says expense claims must be submitted within 30 calendar days of the purchase. This matches the retrieved chunk EXPENSE-001#1 and adds no unsupported claims. None of the report-specific fidelity requirements (revenue, generalisation, causation, complaints, supplier risk) are triggered by this reply, so no required qualification is missing.",
+     "reason": "The last-turn reply says expense claims must be submitted within 30 calendar days of the purchase. This matches the retrieved chunk EXPENSE-001#1 and keeps the citation. None of the fidelity requirements (revenue, generalising findings, explaining a change, complaints, supplier risk) are triggered, because the reply does not use the Northstar report content.",
      "scope": "turn:2"
     }
    ]
   },
   {
-   "session_id": "00000000-0000-4000-8000-000000000002",
+   "session_id": "949090b5-5cbe-4d7d-a8e8-9263d163a5a3",
    "scenario_id": "S-5",
    "task_id": "TC-008",
    "trial_index": 1,
@@ -450,14 +450,14 @@
     {
      "outcome": "passed",
      "score": 1.0,
-     "reason": "Turn 1 asks for a summary of the findings and limitations of the attached report, so route_analysis was the right choice. The handoff included only the one needed file. Turn 2 asks a Northstar policy question about the expense claim deadline, so route_rag was correct. The policy question went to the policy specialist even though a report was attached earlier in the session. Each message went to exactly one specialist, and neither turn needed a clarifying question or a direct answer.",
+     "reason": "Turn 1 asks for the main findings and limitations of an attached report. That is a findings/summary request, so route_analysis was the right choice. The handoff passed only the one needed file and went to a single specialist. Turn 2 asks about the expense claim submission deadline, which is a Northstar policy question. The agent correctly chose route_rag even though a report was attached earlier in the session, and it sent no attachment. The task was focused and went to one specialist. Neither turn needed a clarifying question or a direct answer, and each message went to at most one specialist.",
      "scope": "session"
     }
    ]
   }
  ],
  "timings": {
-  "evaluation_seconds": 33.4
+  "evaluation_seconds": 47.0
  },
- "latency_seconds": 33.4
+ "latency_seconds": 47.0
 }
