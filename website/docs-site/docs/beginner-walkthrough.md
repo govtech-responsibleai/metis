@@ -23,8 +23,8 @@ install anything, but these services are not generally open to the public:
 3. **A Langfuse server**, which records each conversation as a trace. You open it from a link in
    the toy app in step 1, and from a link in METIS in step 6.
 
-To log in to METIS, you need the secret key that is shown on the presentation slides. The
-workshop facilitators give you the login for Langfuse.
+To log in to METIS, you need the join token given by the facilitators, who also give you the
+login for Langfuse.
 :::
 
 :::tip[Comfortable with the terminal?]
@@ -32,7 +32,8 @@ Try the [Advanced (CLI) Walkthrough](advanced-walkthrough.md) to run METIS on yo
 against your own application.
 :::
 
-The picture shows how the pieces fit together:
+The picture shows how the pieces fit together. Steps 1 and 4 to 7 repeat it with the parts that
+the step uses lit up, so that you can see where you are.
 
 <SystemDiagram />
 
@@ -49,8 +50,12 @@ The picture shows how the pieces fit together:
 
 ## Step 1: Explore the toy application (15 min) {#step-1}
 
-The [agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp) is an
-employee assistant. For each message it chooses one of four actions: answer directly, ask a
+<SystemDiagram walkthrough="beginner" step={1} />
+
+The application that you evaluate is
+[Northstar Policy & Report Assistant](https://github.com/govtech-responsibleai/agentic-eval-toyapp/blob/main/README.md),
+a toy app built to demonstrate METIS. It is an assistant for the employees of a fictional company,
+Northstar Services. For each message it chooses one of four actions: answer directly, ask a
 clarifying question, hand over to the policy specialist, or hand over to the report specialist.
 
 ### 1a. Open the toy app
@@ -86,13 +91,13 @@ conversations that METIS runs.
 
 ## Step 2: Log in to METIS (5 min) {#step-2}
 
-### 2a. Enter the secret key
+### 2a. Enter the join token
 
 Open [https://demo1-web.metis.aip.gov.sg/](https://demo1-web.metis.aip.gov.sg/).
 
 ![The METIS login page](./assets/web-login.png)
 
-Enter the **secret key** shown on the presentation slides. This generates a unique username and
+Enter the **join token** given by the facilitators. This generates a unique username and
 password for you.
 
 ### 2b. Log in
@@ -127,12 +132,16 @@ password for you.
 
 ## Step 4: Build a specification (20 min) {#step-4}
 
+<SystemDiagram walkthrough="beginner" step={4} />
+
 ### 4a. Describe the toy app
 
-Copy the description below, paste it into the text box, and select **Send**.
+Describe Northstar Policy & Report Assistant to the Wizard. The description below comes from the
+toy app's [README](https://github.com/govtech-responsibleai/agentic-eval-toyapp/blob/main/README.md).
+Copy it, paste it into the text box, and select **Send**.
 
 ```
-Agentic Eval Toy App is a small assistant you can use through a web chat page or call directly through a REST API. In either one you can ask questions about an employee-policy corpus, or upload a report and ask for a summary or its key findings. Behind the chat sits a coordinator that reads each message and decides how to handle it: it answers directly, asks you a clarifying question, or delegates the task to a specialist agent. There are two specialists, and each has one job. The policy RAG agent handles questions about the policy corpus: it retrieves the relevant passages first, then answers using only those and cites them. The report-analysis agent handles uploaded reports: it reads the whole document, answers from it alone, and points back to the pages or sections it relied on. Langfuse instrumentation is optional; when enabled, each turn is exported as a trace.
+Northstar Policy & Report Assistant is a small assistant you can use through a web chat page or call directly through a REST API. It does two separate jobs, and each message you send is handled by only one of them. The first is policy Q&A: ask about Northstar Services' employee policies, such as "What is the lodging limit for domestic travel?", and a policy specialist searches the built-in policy documents and answers only from the passages it retrieved, citing each one. The second is report analysis: upload a text, Markdown, or text-based PDF report and ask for a summary or its key findings, such as "What risks does this report flag?", and a report specialist reads the whole report and answers only from it, pointing back to the pages or sections it used. A coordinator sits in front of both specialists and decides what to do with each message. It replies itself to greetings, questions about the app, and out-of-scope requests, asks a clarifying question when the task or report is unclear, and otherwise hands the message to exactly one specialist. Optional Langfuse instrumentation exports each turn as a trace.
 ```
 
 ### 4b. Follow the interview
@@ -195,6 +204,8 @@ test cases.
 
 ## Step 5: Start and watch the experiment (15 min) {#step-5}
 
+<SystemDiagram walkthrough="beginner" step={5} />
+
 ### 5a. Run the experiment
 
 If you have not already started the experiment, select the **Experiments** tab and press
@@ -214,6 +225,8 @@ Wait for all trials to finish.
 **Checkpoint:** all trials complete successfully.
 
 ## Step 6: Inspect the traces in Langfuse (10 min) {#step-6}
+
+<SystemDiagram walkthrough="beginner" step={6} />
 
 ### 6a. Open a trace from the Trials tab
 
@@ -237,6 +250,8 @@ outputs, and which tools it called.
 **Checkpoint:** find the `coordinator-action` step and say which route it chose.
 
 ## Step 7: Read the report (10 min) {#step-7}
+
+<SystemDiagram walkthrough="beginner" step={7} />
 
 ### 7a. Open the report
 
