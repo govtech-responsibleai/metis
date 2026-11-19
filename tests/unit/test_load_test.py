@@ -10,8 +10,11 @@ from metis_load_test import (
     Outcome,
     StartResult,
     Tracked,
+    format_header,
+    format_line,
     is_ended,
     make_input_copies,
+    parse_config,
     percentile,
     rewrite_specification_id,
     summarise,
@@ -309,3 +312,82 @@ def test_hint_names_the_project_folder_override():
     assert "LOAD_TEST_PROJECT_DIR" in hint
     assert "/p" in hint
     assert summary_hint(_outcome()) is None
+
+
+# --- settings and live lines ------------------------------------------------------------------
+
+
+def test_settings_defaults(tmp_path):
+    (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+    inner = tmp_path / "sub"
+    inner.mkdir()
+
+    config = parse_config([], cwd=inner)
+
+    assert config.users == 4
+    assert config.url == "http://127.0.0.1:8001"
+    assert config.input_dir == Path(
+        "packages/engine/examples/http-agentic_eval_toyapp-1"
+    )
+    assert config.timeout == 1800.0
+    assert config.project_dir == tmp_path
+
+
+def test_project_dir_override_wins(tmp_path):
+    other = tmp_path / "other"
+    other.mkdir()
+
+    config = parse_config(
+        ["--project-dir", str(other), "--url", "http://x:1/", "--users", "60"],
+        cwd=tmp_path,
+    )
+
+    assert config.project_dir == other.resolve()
+    assert config.url == "http://x:1"
+    assert config.users == 60
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--users", "0"],
+        ["--timeout", "0"],
+        ["--url", "example.com"],
+        ["--project-dir", "/no/such/folder"],
+    ],
+)
+def test_bad_settings_exit_2(tmp_path, argv):
+    with pytest.raises(SystemExit) as exit_info:
+        parse_config(argv, cwd=tmp_path)
+
+    assert exit_info.value.code == 2
+
+
+def test_line_format():
+    running = Tracked(user=1, experiment_id="e1", accepted_at=0.0)
+    running.observe({"status": "running", "phase": "simulating", "total": 3}, 1.0)
+    queued = Tracked(user=12, experiment_id="e12", accepted_at=0.0)
+    queued.observe({"status": "queued", "phase": "simulating", "queue_ahead": 0}, 1.0)
+
+    assert format_line(12.4, running) == (
+        "   0:12  user 1   running     simulating  ahead -  total 3"
+    )
+    assert format_line(72.0, queued) == (
+        "   1:12  user 12  queued      simulating  ahead 0  total -"
+    )
+
+
+def test_header_format():
+    experiments = [
+        Tracked(user=i, experiment_id=f"e{i}", accepted_at=0.0) for i in (1, 2, 3)
+    ]
+    experiments[0].observe({"status": "running"}, 1.0)
+    experiments[1].observe({"status": "queued"}, 1.0)
+    experiments[2].observe({"status": "completed"}, 1.0)
+
+    assert format_header(12.0, experiments, [0.01, 0.04]) == (
+        "-- 0:12  running 1  queued 1  ended 1  status p95 0.04 s"
+    )
+    assert format_header(0.0, [], []) == (
+        "-- 0:00  running 0  queued 0  ended 0  status p95 - s"
+    )

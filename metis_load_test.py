@@ -16,6 +16,7 @@ alive. The input copies and the experiment folders stay on disk.
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
 import re
@@ -24,6 +25,8 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from metis.core.project_layout import find_project_root
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -34,6 +37,10 @@ P95_LIMIT_SECONDS = 1.0
 """The status route must answer 95 % of its requests faster than this. Each open page polls it
 every two seconds, so this is what users feel."""
 _ALIVE = frozenset({"queued", "running", "stopping"})
+DEFAULT_USERS = 4
+DEFAULT_URL = "http://127.0.0.1:8001"
+DEFAULT_INPUT = Path("packages/engine/examples/http-agentic_eval_toyapp-1")
+DEFAULT_TIMEOUT_SECONDS = 1800.0
 
 # The top-level `id:` of a specification.yaml. Indented ids (of features, behaviours, and so on)
 # do not match, because the line must start with `id:`.
@@ -325,4 +332,109 @@ def summary_hint(outcome: Outcome) -> str | None:
     return (
         f"The API refused the input copies in {outcome.project_dir}. If the API runs from "
         "another folder, set LOAD_TEST_PROJECT_DIR to its project folder."
+    )
+
+
+# --- settings and live lines ------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Config:
+    """The settings of one load test."""
+
+    users: int
+    url: str
+    input_dir: Path
+    timeout: float
+    """Seconds for the whole test."""
+    project_dir: Path
+    """The project folder of the API, where the input copies go."""
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="metis_load_test.py",
+        description="Start N experiments at the same moment against a running METIS API.",
+    )
+    parser.add_argument("--users", type=int, default=DEFAULT_USERS)
+    parser.add_argument("--url", default=DEFAULT_URL, help="The address of the API.")
+    parser.add_argument(
+        "--input",
+        type=Path,
+        default=DEFAULT_INPUT,
+        help="The input folder to copy once for each user.",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=DEFAULT_TIMEOUT_SECONDS,
+        help="Seconds for the whole test. A timeout gives no.",
+    )
+    parser.add_argument(
+        "--project-dir",
+        type=Path,
+        default=None,
+        help=(
+            "The project folder of the API. Default: the nearest folder at or above the "
+            "working directory that has a pyproject.toml, as metis-api finds it."
+        ),
+    )
+    return parser
+
+
+def parse_config(
+    argv: Sequence[str] | None = None, *, cwd: Path | None = None
+) -> Config:
+    """Read the settings from `argv`. A value that is not valid exits with code 2."""
+    parser = _parser()
+    arguments = parser.parse_args(argv)
+    if arguments.users < 1:
+        parser.error("--users must be 1 or more")
+    if arguments.timeout <= 0:
+        parser.error("--timeout must be more than 0")
+    url = arguments.url.strip().rstrip("/")
+    if not url.startswith(("http://", "https://")):
+        parser.error("--url must start with http:// or https://")
+    project_dir: Path = (
+        arguments.project_dir if arguments.project_dir else find_project_root(cwd)
+    ).resolve()
+    if not project_dir.is_dir():
+        parser.error(f"the project folder {project_dir} does not exist")
+    return Config(
+        users=arguments.users,
+        url=url,
+        input_dir=arguments.input,
+        timeout=arguments.timeout,
+        project_dir=project_dir,
+    )
+
+
+def _clock(seconds: float) -> str:
+    minutes, rest = divmod(int(seconds), 60)
+    return f"{minutes}:{rest:02d}"
+
+
+def _dash(value: object) -> str:
+    return "-" if value is None else str(value)
+
+
+def format_line(elapsed: float, tracked: Tracked) -> str:
+    """One live line: status, phase, queue_ahead and total, as the jq loop of #222 shows."""
+    return (
+        f"   {_clock(elapsed)}  user {tracked.user:<3} {_dash(tracked.status):<11} "
+        f"{_dash(tracked.phase):<10}  ahead {_dash(tracked.queue_ahead)}  "
+        f"total {_dash(tracked.total)}"
+    )
+
+
+def format_header(
+    elapsed: float, experiments: Sequence[Tracked], latencies: Sequence[float]
+) -> str:
+    """The line before each poll round: the counts and the status p95 so far."""
+    counts = Counter(tracked.status for tracked in experiments)
+    p95 = percentile(latencies, 0.95)
+    return (
+        f"-- {_clock(elapsed)}  running {counts['running'] + counts['stopping']}  "
+        f"queued {counts['queued']}  ended {sum(t.ended for t in experiments)}  "
+        f"status p95 {'-' if p95 is None else f'{p95:.2f}'} s"
     )
