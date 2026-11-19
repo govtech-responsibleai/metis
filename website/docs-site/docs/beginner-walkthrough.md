@@ -62,12 +62,14 @@ clarifying question, hand over to the policy specialist, or hand over to the rep
 
 Open the [toy app](https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/). Select **Demo** to try a pre-made session.
 
-![The Demo menu of the toy app](./assets/toyapp-demo-menu.png)
+![The toy app, with the Demo button highlighted](./assets/toyapp-demo-menu.png)
 
-### 1b. Try a demo session
+### 1b. Inspect a demo session
 
 Choose **Pet policy: question outside the collection**. The employee asks for a plain yes or no,
 but the policy collection has no answer.
+
+![The Demo menu, with the Pet policy demo highlighted](./assets/toyapp-demo-choose-pet.png)
 
 ![The toy app in a demo session](./assets/toyapp-demo-session.png)
 
@@ -76,16 +78,26 @@ but the policy collection has no answer.
 The toy app records each conversation in Langfuse as a <Term>trace</Term>. Select **Open in
 Langfuse** to open the trace of the demo session that you just watched.
 
-![The toy app's session bar, with the Open in Langfuse button](./assets/toyapp-open-in-langfuse.png)
+![The toy app's session bar, with the Open in Langfuse button highlighted](./assets/toyapp-open-in-langfuse.png)
 
 :::note
 Langfuse asks you to log in. Use the Langfuse login that the workshop facilitators give you.
 :::
 
-Select the trace, and find the `coordinator-action` step. It shows which of the four actions the
-app chose for the pet question. Langfuse shows the steps that led to the final answer, as well as
-the answer itself, and METIS grades both. You come back to Langfuse in step 6, to read the
-conversations that METIS runs.
+The session opens with the employee's question and the app's reply. On the right, select the
+**agent-turn** trace to open it and see each step the app took.
+
+![The demo session in Langfuse, with the agent-turn trace highlighted](./assets/toyapp-demo-langfuse-session.png)
+
+The trace shows a tree of the steps the app took for one message. Select `coordinator-action` to
+see which of the four actions the app chose for the pet question. Here it chose `delegate-rag`,
+which hands the question to the policy specialist: that specialist then searched the knowledge
+base before it answered.
+
+![A trace in Langfuse, with its tree of steps and the coordinator-action step highlighted](./assets/toyapp-demo-langfuse-trace.png)
+
+Langfuse shows the steps that led to the final answer, as well as the answer itself, and METIS
+grades both. You come back to Langfuse in step 6, to read the conversations that METIS runs.
 
 **Checkpoint:** name the four actions the toy app can take, and say which one it chose in the demo.
 
