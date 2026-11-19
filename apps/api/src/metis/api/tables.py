@@ -67,6 +67,14 @@ users = Table(
     Column("created_at", DateTime(timezone=True), nullable=False),
 )
 
+# A user account with a row here is an admin. The flag is a table of its own, because
+# `create_all` makes a missing table in an existing database but never adds a column.
+admins = Table(
+    "admins",
+    metadata,
+    Column("user_id", String(32), ForeignKey("users.id"), primary_key=True),
+)
+
 login_sessions = Table(
     "login_sessions",
     metadata,
@@ -79,6 +87,7 @@ login_sessions = Table(
 
 
 __all__ = [
+    "admins",
     "experiments",
     "interviews",
     "login_sessions",

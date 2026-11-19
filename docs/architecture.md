@@ -372,9 +372,13 @@ disk.
 
 **Login.** Login is off by default. `METIS_LOGIN=1` turns it on for a server that many people
 use. The `users` table holds the user accounts, with a hash of each password. The
-`login_sessions` table holds a hash of the cookie value of each login session. One guard in the
-app lets a request reach an `/api` route only with a login session. The routes under
-`/api/v1/users` make and list user accounts, and need the token in `METIS_ADMIN_TOKEN`.
+`login_sessions` table holds a hash of the cookie value of each login session. The `admins`
+table names each admin. One guard in the app lets a request reach an `/api` route only with a
+login session. The routes under `/api/v1/users` list, make, and delete user accounts and reset
+their passwords. They need the login session of an admin, or the admin token in
+`METIS_ADMIN_TOKEN`. The join token in `METIS_JOIN_TOKEN` can only make user accounts that are
+not admins. `METIS_ADMIN_USERNAME` and `METIS_ADMIN_PASSWORD`
+name one admin, which the API makes or updates at each start.
 
 ---
 

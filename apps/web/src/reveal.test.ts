@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { transitionFrames, wordFrames } from "./reveal.ts";
+import { settleFrames, transitionFrames, wordFrames } from "./reveal.ts";
 
 test("keeps unchanged text still", () => {
   assert.deepEqual(
@@ -142,4 +142,24 @@ test("a newer value supersedes the visible frame of an in-flight reveal", () => 
     }),
     ["", "Newest", "Newest value"],
   );
+});
+
+test("settles the characters of a value into place, and ends on the value", () => {
+  const value = "k7mwp3xr9t";
+  const frames = settleFrames(value, false);
+  const settled = (frame: string) =>
+    [...frame].findIndex((character, index) => character !== value[index]);
+
+  assert.ok(frames.length > 2);
+  assert.notEqual(frames[0], value);
+  assert.equal(frames.at(-1), value);
+  for (const [step, frame] of frames.slice(0, -1).entries()) {
+    assert.equal(frame.length, value.length);
+    assert.ok([...frame].every((character) => value.includes(character)));
+    if (step > 0) assert.ok(settled(frame) >= settled(frames[step - 1]));
+  }
+});
+
+test("shows a settling value at once for reduced motion", () => {
+  assert.deepEqual(settleFrames("k7mwp3xr9t", true), ["k7mwp3xr9t"]);
 });

@@ -676,7 +676,7 @@ export interface paths {
         };
         /**
          * List the user accounts
-         * @description Return each user account with its id, username, and creation time.
+         * @description Return each user account with its id, username, creation time, and admin flag.
          */
         get: operations["list_users_api_v1_users_get"];
         put?: never;
@@ -685,10 +685,62 @@ export interface paths {
          * @description Make a user account and return its username and password.
          *
          *     METIS makes both values. This response is the only one that has the password. Each request
-         *     makes one more user account.
+         *     makes one more user account. An admin makes a user account of each kind. The join token
+         *     makes a user account that is not an admin, and `{"admin": true}` with the join token gets
+         *     403 `admin_required`.
          */
         post: operations["create_user_api_v1_users_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{username}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset the password of a user account
+         * @description Give a user account a new password, end its login sessions, and return the password.
+         *
+         *     METIS makes the password. This response is the only one that has it. An unknown username
+         *     gets 404 `not_found`.
+         */
+        post: operations["reset_password_api_v1_users__username__password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{username}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a user account
+         * @description Delete a user account, its login sessions, its Targets, and its project folder.
+         *
+         *     The checks are in this order. An unknown username gets 404 `not_found`. Each refusal gets
+         *     409 with its own code: `cannot_delete_self` for the account of the login session,
+         *     `environment_admin` for the admin that the server makes again at each start,
+         *     `local_account` for the account of the records of login off, and `run_in_progress` while
+         *     an engine run of the account is alive. The run check is last, because only it can pass at
+         *     a later try.
+         */
+        delete: operations["delete_user_api_v1_users__username__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2510,7 +2562,7 @@ export interface components {
         };
         /**
          * NewUserAccountBody
-         * @description A new user account with its password. No later response gives the password again.
+         * @description A user account with its new password. No later response gives the password again.
          */
         NewUserAccountBody: {
             /** Id */
@@ -2522,8 +2574,21 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Admin */
+            admin: boolean;
             /** Password */
             password: string;
+        };
+        /**
+         * NewUserRequest
+         * @description The kind of user account to make. Only an admin can make an admin.
+         */
+        NewUserRequest: {
+            /**
+             * Admin
+             * @default false
+             */
+            admin: boolean;
         };
         /**
          * Option
@@ -3715,7 +3780,8 @@ export interface components {
         };
         /**
          * UserAccountBody
-         * @description One user account. It never holds a password or a password hash.
+         * @description One user account. It never holds a password or a password hash. ``admin`` is true for an
+         *     admin.
          */
         UserAccountBody: {
             /** Id */
@@ -3727,6 +3793,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Admin */
+            admin: boolean;
         };
         /**
          * UserAccountList
@@ -5458,6 +5526,15 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -5494,7 +5571,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["NewUserRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             201: {
@@ -5514,8 +5595,158 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    reset_password_api_v1_users__username__password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                username: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewUserAccountBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    delete_user_api_v1_users__username__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                username: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5567,6 +5798,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5628,6 +5868,15 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -5677,6 +5926,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

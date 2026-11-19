@@ -37,6 +37,7 @@ test("each path builder gives a path that reads back as its place", () => {
     targetId: "a",
   });
   assert.deepEqual(placeOf(paths.experiments()), { page: "experiments" });
+  assert.deepEqual(placeOf(paths.admin()), { page: "admin" });
 });
 
 test("a bare experiment path has no tab", () => {
@@ -124,6 +125,7 @@ test("an unknown path is not found", () => {
     "/targets/a/experiments/e1/report/c1",
     "/targets/a/experiments/e1/trials/c1/x",
     "/targets/a/compare/x",
+    "/admin/users",
     "/targets/%E0%A4%A",
   ])
     assert.deepEqual(placeOf(path), { page: "not-found" }, path);

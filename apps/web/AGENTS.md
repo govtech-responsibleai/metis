@@ -63,6 +63,12 @@ has a login session. `responseFor` in `src/transport/api.ts` tells the gate when
 user and the logout action with `useLoginSession`, which gives null when login is off. The
 browser never reads the login cookie.
 
+The admin page (`AdminPage.tsx`) at `/admin` lists the user accounts, makes one, and resets a
+password. Only an admin sees it and the link to it at the foot of the rail. Each other person
+gets the not-found view. The API decides who is an admin, from the login session, so the page
+sends no token. `adminReducer` holds the state of the page. A new password is only in the
+`shown` task, so it goes when the admin closes it or leaves the page.
+
 The YAML view of the Profile pane sends `exportedSpecification(state)` (`src/export.ts`) to the
 compile route. That function mirrors the export steps of the package route, so the YAML matches
 the download. Change it when those steps change.

@@ -3,12 +3,13 @@
 `main.py` creates the FastAPI app, keeps `/health`, includes the wizard, store, experiment,
 report, engine, doctor, user, and auth routers, and installs the handlers that give every
 failure one stable JSON shape. When login is on, `login_guard` lets a request reach an `/api`
-route only with a login session. The wizard routes keep no state: each request carries the
-whole Interview state in its body. The store routes keep the Targets, Interviews,
-Specifications, and Experiments in the `Store` that the app composes at startup. The report
-routes read the experiment folders. The engine routes run up to the run limit of jobs at a
-time, each on a thread in this process, and queue the rest. The store and the experiment folders are in the project folder that
-`create_app` gets, or the default project folder that `find_project_root` finds.
+route only with a login session. The wizard routes keep no state: each request carries the whole
+Interview state in its body. The store routes keep the Targets, Interviews, Specifications, and
+Experiments in the `Store` that the app composes at startup. The report routes read the
+experiment folders. The engine routes run up to the run limit of jobs at a time, each on a
+thread in this process, and queue the rest. The store and the experiment folders are in the
+project folder that `create_app` gets, or the default project folder that `find_project_root`
+finds.
 
 When the web folder of the API package has a built web app, the app also serves that web app on
 every path that no API route takes. See `metis.api.web`. Without a built web app, the app serves
@@ -107,9 +108,10 @@ _OPENAPI_TAGS = [
     {
         "name": "users",
         "description": (
-            "Make and list user accounts. Each request needs the admin token of the server "
-            "in an Authorization: Bearer header. The routes are off when the server has no "
-            "admin token."
+            "Make, list, and delete user accounts, and reset their passwords. The login "
+            "session of an admin, or the admin token in an Authorization: Bearer header, "
+            "opens each user route. The join token in that header can only make a user "
+            "account that is not an admin."
         ),
     },
     {
@@ -142,7 +144,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     The app builds the store from the settings when the caller did not give one. The user
     accounts use the database of the store.
 
-    Login settings that disagree stop the start. See ``login_from_env``.
+    Login settings that disagree stop the start. See ``login_from_env``. When the environment
+    names an admin, the app makes that admin or sets its password before the first request.
 
     Before it accepts a request, the app sets up the process for the engine one time. At
     shutdown it empties the engine queue, stops the engine runs, and waits for them, for at
@@ -152,7 +155,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = Settings.from_env(project_dir=app.state.project_dir)
     runs: EngineRuns = app.state.engine_runs
     app.state.engine_settings = settings.engine
-    runs.max_runs = settings.engine.max_runs
+    runs.open(settings.engine.max_runs)
     # Before the store, so a setup that fails leaves nothing to close.
     runs.functions.setup_process()
     if getattr(app.state, "wizard_dependencies", None) is None:
@@ -166,12 +169,16 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     if getattr(app.state, "store", None) is None:
         owned = Store(settings.database_url, settings.project_dir)
         app.state.store = owned
-    app.state.login = settings.login
-    app.state.admin_token = settings.admin_token
+    app.state.login = settings.login.login
+    app.state.join_token = settings.login.join_token
+    app.state.admin_token = settings.login.admin_token
     app.state.secure_cookie = settings.secure_cookie
-    app.state.accounts = Accounts(
-        app.state.store.engine, server_dir=app.state.store.project_dir
-    )
+    accounts = Accounts(app.state.store.engine, server_dir=app.state.store.project_dir)
+    app.state.accounts = accounts
+    admin = settings.login.admin
+    app.state.environment_admin = admin.username if admin is not None else None
+    if admin is not None:
+        await asyncio.to_thread(accounts.ensure_admin, admin.username, admin.password)
     try:
         yield
     finally:
