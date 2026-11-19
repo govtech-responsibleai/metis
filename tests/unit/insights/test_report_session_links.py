@@ -78,7 +78,7 @@ def _save_urls(results: Path) -> None:
 def test_a_saved_url_is_used_with_no_lookup(results: Path, lookup: Lookup) -> None:
     _save_urls(results)
     trials = _trials(build(results))
-    assert trials["T-1-1"]["target_session_langfuse_url"] == (
+    assert trials["T-1-1"]["sessionUrl"] == (
         "https://saved.example/project/p0/sessions/T-1-1"
     )
     assert lookup.calls == 0
@@ -89,8 +89,7 @@ def test_old_records_get_a_url_from_one_lookup(results: Path, lookup: Lookup) ->
     assert len(trials) == 4
     for session, trial in trials.items():
         assert (
-            trial["target_session_langfuse_url"]
-            == f"https://lf.example/project/p1/sessions/{session}"
+            trial["sessionUrl"] == f"https://lf.example/project/p1/sessions/{session}"
         )
     assert lookup.calls == 1
 
@@ -100,9 +99,7 @@ def test_a_failed_lookup_gives_no_link_and_is_tried_once(
 ) -> None:
     lookup.answer = None
     trials = _trials(build(results))
-    assert all(
-        trial["target_session_langfuse_url"] is None for trial in trials.values()
-    )
+    assert all(trial["sessionUrl"] is None for trial in trials.values())
     assert lookup.calls == 1
 
 
@@ -114,5 +111,5 @@ def test_a_trial_without_a_session_has_no_link_and_needs_no_lookup(
     sources = _report.load_report_sources(_root(results))
     assert sources is not None
     (trial,) = [t for t in sources[1] if t["id"] == "T-1-1"]
-    assert trial["target_session_langfuse_url"] is None
+    assert trial["sessionUrl"] is None
     assert lookup.calls == 0

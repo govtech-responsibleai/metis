@@ -370,7 +370,7 @@ function trialDetails(report: Report, row: Row): TrialDetail[] {
       errors: turn.errors ?? [],
     })),
     conversationProblem: trial.conversationProblem ?? null,
-    sessionUrl: webUrl(trial.target_session_langfuse_url),
+    sessionUrl: webUrl(trial.sessionUrl),
     criteria: Object.entries(trial.results ?? {}).flatMap(([id, counts]) => {
       const outcome = outcomeOf(counts);
       if (!outcome) return [];

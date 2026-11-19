@@ -293,7 +293,7 @@ def test_skipped_tab_names_each_criterion_and_its_reason(tmp_path: Path) -> None
 def _with_session_url(report: dict, url: str | None) -> dict:
     for row in report["resultTable"]["rows"]:
         for trial in row["trials"]:
-            trial["target_session_langfuse_url"] = url
+            trial["sessionUrl"] = url
     return report
 
 

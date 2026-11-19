@@ -204,7 +204,7 @@ def _load_trial_records(run_dir: Path) -> list[dict[str, Any]]:
                 "task_id": config.task_id,
                 "trial_index": config.trial_index,
                 "session": session or "",
-                "target_session_langfuse_url": links.url(record),
+                "sessionUrl": links.url(record),
                 "persona": config.persona,
                 "scenario": config.scenario,
                 "stopReason": stop_reason,
