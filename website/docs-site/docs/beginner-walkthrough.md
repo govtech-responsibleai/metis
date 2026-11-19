@@ -211,10 +211,12 @@ test cases.
 If you have not already started the experiment, select the **Experiments** tab and press
 **Start an experiment**.
 
-![The Experiments tab, with the Start an experiment button and a list of experiments](./assets/web-experiments-tab.png)
+![The Experiments tab, with the Start an experiment button highlighted](./assets/web-experiments-tab.png)
 
-All checks should show a green **pass**. If any check fails, ask the facilitator.
-Select **Run experiment**.
+In the dialog, check that your specification is chosen and that it says **Server ready**. If it
+lists a failed check instead, ask the facilitator. Select **Start**.
+
+![The Start an experiment dialog, with the specification chosen and Server ready](./assets/web-experiment-dialog.png)
 
 ### 5b. Watch the progress
 
