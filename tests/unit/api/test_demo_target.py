@@ -6,6 +6,7 @@ import re
 from collections.abc import Callable, Iterator
 from contextlib import ExitStack
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -18,7 +19,8 @@ from metis.core import execution_layout
 
 ADMIN = {"Authorization": "Bearer workshop-admin-token"}
 TARGETS = "/api/v1/targets"
-NAME = "Northstar Policy & Report Assistant"
+APP = "Northstar Policy & Report Assistant"
+NAME = f"(demo) {APP}"
 EXAMPLE = (
     Path(__file__).resolve().parents[3]
     / "packages/engine/examples/http-agentic_eval_toyapp-workshop-lite/specification"
@@ -62,6 +64,13 @@ def _targets(client: TestClient) -> list[dict[str, str]]:
     return client.get(TARGETS).json()["targets"]
 
 
+def _example_with_the_demo_name() -> dict[str, Any]:
+    example = yaml.safe_load(
+        (EXAMPLE / "specification.yaml").read_text(encoding="utf-8")
+    )
+    return {**example, "target": {**example["target"], "name": NAME}}
+
+
 def test_a_new_user_account_has_the_demo_target_with_a_done_interview(
     new_user_browser: Callable[[], TestClient],
 ) -> None:
@@ -74,8 +83,9 @@ def test_a_new_user_account_has_the_demo_target_with_a_done_interview(
     assert interview["stage"] == "done"
     assert interview["state"]["confirmed"] is True
     assert interview["state"]["pending"] is None
+    assert interview["state"]["specification"]["target"]["name"] == NAME
     assert interview["state"]["context"]["connection"]["binding"]["identity"] == {
-        "name": NAME
+        "name": APP
     }
 
 
@@ -112,6 +122,7 @@ def test_the_demo_experiment_shows_its_trials_and_its_report_with_no_new_run(
     page = browser.get(f"/api/v1/experiments/{experiment_id}/report.html")
 
     trials = report["trials"]["items"]
+    assert experiment_id.startswith("demo-toyapp-workshop-lite-")
     assert status["status"] == "completed"
     assert status["phase"] == "evaluating"
     assert status["total"] == 4
@@ -181,27 +192,28 @@ def test_a_store_with_a_local_user_account_gets_no_demo_target(store: Store) -> 
     assert store.list_targets().targets == []
 
 
-def test_the_demo_interview_has_the_specification_of_the_lite_example(
+def test_the_demo_interview_has_the_lite_example_with_the_demo_name(
     store: Store,
 ) -> None:
     add_demo_target_to_new_local_user(store)
     [target] = store.list_targets().targets
-    example = yaml.safe_load(
-        (EXAMPLE / "specification.yaml").read_text(encoding="utf-8")
-    )
 
     saved = yaml.safe_load(store.read_specification(target.id).specification_yaml)
 
-    assert saved == {**example, "target_binding": "target-binding.yaml"}
+    assert saved == {
+        **_example_with_the_demo_name(),
+        "target_binding": "target-binding.yaml",
+    }
 
 
-def test_the_demo_experiment_ran_the_specification_of_the_lite_example() -> None:
+def test_the_demo_experiment_ran_the_lite_example_with_the_demo_name() -> None:
     [experiment] = (DEMO_FILES / EXPERIMENTS).iterdir()
 
     frozen = experiment / execution_layout.SPECIFICATION
 
-    assert yaml.safe_load(frozen.read_text(encoding="utf-8")) == yaml.safe_load(
-        (EXAMPLE / "specification.yaml").read_text(encoding="utf-8")
+    assert (
+        yaml.safe_load(frozen.read_text(encoding="utf-8"))
+        == _example_with_the_demo_name()
     )
 
 

@@ -1,6 +1,6 @@
 {
  "schema_version": 1,
- "target": "Northstar Policy & Report Assistant",
+ "target": "(demo) Northstar Policy & Report Assistant",
  "run": "report",
  "date": "2026-11-18",
  "sessions": 4,

@@ -8,6 +8,10 @@ Run it again after a new run of the example, or after the example changes:
 
 The Experiment needs its report, so run `metis insights report` on it first. The script keeps
 only the files that the web app reads, and it replaces each session id with a made-up id.
+The demo has the name of the example's Target with "(demo) " before it, in the Interview, in
+the Specification of the Experiment, and in its report. The Experiment folder has the name of
+the source folder with "demo-" before it, so the experiments table shows that it came with the
+demo.
 The Experiment can have more trials than the example plans. The script then keeps only the
 planned trials, and it builds the report again from them, with the conversations of the
 first report.
@@ -48,8 +52,13 @@ def _load(path: Path) -> dict[str, Any]:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
-def _interview(example: Path) -> dict[str, Any]:
+def _specification(example: Path) -> dict[str, Any]:
     document = _load(example / "specification.yaml")
+    document["target"]["name"] = f"(demo) {document['target']['name']}"
+    return document
+
+
+def _interview(example: Path, document: dict[str, Any]) -> dict[str, Any]:
     binding = TargetBinding.model_validate(_load(example / document["target_binding"]))
     state = InterviewState(
         specification=Specification.model_validate(document),
@@ -84,9 +93,10 @@ def _planned(specification: dict[str, Any]) -> set[tuple[str, int]]:
     }
 
 
-def _experiment_files(example: Path, experiment: Path) -> dict[PurePosixPath, str]:
+def _experiment_files(
+    specification: dict[str, Any], experiment: Path
+) -> dict[PurePosixPath, str]:
     """The event log, the results and the report of the planned trials of ``experiment``."""
-    specification = _load(example / "specification.yaml")
     planned = _planned(specification)
     results = EvaluationResults.load_file(experiment / execution_layout.RESULTS)
     results.records = [
@@ -132,17 +142,23 @@ def _experiment_files(example: Path, experiment: Path) -> dict[PurePosixPath, st
 
 
 def build(example: Path, experiment: Path, output: Path) -> None:
+    specification = _specification(example)
     shutil.rmtree(output, ignore_errors=True)
     (output / INTERVIEW / FILES).mkdir(parents=True)
     (output / INTERVIEW / RECORD).write_text(
-        json.dumps(_interview(example), indent=1) + "\n", encoding="utf-8"
+        json.dumps(_interview(example, specification), indent=1) + "\n",
+        encoding="utf-8",
     )
     for fixture in sorted((example / "fixtures").iterdir()):
         shutil.copyfile(fixture, output / INTERVIEW / FILES / fixture.name)
 
-    folder = output / EXPERIMENTS / experiment.name
+    folder = output / EXPERIMENTS / f"demo-{experiment.name}"
     shutil.copytree(example, folder / execution_layout.SPECIFICATION_DIR)
-    texts = _experiment_files(example, experiment)
+    (folder / execution_layout.SPECIFICATION).write_text(
+        yaml.safe_dump(specification, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+    texts = _experiment_files(specification, experiment)
     ids = _made_up_ids(list(texts.values()))
     for relative, text in texts.items():
         path = folder / relative
