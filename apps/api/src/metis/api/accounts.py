@@ -3,8 +3,9 @@
 A user account is one person who can log in to a METIS server. METIS makes its username and its
 password. The database keeps a scrypt hash of the password and never the password.
 
-An admin is a user account that can list the user accounts, make them, and reset their
-passwords. The ``admins`` table names each admin. The environment of the server can name one
+An admin is a user account that can list the user accounts, make them, reset their passwords,
+and delete them. ``Store.delete_user_account`` deletes a user account with its records, because
+the store owns the records, their folders, and the lock of a save. The ``admins`` table names each admin. The environment of the server can name one
 admin with its own password, which METIS sets at each start (``ensure_admin``).
 
 For debugging, ``users/<user id>/user.json`` in the server project folder names each user account:

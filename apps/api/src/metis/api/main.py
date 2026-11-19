@@ -104,7 +104,7 @@ _OPENAPI_TAGS = [
     {
         "name": "users",
         "description": (
-            "Make and list user accounts, and reset their passwords. The login "
+            "Make, list, and delete user accounts, and reset their passwords. The login "
             "session of an admin, or the admin token in an Authorization: Bearer header, "
             "opens each user route. The join token in that header can only make a user "
             "account that is not an admin."

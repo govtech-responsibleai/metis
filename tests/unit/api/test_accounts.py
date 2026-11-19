@@ -18,7 +18,10 @@ from metis.api.main import create_app
 from metis.api.routes.accounts import users_router
 from metis.api.settings import Settings, SettingsError
 from metis.api.store import Store
-from metis.api.tables import login_sessions, users
+from metis.api.tables import experiments, login_sessions, targets, users
+from metis.core import execution_layout, project_layout
+from tests.fixtures.api.engine import FakeEngine, write_input_dir
+from tests.fixtures.api.records import done_state, put_interview, ref, web_record
 
 JOIN = {"Authorization": "Bearer workshop-join-token"}
 ADMIN_TOKEN = {"Authorization": "Bearer facilitator-admin-token"}
@@ -143,6 +146,7 @@ def _user_routes(username: str) -> tuple[tuple[str, str], ...]:
         ("get", USERS),
         ("post", USERS),
         ("post", f"{USERS}/{username}/password"),
+        ("delete", f"{USERS}/{username}"),
     )
 
 
@@ -181,6 +185,7 @@ def test_the_admin_token_opens_each_user_route_with_no_login_session(
         listed = script.get(USERS, headers=ADMIN_TOKEN)
         username = participant.json()["username"]
         reset = script.post(f"{USERS}/{username}/password", headers=ADMIN_TOKEN)
+        deleted = script.delete(f"{USERS}/{username}", headers=ADMIN_TOKEN)
 
         assert script.cookies.get("metis_login") is None
         assert (participant.status_code, participant.json()["admin"]) == (201, False)
@@ -193,6 +198,9 @@ def test_the_admin_token_opens_each_user_route_with_no_login_session(
         ]
         assert reset.status_code == 200
         assert reset.json()["password"] != participant.json()["password"]
+        assert deleted.status_code == 204
+        remaining = script.get(USERS, headers=ADMIN_TOKEN).json()["users"]
+        assert username not in [row["username"] for row in remaining]
 
 
 def test_the_join_token_opens_no_user_route_but_the_join(browser: TestClient) -> None:
@@ -261,6 +269,7 @@ def test_the_api_description_names_the_credentials_of_the_user_routes(
     for path, method in (
         (USERS, "get"),
         (f"{USERS}/{{username}}/password", "post"),
+        (f"{USERS}/{{username}}", "delete"),
     ):
         assert schema["paths"][path][method]["security"] == [
             {"LoginSession": []},
@@ -681,3 +690,151 @@ def test_a_user_account_without_a_password_hash_accepts_no_password() -> None:
     assert not verify_password("aaaaa-aaaaa", None)
     assert not verify_password("aaaaa-aaaaa", "not-a-hash")
     assert verify_password("aaaaa-aaaaa", hash_password("aaaaa-aaaaa"))
+
+
+def _save_interview(client: TestClient, target_id: str) -> None:
+    """Save a done Interview with its one fixture file, as the web app does."""
+    policy = b"policy"
+    record = web_record(
+        target_id, done_state(), fixtures=[ref("policy.pdf", policy, "application/pdf")]
+    )
+    files = [("files", ("policy.pdf", policy, "application/pdf"))]
+    response = put_interview(client, record, files)
+    assert response.status_code == 204, response.text
+
+
+def _save_target(client: TestClient, target_id: str) -> None:
+    """Save a done Interview and an Experiment row for it, in the folder of the user."""
+    _save_interview(client, target_id)
+    user_id = client.get(ME).json()["user"]["id"]
+    experiment = "test-exp-20260101-000000"
+    folder = client.app.state.project_dir / "users" / user_id
+    (folder / project_layout.EXPERIMENTS / experiment).mkdir(parents=True)
+    saved = client.put(
+        f"/api/v1/experiments/{experiment}",
+        json={"target_id": target_id, "step": "simulate"},
+    )
+    assert saved.status_code == 200, saved.text
+
+
+def test_an_admin_deletes_a_user_account_with_its_records_and_folder(
+    admin: TestClient, make_client: MakeClient, project_dir: Path, store: Store
+) -> None:
+    deleted = _new_user(admin)
+    kept = _new_user(admin)
+    with make_client() as participant, make_client() as other:
+        assert _log_in(participant, deleted).status_code == 200
+        assert _log_in(other, kept).status_code == 200
+        _save_target(participant, "20261114-101500-interview-k7mwp")
+        _save_target(other, "20261114-101500-interview-x3r9t")
+
+        response = admin.delete(f"{USERS}/{deleted['username']}")
+
+        assert response.status_code == 204
+        assert participant.get(ME).status_code == 401
+        assert _log_in(participant, deleted).status_code == 401
+        assert [row["username"] for row in admin.get(USERS).json()["users"]] == [
+            ADMIN_USERNAME,
+            kept["username"],
+        ]
+        assert not (project_dir / "users" / deleted["id"]).exists()
+        with store.engine.connect() as connection:
+            assert connection.execute(select(targets.c.user_id)).scalars().all() == [
+                kept["id"]
+            ]
+            assert connection.execute(
+                select(experiments.c.target_id)
+            ).scalars().all() == ["20261114-101500-interview-x3r9t"]
+        assert other.get("/api/v1/targets").json()["targets"][0]["id"] == (
+            "20261114-101500-interview-x3r9t"
+        )
+        assert (project_dir / "users" / kept["id"] / "user.json").is_file()
+
+
+def test_a_delete_of_an_unknown_username_gets_not_found(admin: TestClient) -> None:
+    response = admin.delete(f"{USERS}/no-such-user")
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "not_found"
+
+
+def test_an_admin_cannot_delete_its_own_user_account(
+    admin: TestClient, make_client: MakeClient
+) -> None:
+    second_admin = admin.post(USERS, json={"admin": True}).json()
+    with make_client() as client:
+        assert _log_in(client, second_admin).status_code == 200
+
+        response = client.delete(f"{USERS}/{second_admin['username']}")
+
+        assert response.status_code == 409
+        assert response.json()["code"] == "cannot_delete_self"
+        assert client.get(ME).status_code == 200
+
+
+def test_the_admin_of_the_environment_cannot_be_deleted(
+    admin: TestClient, make_client: MakeClient
+) -> None:
+    second_admin = admin.post(USERS, json={"admin": True}).json()
+    with make_client() as client:
+        assert _log_in(client, second_admin).status_code == 200
+
+        response = client.delete(f"{USERS}/{ADMIN_USERNAME}")
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "environment_admin"
+    assert admin.get(ME).status_code == 200
+    by_token = admin.delete(f"{USERS}/{ADMIN_USERNAME}", headers=ADMIN_TOKEN)
+    assert by_token.json()["code"] == "environment_admin"
+
+
+def test_a_user_account_with_a_live_engine_run_cannot_be_deleted(
+    login_on: None,
+    make_engine_client: Callable[..., TestClient],
+    fake_engine: FakeEngine,
+    project_dir: Path,
+) -> None:
+    lead = make_engine_client()
+    body = {"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD}
+    assert lead.post(LOGIN, json=body).status_code == 200
+    user = _new_user(lead)
+    participant = TestClient(lead.app)
+    assert _log_in(participant, user).status_code == 200
+    experiment = "test-exp-20260101-000000"
+    write_input_dir(
+        project_dir
+        / "users"
+        / user["id"]
+        / project_layout.EXPERIMENTS
+        / experiment
+        / execution_layout.SPECIFICATION_DIR
+    )
+    fake_engine.mode = "hold"
+    started = participant.post(f"/api/v1/engine/simulate/{experiment}/resume")
+    assert started.status_code == 202
+
+    response = lead.delete(f"{USERS}/{user['username']}")
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "run_in_progress"
+    assert participant.get(ME).status_code == 200
+    assert (project_dir / "users" / user["id"]).is_dir()
+
+
+def test_the_local_user_account_cannot_be_deleted(
+    make_client: MakeClient, monkeypatch: pytest.MonkeyPatch, project_dir: Path
+) -> None:
+    with make_client() as laptop:
+        _save_interview(laptop, "20261114-101500-interview-k7mwp")
+    monkeypatch.setenv("METIS_LOGIN", "1")
+    monkeypatch.setenv("METIS_ADMIN_USERNAME", ADMIN_USERNAME)
+    monkeypatch.setenv("METIS_ADMIN_PASSWORD", ADMIN_PASSWORD)
+    with make_client() as client:
+        body = {"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD}
+        assert client.post(LOGIN, json=body).status_code == 200
+
+        response = client.delete(f"{USERS}/local")
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "local_account"
+    assert (project_dir / "evaluations" / "interviews").is_dir()

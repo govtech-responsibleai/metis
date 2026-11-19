@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import functools
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
 
@@ -30,7 +31,7 @@ from metis.core.phase_events import EVENTS_FILE, PhaseEvent
 from metis.engine import run as engine_run
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
     from pathlib import Path
 
     from metis.core.phase_events import Phase
@@ -220,6 +221,15 @@ class EngineRuns:
             if self._run is not None and self._run.is_of(project_dir, experiment_id):
                 return self._run
             return None
+
+    @contextmanager
+    def idle_in(self, project_dir: Path) -> Iterator[bool]:
+        """Yield whether no run is alive in ``project_dir``, and hold the lock of the runs.
+
+        No run starts until the block ends, so the answer stays true for the full block.
+        """
+        with self._lock:
+            yield self._run is None or self._run.project_dir != project_dir
 
     def shutdown(self, timeout: float) -> None:
         """Stop the run and wait for its thread, for at most ``timeout`` seconds."""

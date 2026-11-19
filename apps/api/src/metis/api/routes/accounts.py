@@ -1,6 +1,6 @@
 """HTTP routes for user accounts and login sessions, and the guard of the other routes.
 
-The user routes make and list user accounts, and reset their passwords. ``Caller`` and
+The user routes make, list, and delete user accounts, and reset their passwords. ``Caller`` and
 ``get_caller`` are the one rule of who can use them: the login session of an admin, or the admin
 token, opens each user route, and the join token can make a user account that is not an admin.
 The auth routes start and end a login session and name the current user account.
@@ -26,9 +26,12 @@ from pydantic import BaseModel
 
 from metis.api.accounts import LOGIN_SESSION_LIFETIME, Accounts, UserAccount
 from metis.api.routes.wizard import ServiceError
+from metis.api.store import LOCAL_USER_ID, Store, user_project_dir
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
+
+    from metis.api.engine_runs import EngineRuns
 
 LOGIN_COOKIE = "metis_login"
 """The cookie that holds the value of a login session."""
@@ -377,6 +380,65 @@ def reset_password(
             404, "not_found", f"No user account has the username {username!r}."
         )
     return NewUserAccountBody(**_body(new.account).model_dump(), password=new.password)
+
+
+@users_router.delete(
+    "/{username}",
+    summary="Delete a user account",
+    status_code=204,
+    responses={**_ERRORS, 409: {"model": ServiceError}},
+)
+def delete_user(
+    username: str,
+    request: Request,
+    accounts: Annotated[Accounts, Depends(get_accounts)],
+    caller: Annotated[Caller, Depends(require_admin)],
+) -> Response:
+    """Delete a user account, its login sessions, its Targets, and its project folder.
+
+    The checks are in this order. An unknown username gets 404 `not_found`. Each refusal gets
+    409 with its own code: `cannot_delete_self` for the account of the login session,
+    `environment_admin` for the admin that the server makes again at each start,
+    `local_account` for the account of the records of login off, and `run_in_progress` while
+    an engine run of the account is alive. The run check is last, because only it can pass at
+    a later try.
+    """
+    account = accounts.account(username)
+    if account is None:
+        raise AccountError(
+            404, "not_found", f"No user account has the username {username!r}."
+        )
+    if isinstance(caller, UserAccount) and account.id == caller.id:
+        raise AccountError(
+            409, "cannot_delete_self", "You cannot delete your own user account."
+        )
+    if account.username == getattr(request.app.state, "environment_admin", None):
+        raise AccountError(
+            409,
+            "environment_admin",
+            f"The server makes the admin {account.username!r} again at each start, "
+            "so you cannot delete it.",
+        )
+    if account.id == LOCAL_USER_ID:
+        raise AccountError(
+            409,
+            "local_account",
+            "The local user account holds the records of the server with login off, "
+            "so you cannot delete it.",
+        )
+    runs: EngineRuns = request.app.state.engine_runs
+    folder = user_project_dir(request.app.state.project_dir, account.id)
+    with runs.idle_in(folder) as idle:
+        if not idle:
+            raise AccountError(
+                409,
+                "run_in_progress",
+                f"An experiment of {account.username!r} runs now. Stop the run, then "
+                "delete the user account.",
+            )
+        store: Store = request.app.state.store
+        store.delete_user_account(account.id)
+    return Response(status_code=204)
 
 
 @auth_router.post(
