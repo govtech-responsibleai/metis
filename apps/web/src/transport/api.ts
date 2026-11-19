@@ -68,6 +68,8 @@ type DoctorOperation = operations["run_doctor_api_v1_doctor_get"];
 
 export type CurrentUser = JsonResponse<CurrentUserOperation>;
 export type UserAccount = Schema["UserAccountBody"];
+export type NewUserAccount = Schema["NewUserAccountBody"];
+export type UserAccountList = Schema["UserAccountList"];
 export type InterviewStep = Schema["InterviewStep"];
 export type Perspective = Schema["Perspective"];
 export type InterviewDocument = Schema["InterviewDocument"];
@@ -789,6 +791,32 @@ export const auth = {
     }),
   logout: async (): Promise<void> => {
     await responseFor("/api/v1/auth/logout", { method: "POST" });
+  },
+};
+
+// `join` sends the join token of the server, and the caller keeps the token in memory only. The
+// other user routes use the login session of an admin.
+export const users = {
+  join: (joinToken: string) =>
+    call<NewUserAccount>("/api/v1/users", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${joinToken}` },
+    }),
+  list: () => call<UserAccountList>("/api/v1/users"),
+  create: (admin: boolean) =>
+    call<NewUserAccount>("/api/v1/users", {
+      ...JSON_POST,
+      body: JSON.stringify({ admin }),
+    }),
+  resetPassword: (username: string) =>
+    call<NewUserAccount>(
+      route("/api/v1/users/{username}/password", { username }),
+      { method: "POST" },
+    ),
+  delete: async (username: string) => {
+    await responseFor(route("/api/v1/users/{username}", { username }), {
+      method: "DELETE",
+    });
   },
 };
 

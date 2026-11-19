@@ -69,7 +69,7 @@ def delete_target(
 ) -> Response:
     """Delete the Target, its Interview, its Specification, and its Experiment rows.
 
-    The Experiment folders under `experiments/execute/` stay on disk.
+    The Experiment folders under `evaluations/experiments/` stay on disk.
     """
     store.delete_target(target_id)
     return Response(status_code=204)

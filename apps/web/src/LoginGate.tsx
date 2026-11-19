@@ -12,6 +12,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import { Check, Copy, Eye, EyeOff } from "lucide-react";
 import { navigate } from "wouter/use-browser-location";
 import { Field, TextInput } from "./fields";
 import { LoginArt } from "./LoginArt";
@@ -19,9 +20,11 @@ import {
   auth,
   onLoginRequired,
   TransportError,
+  users,
+  type NewUserAccount,
   type UserAccount,
 } from "./transport/api";
-import { Button } from "./ui";
+import { Button, cn } from "./ui";
 
 // The user account of the login session and the logout action. It is null when login is off.
 export interface LoginSession {
@@ -228,6 +231,7 @@ export function LoginPage({
   // The message that the page starts with. The page sets it after a login that fails.
   error?: string | null;
 }) {
+  const [joined, setJoined] = useState<NewUserAccount | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(initialError);
@@ -267,13 +271,12 @@ export function LoginPage({
           />
         </Field>
         <Field label="Password">
-          <TextInput
+          <SecretInput
             name="password"
-            type="password"
             autoComplete="current-password"
+            label="password"
             value={password}
             invalid={error !== null}
-            required
             onChange={setPassword}
           />
         </Field>
@@ -286,6 +289,184 @@ export function LoginPage({
           Log in
         </Button>
       </form>
+      <div
+        role="separator"
+        className={cn(
+          "flex items-center text-xs text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border",
+          !joined && "gap-3",
+        )}
+      >
+        {joined ? null : "or"}
+      </div>
+      {joined ? (
+        <NewAccount account={joined} />
+      ) : (
+        <JoinWorkshop onJoined={setJoined} />
+      )}
     </Screen>
+  );
+}
+
+// A wrong join token gets 401. A server with no join token gives the same answer.
+export function joinFailure(failure: unknown): string {
+  if (failure instanceof TransportError && failure.status === 401)
+    return "The join token is not correct. Try again.";
+  return failure instanceof Error ? failure.message : "The join failed.";
+}
+
+function JoinWorkshop({
+  onJoined,
+}: {
+  onJoined: (account: NewUserAccount) => void;
+}) {
+  const [token, setToken] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    setSending(true);
+    setError(null);
+    users.join(token.trim()).then(onJoined, (failure: unknown) => {
+      setSending(false);
+      setError(joinFailure(failure));
+    });
+  };
+
+  return (
+    <form
+      className="rounded-lg border border-border bg-muted/40 p-4 flex flex-col gap-3"
+      onSubmit={submit}
+    >
+      <div className="flex flex-col gap-1">
+        <h2 className="text-sm font-semibold text-foreground">
+          Joining a workshop?
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Enter the join token to create an account.
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <SecretInput
+          ariaLabel="Workshop token"
+          name="workshop-token"
+          autoComplete="off"
+          label="token"
+          value={token}
+          invalid={error !== null}
+          onChange={setToken}
+        />
+        <Button
+          type="submit"
+          disabled={sending}
+          className="h-10 bg-background px-4"
+        >
+          Join
+        </Button>
+      </div>
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
+    </form>
+  );
+}
+
+// A password box with a button that shows and hides its text.
+function SecretInput({
+  label,
+  ...input
+}: {
+  label: string;
+  name: string;
+  autoComplete: string;
+  value: string;
+  invalid: boolean;
+  ariaLabel?: string;
+  onChange: (value: string) => void;
+}) {
+  const [shown, setShown] = useState(false);
+  const Icon = shown ? EyeOff : Eye;
+  return (
+    <div className="relative min-w-0 flex-1">
+      <TextInput
+        {...input}
+        type={shown ? "text" : "password"}
+        spellCheck={false}
+        required
+        className="w-full pr-10"
+      />
+      <button
+        type="button"
+        onClick={() => setShown(!shown)}
+        aria-label={shown ? `Hide ${label}` : `Show ${label}`}
+        aria-pressed={shown}
+        className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 hover:text-foreground"
+      >
+        <Icon size={16} aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+// The details of the new account take the place of the join, under the login form. The
+// participant copies each value into its box, so the details are saved before they are needed.
+function NewAccount({ account }: { account: NewUserAccount }) {
+  return (
+    <section
+      aria-labelledby="new-account"
+      className="animate-arrive rounded-lg border border-border bg-muted/40 p-4 flex flex-col gap-3"
+    >
+      <div className="flex flex-col gap-1">
+        <h2 id="new-account" className="text-sm font-semibold text-foreground">
+          Your account is ready
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Save these details now. You will not see them again.
+        </p>
+      </div>
+      <dl className="flex flex-col gap-1">
+        <Credential label="Username" value={account.username} />
+        <Credential label="Password" value={account.password} />
+      </dl>
+    </section>
+  );
+}
+
+export function Credential({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    void navigator.clipboard?.writeText(value);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <div className="flex items-center gap-3">
+      <dt className="w-18 shrink-0 text-sm text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 flex-1 truncate font-mono text-sm text-foreground">
+        {value}
+      </dd>
+      <button
+        type="button"
+        onClick={copy}
+        aria-label={
+          copied
+            ? `Copied the ${label.toLowerCase()}`
+            : `Copy the ${label.toLowerCase()}`
+        }
+        className={cn(
+          "flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:bg-background hover:text-foreground",
+          copied && "text-foreground",
+        )}
+      >
+        {copied ? (
+          <Check size={13} aria-hidden />
+        ) : (
+          <Copy size={13} aria-hidden />
+        )}
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </div>
   );
 }

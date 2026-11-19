@@ -38,9 +38,9 @@ MINIMAL_EXPERIMENT = 'schema_version: 1\nid: test-exp\nrunner_factory_ref: tests
 
 
 def _write_snapshot(experiment_dir: Path, content: str = MINIMAL_EXPERIMENT) -> Path:
-    inputs_dir = experiment_dir / "inputs"
-    inputs_dir.mkdir(parents=True)
-    (inputs_dir / "specification.yaml").write_text(content)
+    snapshot_dir = experiment_dir / "specification"
+    snapshot_dir.mkdir(parents=True)
+    (snapshot_dir / "specification.yaml").write_text(content)
     return experiment_dir
 
 
@@ -98,10 +98,19 @@ def _write_experiment_dir(
     content: str = MINIMAL_EXPERIMENT,
 ) -> Path:
     """Write a simulation output directory with its frozen input snapshot."""
-    experiment_dir = root / "experiments" / "execute" / name
+    experiment_dir = root / "evaluations" / "experiments" / name
     experiment_dir.mkdir(parents=True)
     _write_snapshot(experiment_dir, content)
     return experiment_dir
+
+
+class NoLangfuse:
+    """Stands in for the run's Langfuse reader when a test fakes ``fetch_session``."""
+
+    closed = False
+
+    async def aclose(self) -> None:
+        self.closed = True
 
 
 def _compact(value: str) -> str:
@@ -211,8 +220,10 @@ def test_evaluate_rejects_a_directory_without_an_input_snapshot(tmp_path: Path) 
 def test_evaluate_fails_when_the_input_snapshot_has_no_specification_file(
     tmp_path: Path,
 ) -> None:
-    experiment_dir = tmp_path / "experiments" / "execute" / "test-exp-20260101-010101"
-    (experiment_dir / "inputs").mkdir(parents=True)
+    experiment_dir = (
+        tmp_path / "evaluations" / "experiments" / "test-exp-20260101-010101"
+    )
+    (experiment_dir / "specification").mkdir(parents=True)
 
     result = runner.invoke(app, ["evaluate", "--experiment-dir", str(experiment_dir)])
 
@@ -263,7 +274,7 @@ def _patch_evaluation(monkeypatch, *, traces: int = 1) -> list[dict[str, Any]]:
             raise TracesNotReadyError(TraceWait("no_traces", 2, 90.0))
         return _session(session_id, traces)
 
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
     return calls
 
@@ -334,7 +345,7 @@ def test_evaluation_logs_the_trace_wait_and_warns_about_open_observations(
         kwargs["on_wait"](wait)
         return _session(session_id)
 
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
 
     result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
@@ -441,7 +452,7 @@ def test_evaluation_progress_advances_for_success_and_soft_failure(
     monkeypatch.setattr(
         _evaluation, "_create_evaluation_progress", lambda _console: FakeProgress()
     )
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
 
     async def fetch(session_id: str, *_args: object, **_kwargs: object) -> GradingInput:
         if session_id == "session-2":
@@ -522,7 +533,7 @@ def test_an_unsupported_trace_fails_its_session_and_the_rest_are_graded(
             raise UnsupportedTraceError(reason)
         return _session(session_id)
 
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
 
     result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
@@ -955,7 +966,7 @@ def test_unserialisable_payload_does_not_fail_the_record(
         {"id": "o1", "traceId": "t1", "output": "lone surrogate \ud800 here"}
     )
     session = GradingInput(traces=(Trace.from_observations("t1", "session-1", [bad]),))
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
 
     async def fetch(*_args: object, **_kwargs: object) -> GradingInput:
         return session
@@ -1197,7 +1208,7 @@ def test_waiting_fetches_hold_no_thread(monkeypatch, tmp_path: Path) -> None:
         await asyncio.wait_for(all_here.wait(), timeout=0.5)
         return _session(session_id)
 
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
 
     outcome = _evaluate_directly(output, concurrency=8)
@@ -1218,7 +1229,7 @@ def test_results_follow_record_order_whatever_order_sessions_finish(
         finished.append(session_id)
         return _session(session_id)
 
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
 
     _evaluate_directly(output, concurrency=3)
@@ -1238,7 +1249,7 @@ def test_one_failing_session_does_not_change_the_others(
             raise RuntimeError("trace unavailable")
         return _session(session_id)
 
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
 
     outcome = _evaluate_directly(output, concurrency=3)
@@ -1345,7 +1356,7 @@ def test_failed_record_warning_names_its_record(
             raise RuntimeError("trace unavailable")
         return _session(session_id)
 
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
 
     _evaluate_directly(output, concurrency=2)
@@ -1461,7 +1472,7 @@ async def test_cancellation_stops_every_session_then_closes_the_judge_client(
         return _session(session_id)
 
     monkeypatch.setenv("JUDGE_API_KEY", "test-key")
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
     monkeypatch.setattr(
         "metis.engine.evaluation.build_llm_settings",
@@ -1655,7 +1666,7 @@ def test_each_trial_writes_its_evaluation_file(monkeypatch, tmp_path: Path) -> N
             raise RuntimeError("trace unavailable")
         return _session(session_id)
 
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
 
     result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])
@@ -1707,7 +1718,7 @@ def test_results_are_assembled_from_the_trial_files_in_record_order(
         await asyncio.sleep(delays[session_id])
         return _session(session_id)
 
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
 
     outcome = _evaluate_directly(output, concurrency=3)
@@ -1748,7 +1759,7 @@ def test_a_fresh_evaluation_clears_old_outputs_before_its_first_trial(
             present_at_first_fetch.append([path.exists() for path in stale])
         return _session(session_id)
 
-    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", lambda: object())
+    monkeypatch.setattr("metis.engine.extractor.get_langfuse_client", NoLangfuse)
     monkeypatch.setattr("metis.engine.extractor.fetch_session", fetch)
 
     result = runner.invoke(app, ["evaluate", "--experiment-dir", str(output)])

@@ -31,7 +31,7 @@ Simulate, then evaluate:
 
 ```bash
 metis engine simulate --input-dir my-evaluation
-metis engine evaluate --experiment-dir experiments/execute/<your-experiment>
+metis engine evaluate --experiment-dir evaluations/experiments/<your-experiment>
 ```
 
 `simulate` prints the output folder and the `evaluate` command for it. Use the path that it
@@ -47,8 +47,8 @@ For the options of each step, see [Run the test suite](run-test-suite.md) and
 ### Outputs
 
 ```text
-experiments/execute/<your-experiment>/
-├── inputs/                 # A frozen copy of your specification and fixtures
+evaluations/experiments/<your-experiment>/
+├── specification/          # A frozen copy of your specification and fixtures
 ├── outputs/
 │   ├── trials/             # One folder per trial, with its record and artifacts
 │   ├── evaluation/         # One file per trial evaluated; private to the engine

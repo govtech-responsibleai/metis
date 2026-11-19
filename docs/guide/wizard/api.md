@@ -361,7 +361,7 @@ Use either endpoint after `/turn` or `/end` returns `done`.
 | Endpoint | Input | Output | Use |
 |---|---|---|---|
 | `POST /compile` | `state.specification` as JSON | `specification.yaml` as a string and `specification` with assigned Task IDs | Store or display YAML yourself. |
-| `POST /package` | One JSON form field: `state` for Interviews or `specification` for manual exports; an optional `connection` with `specification`; fixture file parts | `YYYYMMDD-HHMMSS-interview.zip` | Download a portable specification. |
+| `POST /package` | One JSON form field: `state` for Interviews or `specification` for manual exports; an optional `connection` with `specification`; fixture file parts | `YYYYMMDD-HHMMSS-interview-<random>.zip` | Download a portable specification. |
 
 Compile directly from `interview.json`:
 
@@ -382,20 +382,22 @@ jq -c '.state' interview.json | \
 ```
 
 Add one `-F 'files=@<path>'` part for each original fixture referenced by the completed Specification.
-The response `Content-Disposition` header supplies the ZIP filename. The ZIP contains a
-`YYYYMMDD-HHMMSS-interview/` root folder with `inputs/interview_state.json`, `outputs/specification.yaml`, and
-`outputs/fixtures/`. In run mode, it also contains `outputs/target-binding.yaml`. The API compiles the Specification directly from the supplied state and
+The response `Content-Disposition` header supplies the ZIP filename, `<id>.zip`, where `<id>` is
+`YYYYMMDD-HHMMSS-interview-<random>` at the time of the request. The ZIP contains
+`interviews/<id>/interview_state.json`, `specifications/<id>/specification.yaml`, and
+`specifications/<id>/fixtures/`. In run mode, it also contains
+`specifications/<id>/target-binding.yaml`. The API compiles the Specification directly from the supplied state and
 saves that same state with its current JSON format. Send exactly one source field; requests
 with both `state` and `specification` are rejected.
 
 For a manual export, send the user-authored Specification in the `specification` form field.
-The manual ZIP uses `YYYYMMDD-HHMMSS-manual.zip` and a matching root folder. It contains an
-empty `inputs/` folder and the same `outputs/` layout.
+The manual ZIP uses the `<id>` `YYYYMMDD-HHMMSS-manual-<random>`. It contains the same
+`specifications/<id>/` folder and no `interviews/` folder.
 
 To run a manual export, also send a `connection` form field. Its value is a connection as JSON,
 in the same shape as `state.context.connection`. The ZIP then contains
-`outputs/target-binding.yaml`, and `outputs/specification.yaml` names the generic runner and the
-binding file. This is the same export as an Interview with that connection. The API applies the
+`specifications/<id>/target-binding.yaml`, and `specification.yaml` names the generic runner and
+the binding file. This is the same export as an Interview with that connection. The API applies the
 same validation as `POST /connection/check`. A binding that is not valid gives a 400
 `validation_error`. Its message names each field and its reason, and never the value. Send
 `connection` only with `specification`. An Interview keeps its connection in its state, so a
@@ -410,10 +412,10 @@ curl --fail-with-body http://localhost:8001/api/v1/wizard/package \
 ```
 
 The API retains no uploaded bytes or experiment files. A successful package response contains
-a generated Specification and marks a completed export. Extract the archive into `experiments/design/`
-and use its dated folder as the Engine input. For example, run
-`metis engine run --input-dir experiments/design/20261016-223045-interview/outputs/`. Task fixture references stay relative
-to `outputs/fixtures/`. Wizard exports contain no Testbed caches or score files.
+a generated Specification and marks a completed export. Extract the archive into `evaluations/`
+and use its Specification folder as the Engine input. For example, run
+`metis engine run --input-dir evaluations/specifications/20261117-160005-interview-x9abc`. Task
+fixture references stay relative to `fixtures/` in that folder. Wizard exports contain no Testbed caches or score files.
 
 ## Connect the target
 
@@ -479,8 +481,8 @@ To start in run mode, put a connection in the start request:
 The connection travels in `state.context.connection`. Prompts and the model never read it. A
 spec-only state has no `connection` key. To add or replace the connection later, send the state
 to `POST /connection` and save the returned state. `POST /package` then adds
-`outputs/target-binding.yaml`, and `outputs/specification.yaml` names the generic runner and the
-binding file.
+`specifications/<id>/target-binding.yaml`, and `specification.yaml` names the generic runner and
+the binding file.
 
 ## Handle errors and resume
 
@@ -569,13 +571,17 @@ The API keeps its store in the project folder. Start the API with
 the nearest folder at or above the working directory that has a `pyproject.toml`. When no such
 folder is found, it is the working directory. `metis engine simulate` uses the same rule.
 
-- The database is `metis.db` in the project folder. Set `METIS_DATABASE_URL` to use
-  another database.
-- The files of each Target are in `experiments/design/<target_id>/`, the same layout as the CLI
-  wizard. `inputs/interview_state.json` holds the state of the Interview, and
-  `inputs/documents/` holds the files that you upload.
-- `outputs/` holds the Specification. Give this folder to `metis engine simulate --input-dir`.
-  The `input_dir` field of the Specification response is its path.
+- Everything is in the `evaluations/` folder of the project folder. The database is
+  `evaluations/metis.db`. Set `METIS_DATABASE_URL` to use another database.
+- The Interview of each Target is in `evaluations/interviews/<target_id>/`, the same layout as
+  the CLI wizard. `interview_state.json` holds the state of the Interview, and `documents/` holds
+  the files that you upload.
+- `evaluations/specifications/<target_id>/` holds the Specification. Give this folder to
+  `metis engine simulate --input-dir`. The `input_dir` field of the Specification response is its
+  path, for example `evaluations/specifications/20261117-143000-interview-k7mwp`.
+- The engine writes each Experiment to `evaluations/experiments/<specification-id>-YYYYMMDD-HHMMSS/`.
+  A delete of the Target removes its Interview folder and its Specification folder, and keeps its
+  Experiment folders.
 
 ## Turn on login for a shared server
 
@@ -586,30 +592,52 @@ Set these variables in the environment of the API, then start it:
 
 ```bash
 METIS_LOGIN=1
-METIS_ADMIN_TOKEN=<a long random value>
+METIS_JOIN_TOKEN=<a long random value>
+METIS_ADMIN_TOKEN=<a different long random value>
+METIS_ADMIN_USERNAME=<your username>
+METIS_ADMIN_PASSWORD=<a long random password>
 ```
 
-Make the admin token with a tool such as `openssl rand -hex 32`. The API does not start when
-`METIS_ADMIN_TOKEN` is set and `METIS_LOGIN` is not `1`.
+`METIS_JOIN_TOKEN` is the join token, which participants type on the login page.
+`METIS_ADMIN_TOKEN` is the admin token, for your own scripts. Do not give it to participants.
+Both are optional. Make each with a tool such as `openssl rand -hex 32`.
+`METIS_ADMIN_USERNAME` and `METIS_ADMIN_PASSWORD` name the admin of the server. Set both or
+neither. At each start, the API makes this user account or sets its password. Login has no limit
+on the number of tries, so use a long random password.
+
+The API does not start when one of these variables is set and `METIS_LOGIN` is not `1`, when the
+two tokens are the same, or when only one of the two admin variables is set.
 
 When login is on, each route under `/api` needs a login session. A request without one gets 401
 `login_required`. The exceptions are `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`,
-and the user routes. `/health` is always open.
+and the user routes, which check their own credentials. `/health` is always open.
 
 ### Make a user account
 
-The admin token protects the user routes. Send it in an `Authorization: Bearer` header, over
-HTTPS. Do not put it in a URL or in a web page. When the server has no admin token, the user
-routes return 404 `not_found`.
+An admin is a user account that can manage the other user accounts. The admin token has the
+same power, with no login session. The join token can only make user accounts that are not
+admins.
 
-| Route | Purpose |
-|---|---|
-| `POST /api/v1/users` | Make a user account and return its credentials. |
-| `GET /api/v1/users` | List the user accounts with their id, username, and creation time. |
+| Route | Purpose | Who can use it |
+|---|---|---|
+| `POST /api/v1/users` | Make a user account and return its credentials. | The join token, an admin, or the admin token |
+| `GET /api/v1/users` | List the user accounts with their id, username, creation time, and admin flag. | An admin, or the admin token |
+| `POST /api/v1/users/{username}/password` | Give a user account a new password and return it. | An admin, or the admin token |
+| `DELETE /api/v1/users/{username}` | Delete a user account with its records and its folder. | An admin, or the admin token |
+
+Send a token in an `Authorization: Bearer` header, over HTTPS. Do not put it in a URL. A request
+with that header does not use its login cookie. An unknown token gets 401 `invalid_token`. A
+caller that is not allowed gets 403 `admin_required`. With login off, each user route returns 404
+`not_found`.
+
+`POST /api/v1/users` takes an optional body `{"admin": true}` to make an admin. The join token
+cannot send it.
+
+A participant makes a user account with the join token:
 
 ```bash
 curl -X POST https://metis.example/api/v1/users \
-  -H "Authorization: Bearer $METIS_ADMIN_TOKEN"
+  -H "Authorization: Bearer $METIS_JOIN_TOKEN"
 ```
 
 ```json
@@ -617,17 +645,36 @@ curl -X POST https://metis.example/api/v1/users \
   "id": "3f6c2a9d5b7e4c1e8a0f2d4b6c8e0a1c",
   "username": "curious-otter",
   "password": "k7mwp-3xr9t",
-  "created_at": "2026-11-14T08:30:00Z"
+  "created_at": "2026-11-14T08:30:00Z",
+  "admin": false
 }
 ```
 
-METIS makes the username and the password. This response is the only one that has the password,
-because METIS keeps only a hash of it. Each request makes one more user account. A user account
+METIS makes the username and the password. This response is the only one of the API that has
+the password, and the database keeps only a hash of it. Keep the password when you get it: no
+route and no file gives it again. For debugging, the server writes `users/<user id>/user.json`
+with the id, the username, and the times of creation, last login, and last write, so you can
+tell which user account a folder belongs to. Each request makes one more user account. A user account
 has no end date, and a person cannot change its credentials.
 
-The admin token can only make and list user accounts. It does not open another route, and it
-cannot read the records of a user account. A website that gives credentials to its visitors can
-thus hold the token on its server. That website must decide who gets a user account, and how many.
+`POST /api/v1/users/{username}/password` gives a user account a new password and ends its login
+sessions. The response has the shape above, and it is the only one that has the new password.
+
+`DELETE /api/v1/users/{username}` deletes a user account with its Targets, their records, and the
+folder `users/<user id>/`. You cannot undo it. It returns 204. An unknown username gets 404
+`not_found`. The API refuses these deletes with 409:
+
+- `cannot_delete_self`: the user account of your login session.
+- `environment_admin`: the admin of `METIS_ADMIN_USERNAME`, which the server makes again at each
+  start.
+- `local_account`: the user account that holds the records of the server with login off.
+- `run_in_progress`: a user account with an experiment that runs or waits in the queue. Stop it,
+  then try again.
+
+The join token cannot list, reset, or delete user accounts, and it cannot read records. You can
+thus give it to each participant, and a website that gives credentials to its visitors can hold
+it on its server. That website must decide who gets a user account, and how many. The admin token
+opens only the user routes. Keep it for your own scripts.
 
 ### Records of each user account
 
@@ -638,8 +685,9 @@ user account gets 409 `target_exists`. Two user accounts can use the same Experi
 
 Each user account has its own project folder at `users/<user id>/` in the project folder of
 the server. The layout inside it is the same as on your own computer, for example
-`users/<user id>/experiments/design/<target_id>/`. The database stays at `metis.db` in the
-project folder of the server.
+`users/<user id>/evaluations/interviews/<target_id>/`. Every path in a request or a response is
+relative to that folder. The database stays at `evaluations/metis.db` in the project folder of
+the server, and that `evaluations/` folder holds no other files.
 
 Records that a server saved with login off belong to the local user account. A user account of
 a login does not see them.
@@ -650,13 +698,14 @@ a login does not see them.
 |---|---|
 | `POST /api/v1/auth/login` | Check a username and a password, and start a login session. |
 | `POST /api/v1/auth/logout` | End the login session. |
-| `GET /api/v1/auth/me` | Tell if login is on, and name the current user account. |
+| `GET /api/v1/auth/me` | Tell if login is on, and name the current user account and if it is an admin. |
 
 `POST /api/v1/auth/login` takes `{"username": "...", "password": "..."}`. Correct credentials
 return the user account and set the `metis_login` cookie. The cookie is HTTP-only and
 `SameSite=Lax`. It is also `Secure` when `HOST` is not an address of the same computer, so serve
 a shared server over HTTPS. Wrong credentials get 401 `invalid_credentials`. The check ignores
-the case of the letters and space around each value.
+space around each value and the case of the username. The case of a password that METIS made
+does not matter.
 
 A login session ends at logout, or 30 days after the login. Then the person logs in again with
 the same credentials.

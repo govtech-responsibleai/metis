@@ -1,13 +1,15 @@
 """The input folder of a Specification, in the layout that `metis engine simulate` reads.
 
-The folder holds `specification.yaml`, `fixtures/`, and `target-binding.yaml` when the Interview
-has a target connection. The wizard packager builds these files. This module takes the files
-under `outputs/` in the package archive, the same files that `metis wizard init` writes.
+The folder is `specifications/<id>/`. It holds `specification.yaml`, `fixtures/`, and
+`target-binding.yaml` when the Interview has a target connection. The wizard packager builds these
+files. This module takes the files under `specifications/<id>/` in the package archive, the same
+files that `metis wizard init` writes.
 
 A new folder replaces the old one in two renames. The staged folder and the old folder are next
-to the input folder. Their names add `.tmp-` or `.old-` and an id to its name. After a crash
-between the renames, `recover` keeps the input folder, or puts the old folder back when the
-input folder is missing.
+to the input folder, directly in `specifications/`. Their names add `.tmp-` or `.old-` and an id
+to its name. That is safe, because nothing lists that folder: the store and the web app find a
+Specification folder by its Target id only. After a crash between the renames, `recover` keeps
+the input folder, or puts the old folder back when the input folder is missing.
 """
 
 from __future__ import annotations
@@ -28,7 +30,7 @@ if TYPE_CHECKING:
     from metis.wizard import InterviewState
 
 SPECIFICATION = "specification.yaml"
-_PACKAGE_FILES = "outputs"
+_PACKAGE_FILES = "specifications"
 
 
 def build(
@@ -50,7 +52,7 @@ def build(
     with zipfile.ZipFile(io.BytesIO(archive.content)) as bundle:
         for member in bundle.infolist():
             parts = PurePosixPath(member.filename).parts
-            if member.is_dir() or len(parts) < 3 or parts[1] != _PACKAGE_FILES:
+            if member.is_dir() or len(parts) < 3 or parts[0] != _PACKAGE_FILES:
                 continue
             files[PurePosixPath(*parts[2:]).as_posix()] = bundle.read(member)
     return files

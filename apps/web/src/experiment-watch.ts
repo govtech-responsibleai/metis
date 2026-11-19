@@ -1,6 +1,8 @@
-// Follows one Experiment while its run is alive, and starts its engine steps.
+// Follows one Experiment while its run is alive or queued, and starts the steps that the user
+// asks for. The server starts the evaluate after a simulate, so this page never starts one on
+// its own.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   experimentState,
   type ExperimentState,
@@ -12,6 +14,7 @@ import {
   TransportError,
   type EngineStatus,
   type ExperimentRecord,
+  type ExperimentSave,
   type PhaseEvent,
 } from "./transport/api.ts";
 
@@ -27,21 +30,90 @@ export type WatchLoad =
       events: readonly PhaseEvent[];
     };
 
+export interface StepCalls {
+  engineStatus: (experimentId: string) => Promise<EngineStatus>;
+  resumeSimulation: (experimentId: string) => Promise<void>;
+  evaluate: (experimentId: string) => Promise<void>;
+  resumeEvaluation: (experimentId: string) => Promise<void>;
+  putExperiment: (
+    experimentId: string,
+    body: ExperimentSave,
+  ) => Promise<ExperimentRecord>;
+}
+
+const STEP_CALLS: StepCalls = {
+  engineStatus: api.engineStatus,
+  resumeSimulation: api.resumeSimulation,
+  evaluate: api.evaluate,
+  resumeEvaluation: api.resumeEvaluation,
+  putExperiment: store.putExperiment,
+};
+
 const RESUME: Record<
   ResumeStep,
   {
-    start: (experimentId: string) => Promise<void>;
+    start: (calls: StepCalls) => (experimentId: string) => Promise<void>;
     step: ExperimentRecord["step"];
+    phase: EngineStatus["phase"];
   }
 > = {
-  "resume-simulate": { start: api.resumeSimulation, step: "simulate" },
-  evaluate: { start: api.evaluate, step: "evaluate" },
-  "resume-evaluate": { start: api.resumeEvaluation, step: "evaluate" },
+  "resume-simulate": {
+    start: (calls) => calls.resumeSimulation,
+    step: "simulate",
+    phase: "simulating",
+  },
+  evaluate: {
+    start: (calls) => calls.evaluate,
+    step: "evaluate",
+    phase: "evaluating",
+  },
+  "resume-evaluate": {
+    start: (calls) => calls.resumeEvaluation,
+    step: "evaluate",
+    phase: "evaluating",
+  },
 };
 
-// The Experiments whose evaluate this page started on its own. It is outside the component, so
-// a second mount in strict mode, or a second poll, cannot start evaluate again.
-const autoStarted = new Set<string>();
+export const STALE_STEP =
+  "This Experiment changed since the page last read it, so nothing started. The page now shows its current state.";
+
+// A queued run is alive too: it waits on the server for a free slot, and starts on its own.
+function isLiveStatus(status: EngineStatus): boolean {
+  return (
+    status.status === "running" ||
+    status.status === "stopping" ||
+    status.status === "queued"
+  );
+}
+
+// Starts the engine step that a Resume was for, and saves the step of the row.
+//
+// The page acts on the state of its last poll, and polling stops when no run is alive. Another
+// tab can change the Experiment since then, so the status is read again first. When the state
+// now needs a different step, or none, nothing starts and the error is STALE_STEP.
+//
+// `run_in_progress` means that a run of this Experiment is alive. The step is saved only when
+// that run is of the phase of the step, so the row never names a step that is not running.
+export async function startStep(
+  step: ResumeStep,
+  record: ExperimentRecord,
+  calls: StepCalls = STEP_CALLS,
+): Promise<ExperimentRecord> {
+  const id = record.experiment_id;
+  const now = experimentState(record.step, await calls.engineStatus(id), []);
+  if (!("resume" in now) || now.resume !== step) throw new Error(STALE_STEP);
+  const { start, step: saved, phase } = RESUME[step];
+  try {
+    await start(calls)(id);
+  } catch (cause) {
+    if (!(cause instanceof TransportError && cause.code === "run_in_progress"))
+      throw cause;
+    const live = await calls.engineStatus(id);
+    if (!isLiveStatus(live) || live.phase !== phase) return record;
+  }
+  if (record.step === saved) return record;
+  return calls.putExperiment(id, { target_id: record.target_id, step: saved });
+}
 
 function errorText(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
@@ -80,7 +152,7 @@ function useEngine(experimentId: string, wake: number) {
           events = [...events, ...fresh];
           setEngine({ experimentId, status, events });
           setFailure(null);
-          live = status.status === "running" || status.status === "stopping";
+          live = isLiveStatus(status);
         } catch (cause) {
           if (!current) return;
           setFailure({ experimentId, message: errorText(cause) });
@@ -118,8 +190,6 @@ export function useExperimentWatch(experimentId: string): {
   const [recordError, setRecordError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"stop" | "resume" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  // The Experiment whose simulate this page saw run.
-  const sawSimulate = useRef<string | null>(null);
   const { engine, failure } = useEngine(experimentId, wake);
 
   useEffect(() => {
@@ -144,25 +214,10 @@ export function useExperimentWatch(experimentId: string): {
       ? experimentState(record.step, engine.status, engine.events)
       : null;
 
+  // A refused or stale start shows its message, and `act` polls again to show the new state.
   const start = useCallback(
     async (step: ResumeStep, current: ExperimentRecord) => {
-      const { start: run, step: saved } = RESUME[step];
-      try {
-        await run(current.experiment_id);
-      } catch (cause) {
-        // The run of this Experiment is alive, so the step has already started.
-        if (!(
-          cause instanceof TransportError && cause.code === "run_in_progress"
-        ))
-          throw cause;
-      }
-      if (current.step !== saved)
-        setRecord(
-          await store.putExperiment(current.experiment_id, {
-            target_id: current.target_id,
-            step: saved,
-          }),
-        );
+      setRecord(await startStep(step, current));
     },
     [],
   );
@@ -185,25 +240,6 @@ export function useExperimentWatch(experimentId: string): {
     },
     [],
   );
-
-  // Evaluate starts when this page sees simulate end. When no page is open at that moment, the
-  // Experiment waits for evaluate, and Resume starts it.
-  useEffect(() => {
-    if (state?.kind === "simulating") {
-      sawSimulate.current = experimentId;
-      // A resumed simulation ends again, and its evaluate starts again.
-      autoStarted.delete(experimentId);
-    }
-    if (
-      state?.kind !== "waiting" ||
-      !record ||
-      sawSimulate.current !== experimentId ||
-      autoStarted.has(experimentId)
-    )
-      return;
-    autoStarted.add(experimentId);
-    act("resume", () => start("evaluate", record));
-  }, [state?.kind, record, experimentId, act, start]);
 
   const load: WatchLoad =
     recordError !== null

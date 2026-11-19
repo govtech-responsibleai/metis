@@ -5,8 +5,9 @@ grader go to the Langfuse that the three ``METIS_INTERNAL_LANGFUSE_*`` variables
 is off unless all three are set.
 
 The ``LANGFUSE_*`` variables name the Langfuse of the system under test, which the extractor
-reads. The ``langfuse.openai`` drop-in picks its client by public key, and a call that names no
-key falls back to the only registered client, which in ``evaluate`` is the target's. So every
+reads. The ``langfuse.openai`` drop-in picks its client by public key. A call that names no key
+gets a client built from ``LANGFUSE_*`` (the target's project) when none is registered, the one
+client when only one is, and a disabled client when several are. So every
 engine model call names :func:`tracing_key`: the simulation helpers pass it on each request,
 and :func:`traced` sets it for every call nested inside, such as a library grader's judge calls.
 When tracing is off, the key names a disabled client, so nothing is sent anywhere.

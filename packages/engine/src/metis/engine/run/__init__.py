@@ -5,8 +5,9 @@ handler, and write text only to the ``console`` that the caller gives. The calle
 the process before it calls one: it loads ``.env``, registers the METIS-internal Langfuse
 client (``metis.engine.tracing.tracing_key``), and sets up process logging.
 
-Only one run at a time is safe in one process. Logging, the Langfuse clients, and
-``LANGFUSE_HOST`` in ``os.environ`` are shared by the whole process.
+Runs on different threads of one process are safe. Each simulation sends its logs to its
+own files through a context variable, and each evaluation reads the target's Langfuse through
+a client of its own. Each run calls ``asyncio.run`` on its own thread.
 """
 
 from metis.engine.run._common import (

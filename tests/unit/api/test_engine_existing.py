@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from metis.core import execution_layout
+from metis.core import execution_layout, project_layout
 from metis.engine.extractor import TraceWaitSettings
 from tests.fixtures.api.engine import wait_until
 
@@ -46,8 +46,9 @@ def test_a_resume_of_a_simulation_runs_with_the_default_concurrency(
 
     assert response.status_code == 202
     assert response.json() == {"experiment_id": experiment_dir.name}
-    wait_until(lambda: len(fake_engine.calls) == 1)
-    [call] = fake_engine.calls
+    # The job is the resume, then its evaluate.
+    wait_until(lambda: len(fake_engine.calls) == 2)
+    call = fake_engine.calls[0]
     assert (call.name, call.experiment_dir) == ("resume_simulation", experiment_dir)
     assert call.options == {"concurrency": 1}
 
@@ -104,7 +105,7 @@ def test_a_folder_with_no_snapshot_is_an_invalid_experiment(
     project_dir: Path,
     name: str,
 ) -> None:
-    folder = project_dir / execution_layout.EXECUTIONS / "bare"
+    folder = project_dir / project_layout.EXPERIMENTS / "bare"
     folder.mkdir(parents=True)
 
     response = engine_client.post(ROUTES[name].format(id="bare"))
@@ -113,7 +114,7 @@ def test_a_folder_with_no_snapshot_is_an_invalid_experiment(
     body = response.json()
     assert body["code"] == "invalid_experiment"
     assert body["message"] == (
-        f"'{folder}' is not a simulation output directory (no 'inputs/' snapshot). "
+        f"'{folder}' is not a simulation output directory (no 'specification/' snapshot). "
         "Run 'metis engine simulate' first."
     )
     assert fake_engine.calls == []
@@ -199,15 +200,58 @@ def test_a_resume_of_a_complete_evaluation_is_refused(
     assert fake_engine.calls == []
 
 
-def test_an_evaluate_of_a_complete_evaluation_grades_again(
+def test_an_evaluate_of_a_complete_evaluation_is_refused(
     engine_client: TestClient, fake_engine: FakeEngine, experiment_dir: Path
 ) -> None:
     _write_results(experiment_dir)
 
     response = engine_client.post(ROUTES["evaluate"].format(id=experiment_dir.name))
 
+    assert response.status_code == 409
+    assert response.json()["code"] == "evaluation_complete"
+    assert "regrade" in response.json()["message"]
+    assert fake_engine.calls == []
+    assert (experiment_dir / execution_layout.RESULTS).exists()
+
+
+def test_an_evaluate_with_regrade_grades_a_complete_evaluation_again(
+    engine_client: TestClient, fake_engine: FakeEngine, experiment_dir: Path
+) -> None:
+    _write_results(experiment_dir)
+
+    response = engine_client.post(
+        ROUTES["evaluate"].format(id=experiment_dir.name), json={"regrade": True}
+    )
+
     assert response.status_code == 202
     wait_until(lambda: len(fake_engine.calls) == 1)
+    assert fake_engine.calls[0].name == "evaluate"
+
+
+def test_an_evaluate_of_an_evaluation_that_did_not_end_grades_every_trial(
+    engine_client: TestClient, fake_engine: FakeEngine, experiment_dir: Path
+) -> None:
+    results = experiment_dir / execution_layout.RESULTS
+    results.parent.mkdir(parents=True)
+    results.write_text("{")  # a results.json that does not load
+
+    response = engine_client.post(ROUTES["evaluate"].format(id=experiment_dir.name))
+
+    assert response.status_code == 202
+    wait_until(lambda: len(fake_engine.calls) == 1)
+    assert fake_engine.calls[0].name == "evaluate"
+
+
+def test_regrade_is_not_an_option_of_an_evaluate_resume(
+    engine_client: TestClient, fake_engine: FakeEngine, experiment_dir: Path
+) -> None:
+    response = engine_client.post(
+        ROUTES["resume_evaluation"].format(id=experiment_dir.name),
+        json={"regrade": True},
+    )
+
+    assert response.status_code == 422
+    assert fake_engine.calls == []
 
 
 @pytest.mark.parametrize("name", list(ROUTES))
@@ -227,36 +271,46 @@ def test_a_start_for_the_experiment_that_runs_is_run_in_progress(
 
 
 @pytest.mark.parametrize("name", list(ROUTES))
-def test_a_start_while_another_experiment_runs_is_engine_busy(
-    engine_client: TestClient,
+def test_a_start_while_every_slot_is_taken_waits_for_a_slot(
+    make_engine_client: Callable[..., TestClient],
     fake_engine: FakeEngine,
     make_experiment_dir: Callable[..., Path],
     name: str,
 ) -> None:
+    client = make_engine_client(max_runs=1)
     running = make_experiment_dir("test-exp-20260101-000001")
     other = make_experiment_dir("test-exp-20260101-000002")
     fake_engine.mode = "hold"
-    engine_client.post(ROUTES["resume_simulation"].format(id=running.name))
+    client.post(ROUTES["resume_simulation"].format(id=running.name))
+    wait_until(lambda: len(fake_engine.calls) == 1)
 
-    response = engine_client.post(ROUTES[name].format(id=other.name))
+    response = client.post(ROUTES[name].format(id=other.name))
 
-    assert response.status_code == 503
-    assert response.json()["code"] == "engine_busy"
-    assert running.name in response.json()["message"]
+    assert response.status_code == 202
     assert len(fake_engine.calls) == 1
+    fake_engine.release.set()
+    wait_until(lambda: any(call.experiment_dir == other for call in fake_engine.calls))
+    first = next(call for call in fake_engine.calls if call.experiment_dir == other)
+    assert first.name == name
+    # The queued start waited for the whole job of the running one, its evaluate too.
+    assert [call.name for call in fake_engine.calls[:2]] == [
+        "resume_simulation",
+        "resume_evaluation",
+    ]
 
 
 def test_a_bad_timeout_is_checked_after_the_folder_and_the_run(
-    engine_client: TestClient,
+    make_engine_client: Callable[..., TestClient],
     fake_engine: FakeEngine,
     project_dir: Path,
     make_experiment_dir: Callable[..., Path],
 ) -> None:
     bad = {"langfuse_timeout": 10}
-    bare = project_dir / execution_layout.EXECUTIONS / "bare"
+    bare = project_dir / project_layout.EXPERIMENTS / "bare"
     bare.mkdir(parents=True)
     running = make_experiment_dir("test-exp-20260101-000001")
     other = make_experiment_dir("test-exp-20260101-000002")
+    engine_client = make_engine_client(max_runs=1)
     fake_engine.mode = "hold"
     engine_client.post(ROUTES["resume_simulation"].format(id=running.name))
 
@@ -280,6 +334,6 @@ def test_a_bad_timeout_is_checked_after_the_folder_and_the_run(
     assert codes == [
         "experiment_not_found",
         "run_in_progress",
-        "engine_busy",
+        "invalid_langfuse_timeout",
         "invalid_experiment",
     ]

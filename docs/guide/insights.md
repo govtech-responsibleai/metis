@@ -7,7 +7,7 @@ the traces and writes `outputs/reports/results.json` but builds no report.
 ## Usage
 
 ```bash
-metis insights report --results-file experiments/execute/toyapp-http-simple-20260730-143022/outputs/reports/results.json
+metis insights report --results-file evaluations/experiments/toyapp-http-simple-20260730-143022/outputs/reports/results.json
 ```
 
 `evaluate` and `run` print this exact command, with the path already filled in, at the
@@ -24,8 +24,8 @@ The command finds the execution root from the `outputs/reports/` path. It reads
 the input snapshot and trial records, then writes reports beside the results:
 
 ```text
-experiments/execute/toyapp-http-simple-20260730-143022/
-├── inputs/specification.yaml
+evaluations/experiments/toyapp-http-simple-20260730-143022/
+├── specification/specification.yaml
 └── outputs/
     ├── trials/*/record.json
     └── reports/
@@ -42,7 +42,7 @@ It also prints a terminal passed/failed/skipped/errored table per Criterion and 
 ## Outcomes
 
 - **Report written.** Exit code 0, and the paths of both files are printed.
-- **No specification.** When `inputs/specification.yaml` is missing or unreadable, the
+- **No specification.** When `specification/specification.yaml` is missing or unreadable, the
   summary still prints, the command says which path it looked for, and it exits 0. A run
   without a target specification opts out of the report.
 - **Invalid threshold.** A scored run with a missing or invalid recorded threshold exits 1 and writes no report. The error names the run.

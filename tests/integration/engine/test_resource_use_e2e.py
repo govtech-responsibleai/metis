@@ -133,8 +133,8 @@ def experiment_sessions(
         f"stderr: {result.stderr[-2000:]}"
     )
 
-    executions = tmp / "experiments" / "execute"
-    experiment_dirs = sorted(executions.iterdir(), key=lambda p: p.stat().st_mtime)
+    experiments = tmp / "evaluations" / "experiments"
+    experiment_dirs = sorted(experiments.iterdir(), key=lambda p: p.stat().st_mtime)
     assert experiment_dirs, "No experiment directory was created by the simulation"
     experiment_dir = experiment_dirs[-1]
 
@@ -164,10 +164,17 @@ def experiment_sessions(
         get_langfuse_client,
     )
 
-    langfuse = get_langfuse_client()
     wait = TraceWaitSettings(timeout_seconds=90)
 
     async def _fetch_all() -> dict[str, GradingInput]:
+        # Made, used and closed on this loop, as an evaluation does.
+        langfuse = get_langfuse_client()
+        try:
+            return await _fetch_each(langfuse)
+        finally:
+            await langfuse.aclose()
+
+    async def _fetch_each(langfuse: Any) -> dict[str, GradingInput]:
         sessions: dict[str, GradingInput] = {}
         for record in records:
             sid = record.target_session_id
@@ -183,10 +190,7 @@ def experiment_sessions(
             sessions[sid] = gi
         return sessions
 
-    try:
-        return asyncio.run(_fetch_all())
-    finally:
-        langfuse.shutdown()
+    return asyncio.run(_fetch_all())
 
 
 @pytest.fixture(scope="module")

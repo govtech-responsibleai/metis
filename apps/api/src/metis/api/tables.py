@@ -18,7 +18,8 @@ metadata = MetaData()
 targets = Table(
     "targets",
     metadata,
-    # The name of the Target folder in `experiments/design/`. The client makes it.
+    # The name of the Interview folder and the Specification folder of the Target. The client
+    # makes it.
     Column("id", String(64), primary_key=True),
     # The one column that names the user account. Each other record belongs to a user account
     # through its Target.
@@ -66,6 +67,14 @@ users = Table(
     Column("created_at", DateTime(timezone=True), nullable=False),
 )
 
+# A user account with a row here is an admin. The flag is a table of its own, because
+# `create_all` makes a missing table in an existing database but never adds a column.
+admins = Table(
+    "admins",
+    metadata,
+    Column("user_id", String(32), ForeignKey("users.id"), primary_key=True),
+)
+
 login_sessions = Table(
     "login_sessions",
     metadata,
@@ -78,6 +87,7 @@ login_sessions = Table(
 
 
 __all__ = [
+    "admins",
     "experiments",
     "interviews",
     "login_sessions",

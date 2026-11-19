@@ -46,7 +46,7 @@ def scripted_interview_handler(interviewer: object | None = None):
 
 @pytest.fixture
 def project_dir(tmp_path: Path) -> Path:
-    """The project folder of the test store. Experiments go in its `experiments/execute/`."""
+    """The project folder of the test store. Experiments go in its `evaluations/experiments/`."""
     folder = tmp_path / "project"
     folder.mkdir()
     (folder / "pyproject.toml").write_text('[project]\nname = "test-project"\n')

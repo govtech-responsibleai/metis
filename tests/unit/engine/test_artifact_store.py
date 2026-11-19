@@ -49,7 +49,7 @@ class TestSaveArtifacts:
                 Artifact(
                     name="input.csv",
                     source="fixture",
-                    path="inputs/fixtures/input.csv",
+                    path="specification/fixtures/input.csv",
                     state="received",
                 ),
             ],

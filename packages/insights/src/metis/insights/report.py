@@ -115,7 +115,7 @@ def _write_atomic(path: Path, text: str) -> None:
 def save_report(results: EvaluationResults, experiment_dir: Path) -> ReportFiles | None:
     """Write the target evaluation report into `experiment_dir/outputs/reports/`.
 
-    The report reads `inputs/specification.yaml` and `outputs/trials/*/record.json` from the
+    The report reads `specification/specification.yaml` and `outputs/trials/*/record.json` from the
     experiment directory. `simulate` freezes the input document there. A run with no
     specification gets no report, and that is not an error.
 

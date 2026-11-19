@@ -33,7 +33,7 @@ from fastapi.testclient import TestClient
 
 from metis.api.engine_runs import EngineFunctions
 from metis.api.main import create_app
-from metis.core import execution_layout
+from metis.core import execution_layout, project_layout
 from metis.core.phase_events import INTERRUPTED_REASON, PhaseEventLog
 from metis.engine.run import RunError, RunStopped
 from tests.fixtures.api._shared import scripted_interview_handler
@@ -127,10 +127,22 @@ def wait_until(check: Callable[[], bool], timeout: float = 5.0) -> None:
         time.sleep(0.01)
 
 
-def write_input_dir(folder: Path, specification: str = MINIMAL_EXPERIMENT) -> Path:
-    """Write an input folder of ``simulate --input-dir`` that the engine accepts."""
+def write_input_dir(
+    folder: Path,
+    specification: str = MINIMAL_EXPERIMENT,
+    *,
+    specification_id: str = SPECIFICATION_ID,
+) -> Path:
+    """Write an input folder of ``simulate --input-dir`` that the engine accepts.
+
+    ``specification_id`` gives the Specification another id, so two starts in the same
+    second make two experiment folders.
+    """
     folder.mkdir(parents=True)
-    (folder / "specification.yaml").write_text(specification)
+    text = specification.replace(
+        f"id: {SPECIFICATION_ID}\n", f"id: {specification_id}\n", 1
+    )
+    (folder / "specification.yaml").write_text(text)
     return folder
 
 
@@ -145,7 +157,7 @@ def fake_engine() -> Iterator[FakeEngine]:
 @pytest.fixture
 def input_dir(project_dir: Path) -> Path:
     """An input folder under the project folder, as the wizard writes it."""
-    return write_input_dir(project_dir / "experiments" / "design" / "t1" / "outputs")
+    return write_input_dir(project_dir / "evaluations" / "specifications" / "t1")
 
 
 @pytest.fixture
@@ -153,8 +165,8 @@ def make_experiment_dir(project_dir: Path) -> Callable[[str], Path]:
     """Make an experiment folder as ``prepare_experiment`` makes it, with a fixed name."""
 
     def make(name: str = f"{SPECIFICATION_ID}-20260101-000000") -> Path:
-        folder = project_dir / execution_layout.EXECUTIONS / name
-        write_input_dir(folder / execution_layout.INPUTS)
+        folder = project_dir / project_layout.EXPERIMENTS / name
+        write_input_dir(folder / execution_layout.SPECIFICATION_DIR)
         return folder
 
     return make
@@ -162,12 +174,18 @@ def make_experiment_dir(project_dir: Path) -> Callable[[str], Path]:
 
 @pytest.fixture
 def make_engine_client(
-    store: Store, fake_engine: FakeEngine
+    store: Store, fake_engine: FakeEngine, monkeypatch: pytest.MonkeyPatch
 ) -> Iterator[Callable[..., TestClient]]:
-    """Start an app over the fake engine. Each client runs its lifespan, and stops at exit."""
+    """Start an app over the fake engine. Each client runs its lifespan, and stops at exit.
+
+    ``max_runs`` sets ``METIS_API_ENGINE_MAX_RUNS`` before the app starts. The other
+    keywords replace engine functions of the fake.
+    """
     clients: list[TestClient] = []
 
-    def make(**overrides: Any) -> TestClient:
+    def make(*, max_runs: int | None = None, **overrides: Any) -> TestClient:
+        if max_runs is not None:
+            monkeypatch.setenv("METIS_API_ENGINE_MAX_RUNS", str(max_runs))
         app = create_app(
             interview_handler=scripted_interview_handler(),
             store=store,

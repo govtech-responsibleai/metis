@@ -91,42 +91,58 @@ media type is the type in the record when a header can hold it, else `applicatio
 Each Store holds a thread lock for the full time of a save or a delete, so the owner check and
 the write stay together. The store has no lock between processes.
 
-A folder in `experiments/design/` with a state file that validates is an Interview of the wizard
-CLI. The store adds its rows when it opens and at each Target list. Such a row has no transcript,
-and its file references are the files in `inputs/documents/`.
+The API supports one process and one instance only. The store lock is a thread lock, the
+default database is a SQLite file in the project folder, the experiment folders are on one
+disk, and `EngineRuns` keeps the live runs and the queue in memory. None of them is shared
+between processes.
+`metis-api` gives Uvicorn the app object, so it cannot start more than one worker. Uvicorn or
+Gunicorn started directly on `create_app` can, so the deployment docs require `metis-api`. Do not add
+code that assumes a second process. See
+[Run one container](../../docs/guide/docker.md#run-one-container).
 
-Before a first save, the store checks both the row and the Target folder. A folder with no row
-has no Interview state that the store can read, so PUT returns 409 `target_exists` and leaves it
-unchanged. When a
-first save fails, the store removes the folder that it made. DELETE requires a row. When no row
-exists, it returns 404 `not_found` and leaves any folder unchanged. A delete removes the row and
-then the Target folder.
+A folder in `evaluations/interviews/` with a state file that validates is an Interview of the
+wizard CLI. The store adds its rows when it opens and at each Target list. Such a row has no
+transcript, and its file references are the files in its `documents/` folder.
+
+Before a first save, the store checks the row, the Interview folder, and the Specification
+folder. A folder with no row has no Interview state that the store can read, so PUT returns 409
+`target_exists` and leaves it unchanged. When a first save fails, the store removes both folders
+that it made. DELETE requires a row. When no row exists, it returns 404 `not_found` and leaves
+any folder unchanged. A delete removes the row, then the Interview folder and the Specification
+folder.
 
 Settings:
 
 - `metis-api --project-dir PATH` names the project folder. The folder must exist. Without the
   option, the API uses the rule of `metis engine simulate`: the nearest folder at or above the
   working directory that has a `pyproject.toml`, else the working directory.
-  The rule is `metis.core.execution_layout.find_project_root`, which the engine also calls.
+  The rule is `metis.core.project_layout.find_project_root`, which the engine and the wizard
+  CLI also call.
 - `METIS_DATABASE_URL` is a SQLAlchemy URL. The default is
-  `sqlite:///<project>/metis.db`. The tables use only portable SQL, so do not add
+  `sqlite:///<project>/evaluations/metis.db`. With login on, the database stays in the
+  `evaluations/` folder of the server project folder, and that folder holds no other files. The tables use only portable SQL, so do not add
   SQLite-only types, JSON1 functions, or `INSERT OR REPLACE`.
 
 `cli.py` gives Uvicorn the app object from `create_app(project_dir=...)`, so the app keeps the
 project folder of the command. The store builds its paths from the constants in `store.py`.
 
-The files of a Target are in the layout that `metis wizard init` writes, under
-`<project>/experiments/design/<target_id>/`. The web app gives a new Target the id
-`YYYYMMDD-HHMMSS-interview-<random>`, the same form as a `metis wizard init` folder. The random
+The files of a Target are in the layout that `metis wizard init` writes, in two folders with the
+Target id as their name: `<project>/evaluations/interviews/<target_id>/` and
+`<project>/evaluations/specifications/<target_id>/`. The Target id follows the `<id>` rule of
+`metis.core.project_layout.ID`. The web app gives a new Target the id
+`YYYYMMDD-HHMMSS-interview-<random>`, the same form as a `metis wizard init` id. The random
 part is five characters, so two people who start in the same second get different ids. When the id is
 taken, the web app adds `-2`, `-3`, and so on. The `created_at` of the record tells one Interview
 from another. A save with the id of another Interview gets 409 `target_exists` and changes
-nothing. `inputs/interview_state.json` holds the state of the Interview, in the file that the
-wizard CLI uses. The Interview row holds the other parts of the record, and each read takes the
-state from the file. `inputs/documents/` holds the files that the user uploads, in the folder of the CLI opening documents. `outputs/` is the folder for `metis engine simulate --input-dir`.
-Each save of a done Interview compiles the Specification, then writes the Specification row and
-`outputs/` again. `outputs/` comes from the `outputs/` files of the package archive, and a new
-folder replaces the old one in two renames. A save is all or nothing: a
+nothing. `interview_state.json` in the Interview folder holds the state of the Interview, in the
+file that the wizard CLI uses. The Interview row holds the other parts of the record, and each
+read takes the state from the file. `documents/` in the Interview folder holds the files that the
+user uploads, in the folder of the CLI opening documents. The Specification folder is the folder
+for `metis engine simulate --input-dir`. Each save of a done Interview compiles the
+Specification, then writes the Specification row and the Specification folder again. The folder
+comes from the `specifications/<id>/` files of the package archive, and a new folder replaces the
+old one in two renames. The staged and old folders sit next to it in `specifications/` for the
+time of the save. A save is all or nothing: a
 compile failure gets 400 `compilation_failed` and changes nothing. A missing row or file gets 404
 `not_found`. A row that this version cannot read gets 409 `unreadable_record` and shows in the
 `problems` list of `GET /api/v1/targets`.
@@ -134,9 +150,9 @@ compile failure gets 400 `compilation_failed` and changes nothing. A missing row
 ## Engine routes
 
 The engine routes start, stop, and follow the engine steps of an experiment. They call the
-`metis.engine.run` library functions in the API's own process, on a `threading.Thread` of
-their own. They start no child process, and they do not use the store. They read and write
-the experiment folders only, as `metis engine simulate` and `evaluate` do.
+`metis.engine.run` library functions in the API's own process. Each job runs on a
+`threading.Thread` of its own. They start no child process, and they do not use the store. They
+read and write the experiment folders only, as `metis engine simulate` and `evaluate` do.
 
 Each engine route works in the project folder of the request, which `request_project_dir` in
 `experiment_dirs.py` gives. The report routes use the same function. With login off, it is the
@@ -146,25 +162,48 @@ reaches only its own experiments, and an experiment of another user account gets
 routes have no login check of their own.
 
 The experiment folders on disk are the source of truth. In memory, `EngineRuns` keeps only
-the run that is alive now: its project folder, its experiment id and folder, its phase, its
-stop flag (a `threading.Event`), its thread, and the last `seq` of `logs/events.jsonl` when it
-started. Two user accounts can have an experiment folder with the same name, so a run is the
-run of a request only when its project folder and its experiment id are both the same. When
-the thread ends, the API forgets the run.
+the runs that are alive or queued now. A run has its project folder, its experiment id and
+folder, its steps, its stop flag (a `threading.Event`), and the last `seq` of
+`logs/events.jsonl` when the start was accepted. Two user accounts can have an experiment
+folder with the same name, so a run is the run of a request only when its project folder and
+its experiment id are both the same. When the thread ends, the API forgets the run.
 
-The API runs one engine run at a time, across all experiments of all user accounts. Logging, the Langfuse clients,
-and `LANGFUSE_HOST` are shared by the whole process, so a second run at the same time is not
-safe. A second start gets 503 `engine_busy`, and there is no queue. One lock covers the busy
-check, the checks of the start, and the start of the thread. A refused start therefore creates
-no folder, and two starts at the same time cannot both pass.
+The API runs up to `METIS_API_ENGINE_MAX_RUNS` jobs at the same time, across all experiments of
+all user accounts. A start that finds every slot taken gets 202 and waits in a queue, first in
+first out. It starts when a slot frees. A start never fails because the engine is busy. Each
+simulation sends its logs to its own files, and each evaluation reads the target's Langfuse
+through a client of its own. The METIS-internal tracing client is the same for all runs. One
+lock covers the check for a live or queued run, the checks of the start, the queue, and the
+start of each thread. A refused start therefore creates no folder, and two starts of the same
+experiment cannot both pass. A restart loses the queue, and no queued job starts after it. A
+queued new simulation has a folder with no events, so the web app shows it as Stopped, with
+Resume. A queued resume or evaluate shows the last state of its folder, for example Waiting for
+evaluate, and its Resume starts it again.
+
+A job is what one start asks for. One thread runs all the steps of a job in order, so the
+evaluate after a simulate keeps the slot of its simulate. A step runs only when the stop flag
+is clear. A simulate that stops or fails ends the job, so the evaluate does not run.
+
+| Route | Steps of the job |
+|---|---|
+| `POST /api/v1/engine/simulate` | `simulate`, then `resume_evaluation` |
+| `POST /api/v1/engine/simulate/{experiment_id}/resume` | `resume_simulation`, then `resume_evaluation` |
+| `POST /api/v1/engine/evaluate/{experiment_id}` | `evaluate` |
+| `POST /api/v1/engine/evaluate/{experiment_id}/resume` | `resume_evaluation` |
+
+The evaluate after a simulate is `resume_evaluation` with `command="run"`, as
+`metis engine run --resume`. A simulate that ran trials deleted the evaluation outputs, so it
+grades every trial. A resume that ran no trial keeps a complete evaluation, and the evaluate
+writes only its `evaluating` lines. It uses the `concurrency` and `langfuse_timeout` settings,
+because the simulate request has no evaluate fields.
 
 | Route | Purpose |
 |---|---|
-| `POST /api/v1/engine/simulate` | Create an experiment from an input folder and run its trials (`simulate`). |
-| `POST /api/v1/engine/simulate/{experiment_id}/resume` | Run again the trials that did not end (`resume_simulation`). |
-| `POST /api/v1/engine/evaluate/{experiment_id}` | Delete the earlier evaluation and grade every trial (`evaluate`). |
+| `POST /api/v1/engine/simulate` | Create an experiment from an input folder, run its trials, and grade them. |
+| `POST /api/v1/engine/simulate/{experiment_id}/resume` | Run again the trials that did not end, and grade the trials with no evaluation. |
+| `POST /api/v1/engine/evaluate/{experiment_id}` | Delete the earlier evaluation and grade every trial (`evaluate`). A complete evaluation needs `regrade: true`. |
 | `POST /api/v1/engine/evaluate/{experiment_id}/resume` | Grade the trials with no evaluation file (`resume_evaluation`). |
-| `POST /api/v1/engine/{experiment_id}/stop` | Set the stop flag of the run. |
+| `POST /api/v1/engine/{experiment_id}/stop` | Set the stop flag of the run, or remove a queued run from the queue. |
 | `GET /api/v1/engine/{experiment_id}` | The phase, the status, and the counts of the experiment. |
 | `GET /api/v1/engine/{experiment_id}/events?after=<seq>` | The lines of `logs/events.jsonl` after `seq`. |
 | `GET /api/v1/doctor` | The checks of `metis doctor`. |
@@ -175,62 +214,76 @@ and refuses a path that is absolute or outside the project folder. `concurrency`
 `langfuse_timeout` take their default from a setting when a request leaves them out.
 
 The id of the Specification is the first part of the name of the experiment folder,
-`experiments/execute/<specification id>-<YYYYmmdd-HHMMSS>/`. The id field accepts any text, so
+`evaluations/experiments/<specification id>-<YYYYmmdd-HHMMSS>/`. The id field accepts any text, so
 an id with `/`, `\`, or `..` would name a folder in another place, for example in the project
 folder of another user account. Before `prepare_experiment` makes a folder, the simulate route
 reads the id and refuses an id that is empty, `.`, `..`, or that holds `/`, `\`, or a NUL
 character. After `prepare_experiment`, the route also checks that the new folder is directly in
-`experiments/execute/` of the request. #174 gives the id field this rule in metis-core, for the
+`evaluations/experiments/` of the request. #174 gives the id field this rule in metis-core, for the
 wizard and the CLI too.
 
-Every check of a start runs in the request, before the thread starts. The routes check in
+A full evaluate deletes the results of the experiment before it grades again. Thus the evaluate
+route refuses an experiment whose evaluation is complete, with 409 `evaluation_complete`, and
+keeps the results. The evaluation is complete when `results.json` loads
+(`evaluation_is_complete`). To grade a complete evaluation again, send `regrade: true` in the
+body. The evaluate that the server starts after a simulate does not use this route, so this
+check does not apply to it, and it needs no `regrade`. The web app never sends `regrade`. The
+evaluate resume route has no `regrade` field, and a complete evaluation gives it 409
+`evaluation_complete` too.
+
+Every check of a start runs in the request, before the job is accepted. The routes check in
 this order and return the first error:
 
 | Route | Order of the checks |
 |---|---|
-| `simulate` | `validation_error`, `input_dir_outside_project`, `engine_busy`, `invalid_inputs` or `experiment_exists` |
-| resume, evaluate | `validation_error`, `experiment_not_found`, `run_in_progress` or `engine_busy`, `invalid_experiment`, `invalid_langfuse_timeout` (evaluate only), `evaluation_complete` (evaluate resume only) |
+| `simulate` | `validation_error`, `input_dir_outside_project`, `invalid_langfuse_timeout`, `engine_stopping`, `invalid_inputs` or `experiment_exists` |
+| resume, evaluate | `validation_error`, `experiment_not_found`, `engine_stopping`, `run_in_progress`, `invalid_experiment`, `invalid_langfuse_timeout`, `evaluation_complete` (evaluate and evaluate resume) |
 | stop | `experiment_not_found`, `no_run` |
 | status, events | `validation_error` (events only), `experiment_not_found` |
 
 | Status | Code | When |
 |---|---|---|
-| 404 | `experiment_not_found` | No folder in `experiments/execute/` has the id. |
+| 404 | `experiment_not_found` | No folder in `evaluations/experiments/` has the id. |
 | 422 | `input_dir_outside_project` | `input_dir` is absolute, holds a NUL character, or is outside the project folder. |
 | 422 | `invalid_inputs` | The Specification id is not one folder name, or `prepare_experiment` refuses the inputs or the project folder. For the id, the message is the text of the API; else it is the engine text. |
 | 409 | `experiment_exists` | A run of the same Specification started in the same second. |
-| 409 | `run_in_progress` | A start for the experiment that runs now. |
-| 503 | `engine_busy` | A start while another experiment runs. The message names it when it is in the same project folder, else it says that an experiment of another user account runs. It is the only error with `retryable: true`. |
-| 422 | `invalid_experiment` | The folder has no `inputs/` snapshot, or uses the earlier layout. The message is the text of `resolve_experiment_dir`. |
-| 422 | `invalid_langfuse_timeout` | `TraceWaitSettings.from_env` refuses the timeout. |
+| 409 | `run_in_progress` | A start for an experiment that runs now or waits in the queue. |
+| 422 | `invalid_experiment` | The folder has no `specification/` snapshot, or uses the earlier layout. The message is the text of `resolve_experiment_dir`. |
+| 422 | `invalid_langfuse_timeout` | `TraceWaitSettings.from_env` refuses the timeout. The simulate routes check the timeout setting, for the evaluate after the simulate. |
 | 409 | `evaluation_complete` | A resume of an evaluation whose `results.json` loads. |
-| 409 | `no_run` | A stop for an experiment that does not run. |
+| 409 | `no_run` | A stop for an experiment that does not run and does not wait in the queue. |
+| 503 | `engine_stopping` | A start after the shutdown started. The start makes no folder. It is the only engine error with `retryable: true`. |
 | 422 | `validation_error` | A field is not valid, or `concurrency` or `langfuse_timeout` is more than its maximum setting. |
 
-A run that fails after the 202 fails on its thread. The engine has then already ended the
-events log with `failed` and its reason, or with `interrupted` for a stop. The API logs any
-error that is not a `RunError` or `RunStopped`. The text of a run goes to `logs/console.log`
-of the experiment, never to the stdout of the API.
+A run that fails after the 202 fails on its thread, and frees its slot for the next job. The
+engine has then already ended the events log with `failed` and its reason, or with `interrupted`
+for a stop. The API logs any error that is not a `RunError` or `RunStopped`. The text of a run
+goes to `logs/console.log` of the experiment, never to the stdout of the API.
 
-The status route takes its answer from the live run when the run of that id is alive:
-`running`, or `stopping` once the stop flag is set. The counts come from the run's own
-`started` line, which has a `seq` more than the start `seq`, so they are `null` until the
-engine writes it. When no run is alive, the answer comes from the last phase line of the
-events log: `completed`, `failed` with its reason, or `interrupted`. A log that ends with
-`started` is `unfinished`, because the run ended with no last line, for example after the
-process was killed. A log with no phase line is `not_started`. The status route and the
-events route read the file with one reader (`read_events`). It skips a last line with no
-newline and any line that does not parse. The events route returns each line as the engine
-wrote it.
+The status route takes its answer from `EngineRuns` when the run of that id is queued or alive.
+A queued run is `queued`, with the phase of its first step and no counts. `queue_ahead` is the
+number of jobs before it in the queue, across all user accounts, so 0 means that it starts next.
+It is a count only, and it never names an experiment or a user account. It is `null` in every
+other status. A live run is `running`, or `stopping` once the stop flag is set. Its phase is the
+phase of its newest phase line with a `seq` more than the start `seq`, so a job that moves from
+simulate to evaluate reports `evaluating`. Before its first line, the phase is that of its first
+step. The counts come from the `started` line of that phase after the start `seq`, so they are
+`null` until the engine writes it. When no run is alive, the answer comes from the last phase
+line of the events log: `completed`, `failed` with its reason, or `interrupted`. A log that ends
+with `started` is `unfinished`, because the run ended with no last line, for example after the
+process was killed. A log with no phase line is `not_started`. The status route and the events
+route read the file with one reader (`read_events`). It skips a last line with no newline and
+any line that does not parse. The events route returns each line as the engine wrote it.
 
 Startup and shutdown:
 
 - Before the first request, the lifespan calls `setup_engine_process` one time. It loads
   `.env`, calls `tracing_key()`, and calls `configure_logging()`. `METIS_LOG_LEVEL` sets the
   level, which also decides what reaches the per-trial log files of a simulation.
-- At shutdown, the lifespan sets the stop flag and waits for the thread, for at most
-  `METIS_API_STOP_TIMEOUT` seconds. The run thread is a daemon thread, so a run that does not
-  stop in time cannot keep the process open.
+- At shutdown, the lifespan empties the queue, sets the stop flag of each run, and waits for
+  the threads, for at most `METIS_API_STOP_TIMEOUT` seconds in all. No queued job starts after
+  that, and a new start gets 503 `engine_stopping`. Each run thread is a daemon thread, so a run
+  that does not stop in time cannot keep the process open.
 
 Settings, which the API reads at startup. A value that is not a whole number of 1 or more
 stops the start.
@@ -239,9 +292,15 @@ stops the start.
 |---|---|---|
 | `METIS_API_ENGINE_CONCURRENCY` | 1 | The `concurrency` of a request that gives none. |
 | `METIS_API_ENGINE_MAX_CONCURRENCY` | 8 | The largest `concurrency` of a request. |
-| `METIS_API_LANGFUSE_TIMEOUT` | 180 | The `langfuse_timeout` in seconds of a request that gives none. It is longer than the 90 of `--langfuse-timeout`, because the web app can evaluate while the last traces still reach Langfuse. A session whose traces have settled waits only for its first check. |
+| `METIS_API_LANGFUSE_TIMEOUT` | 180 | The `langfuse_timeout` in seconds of a request that gives none, and of the evaluate after a simulate. It is longer than the 90 of `--langfuse-timeout`, because the evaluate starts as soon as the simulate ends, while the last traces still reach Langfuse. A session whose traces have settled waits only for its first check. |
 | `METIS_API_MAX_LANGFUSE_TIMEOUT` | 600 | The largest `langfuse_timeout` of a request. |
-| `METIS_API_STOP_TIMEOUT` | 30 | The seconds that the shutdown waits for the run to stop. |
+| `METIS_API_STOP_TIMEOUT` | 30 | The seconds that the shutdown waits for all runs to stop. |
+| `METIS_API_ENGINE_MAX_RUNS` | 4 | The jobs that run at the same time. A start beyond it waits in the queue. |
+
+Each run calls the same model provider, and most often the same target. The rate limits of the
+provider and of the target, more than METIS, set the right value of `METIS_API_ENGINE_MAX_RUNS`.
+Each run makes up to `concurrency` calls at the same time, so the server makes up to
+`METIS_API_ENGINE_MAX_RUNS` × `concurrency` calls at the same time.
 
 `GET /api/v1/doctor` returns each `DoctorResult` of `metis.core.doctor.run_doctor()` as
 `{name, status, detail, fix}`, in display order. It holds no check rule.
@@ -253,17 +312,24 @@ Use the glossary terms "user account" and "login session".
 
 | Route | Purpose |
 |---|---|
-| `POST /api/v1/users` | Make a user account and return its credentials. Needs the admin token. |
-| `GET /api/v1/users` | List the user accounts. Needs the admin token. |
+| `POST /api/v1/users` | Make a user account and return its credentials. The join token can also call it. |
+| `GET /api/v1/users` | List the user accounts. |
+| `POST /api/v1/users/{username}/password` | Give a user account a new password and end its login sessions. |
+| `DELETE /api/v1/users/{username}` | Delete a user account with its Targets and its project folder. |
 | `POST /api/v1/auth/login` | Check the credentials and set the login cookie. |
 | `POST /api/v1/auth/logout` | End the login session. |
-| `GET /api/v1/auth/me` | Tell if login is on, and name the current user account. |
+| `GET /api/v1/auth/me` | Tell if login is on, and name the current user account and if it is an admin. |
+
+The user routes need the admin token or the login session of an admin.
 
 `routes/accounts.py` holds `login_guard`, the one place that decides if a request can reach a
 route. When login is on, each `/api` route needs a login session, except the paths in
-`_OPEN_PATHS`. A new router gets this rule with no code of its own. Do not add a login check to
-a route. Add a path to `_OPEN_PATHS` only when another secret protects it, or when the route
-changes only the login session of its own cookie, as logout does. The guard also
+`_OPEN_PATHS` and the paths under `/api/v1/users`. A new router gets this rule with no code of
+its own. Do not add a login check to a route. Add a path to `_OPEN_PATHS` only when another
+secret protects it, or when the route changes only the login session of its own cookie, as
+logout does. Each route on `users_router` must depend on `get_caller`, because the guard does
+not check those paths. A test checks that each of them refuses a request with no credentials.
+The guard also
 refuses a request that changes data from a page of another origin. It reads `Sec-Fetch-Site`,
 and `Origin` for a browser that does not send it. Do not compare with `Host` when
 `Sec-Fetch-Site` is present, because a proxy can change `Host`.
@@ -271,13 +337,42 @@ and `Origin` for a browser that does not send it. Do not compare with `Host` whe
 `accounts.py` makes the credentials. A username is an adjective and an animal. A password is
 ten characters from an alphabet with no characters that look alike. A person cannot choose or
 change them, so each password is random and login needs no rate limit. Keep that rule, or add
-a rate limit. The `users` table keeps a scrypt hash. The `password_hash` column can be empty, for
-a user account of a later login method. The `login_sessions` table keeps the SHA-256 of the
-cookie value, never the value. Records link to the id of a user account, never to its username.
+a rate limit. The one exception is the admin of the environment: the operator chooses its
+password, with no length rule. A login checks the password in its own case, then in lower case.
+The `users` table keeps a scrypt hash. The `password_hash` column can be empty, for
+a user account of a later login method. For debugging, `users/<user id>/user.json` holds the id,
+the username, and the times of creation, last login, and last write. `Accounts` writes it with
+mode 0600 when it makes the user account and at each correct login, and a write that fails is
+only logged. Do not add the password or its hash to the file: a copy of the server folder must
+not be enough to log in. The `login_sessions` table keeps the SHA-256 of the cookie value, never
+the value. Records link to the id of a user account, never to its username.
 
-The admin token in `METIS_ADMIN_TOKEN` can only make and list user accounts. Do not give it
-another power, because a website outside this repository holds it. The user routes return 404
-when the token is unset. The API does not start with an admin token and login off.
+An admin is a user account with a row in the `admins` table. It is a separate table because
+`create_all` never adds a column to the `users` table of an earlier database.
+
+`get_caller` is the one rule of the user routes. It returns the `UserAccount` of the login
+session, `Token.ADMIN`, or `Token.JOIN`. A request with an `Authorization` header uses only its
+token, and `get_caller` does not read the cookie. An unknown token gets 401 `invalid_token`.
+`require_admin` lets through an admin and the admin token, and gives 403 `admin_required` to the
+others. With login off, each user route returns 404.
+
+The join token in `METIS_JOIN_TOKEN` can only make user accounts that are not admins. Do not
+give it another power, because each participant knows it. The admin token in
+`METIS_ADMIN_TOKEN` is for the scripts of the facilitator. It has the power of an admin on the
+user routes, and it opens no other route. The API does not start when the two tokens are the
+same, or when a token is set and login is off.
+
+`METIS_ADMIN_USERNAME` and `METIS_ADMIN_PASSWORD` name the admin of the environment. Set both or
+neither. At each start, `Accounts.ensure_admin` makes that user account or sets its password,
+and makes it an admin. A changed password ends its login sessions.
+
+`Store.delete_user_account` holds the lock of a save and deletes the rows of the user account in
+one transaction, then its folder `users/<user id>/`. The route checks in this order: 404
+`not_found`, then 409 `cannot_delete_self`, `environment_admin`, `local_account`, and
+`run_in_progress`. The run check is last, because only it can pass at a later try.
+`run_in_progress` covers a run that waits in the queue too, because it would start later in the
+folder. `EngineRuns.idle_in` holds the lock of the runs for the full delete, so a run cannot
+start or join the queue in the folder.
 
 ## Module layout
 
@@ -292,16 +387,17 @@ src/metis/api/
 ├── routes/experiments.py  store routes for Experiment rows
 ├── routes/engine.py   engine routes: start, resume, evaluate, stop, status, and events
 ├── routes/doctor.py   the checks of `metis doctor`
-├── engine_runs.py     the one live engine run, its thread and console file, and the events reader
+├── engine_runs.py     the live and queued engine jobs, their threads, and the events reader
 ├── experiment_dirs.py the project folder of a request, and an experiment folder from its id
 ├── errors.py          RouteError, which the app maps to the service error shape
 ├── routes/accounts.py user and auth routes, and the login guard of all /api routes
 ├── accounts.py        user accounts and login sessions: credentials, hashes, and rows
 ├── records.py         the wire models of the store routes
-├── store.py           the store: rows through SQLAlchemy, files in experiments/design/
+├── store.py           the store: rows through SQLAlchemy, files in evaluations/interviews/ and specifications/
 ├── tables.py          the portable tables of the store
 ├── input_folder.py    builds, stages, and swaps the input folder of a Specification
 ├── settings.py        environment-backed settings and the production dependency composition
+├── web.py             serves the built web app in metis/api/web_dist
 ├── cli.py             the `metis-api` executable and its --project-dir option
 └── __init__.py        version and the re-exported core version
 ```
@@ -323,7 +419,7 @@ settings are missing. Then each Interview route returns 503 `model_unavailable`,
 variables, the `.env` path, and the model guide path in the message.
 
 The report routes find an experiment id among the folder names in
-`<project folder>/experiments/execute/`, so an id cannot name another path.
+`<project folder>/evaluations/experiments/`, so an id cannot name another path.
 `GET /api/v1/experiments/{experiment_id}/report` returns `report.json`, and
 `GET /api/v1/experiments/{experiment_id}/report.html` returns `report.html`. Both are the same
 report in two formats. Both responses are inline, with the file name in `Content-Disposition`, so a
@@ -366,6 +462,12 @@ checks before a run starts are the real library functions on folders under `tmp_
   For monorepo development, keep one active `.env` at the repository root. Copy it from the
   root `.env.example`. See
   [the model guide](../../docs/guide/models.md).
-- Build the image from the repository root: `docker build -f apps/api/Dockerfile -t metis-api .`.
-  METIS is one uv workspace with a single lockfile, so the build needs the workspace root and the
-  path-dependency members.
+- The root `Dockerfile` builds one image with the API, the `metis` CLI, and the built web app.
+  Build it from the repository root with `docker build -t metis .`. METIS is one uv workspace
+  with a single lockfile, so the build needs the workspace root and the path-dependency members.
+  The image copies the web build into `metis/api/web_dist` inside the API package. The container
+  runs `metis-api --project-dir /data` under `tini`, as one process, so the API serves the web
+  app on its own address (`metis.api.web`). The API serves that folder when it has an
+  `index.html`. Without it, the API runs alone. The web route does not match a path under
+  `/api`, so the API routes keep their 404 and 405 responses. See
+  [the Docker guide](../../docs/guide/docker.md).

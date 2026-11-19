@@ -1,14 +1,21 @@
-"""Relative paths shared by execution writers and report readers."""
+"""Paths inside one Experiment folder, shared by execution writers and report readers.
+
+``project_layout`` gives the folder that holds the Experiment folders.
+"""
 
 from __future__ import annotations
 
-from pathlib import Path, PurePosixPath
+from pathlib import PurePosixPath
+from typing import TYPE_CHECKING
 from urllib.parse import quote
 
-EXECUTIONS = PurePosixPath("experiments/execute")
-INPUTS = PurePosixPath("inputs")
-SPECIFICATION = INPUTS / "specification.yaml"
-FIXTURES = INPUTS / "fixtures"
+if TYPE_CHECKING:
+    from pathlib import Path
+
+SPECIFICATION_DIR = PurePosixPath("specification")
+"""The frozen copy of the input folder that the Experiment ran."""
+SPECIFICATION = SPECIFICATION_DIR / "specification.yaml"
+FIXTURES = SPECIFICATION_DIR / "fixtures"
 TRIALS = PurePosixPath("outputs/trials")
 TRIAL_RECORD = "record.json"
 """File name of a trial's ``TrialRecord``, inside its folder under ``TRIALS``."""
@@ -23,19 +30,6 @@ EVALUATION = PurePosixPath("outputs/evaluation")
 LOGS = PurePosixPath("logs")
 EVENTS_FILE = "events.jsonl"
 """File name of the event log inside ``LOGS``: one ``PhaseEvent`` per line."""
-
-
-def find_project_root(cwd: Path | None = None) -> Path:
-    """Find the default project folder, which holds ``experiments/``.
-
-    It is the nearest folder at or above ``cwd`` that has a `pyproject.toml`, else ``cwd``.
-    ``cwd`` defaults to the working directory.
-    """
-    current = cwd or Path.cwd()
-    for parent in [current, *current.parents]:
-        if (parent / "pyproject.toml").exists():
-            return parent
-    return current
 
 
 def trace_file_name(session_id: str) -> str:

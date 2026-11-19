@@ -51,7 +51,7 @@ def _connection_lines(
             "## Target connection",
             "",
             "The target binding was not valid, so this export uses the default runner. To add "
-            "a binding, run `metis wizard connect --out-dir <experiment root>`.",
+            "a binding, run `metis wizard connect --id <id>`.",
             "",
         ]
     required = required_variables(connection.binding)

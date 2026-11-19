@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from metis.core import execution_layout
+from metis.core import execution_layout, project_layout
 from metis.engine.run import ExperimentExistsError
 from tests.fixtures.api.engine import SPECIFICATION_ID, wait_until, write_input_dir
 from tests.unit.engine.test_cli_simulate import MINIMAL_EXPERIMENT
@@ -28,8 +28,8 @@ def _relative(project_dir: Path, folder: Path) -> str:
     return folder.relative_to(project_dir).as_posix()
 
 
-def _executions(project_dir: Path) -> list[str]:
-    folder = project_dir / execution_layout.EXECUTIONS
+def _experiments(project_dir: Path) -> list[str]:
+    folder = project_dir / project_layout.EXPERIMENTS
     return sorted(p.name for p in folder.iterdir()) if folder.is_dir() else []
 
 
@@ -54,10 +54,10 @@ def test_a_start_creates_the_experiment_and_returns_its_id(
     assert response.status_code == 202
     experiment_id = response.json()["experiment_id"]
     assert experiment_id.startswith(f"{SPECIFICATION_ID}-")
-    experiment_dir = project_dir / execution_layout.EXECUTIONS / experiment_id
+    experiment_dir = project_dir / project_layout.EXPERIMENTS / experiment_id
     assert (experiment_dir / execution_layout.SPECIFICATION).is_file()
-    wait_until(lambda: len(fake_engine.calls) == 1)
-    [call] = fake_engine.calls
+    wait_until(lambda: len(fake_engine.calls) == 2)
+    call = fake_engine.calls[0]
     assert call.name == "simulate"
     assert call.experiment_dir == experiment_dir
     assert call.options == {"concurrency": 1}
@@ -74,7 +74,8 @@ def test_a_start_passes_the_concurrency_of_the_request(
         json={"input_dir": _relative(project_dir, input_dir), "concurrency": 3},
     )
 
-    wait_until(lambda: len(fake_engine.calls) == 1)
+    # The job is the simulate, then its evaluate.
+    wait_until(lambda: len(fake_engine.calls) == 2)
     assert fake_engine.calls[0].options == {"concurrency": 3}
 
 
@@ -93,7 +94,7 @@ def test_a_concurrency_outside_its_limits_is_refused(
     assert response.status_code == 422
     assert response.json()["code"] == "validation_error"
     assert "concurrency" in response.json()["message"]
-    assert _executions(project_dir) == []
+    assert _experiments(project_dir) == []
 
 
 def test_an_absolute_input_dir_is_refused(
@@ -103,7 +104,7 @@ def test_an_absolute_input_dir_is_refused(
 
     assert response.status_code == 422
     assert response.json()["code"] == "input_dir_outside_project"
-    assert _executions(project_dir) == []
+    assert _experiments(project_dir) == []
 
 
 def test_an_input_dir_that_goes_out_with_dot_dot_is_refused(
@@ -115,7 +116,7 @@ def test_an_input_dir_that_goes_out_with_dot_dot_is_refused(
 
     assert response.status_code == 422
     assert response.json()["code"] == "input_dir_outside_project"
-    assert _executions(project_dir) == []
+    assert _experiments(project_dir) == []
 
 
 def test_an_input_dir_that_links_outside_the_project_is_refused(
@@ -128,7 +129,7 @@ def test_an_input_dir_that_links_outside_the_project_is_refused(
 
     assert response.status_code == 422
     assert response.json()["code"] == "input_dir_outside_project"
-    assert _executions(project_dir) == []
+    assert _experiments(project_dir) == []
 
 
 def test_an_input_dir_that_the_engine_refuses_gives_the_engine_text(
@@ -144,7 +145,7 @@ def test_an_input_dir_that_the_engine_refuses_gives_the_engine_text(
     assert body["message"] == (
         f"missing required file 'specification.yaml' in {project_dir / 'empty'}"
     )
-    assert _executions(project_dir) == []
+    assert _experiments(project_dir) == []
 
 
 def test_a_project_folder_that_is_not_a_folder_is_invalid_inputs(
@@ -196,23 +197,32 @@ def test_a_folder_name_that_is_taken_is_experiment_exists(
     assert fake_engine.calls == []
 
 
-def test_a_start_while_a_run_is_alive_is_engine_busy(
-    engine_client: TestClient,
+def test_a_start_with_no_free_slot_makes_its_folder_and_waits(
+    make_engine_client: Callable[..., TestClient],
     fake_engine: FakeEngine,
     project_dir: Path,
     input_dir: Path,
 ) -> None:
+    client = make_engine_client(max_runs=1)
     fake_engine.mode = "hold"
-    body = {"input_dir": _relative(project_dir, input_dir)}
-    first = engine_client.post(SIMULATE, json=body).json()["experiment_id"]
+    other = write_input_dir(
+        project_dir / "evaluations" / "specifications" / "t2",
+        specification_id="other-exp",
+    )
+    first = client.post(
+        SIMULATE, json={"input_dir": _relative(project_dir, input_dir)}
+    ).json()["experiment_id"]
 
-    response = engine_client.post(SIMULATE, json=body)
+    response = client.post(SIMULATE, json={"input_dir": _relative(project_dir, other)})
 
-    assert response.status_code == 503
-    assert response.json()["code"] == "engine_busy"
-    assert response.json()["retryable"] is True
-    assert first in response.json()["message"]
-    assert _executions(project_dir) == [first]
+    assert response.status_code == 202
+    second = response.json()["experiment_id"]
+    assert second.startswith("other-exp-")
+    assert _experiments(project_dir) == sorted([first, second])
+    wait_until(lambda: len(fake_engine.calls) == 1)
+    assert client.post(f"/api/v1/engine/{first}/stop").status_code == 202
+    wait_until(lambda: len(fake_engine.calls) == 2)
+    assert fake_engine.calls[1].experiment_dir.name == second
 
 
 @pytest.mark.parametrize(
@@ -241,7 +251,7 @@ def test_a_specification_id_that_is_not_one_folder_name_is_refused(
     assert response.json()["code"] == "invalid_inputs"
     assert repr(specification_id) in response.json()["message"]
     assert fake_engine.calls == []
-    assert _executions(project_dir) == []
+    assert _experiments(project_dir) == []
     assert not (project_dir / "experiments" / "escaped-").exists()
     assert sorted(p.name for p in project_dir.parent.iterdir()) == ["project"]
 
@@ -262,8 +272,8 @@ def test_a_folder_that_prepare_makes_outside_the_experiments_is_not_run_and_is_r
     stray = elsewhere / "test-exp-20260101-000000"
 
     def prepare(input_dir: Path, *, project_dir: Path, console: object) -> Path:
-        (stray / "inputs").mkdir(parents=True)
-        (stray / "inputs" / "specification.yaml").write_text("copied")
+        (stray / "specification").mkdir(parents=True)
+        (stray / "specification" / "specification.yaml").write_text("copied")
         return stray
 
     client = make_engine_client(prepare_experiment=prepare)
@@ -286,4 +296,4 @@ def test_an_input_dir_with_a_nul_byte_is_refused(
 
     assert response.status_code == 422
     assert response.json()["code"] == "input_dir_outside_project"
-    assert _executions(project_dir) == []
+    assert _experiments(project_dir) == []

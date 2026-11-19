@@ -56,21 +56,26 @@ or above the folder where you start the API that has a `pyproject.toml`. For `ma
 the repository folder. To use another folder, start the API with
 `metis-api --project-dir PATH`.
 
-- The database is `metis.db` in the project folder. To use another database, set
-  `METIS_DATABASE_URL` to a SQLAlchemy URL.
-- The files of each Interview are in `experiments/design/<id>/`, the same layout as the CLI
-  wizard. `inputs/documents/` holds the files that you upload, and
-  `inputs/interview_state.json` holds the state of the Interview. An Interview that you start
-  with `metis wizard init` in this folder also shows in the web app, without a conversation.
+- Everything is in the `evaluations/` folder of the project folder. The database is
+  `evaluations/metis.db`. To use another database, set `METIS_DATABASE_URL` to a SQLAlchemy URL.
+- The files of each Interview are in `evaluations/interviews/<id>/`, the same layout as the CLI
+  wizard. `documents/` holds the files that you upload, and `interview_state.json` holds the
+  state of the Interview. An Interview that you start with `metis wizard init` in this project
+  also shows in the web app, without a conversation.
 - The `<id>` is `YYYYMMDD-HHMMSS-interview-<random>`, in the local time when you send the first
   message. For example, `20261112-101500-interview-k7mwp`. The random part is five characters,
   so two people who start an Interview in the same second get different ids. A
-  `metis wizard init` folder has a name of the same form. When another Interview
+  `metis wizard init` id has the same form. When another Interview
   already has the id, the web app adds `-2`, `-3`, and so on.
 - When an Interview is done, the API also writes its Specification to
-  `experiments/design/<id>/outputs/`. Give that folder to `metis engine simulate --input-dir`.
+  `evaluations/specifications/<id>/`. Give that folder to `metis engine simulate --input-dir`.
+- Each Experiment that you start is a folder in `evaluations/experiments/`. When you delete a
+  Target, the API deletes its Interview folder and its Specification folder. Its Experiment
+  folders stay.
+- With login on, the files of each user account are in `users/<user id>/evaluations/`, and the
+  database stays in `evaluations/` of the server project folder.
 
-The repository ignores `experiments/`, so Git does not save it.
+The repository ignores `evaluations/`, so Git does not save it.
 
 ### Log in to a shared server
 
@@ -78,7 +83,7 @@ On your own computer, the web app has no login. A server that many people use ca
 on. Then the web app opens on a login page. Type the username and the password that you got for
 that server, and select **Log in**.
 
-The foot of the left rail shows your username. Select the icon beside it to log out. A login
+The foot of the left rail shows your username. Select it, then select **Log out**. A login
 lasts 30 days. After that, the login page shows again, and you log in with the same username
 and password.
 
@@ -88,8 +93,9 @@ To turn login on and to make a user account, see
 ## Targets and their pages
 
 Each Interview makes one Target. The rail on the left lists the Targets, newest first. Select
-**New target** at the top of the rail to start a new Interview. At the foot of the rail, the
-theme switch sets the colour theme.
+**New target** at the top of the rail to start a new Interview. To set the colour theme, select
+System, Light, or Dark. With login off, these are at the foot of the rail. With login on, select
+your username at the foot of the rail, and they are on the **Appearance** row of the menu.
 
 A Target page has two tabs:
 
@@ -124,7 +130,7 @@ that uses the same API:
 | All experiments | `/experiments` |
 
 An experiment page has two tabs, **Trials** and **Report**. `<experiment>` is the name of the
-experiment folder in `experiments/execute/`. The Report tab shows the results of `report.html`
+experiment folder in `evaluations/experiments/`. The Report tab shows the results of `report.html`
 in the same layout: the score with the report date, the results for each
 Feature, Behaviour and Criterion, and the results for each test case. The specification results have a **List** view and a
 **Tree** view. Open a Behaviour and select a Criterion to see its Grader, its pass mark and its
@@ -137,28 +143,35 @@ returned. The **report.html** button downloads the same page that `metis insight
 writes.
 
 The Trials tab shows the progress of the experiment and one row for each trial, with its Test
-Case, its trial number, its Persona, Scenario and status. A ring shows the progress of the
-whole experiment: its right half is simulate and its left half is evaluate. The steps under the
-percentage show which step runs, and the state of the experiment shows on the right, for
-example **Simulating** or **Stopped**. Hover over **Stopped** to see why the run stopped. A
+Case, its trial number, its Persona, Scenario and status. A ring shows the progress of the whole
+experiment: its right half is simulate and its left half is evaluate. The steps under the
+percentage show which step runs, and the state of the experiment shows on the right, for example
+**Queued**, **Simulating** or **Stopped**. Hover over **Stopped** to see why the run stopped. A
 trial that has not started is **Waiting**. The rows keep their order while the experiment runs.
-The **Status** filter shows only the trials that you select. **Reason** says why a trial did
-not run, or why evaluate could not grade it. The tab shows no grades: the Report tab has them. The page reads the state again every two seconds
-while the experiment runs. When you open the page again, it rebuilds the rows from the start.
+The **Status** filter shows only the trials that you select. **Reason** says why a trial did not
+run, or why evaluate could not grade it. The tab shows no grades: the Report tab has them. The
+page reads the state again every two seconds while the experiment runs. When you open the page
+again, it rebuilds the rows from the start.
 
-When simulate ends while the page is open, the page starts evaluate. When no page is open at
-that moment, the experiment is **Waiting for evaluate**. Use the buttons above the tabs:
+The server runs a few experiments at the same time, for all users. When every place is taken, a
+new experiment is **Queued**, with the number of experiments before it, or **Starts next**. It
+starts on its own when a place frees. When simulate ends, the server starts evaluate, so you do
+not need to keep the page open. An experiment that is **Waiting for evaluate** completed
+simulate but has no evaluate, for example after the server restarted. A restart also empties the
+queue: a queued experiment then shows the state from before it, and Resume starts it again. Use
+the buttons above the tabs:
 
-- **Stop** stops the run. Each trial in flight ends at its next turn.
+- **Stop** stops the run. Each trial in flight ends at its next turn. A queued experiment
+  leaves the queue, and Resume starts it again.
 - **Resume** runs again the trials that did not finish. When simulate is done, it starts
   evaluate, or it grades the trials with no grade when evaluate stopped.
 - **Delete** removes the experiment from the app after you confirm. Its experiment folder
-  stays on disk. Delete is off while the experiment runs.
+  stays on disk. Delete is off while the experiment runs or is queued.
 
-When the server refuses an action, for example because another experiment runs, the message
-shows next to the buttons. When evaluate completes, the Report tab turns on. When the page shows
-the Trials tab at that moment, it moves to the Report tab. It stays on Trials when you selected
-the Trials tab yourself.
+When the server refuses an action, for example because the experiment changed in another tab,
+the message shows next to the buttons. When evaluate completes, the Report tab turns on. When
+the page shows the Trials tab at that moment, it moves to the Report tab. It stays on Trials
+when you selected the Trials tab yourself.
 
 The comparison does not show experiments yet. It says what it will show.
 
@@ -349,7 +362,7 @@ Document facts:
    a field empty to use the environment. These models affect scores, so the specification records
    them. The step takes model names only. Keys stay in `.env`. See the
    [model guide](../models.md).
-5. Select **Continue and download**. The browser downloads `YYYYMMDD-HHMMSS-interview.zip`, with
+5. Select **Continue and download**. The browser downloads `YYYYMMDD-HHMMSS-interview-<random>.zip`, with
    the models that you set. If you change no field, the download is the same as without the step.
 
 To download the specification again later, select **Download** in the toolbar of the Profile.
@@ -362,27 +375,35 @@ To finish early, select **Skip interview and download specification**. The Wizar
 the specification is ready. It can ask for more information or a document review before it
 completes the Interview. Then the **Run settings** step comes before the download.
 
-The archive contains:
+The archive is named `<id>.zip`. It gets a new `<id>` from the time of the download, not the
+Target id of the web app, so two downloads never overwrite each other. For example, a download
+at 16:00:05 contains:
 
 ```text
-YYYYMMDD-HHMMSS-interview/
-├── inputs/
-│   └── interview_state.json
-└── outputs/
-    ├── specification.yaml
-    ├── target-binding.yaml   (run mode only)
-    └── fixtures/
+20261117-160005-interview-x9abc.zip
+├── interviews/
+│   └── 20261117-160005-interview-x9abc/
+│       └── interview_state.json
+└── specifications/
+    └── 20261117-160005-interview-x9abc/
+        ├── specification.yaml
+        ├── target-binding.yaml   (run mode only)
+        └── fixtures/
 ```
 
 The API compiles the Specification from the same final Interview state that it saves in the
 archive. This state keeps document names, extracted text, and limited recent history. The full
 display transcript stays in the API store.
 
-Extract the archive into `experiments/design/`. For an Interview exported on 2026-10-16 at 22:30:45, run:
+The archive holds no `documents/` folder: the files that a Test Case uses are in `fixtures/`.
+Extract the archive into `evaluations/`, then run:
 
 ```bash
-metis engine run --input-dir experiments/design/20261016-223045-interview/outputs/
+metis engine run --input-dir evaluations/specifications/20261117-160005-interview-x9abc
 ```
+
+To add a target binding with the CLI later, run
+`metis wizard connect --id 20261117-160005-interview-x9abc --binding target-binding.yaml`.
 
 The browser sends only the original fixture files that the current Tasks use. The API builds
 the archive for that request and does not keep the files.
@@ -406,7 +427,7 @@ This path does not use the Interview and creates no Interview record.
    screen. See [Connect the target](#connect-the-target).
 6. Select **Download specification** next to the mode picker. The mode picker and the download
    button stay at the top of the form while you scroll. Extract the download into
-   `experiments/design/`.
+   `evaluations/`.
 
 In run mode, the download needs a valid binding. Download uses the last test. If you change a
 field after the test, Download tests the binding again. If the binding is not valid, the
@@ -454,10 +475,11 @@ Editor rules:
   `["Rates rose in 2024."]` for `ground_truth`. A text setting stays text. An empty value is
   omitted, so the grader uses its default.
 
-The manual export uses `YYYYMMDD-HHMMSS-manual.zip` and a matching root folder. It contains an empty `inputs/` folder, `outputs/specification.yaml`, and the
-selected files under `outputs/fixtures/`. It contains no Interview state. In run mode, it also
-contains `outputs/target-binding.yaml`, and `outputs/specification.yaml` names the generic runner
-and the binding file. This is the same export as an Interview with the same binding.
+The manual export is named `YYYYMMDD-HHMMSS-manual-<random>.zip`, for example
+`20261117-160210-manual-r3xqa.zip`. It contains `specifications/<id>/specification.yaml` and the
+selected files under `specifications/<id>/fixtures/`. It has no Interview, so it contains no
+`interviews/` folder. In run mode, it also contains `specifications/<id>/target-binding.yaml`, and
+`specification.yaml` names the generic runner and the binding file. This is the same export as an Interview with the same binding.
 
 ## Storage and current limits
 

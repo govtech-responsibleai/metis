@@ -12,7 +12,7 @@ function recording(simulate?: StartCalls["simulate"]) {
         target_id: targetId,
         specification_yaml: "id: shop\n",
         sha256: "0",
-        input_dir: `experiments/design/${targetId}/outputs`,
+        input_dir: `evaluations/specifications/${targetId}`,
         updated_at: "2026-01-02T03:04:05Z",
       };
     },
@@ -42,22 +42,22 @@ test("a start runs the input folder of the Target and saves the row", async () =
 
   assert.deepEqual(calls, [
     "specification t1",
-    "simulate experiments/design/t1/outputs",
+    "simulate evaluations/specifications/t1",
     "save shop-20260102-030405 t1 simulate",
   ]);
   assert.equal(row.experiment_id, "shop-20260102-030405");
 });
 
 test("a refused simulate saves no row", async () => {
-  const busy = new TransportError("The engine runs another experiment.", {
-    status: 503,
-    code: "engine_busy",
-    retryable: true,
+  const refused = new TransportError("The Specification id is not valid.", {
+    status: 422,
+    code: "invalid_inputs",
+    retryable: false,
   });
   const { calls, fake } = recording(async () => {
-    throw busy;
+    throw refused;
   });
 
-  await assert.rejects(startExperiment("t1", fake), busy);
+  await assert.rejects(startExperiment("t1", fake), refused);
   assert.deepEqual(calls, ["specification t1"]);
 });

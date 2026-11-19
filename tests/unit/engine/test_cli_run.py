@@ -237,7 +237,7 @@ def _resumable_run(tmp_path: Path, stop_reasons: list[str]) -> Path:
             "num_trials: 1", f"num_trials: {len(stop_reasons)}"
         ),
     )
-    (output / "inputs" / "fixtures").mkdir()
+    (output / "specification" / "fixtures").mkdir()
     for index, stop_reason in enumerate(stop_reasons, start=1):
         path = _write_record(
             output, run_name=f"TC-001-alice-{index}", session_id=f"session-{index}"

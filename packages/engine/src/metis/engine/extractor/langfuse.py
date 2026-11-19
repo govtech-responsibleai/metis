@@ -31,6 +31,12 @@ grades nothing until Langfuse has stored no new data for the session for the qui
 The fetch is asynchronous, on ``langfuse.async_api``, so a session waiting on Langfuse holds
 no thread and many sessions can be fetched at once.
 
+Each evaluation reads through a ``TargetLangfuse`` of its own, and closes it before its event
+loop closes. A pooled connection belongs to the loop that opened it. The ``async_api`` of
+``Langfuse()`` is one per public key for the whole process, so in the API, where every run has
+its own loop, a later run would reuse a connection of an earlier run's closed loop, and its
+first request would fail with "Event loop is closed" (issue #190).
+
 Input/output arrive as raw strings (``parse_io_as_json`` is rejected with HTTP 400), and
 ``metis.core.traces.Observation`` parses JSON-looking values itself.
 """
@@ -47,8 +53,9 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
-from langfuse import Langfuse
+from langfuse.api.client import AsyncFernLangfuse
 from langfuse.api.core.api_error import ApiError
+from langfuse.version import __version__ as langfuse_version
 
 from metis.core import Artifact, resolve_artifact_path
 from metis.core.logging import get_logger
@@ -107,11 +114,45 @@ class TracesNotReadyError(RuntimeError):
         self.wait = wait
 
 
-def get_langfuse_client() -> Langfuse:
-    """Return a configured Langfuse client (never None)."""
-    if os.environ.get("LANGFUSE_BASE_URL") and not os.environ.get("LANGFUSE_HOST"):
-        os.environ["LANGFUSE_HOST"] = os.environ["LANGFUSE_BASE_URL"]
-    return Langfuse()
+@dataclass(frozen=True)
+class TargetLangfuse:
+    """A reader of the target's Langfuse, with connections that only its owner uses.
+
+    Whoever calls ``get_langfuse_client`` owns the reader and must ``await aclose()`` it on
+    the same event loop that used it, before that loop closes.
+    """
+
+    async_api: AsyncFernLangfuse
+    http_client: httpx.AsyncClient
+
+    async def aclose(self) -> None:
+        """Close the connections."""
+        await self.http_client.aclose()
+
+
+def get_langfuse_client(environ: Mapping[str, str] = os.environ) -> TargetLangfuse:
+    """A new reader of the Langfuse that ``LANGFUSE_*`` names, as ``Langfuse()`` reads it.
+
+    The base URL is ``LANGFUSE_BASE_URL``, then ``LANGFUSE_HOST``, then Langfuse Cloud, and
+    the timeout is ``LANGFUSE_TIMEOUT`` seconds, 5 when it is not set. It registers no client,
+    so it does not change which client the ``langfuse.openai`` drop-in picks.
+    """
+    timeout = float(environ.get("LANGFUSE_TIMEOUT") or 5)
+    http_client = httpx.AsyncClient(timeout=timeout, follow_redirects=True)
+    public_key = environ.get("LANGFUSE_PUBLIC_KEY")
+    async_api = AsyncFernLangfuse(
+        base_url=environ.get("LANGFUSE_BASE_URL")
+        or environ.get("LANGFUSE_HOST")
+        or "https://cloud.langfuse.com",
+        username=public_key,
+        password=environ.get("LANGFUSE_SECRET_KEY"),
+        x_langfuse_sdk_name="python",
+        x_langfuse_sdk_version=langfuse_version,
+        x_langfuse_public_key=public_key,
+        timeout=timeout,
+        httpx_client=http_client,
+    )
+    return TargetLangfuse(async_api=async_api, http_client=http_client)
 
 
 def _retry_delay(retry: int) -> float:
@@ -129,7 +170,7 @@ def _is_retryable(exc: Exception) -> bool:
     return False
 
 
-async def _get_page(langfuse: Langfuse, **request: Any) -> Any:
+async def _get_page(langfuse: TargetLangfuse, **request: Any) -> Any:
     """One ``get_many`` call, retried when Langfuse or the network is briefly unavailable.
 
     With ``--concurrency N`` several sessions call Langfuse at once, so a rate limit or a slow
@@ -165,7 +206,7 @@ async def _get_page(langfuse: Langfuse, **request: Any) -> Any:
 
 
 async def _page_through_observations(
-    langfuse: Langfuse,
+    langfuse: TargetLangfuse,
     column: str,
     value: str,
     *,
@@ -213,7 +254,7 @@ def _may_be_truncated(observations: list[Observation]) -> list[str]:
     return sorted(keys)
 
 
-async def _fetch_trace(langfuse: Langfuse, trace_id: str) -> list[Observation]:
+async def _fetch_trace(langfuse: TargetLangfuse, trace_id: str) -> list[Observation]:
     """Every observation in one trace, with metadata never truncated.
 
     Must back each trace's observation set; never the session-filtered list (issue #435).
@@ -241,7 +282,7 @@ async def _fetch_trace(langfuse: Langfuse, trace_id: str) -> list[Observation]:
     )
 
 
-async def _session_trace_ids(langfuse: Langfuse, session_id: str) -> list[str]:
+async def _session_trace_ids(langfuse: TargetLangfuse, session_id: str) -> list[str]:
     """The ids of every trace in the session, in first-seen order."""
     observations = await _page_through_observations(langfuse, "sessionId", session_id)
     return list(dict.fromkeys(observation.trace_id for observation in observations))
@@ -321,7 +362,7 @@ def _open_observations(
 
 
 async def _check_session(
-    langfuse: Langfuse, session_id: str
+    langfuse: TargetLangfuse, session_id: str
 ) -> dict[str, list[Observation]]:
     """One check: every trace in the session, each fetched in full."""
     return {
@@ -381,7 +422,7 @@ class TraceWaitSettings:
 
 
 async def wait_for_settled_traces(
-    langfuse: Langfuse,
+    langfuse: TargetLangfuse,
     session_id: str,
     *,
     settings: TraceWaitSettings,
@@ -464,7 +505,7 @@ def _resolve_artifacts(
 
 async def fetch_session(
     session_id: str,
-    langfuse: Langfuse,
+    langfuse: TargetLangfuse,
     *,
     experiment_root: Path,
     artifacts: list[Artifact] | None = None,

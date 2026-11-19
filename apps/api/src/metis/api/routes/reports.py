@@ -1,7 +1,7 @@
 """The report of each experiment folder in the project folder.
 
 An experiment id is the name of an experiment folder under
-``<project folder>/experiments/execute/``, the project folder of the user account when login
+``<project folder>/evaluations/experiments/``, the project folder of the user account when login
 is on. The routes find the folder with ``find_experiment_dir``, so an id can never name another
 path. metis-insights builds the reports. These routes hold no report rules.
 

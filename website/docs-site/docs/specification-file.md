@@ -17,9 +17,10 @@ and select **Skip the interview and write it yourself**.
 To connect a target, select **Build Spec and connect target** at the top of the form. See
 [Target connection](target-connection.md).
 
-**Download specification** gives a ZIP file, for example `20261016-223045-manual.zip`. It holds
-`outputs/specification.yaml`, the files under `outputs/fixtures/`, and
-`outputs/target-binding.yaml` when you connect a target. The form writes each Test Case as one
+**Download specification** gives a ZIP file, for example `20261117-160210-manual-r3xqa.zip`.
+Extract it into `evaluations/`. It holds one folder, `specifications/20261117-160210-manual-r3xqa/`,
+with `specification.yaml`, the files under `fixtures/`, and `target-binding.yaml` when you connect
+a target. The form writes each Test Case as one
 Task, with one Behaviour that holds a Criterion for each grader.
 
 ## Write the file yourself
@@ -27,7 +28,7 @@ Task, with one Behaviour that holds a Criterion for each grader.
 Make a folder with this layout:
 
 ```text
-experiments/design/research-assistant/outputs/
+evaluations/specifications/research-assistant/
 ├── specification.yaml
 ├── target-binding.yaml     (only for the HTTP or browser runner)
 └── fixtures/
@@ -85,7 +86,7 @@ tasks:
   fixtures: [leave-policy.pdf]
 ```
 
-Run it with `metis engine run --input-dir experiments/design/research-assistant/outputs/`. Before
+Run it with `metis engine run --input-dir evaluations/specifications/research-assistant`. Before
 the run starts, the Engine checks the file, the fixture names, and the settings of each grader. If
 a check fails, the Engine names the error and does not start the run.
 

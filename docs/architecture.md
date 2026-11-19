@@ -76,7 +76,9 @@ metis/
 │   │   ├── tsconfig.json
 │   │   └── src/
 │
-└── infra/                      # Docker Compose, Kubernetes, deployment assets
+├── Dockerfile                  # One image: the API, the metis CLI, and the built web app
+├── .dockerignore
+└── docker-compose.yml          # Runs the image with .env and a /data volume
 ```
 
 **Rules:**
@@ -199,33 +201,60 @@ the API. The package route accepts one JSON source part: `state` for an Intervie
 `specification` for a manual export. A manual export can also send a `connection` part, which
 gives the same run-mode export as an Interview with that connection. An Interview carries its
 connection in its state. The route accepts request-scoped fixture bytes and returns one
-dated ZIP archive; it retains no uploaded files. Wizard owns the archive filename
-and dated root folder. The API sends the filename in `Content-Disposition`, and the
+ZIP archive; it retains no uploaded files. Wizard owns the archive filename
+and the folders inside it. The API sends the filename in `Content-Disposition`, and the
 browser uses it for the download.
 
-The report routes read the experiment folders under `<project folder>/experiments/execute/`.
+The report routes read the experiment folders under `<project folder>/evaluations/experiments/`.
 The project folder is the one that `metis-api --project-dir` names, or the default project
 folder that the store also uses. An experiment id is an experiment folder name. The routes
 return the report of an experiment as `report.json` and as `report.html`, both inline.
 They call `metis.insights.ensure_report`, so the API holds no report rules. An experiment
 with no `results.json` gives 409 `results_missing`.
 
-Wizard exports share `inputs/` and `outputs/` at the design root. The CLI defaults to
-`experiments/design/YYYYMMDD-HHMMSS-interview-<random>/`. An explicit `--out-dir` selects the exact root.
-Resume requires that path. ZIP exports contain a dated `interview` or `manual` root
-folder for extraction into `experiments/design/`. Interview exports MUST
-compile from the same final state saved as `inputs/interview_state.json`. Manual exports MUST
-include an empty `inputs/` folder. The Specification and fixtures belong under `outputs/`;
-the existing CLI review belongs at `outputs/review.md`. Engine reads the `outputs/` folder.
-The CLI publishes `outputs/specification.yaml` last as its completion marker and retains
-recovery state until export succeeds. Wizard MUST NOT create Testbed caches or scores.
+Everything that METIS writes in a project is in one `evaluations/` folder, with one folder for
+each glossary term:
 
-Engine creates `experiments/execute/<specification-id>-YYYYMMDD-HHMMSS/` under the project
+```text
+<project>/evaluations/
+├── metis.db                  the API store; the CLI does not use it
+├── interviews/<id>/          interview_state.json, documents/   (none for the manual form)
+├── specifications/<id>/      specification.yaml, fixtures/, target-binding.yaml, review.md
+└── experiments/<specification-id>-YYYYMMDD-HHMMSS/
+    ├── specification/        a frozen copy of the input folder
+    ├── outputs/              trials/, traces/, evaluation/, reports/
+    └── logs/
+```
+
+`metis.core.project_layout` owns these folders, `find_project_root`, and the rule of an `<id>`:
+1 to 64 letters, digits, `-` or `_`. The same `<id>` links an Interview and its Specification.
+An Interview id is `YYYYMMDD-HHMMSS-interview-<random>`, and a manual-form download has the id
+`YYYYMMDD-HHMMSS-manual-<random>`, where `<random>` is five characters. An Experiment folder name
+is the `id` in the `specification.yaml` that it ran, followed by its start time. It does not
+name the input folder, so the `experiments` table of the store is the only link from an
+Experiment to its Specification folder. METIS does not migrate an earlier `experiments/` folder
+or `metis.db`, and does not read them.
+
+The wizard CLI writes `interviews/<id>/` and `specifications/<id>/`. `--out-dir` names the
+`evaluations/` folder, and its default is `evaluations/` in the folder that `find_project_root`
+finds, so the wizard, the engine and the API find the same folder from any working directory.
+`--id` names the `<id>`. `init` makes a new id without it, and `resume` and `connect` require
+it. The CLI refuses an id that breaks the rule before it writes a file. ZIP exports are named
+`<id>.zip` and hold the folders that they add to `evaluations/`: `specifications/<id>/`, and
+`interviews/<id>/` for an Interview. The user extracts the archive into `evaluations/`.
+Interview exports MUST compile from the same final state saved as
+`interviews/<id>/interview_state.json`. Manual exports MUST NOT contain an `interviews/` folder.
+The Specification and fixtures belong under `specifications/<id>/`; the existing CLI review
+belongs at `specifications/<id>/review.md`. Engine reads the `specifications/<id>/` folder. The
+CLI publishes `specification.yaml` last as its completion marker and retains recovery state until
+export succeeds. Wizard MUST NOT create Testbed caches or scores.
+
+Engine creates `evaluations/experiments/<specification-id>-YYYYMMDD-HHMMSS/` under the project
 folder. `--project-dir` names that folder, which must exist; without it, Engine uses the
 working directory or the nearest folder above it that has a `pyproject.toml`. A new experiment MUST NOT write into an experiment folder that exists: a new experiment with a taken
 name stops with an error. `--resume` continues in the experiment folder that `--experiment-dir` names.
-A caller finds its experiments by listing `experiments/execute/` in the project folder. Engine copies
-`--input-dir` into `inputs/`, writes trial records and artifacts under `outputs/trials/`,
+A caller finds its experiments by listing `evaluations/experiments/` in the project folder. Engine copies
+`--input-dir` into `specification/`, writes trial records and artifacts under `outputs/trials/`,
 and writes evaluation results to `outputs/reports/results.json`. `outputs/evaluation/` is the
 engine-private record of attempted trials, one file per trial, and Engine writes `results.json`
 last, from those files, once every trial was attempted. Insights reads the
@@ -233,7 +262,7 @@ same execution root and writes `report.json` and `report.html` beside the result
 Insights reads recorded `GraderRecord` results and rejects the earlier `turn_results` and
 `session_results` format. It uses recorded Criterion IDs and arguments without creating graders.
 `--experiment-dir` identifies the execution root for evaluation and resume.
-`metis.core.execution_layout` owns the paths shared by Engine and Insights.
+`metis.core.execution_layout` owns the paths inside an Experiment folder, which Engine and Insights share.
 Logs remain under `logs/`, with the existing simulation log override. Artifact paths
 in trial records remain relative to the execution root.
 Engine appends one `PhaseEvent` per line to `logs/events.jsonl` in the execution root, also
@@ -261,7 +290,7 @@ lifecycle routes; they MUST NOT embed the wizard.
 **The store.** The store routes under `/api/v1/targets` and `/api/v1/experiments` keep
 Targets, Interview records, Specifications, and Experiments. They do not change the wizard routes. The rows are in
 a database that SQLAlchemy opens from `METIS_DATABASE_URL`. The default is a SQLite file at
-`<project>/metis.db`. `metis-api --project-dir` names the project folder. Without it,
+`<project>/evaluations/metis.db`. `metis-api --project-dir` names the project folder. Without it,
 the API finds the project folder with the rule of `metis engine simulate`: the nearest folder at
 or above the working directory that has a `pyproject.toml`, else the working directory. The
 tables use portable SQL types. PostgreSQL support is later work.
@@ -285,24 +314,27 @@ user account gets 409 `target_exists` and changes nothing.
 
 On a server with login on, each user account has its own project folder at `users/<user id>/`
 in the project folder of the server. The layout inside it is the layout of a project folder,
-for example `users/<user id>/experiments/execute/`. The database stays in the project folder
-of the server. With login off, the files are in the project folder itself.
+for example `users/<user id>/evaluations/experiments/`. The database stays in
+`evaluations/metis.db` of the server project folder, and that `evaluations/` folder holds no other
+files. With login off, the files are in the project folder itself.
 
 The store prepares a missing completed Specification and input folder
 on the first Specification read. An unrunnable Interview gives a per-record compilation error;
 it does not prevent startup or ordinary Interview reads. Unreadable records remain in the
 Target list as problems.
 
-The files of a Target are in the layout that `metis wizard init` writes, under
-`<project>/experiments/design/<target_id>/`. The web app gives a new Target the id
+The files of a Target are in the layout that `metis wizard init` writes, in
+`<project>/evaluations/interviews/<target_id>/` and `<project>/evaluations/specifications/<target_id>/`.
+The Target id is the `<id>` of both folders. The web app gives a new Target the id
 `YYYYMMDD-HHMMSS-interview-<random>` in local time, the same form as a `metis wizard init`
-folder. The random part is five characters, so two people who start in the same second get
+id. The random part is five characters, so two people who start in the same second get
 different ids. When
 the id is taken, it adds `-2`, `-3`, and so on. The `created_at` of the record tells one
 Interview from another, so a save with the id of another Interview gets 409 `target_exists` and
-changes nothing. `inputs/interview_state.json` holds the state of the Interview. It is the file
-that `metis wizard resume` reads and writes, and each read of an Interview takes the state from
-it. `inputs/documents/` holds the files that the Interview record refers to. The wizard CLI keeps
+changes nothing. `interview_state.json` in the Interview folder holds the state of the Interview.
+It is the file that `metis wizard resume` reads and writes, and each read of an Interview takes
+the state from it. `documents/` in the Interview folder holds the files that the Interview record
+refers to. The wizard CLI keeps
 its opening documents in the same folder.
 
 Each file has its own name. Names that differ only by case are the same name. A record with two
@@ -315,32 +347,38 @@ stops before its last step can leave a file that no record refers to, and the ne
 Interview deletes it. Each store holds a thread lock for the full time of a save or a delete. The
 store has no lock between processes.
 
-`outputs/` is the folder for `metis engine simulate --input-dir`, the same as for the CLI wizard.
+The Specification folder is the folder for `metis engine simulate --input-dir`, the same as for
+the CLI wizard.
 It holds `specification.yaml`, `fixtures/`, and `target-binding.yaml` when the Interview has a
 target connection. Each save of a done Interview compiles the Specification, meaning the package of
-the document, the fixtures, and the binding, and writes the row and `outputs/` again. When the Specification does not compile, the save gets 400
+the document, the fixtures, and the binding, and writes the row and the Specification folder again. When the Specification does not compile, the save gets 400
 `compilation_failed` and changes nothing. A save of an Interview that is not done keeps the last
-Specification. An Experiment row refers to an Experiment folder under `experiments/execute/`. The
+Specification. An Experiment row refers to an Experiment folder under `evaluations/experiments/`. The
 engine copies the input folder into each Experiment folder, so a new Specification does not
 change an earlier Experiment.
 
-The wizard CLI and the store use the same Target folder. A folder with a state file that
-validates is an Interview of the CLI, and the store adds its rows when it opens and at each
+The wizard CLI and the store use the same folders. A folder in `interviews/` with a state file
+that validates is an Interview of the CLI, and the store adds its rows when it opens and at each
 Target list. Such an Interview has no transcript in the store. Its file references are the files
-in `inputs/documents/`. The web app adds a transcript entry for a pending request that has none.
+in its `documents/` folder. The web app adds a transcript entry for a pending request that has none.
 
-A first save refuses an existing Target folder that has no Interview row. Such a folder has no
-Interview state that the store can read. The save returns 409
-`target_exists` and leaves the folder unchanged. DELETE requires an Interview row. A missing row
-gets 404 `not_found`, and its folder stays in place. A delete removes the rows of the Target and
-then its folder in `experiments/design/`. Experiment folders in `experiments/execute/` stay on
+A first save refuses an existing Interview folder or Specification folder that has no Interview
+row. Such a folder has no Interview state that the store can read. The save returns 409
+`target_exists` and leaves the folder unchanged. A first save that fails removes both folders
+that it made. DELETE requires an Interview row. A missing row gets 404 `not_found`, and its
+folders stay in place. A delete removes the rows of the Target and then its Interview folder and
+its Specification folder. Experiment folders in `evaluations/experiments/` stay on
 disk.
 
 **Login.** Login is off by default. `METIS_LOGIN=1` turns it on for a server that many people
 use. The `users` table holds the user accounts, with a hash of each password. The
-`login_sessions` table holds a hash of the cookie value of each login session. One guard in the
-app lets a request reach an `/api` route only with a login session. The routes under
-`/api/v1/users` make and list user accounts, and need the token in `METIS_ADMIN_TOKEN`.
+`login_sessions` table holds a hash of the cookie value of each login session. The `admins`
+table names each admin. One guard in the app lets a request reach an `/api` route only with a
+login session. The routes under `/api/v1/users` list, make, and delete user accounts and reset
+their passwords. They need the login session of an admin, or the admin token in
+`METIS_ADMIN_TOKEN`. The join token in `METIS_JOIN_TOKEN` can only make user accounts that are
+not admins. `METIS_ADMIN_USERNAME` and `METIS_ADMIN_PASSWORD`
+name one admin, which the API makes or updates at each start.
 
 ---
 
@@ -364,7 +402,7 @@ package route, and it MUST NOT add a route or create an Interview record. Server
 
 In this first version the manual form collects only what an engine run absolutely needs. The engine
 reads the complete `specification.yaml`. Reporting reads its frozen copy at
-`inputs/specification.yaml`. `metis.core.specification.Specification` is the specification
+`specification/specification.yaml`. `metis.core.specification.Specification` is the specification
 document, and its fields are the top-level keys of the file: the Target context, the
 Feature → Behaviour → Criterion hierarchy from `metis.core.profile`, and the Personas,
 Scenarios, Tasks, and execution settings from `metis.core.experiment`. Its optional

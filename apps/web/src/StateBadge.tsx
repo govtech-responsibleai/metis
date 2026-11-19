@@ -1,8 +1,14 @@
-// The state of an Experiment, as a chip or as plain text. A live run has an accent dot, and a
-// stopped run has a warning icon and its reason as the title.
+// The state of an Experiment, as a chip or as plain text. A live run has an accent dot, a
+// queued run shows its place in the muted style, and a stopped run has a warning icon and its
+// reason as the title.
 
 import { TriangleAlert } from "lucide-react";
-import { isLive, STATE_LABEL, type ExperimentState } from "./experiment-status";
+import {
+  isLive,
+  queueText,
+  STATE_LABEL,
+  type ExperimentState,
+} from "./experiment-status";
 import { cn } from "./ui";
 
 export function StateBadge({
@@ -34,6 +40,9 @@ export function StateBadge({
       )}
       {stopped && <TriangleAlert size={plain ? 14 : 12} aria-hidden />}
       {live && state.stopping ? "Stopping" : STATE_LABEL[state.kind]}
+      {state.kind === "queued" && (
+        <span className="font-normal">· {queueText(state.queueAhead)}</span>
+      )}
     </span>
   );
 }

@@ -76,7 +76,7 @@ export interface paths {
          * @description Build one request-scoped engine-ready ZIP without retaining uploaded files.
          *
          *     Send `state` for an Interview or `specification` for a manual export. With `specification`,
-         *     an optional `connection` (a `TargetConnection` as JSON) adds `outputs/target-binding.yaml`
+         *     an optional `connection` (a `TargetConnection` as JSON) adds `target-binding.yaml`
          *     and names the generic runner, the same as an Interview with that connection. An Interview
          *     carries its connection in its state, so `connection` with `state` is rejected. A binding
          *     that fails the `/connection/check` validation gives 400 `validation_error`. The message
@@ -304,7 +304,7 @@ export interface paths {
          * Delete a Target
          * @description Delete the Target, its Interview, its Specification, and its Experiment rows.
          *
-         *     The Experiment folders under `experiments/execute/` stay on disk.
+         *     The Experiment folders under `evaluations/experiments/` stay on disk.
          */
         delete: operations["delete_target_api_v1_targets__target_id__delete"];
         options?: never;
@@ -429,7 +429,7 @@ export interface paths {
          * Save an Experiment
          * @description Save the last engine step that the web app started for the Experiment.
          *
-         *     The Experiment folder must exist under `experiments/execute/`, else the route gives 400. The
+         *     The Experiment folder must exist under `evaluations/experiments/`, else the route gives 400. The
          *     first save keeps the start time.
          */
         put: operations["put_experiment_api_v1_experiments__experiment_id__put"];
@@ -497,11 +497,12 @@ export interface paths {
         put?: never;
         /**
          * Start a simulation of an input folder
-         * @description Create an experiment folder from the input folder and run every trial in it.
+         * @description Create an experiment folder from the input folder, run every trial, then grade them.
          *
          *     The request checks the inputs as `metis engine simulate --input-dir` does, then creates
-         *     `experiments/execute/<specification id>-<YYYYmmdd-HHMMSS>/`. The trials run after the
-         *     response.
+         *     `evaluations/experiments/<specification id>-<YYYYmmdd-HHMMSS>/`. The trials run after the
+         *     response. When the simulation completes, the same job grades every trial, with the
+         *     default concurrency and Langfuse timeout of the server.
          */
         post: operations["start_simulation_api_v1_engine_simulate_post"];
         delete?: never;
@@ -524,7 +525,8 @@ export interface paths {
          * @description Run again each trial whose record is missing, cannot be read, or was interrupted.
          *
          *     When it runs any trial again, the run deletes the evaluation outputs of the experiment,
-         *     so the report routes return results_missing until the next evaluate.
+         *     so the report routes return results_missing until the evaluate after it. When the
+         *     simulation completes, the same job grades the trials with no evaluation.
          */
         post: operations["resume_simulation_api_v1_engine_simulate__experiment_id__resume_post"];
         delete?: never;
@@ -545,6 +547,8 @@ export interface paths {
         /**
          * Grade every trial of an experiment
          * @description Delete the earlier evaluation of the experiment, then grade every trial.
+         *
+         *     A complete evaluation gives 409 evaluation_complete, unless the body has regrade: true.
          */
         post: operations["start_evaluation_api_v1_engine_evaluate__experiment_id__post"];
         delete?: never;
@@ -672,7 +676,7 @@ export interface paths {
         };
         /**
          * List the user accounts
-         * @description Return each user account with its id, username, and creation time.
+         * @description Return each user account with its id, username, creation time, and admin flag.
          */
         get: operations["list_users_api_v1_users_get"];
         put?: never;
@@ -681,10 +685,62 @@ export interface paths {
          * @description Make a user account and return its username and password.
          *
          *     METIS makes both values. This response is the only one that has the password. Each request
-         *     makes one more user account.
+         *     makes one more user account. An admin makes a user account of each kind. The join token
+         *     makes a user account that is not an admin, and `{"admin": true}` with the join token gets
+         *     403 `admin_required`.
          */
         post: operations["create_user_api_v1_users_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{username}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset the password of a user account
+         * @description Give a user account a new password, end its login sessions, and return the password.
+         *
+         *     METIS makes the password. This response is the only one that has it. An unknown username
+         *     gets 404 `not_found`.
+         */
+        post: operations["reset_password_api_v1_users__username__password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{username}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a user account
+         * @description Delete a user account, its login sessions, its Targets, and its project folder.
+         *
+         *     The checks are in this order. An unknown username gets 404 `not_found`. Each refusal gets
+         *     409 with its own code: `cannot_delete_self` for the account of the login session,
+         *     `environment_admin` for the admin that the server makes again at each start,
+         *     `local_account` for the account of the records of login off, and `run_in_progress` while
+         *     an engine run of the account is alive. The run check is last, because only it can pass at
+         *     a later try.
+         */
+        delete: operations["delete_user_api_v1_users__username__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1620,15 +1676,20 @@ export interface components {
             experiment_id: string;
             /**
              * Phase
-             * @description The phase of the live run, else of the last phase line.
+             * @description The phase of the live run: of its newest phase line, or of its first step before it writes one. For a queued run, the phase of its first step. Else the phase of the last phase line.
              */
             phase: ("simulating" | "evaluating") | null;
             /**
              * Status
-             * @description running or stopping while a run is alive. Else the status of the last phase line: completed, failed, or interrupted. unfinished when that line is started, because the run ended with no last line. not_started when the events log has no phase line.
+             * @description queued while the run waits for a free slot. running or stopping while a run is alive. Else the status of the last phase line: completed, failed, or interrupted. unfinished when that line is started, because the run ended with no last line. not_started when the events log has no phase line.
              * @enum {string}
              */
-            status: "running" | "stopping" | "completed" | "failed" | "interrupted" | "unfinished" | "not_started";
+            status: "queued" | "running" | "stopping" | "completed" | "failed" | "interrupted" | "unfinished" | "not_started";
+            /**
+             * Queue Ahead
+             * @description The runs before this one in the queue, across all user accounts, so 0 means that it starts next. null in every status but queued.
+             */
+            queue_ahead: number | null;
             /**
              * Total
              * @description Trials in the phase, from its started line. null until it is written.
@@ -1652,7 +1713,7 @@ export interface components {
         };
         /**
          * EvaluateRequest
-         * @description Grade the trials of an experiment.
+         * @description Delete the evaluation of an experiment and grade every trial.
          */
         EvaluateRequest: {
             /**
@@ -1665,6 +1726,12 @@ export interface components {
              * @description The longest wait in seconds for the traces of a session, as --langfuse-timeout. Default: a setting, 180 unless the server changes it.
              */
             langfuse_timeout?: number | null;
+            /**
+             * Regrade
+             * @description Grade again an experiment whose evaluation is complete. Without it, an evaluate of a complete evaluation gives 409 evaluation_complete and keeps the results.
+             * @default false
+             */
+            regrade: boolean;
         };
         /** EvidenceItem */
         EvidenceItem: {
@@ -2495,7 +2562,7 @@ export interface components {
         };
         /**
          * NewUserAccountBody
-         * @description A new user account with its password. No later response gives the password again.
+         * @description A user account with its new password. No later response gives the password again.
          */
         NewUserAccountBody: {
             /** Id */
@@ -2507,8 +2574,21 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Admin */
+            admin: boolean;
             /** Password */
             password: string;
+        };
+        /**
+         * NewUserRequest
+         * @description The kind of user account to make. Only an admin can make an admin.
+         */
+        NewUserRequest: {
+            /**
+             * Admin
+             * @default false
+             */
+            admin: boolean;
         };
         /**
          * Option
@@ -3098,6 +3178,22 @@ export interface components {
             };
         };
         /**
+         * ResumeEvaluationRequest
+         * @description Grade the trials of an experiment that have no evaluation file.
+         */
+        ResumeEvaluationRequest: {
+            /**
+             * Concurrency
+             * @description Sessions at the same time. Default: a setting.
+             */
+            concurrency?: number | null;
+            /**
+             * Langfuse Timeout
+             * @description The longest wait in seconds for the traces of a session, as --langfuse-timeout. Default: a setting, 180 unless the server changes it.
+             */
+            langfuse_timeout?: number | null;
+        };
+        /**
          * ResumeSimulationRequest
          * @description Run again the trials of an experiment that did not end.
          */
@@ -3306,7 +3402,7 @@ export interface components {
         SimulateRequest: {
             /**
              * Input Dir
-             * @description The input folder, relative to the project folder. For example experiments/design/<target id>/outputs.
+             * @description The input folder, relative to the project folder. For example evaluations/specifications/<target id>.
              */
             input_dir: string;
             /**
@@ -3680,7 +3776,8 @@ export interface components {
         };
         /**
          * UserAccountBody
-         * @description One user account. It never holds a password or a password hash.
+         * @description One user account. It never holds a password or a password hash. ``admin`` is true for an
+         *     admin.
          */
         UserAccountBody: {
             /** Id */
@@ -3692,6 +3789,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Admin */
+            admin: boolean;
         };
         /**
          * UserAccountList
@@ -5193,7 +5292,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["EvaluateRequest"] | null;
+                "application/json": components["schemas"]["ResumeEvaluationRequest"] | null;
             };
         };
         responses: {
@@ -5284,15 +5383,6 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ServiceError"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5432,6 +5522,15 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -5468,7 +5567,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["NewUserRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             201: {
@@ -5488,8 +5591,158 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    reset_password_api_v1_users__username__password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                username: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewUserAccountBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    delete_user_api_v1_users__username__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                username: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5541,6 +5794,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5602,6 +5864,15 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -5651,6 +5922,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

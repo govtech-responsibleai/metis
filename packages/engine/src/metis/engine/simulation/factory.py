@@ -14,9 +14,9 @@ class RunnerFactory(Protocol):
     Implementations own the lifecycle of expensive shared state (e.g., a
     browser process) and produce fresh Runner instances per attempt.
 
-    A factory may define a classmethod ``from_specification(specification, inputs_dir)``.
+    A factory may define a classmethod ``from_specification(specification, specification_dir)``.
     ``metis engine simulate`` then builds it with the specification and the experiment's
-    ``inputs/`` folder instead of with no arguments. It is optional, so it is not declared
+    ``specification/`` folder instead of with no arguments. It is optional, so it is not declared
     here.
 
     ``create`` returns a :class:`metis.engine.simulation.runner.Runner`; it is typed

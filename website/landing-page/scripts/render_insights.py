@@ -213,8 +213,8 @@ def records() -> list[GraderRecord]:
 
 
 def write_experiment(root: Path) -> EvaluationResults:
-    (root / "inputs").mkdir(parents=True)
-    (root / "inputs/specification.yaml").write_text(yaml.safe_dump(specification()))
+    (root / execution_layout.SPECIFICATION_DIR).mkdir(parents=True)
+    (root / execution_layout.SPECIFICATION).write_text(yaml.safe_dump(specification()))
     for tid, (scenario, persona) in TASKS.items():
         for trial in range(1, TRIALS + 1):
             trial_dir = root / "outputs/trials" / f"{tid}-{trial}"

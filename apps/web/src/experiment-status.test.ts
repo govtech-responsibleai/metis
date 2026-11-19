@@ -5,6 +5,7 @@ import {
   experimentState,
   phaseSteps,
   progressText,
+  queueText,
   STATE_LABEL,
   stepParts,
 } from "./experiment-status.ts";
@@ -22,6 +23,7 @@ const status = (fields: Partial<EngineStatus>): EngineStatus => ({
   done: 0,
   reason: null,
   last_seq: 0,
+  queue_ahead: null,
   ...fields,
 });
 
@@ -227,4 +229,76 @@ test("the phase steps show which step runs and which one stopped", () => {
       evaluate: "done",
     },
   );
+});
+
+test("a queued Experiment shows its place", () => {
+  const queued = experimentState(
+    "simulate",
+    status({ status: "queued", queue_ahead: 3, total: null }),
+    [],
+  );
+  assert.deepEqual(queued, {
+    kind: "queued",
+    phase: "simulating",
+    progress: null,
+    queueAhead: 3,
+  });
+  assert.equal(STATE_LABEL.queued, "Queued");
+  assert.equal(queueText(0), "Starts next");
+  assert.equal(queueText(1), "1 ahead");
+  assert.equal(queueText(3), "3 ahead");
+});
+
+test("a queued Experiment can stop and cannot resume or be deleted", () => {
+  assert.deepEqual(ACTIONS.queued, {
+    stop: true,
+    resume: false,
+    delete: false,
+  });
+  const state = experimentState(
+    "simulate",
+    status({ status: "queued", queue_ahead: 0 }),
+    [],
+  );
+  assert.equal("resume" in state, false);
+});
+
+test("a queued step shows which step waits", () => {
+  const steps = (fields: Partial<EngineStatus>) =>
+    phaseSteps(
+      experimentState(
+        "evaluate",
+        status({ status: "queued", queue_ahead: 0, ...fields }),
+        [],
+      ),
+    );
+  assert.deepEqual(steps({ phase: "simulating" }), {
+    simulate: "next",
+    evaluate: "next",
+  });
+  assert.deepEqual(steps({ phase: "evaluating" }), {
+    simulate: "done",
+    evaluate: "next",
+  });
+});
+
+test("an evaluate that the server started completes with the step simulate", () => {
+  assert.equal(
+    label({ phase: "evaluating", status: "completed" }, "simulate"),
+    "Completed",
+  );
+  assert.equal(
+    label({ phase: "evaluating", status: "running" }, "simulate"),
+    "Evaluating",
+  );
+});
+
+test("a simulate that completed with no evaluate still waits for evaluate", () => {
+  const state = experimentState(
+    "simulate",
+    status({ phase: "simulating", status: "completed" }),
+    [],
+  );
+  assert.equal(state.kind, "waiting");
+  assert.equal("resume" in state && state.resume, "evaluate");
 });

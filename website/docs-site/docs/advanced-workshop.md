@@ -137,7 +137,7 @@ Then:
    <Term>graders</Term>, the <Term>personas</Term>, the <Term>scenarios</Term> and the
    <Term>test cases</Term>. Choose a few of each. You do not need to review every draft.
 5. When the test cases are chosen, select **Download** in the toolbar of the Profile. Extract the
-   ZIP into `experiments/design/`, and press Ctrl-C in the terminal to stop the servers.
+   ZIP into `evaluations/`, and press Ctrl-C in the terminal to stop the servers.
 
 :::tip[Short on time?]
 You can finish the interview early if you want. Select **Skip interview and download
@@ -146,7 +146,7 @@ specification**, and the Wizard finishes with what it has drafted so far.
 
 :::tip[Prefer the terminal?]
 `uv run metis wizard init` runs the same interview in the terminal. When you finish, it saves the
-files in `experiments/design/<date>-<time>-interview/`.
+specification in `evaluations/specifications/<date>-<time>-interview-<random>/`.
 :::
 
 ### Connect the target
@@ -170,7 +170,7 @@ The `simulate` command in step 4 reads a folder of inputs. Your folder should co
 - **`fixtures/`** (optional) — files that simulated users bring to a conversation, such as documents
   to upload. The specification lists each fixture under the task that uses it.
 
-**Checkpoint:** your specification and target connection are in a folder in `experiments/design/`,
+**Checkpoint:** your specification and target connection are in a folder in `evaluations/specifications/`,
 and `specification.yaml` has a `target_binding:` line that points to the target connection file.
 
 ## Step 4: Simulate user interactions (10 min) {#step-4}
@@ -184,7 +184,7 @@ Run it with your specification:
 
 ```bash
 uv run metis engine simulate \
-  --input-dir experiments/design/<your-folder>/outputs \
+  --input-dir evaluations/specifications/<your-folder> \
   -vv
 ```
 
@@ -197,7 +197,7 @@ Wait for the command to finish. It prints the output folder and the `evaluate` c
 **Checkpoint:** your trials finish, and each has a `record.json` file:
 
 ```bash
-ls experiments/execute/<your-experiment>/outputs/trials/*/record.json
+ls evaluations/experiments/<your-experiment>/outputs/trials/*/record.json
 ```
 
 ## Step 5: Inspect the traces in Langfuse (10 min) {#step-5}
@@ -223,7 +223,7 @@ session ID of its conversation in `target_session_id`:
 List the session IDs of all your trials, and pick any one:
 
 ```bash
-grep -H target_session_id experiments/execute/*/outputs/trials/*/record.json
+grep -H target_session_id evaluations/experiments/*/outputs/trials/*/record.json
 ```
 
 Open your Langfuse UI, go to **Sessions**, and paste the session ID into the search. You land on
@@ -255,7 +255,7 @@ application did at that point.
 `simulate` printed:
 
 ```bash
-uv run metis engine evaluate --experiment-dir experiments/execute/<your-experiment>
+uv run metis engine evaluate --experiment-dir evaluations/experiments/<your-experiment>
 ```
 
 Each <Term>trial</Term> is graded in turn, with a progress bar for each trial. When it finishes, it
@@ -266,7 +266,7 @@ If the command reports missing traces, wait a little and run it again. Langfuse 
 show a trace.
 
 **Checkpoint:** the output ends with "EVALUATION COMPLETE", and
-`experiments/execute/<your-experiment>/outputs/reports/results.json` exists. The goal is `0 failed`.
+`evaluations/experiments/<your-experiment>/outputs/reports/results.json` exists. The goal is `0 failed`.
 If a trial failed, run the command again.
 
 ## Step 7: Read the report (10 min) {#step-7}
@@ -276,7 +276,7 @@ If a trial failed, run the command again.
 Generate the report from the results of step 6:
 
 ```bash
-uv run metis insights report --results-file experiments/execute/<your-experiment>/outputs/reports/results.json
+uv run metis insights report --results-file evaluations/experiments/<your-experiment>/outputs/reports/results.json
 ```
 
 Open `outputs/reports/report.html` in the same experiment folder, in your browser. See

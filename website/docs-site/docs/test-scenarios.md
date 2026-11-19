@@ -15,8 +15,9 @@ After the Wizard drafts the Test Cases, the web client shows them in a table:
 
 ![The Test Case table, with four Test Cases selected](./assets/wizard-test-cases.png)
 
-In the CLI, you review the same Test Cases as a list. When you finish, the CLI saves the files in
-`experiments/design/<date>-<time>-interview/`, with a short summary in `outputs/review.md`.
+In the CLI, you review the same Test Cases as a list. When you finish, the CLI saves the
+specification in `evaluations/specifications/<date>-<time>-interview-<random>/`, with a short
+summary in `review.md`.
 
 | Part | What it is | What you do |
 |---|---|---|
@@ -34,17 +35,19 @@ clear its checkbox.
 The chat shows **Your specification is ready**. Select **Download** in the toolbar of the
 Profile.
 
-The browser downloads a ZIP file, for example `20261016-223045-interview.zip`. Extract it into
-`experiments/design/` in the repository folder:
+The browser downloads a ZIP file, for example `20261117-160005-interview-x9abc.zip`. Extract it
+into `evaluations/` in the repository folder:
 
 ```text
-experiments/design/20261016-223045-interview/
-├── inputs/
-│   └── interview_state.json
-└── outputs/
-    ├── specification.yaml
-    ├── target-binding.yaml   (only when you connect the target)
-    └── fixtures/             (the files that the Test Cases send)
+evaluations/
+├── interviews/
+│   └── 20261117-160005-interview-x9abc/
+│       └── interview_state.json
+└── specifications/
+    └── 20261117-160005-interview-x9abc/
+        ├── specification.yaml
+        ├── target-binding.yaml   (only when you connect the target)
+        └── fixtures/             (the files that the Test Cases send)
 ```
 
 `specification.yaml` is the file that the Engine runs. To read or change its fields, see
@@ -66,8 +69,8 @@ interview step by step.
 Run the specification with the Engine:
 
 ```bash
-metis engine run --input-dir experiments/design/20261016-223045-interview/outputs/
+metis engine run --input-dir evaluations/specifications/20261117-160005-interview-x9abc
 ```
 
-Replace `20261016-223045` with the date and time in your folder name. See
+Replace `20261117-160005-interview-x9abc` with the name of your folder. See
 [Run your evaluations](run-evaluation.md).

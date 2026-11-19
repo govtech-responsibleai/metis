@@ -8,6 +8,7 @@ import {
   onLoginRequired,
   store,
   TransportError,
+  users,
   type InterviewState,
   type Report,
 } from "./api.ts";
@@ -65,7 +66,7 @@ test("uses the stateless wizard routes and JSON request shapes", async () => {
         headers: {
           "content-type": "application/zip",
           "Content-Disposition":
-            'attachment; filename="20261016-223045-interview.zip"',
+            'attachment; filename="20261016-223045-interview-k7mwp.zip"',
         },
       });
     }
@@ -221,7 +222,7 @@ test("packages a synthesized manual Specification and its fixtures as multipart"
       headers: {
         "content-type": "application/zip",
         "Content-Disposition":
-          'attachment; filename="20261016-223045-manual.zip"',
+          'attachment; filename="20261016-223045-manual-k7mwp.zip"',
       },
     });
   };
@@ -335,32 +336,33 @@ test("simulate posts the input folder", async () => {
     });
   };
 
-  assert.deepEqual(await api.simulate("experiments/design/t1/outputs"), {
+  assert.deepEqual(await api.simulate("evaluations/specifications/t1"), {
     experiment_id: "spec-1",
   });
   assert.equal(path, "/api/v1/engine/simulate");
   assert.equal(init?.method, "POST");
-  assert.equal(init?.body, '{"input_dir":"experiments/design/t1/outputs"}');
+  assert.equal(init?.body, '{"input_dir":"evaluations/specifications/t1"}');
 });
 
-test("a busy engine refuses a start with a retryable error", async () => {
+test("a refused start keeps the code, the message and the retry flag of the API", async () => {
   globalThis.fetch = async () =>
     new Response(
       JSON.stringify({
         type: "failure",
-        code: "engine_busy",
-        message: "Another experiment is running.",
+        code: "model_unavailable",
+        message: "Set the model key.",
         retryable: true,
       }),
       { status: 503 },
     );
 
   await assert.rejects(
-    api.simulate("experiments/design/t1/outputs"),
+    api.simulate("evaluations/specifications/t1"),
     (cause) =>
       cause instanceof TransportError &&
-      cause.code === "engine_busy" &&
-      cause.message === "Another experiment is running." &&
+      cause.status === 503 &&
+      cause.code === "model_unavailable" &&
+      cause.message === "Set the model key." &&
       cause.retryable,
   );
 });
@@ -569,5 +571,99 @@ test("login sends the credentials as JSON and logout sends a POST", async () => 
       body: { username: "curious-otter", password: "k7mwp-3xr9t" },
     },
     { path: "/api/v1/auth/logout", method: "POST", body: undefined },
+  ]);
+});
+
+test("a join sends the join token as a bearer token", async () => {
+  let asked = 0;
+  const stop = onLoginRequired(() => {
+    asked += 1;
+  });
+  const calls: Array<{ path: string; method?: string; auth: string | null }> =
+    [];
+  globalThis.fetch = async (input, init) => {
+    calls.push({
+      path: String(input),
+      method: init?.method,
+      auth: new Headers(init?.headers).get("Authorization"),
+    });
+    return calls.length === 1
+      ? new Response(
+          JSON.stringify({
+            id: "u1",
+            username: "brave-otter",
+            created_at: "2026-11-17T00:00:00Z",
+            admin: false,
+            password: "k3m7p-x9q2r",
+          }),
+          { status: 201 },
+        )
+      : failure(401, "invalid_admin_token", "The request needs the token.");
+  };
+
+  const account = await users.join("workshop-token");
+  await assert.rejects(users.join("wrong"), { status: 401 });
+
+  assert.equal(account.password, "k3m7p-x9q2r");
+  assert.deepEqual(calls, [
+    { path: "/api/v1/users", method: "POST", auth: "Bearer workshop-token" },
+    { path: "/api/v1/users", method: "POST", auth: "Bearer wrong" },
+  ]);
+  assert.equal(asked, 0);
+  stop();
+});
+
+test("the admin calls use the login session and no token", async () => {
+  const calls: Array<{
+    path: string;
+    method?: string;
+    auth: string | null;
+    body: unknown;
+  }> = [];
+  const account = {
+    id: "u1",
+    username: "brave-otter",
+    created_at: "2026-11-17T00:00:00Z",
+    admin: true,
+  };
+  globalThis.fetch = async (input, init) => {
+    calls.push({
+      path: String(input),
+      method: init?.method,
+      auth: new Headers(init?.headers).get("Authorization"),
+      body:
+        init?.body === undefined ? undefined : JSON.parse(String(init.body)),
+    });
+    return new Response(
+      JSON.stringify(
+        init?.method === "POST"
+          ? { ...account, password: "k3m7p-x9q2r" }
+          : { users: [account] },
+      ),
+      { status: init?.method === "POST" ? 201 : 200 },
+    );
+  };
+
+  assert.deepEqual(await users.list(), { users: [account] });
+  assert.equal((await users.create(true)).password, "k3m7p-x9q2r");
+  assert.equal(
+    (await users.resetPassword("brave otter")).password,
+    "k3m7p-x9q2r",
+  );
+
+  assert.deepEqual(calls, [
+    { path: "/api/v1/users", method: undefined, auth: null, body: undefined },
+    {
+      path: "/api/v1/users",
+      method: "POST",
+      auth: null,
+      body: { admin: true },
+    },
+    {
+      path: "/api/v1/users/brave%20otter/password",
+      method: "POST",
+      auth: null,
+      body: undefined,
+    },
   ]);
 });

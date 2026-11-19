@@ -162,8 +162,8 @@ def write_experiment(
 ) -> Path:
     """Write the experiment. ``stop_reasons`` maps a session id such as ``"T-1-1"`` to its
     trial's stop reason. Every other trial reaches its goal."""
-    (root / "inputs").mkdir(parents=True)
-    (root / "inputs/specification.yaml").write_text(
+    (root / "specification").mkdir(parents=True)
+    (root / "specification/specification.yaml").write_text(
         yaml.safe_dump(specification(extra_criteria))
     )
     for task_id in TASKS:

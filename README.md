@@ -80,6 +80,8 @@ See the user guides for usage instructions:
 - [`docs/guide/insights.md`](docs/guide/insights.md) — `metis insights report`, which builds the report from evaluation results
 - [`docs/guide/models.md`](docs/guide/models.md) — the model and gateway of each LLM role, and the
   one `.env` file that every command reads
+- [`docs/guide/docker.md`](docs/guide/docker.md): one container image that serves the web app and
+  the API on one address, for a shared server
 
 ## Development
 

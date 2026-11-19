@@ -1,4 +1,4 @@
-"""Loads a target binding from the experiment's ``inputs/`` and reads its secrets.
+"""Loads a target binding from the experiment's ``specification/`` and reads its secrets.
 
 Core's ``TargetBinding`` checks the file's shape. This module adds what needs the
 environment: ``${NAME}`` references in ``spec_url`` (or a browser binding's ``start_url``)
@@ -67,11 +67,13 @@ def _env(name: str) -> str | None:
 
 
 def load_target_binding(
-    inputs_dir: Path, relative: str, transport: Literal["http", "browser"] = "http"
+    specification_dir: Path,
+    relative: str,
+    transport: Literal["http", "browser"] = "http",
 ) -> LoadedBinding:
     """Load the binding at ``relative`` (relative to ``specification.yaml``).
 
-    :param inputs_dir: The experiment's ``inputs/`` folder.
+    :param specification_dir: The experiment's ``specification/`` folder.
     :param transport: The transport the caller's runner speaks; any other is refused.
     :raises TargetBindingError: Whatever makes the binding unusable. The message
         starts with ``relative`` as written.
@@ -80,8 +82,8 @@ def load_target_binding(
     def fail(message: str) -> TargetBindingError:
         return TargetBindingError(f"{relative}: {message}")
 
-    root = inputs_dir.resolve()
-    path = (inputs_dir / relative).resolve()
+    root = specification_dir.resolve()
+    path = (specification_dir / relative).resolve()
     if not path.is_relative_to(root):
         raise fail(
             "the target binding must be inside the input folder; move it there and "

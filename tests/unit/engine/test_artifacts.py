@@ -39,7 +39,7 @@ def trial_dir(tmp_path: Path) -> Path:
 
 
 def _ledger(tmp_path: Path, trial_dir: Path, fixtures: list[str] | None = None):
-    fixtures_dir = tmp_path / "inputs" / "fixtures"
+    fixtures_dir = tmp_path / "specification" / "fixtures"
     fixtures_dir.mkdir(parents=True, exist_ok=True)
     entries = build_fixture_artifacts(fixtures or [], fixtures_dir, tmp_path)
     return ArtifactLedger(tmp_path, trial_dir, entries)
@@ -230,8 +230,8 @@ def test_json_is_refused_under_any_other_name() -> None:
 def test_a_fixture_has_one_entry_however_often_it_is_uploaded(
     tmp_path: Path, trial_dir: Path
 ) -> None:
-    (tmp_path / "inputs" / "fixtures").mkdir(parents=True)
-    (tmp_path / "inputs" / "fixtures" / "q3_sales.csv").write_bytes(_sales_csv())
+    (tmp_path / "specification" / "fixtures").mkdir(parents=True)
+    (tmp_path / "specification" / "fixtures" / "q3_sales.csv").write_bytes(_sales_csv())
     ledger = _ledger(tmp_path, trial_dir, ["q3_sales.csv"])
     assert ledger.artifacts()[0].at_simulated_turn is None
 
@@ -244,7 +244,7 @@ def test_a_fixture_has_one_entry_however_often_it_is_uploaded(
         "q3_sales.csv",
         0,
     )
-    assert entry.path == "inputs/fixtures/q3_sales.csv"
+    assert entry.path == "specification/fixtures/q3_sales.csv"
 
 
 def test_only_a_held_file_can_be_uploaded(tmp_path: Path, trial_dir: Path) -> None:
@@ -333,7 +333,7 @@ def test_a_download_carries_its_facts_as_its_content_description(
 def test_a_fixture_gets_facts_unless_its_author_wrote_a_description(
     tmp_path: Path, trial_dir: Path
 ) -> None:
-    fixtures = tmp_path / "inputs" / "fixtures"
+    fixtures = tmp_path / "specification" / "fixtures"
     fixtures.mkdir(parents=True)
     (fixtures / "q3_sales.csv").write_bytes(_sales_csv(200))
     (fixtures / "notes.txt").write_bytes(b"hello")
@@ -422,8 +422,10 @@ def test_a_file_already_held_is_not_recorded_as_a_failure(
 def test_an_upload_can_keep_the_targets_id_for_the_file(
     tmp_path: Path, trial_dir: Path
 ) -> None:
-    (tmp_path / "inputs" / "fixtures").mkdir(parents=True)
-    (tmp_path / "inputs" / "fixtures" / "q3_sales.csv").write_bytes(_sales_csv(3))
+    (tmp_path / "specification" / "fixtures").mkdir(parents=True)
+    (tmp_path / "specification" / "fixtures" / "q3_sales.csv").write_bytes(
+        _sales_csv(3)
+    )
     ledger = _ledger(tmp_path, trial_dir, ["q3_sales.csv"])
 
     kept = ledger.record_upload("q3_sales.csv", at_simulated_turn=1, external_id="up-1")
