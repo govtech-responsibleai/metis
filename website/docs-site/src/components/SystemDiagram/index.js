@@ -8,10 +8,10 @@ import styles from './styles.module.css';
 const IN_USE = {
   beginner: {
     1: ['app', 'langfuse', 'logTraces'], // try a demo session and open its trace
-    4: ['metis'], // the Wizard drafts the specification
-    5: ['metis', 'app', 'langfuse', 'callApp', 'logTraces', 'readTraces'], // simulate and grade
-    6: ['metis', 'langfuse', 'openSession'], // open a trace from the Trials tab
-    7: ['metis'], // read the report
+    3: ['metis'], // build the specification in the Wizard
+    4: ['metis', 'app', 'langfuse', 'callApp', 'logTraces', 'readTraces'], // simulate and grade
+    5: ['metis', 'langfuse', 'openSession'], // open a trace from the Trials tab
+    6: ['metis'], // read the report
   },
   advanced: {
     2: ['app'], // look at the target application

@@ -21,7 +21,7 @@ install anything, but these services are not generally open to the public:
 2. **The target application**, the toy app that you evaluate:
    [https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/](https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/) ([source code](https://github.com/govtech-responsibleai/agentic-eval-toyapp))
 3. **A Langfuse server**, which records each conversation as a trace. You open it from a link in
-   the toy app in step 1, and from a link in METIS in step 6.
+   the toy app in step 1, and from a link in METIS in step 5.
 
 To log in to METIS, you need the join token given by the facilitators, who also give you the
 login for Langfuse.
@@ -35,23 +35,22 @@ Try the [Advanced (CLI) Walkthrough](advanced-walkthrough.md) to run METIS on yo
 against your own application.
 :::
 
-The picture shows how the pieces fit together. Steps 1 and 4 to 7 repeat it with the parts that
+The picture shows how the pieces fit together. Steps 1 and 3 to 6 repeat it with the parts that
 the step uses lit up, so that you can see where you are.
 
 <SystemDiagram />
 
 | Step | What you do | Time |
 |---|---|---|
-| [Step 1](#step-1) | Explore the toy application | 15 min |
+| [Step 1](#step-1) | Explore the toy application | 10 min |
 | [Step 2](#step-2) | Log in to METIS | 5 min |
-| [Step 3](#step-3) | Learn the Wizard interface | 10 min |
-| [Step 4](#step-4) | Build a specification | 20 min |
-| [Step 5](#step-5) | Start and watch the experiment | 15 min |
-| [Step 6](#step-6) | Inspect the traces in Langfuse | 10 min |
-| [Step 7](#step-7) | Read the report | 10 min |
-| [Step 8](#step-8) | Wrap-up and feedback | 10 min |
+| [Step 3](#step-3) | Build a specification in the Wizard | 20 min |
+| [Step 4](#step-4) | Start and watch the experiment | 10 min |
+| [Step 5](#step-5) | Inspect the traces in Langfuse | 5 min |
+| [Step 6](#step-6) | Read the report | 10 min |
+| [Step 7](#step-7) | Wrap-up and feedback | 10 min |
 
-## Step 1: Explore the toy application (15 min) {#step-1}
+## Step 1: Explore the toy application (10 min) {#step-1}
 
 <SystemDiagram walkthrough="beginner" step={1} />
 
@@ -112,7 +111,7 @@ base before it answered.
 ![A trace in Langfuse, with its tree of steps and the coordinator-action step highlighted](./assets/toyapp-demo-langfuse-trace.png)
 
 Langfuse shows the steps that led to the final answer, as well as the answer itself, and METIS
-grades both. You come back to Langfuse in step 6, to read the conversations that METIS runs.
+grades both. You come back to Langfuse in step 5, to read the conversations that METIS runs.
 
 **Checkpoint:** name the four actions the toy app can take, and say which one it chose in the demo.
 
@@ -134,9 +133,11 @@ password for you.
 
 **Checkpoint:** you see the METIS opening screen with a text box and controls.
 
-## Step 3: Learn the Wizard interface (10 min) {#step-3}
+## Step 3: Build a specification in the Wizard (20 min) {#step-3}
 
-### 3a. Look at the controls
+<SystemDiagram walkthrough="beginner" step={3} />
+
+### 3a. Learn the Wizard controls
 
 ![The Wizard opening screen with its controls](./assets/web-wizard-ui-overview.png)
 
@@ -155,13 +156,7 @@ password for you.
 2. Leave the Perspective on **End user**.
 3. Skip **Capabilities**.
 
-**Checkpoint:** you can point to each control and say what it does.
-
-## Step 4: Build a specification (20 min) {#step-4}
-
-<SystemDiagram walkthrough="beginner" step={4} />
-
-### 4a. Describe the toy app
+### 3c. Describe the toy app
 
 Describe Northstar Policy & Report Assistant to the Wizard. The description below comes from the
 toy app's [README](https://github.com/govtech-responsibleai/agentic-eval-toyapp/blob/main/README.md).
@@ -171,7 +166,7 @@ Copy it, paste it into the text box, and select **Send**.
 Northstar Policy & Report Assistant is a small assistant you can use through a web chat page or call directly through a REST API. It does two separate jobs, and each message you send is handled by only one of them. The first is policy Q&A: ask about Northstar Services' employee policies, such as "What is the lodging limit for domestic travel?", and a policy specialist searches the built-in policy documents and answers only from the passages it retrieved, citing each one. The second is report analysis: upload a text, Markdown, or text-based PDF report and ask for a summary or its key findings, such as "What risks does this report flag?", and a report specialist reads the whole report and answers only from it, pointing back to the pages or sections it used. A coordinator sits in front of both specialists and decides what to do with each message. It replies itself to greetings, questions about the app, and out-of-scope requests, asks a clarifying question when the task or report is unclear, and otherwise hands the message to exactly one specialist. Optional Langfuse instrumentation exports each turn as a trace.
 ```
 
-### 4b. Follow the interview
+### 3d. Follow the interview
 
 The screen splits into two panes:
 
@@ -211,14 +206,14 @@ test cases that simulate varied user personas and how they would interact with y
 Select **Skip interview and download specification** to finish early.
 :::
 
-### 4c. Configure run settings
+### 3e. Configure run settings
 
 When the interview is done, the run settings appear. Here you can change the model used for
 simulating the user agent and the model used for the judge.
 
 ![Run settings for the experiment](./assets/web-engine-run-settings.png)
 
-### 4d. Start the experiment
+### 3f. Start the experiment
 
 The chat shows **"Your specification is ready"**:
 
@@ -226,14 +221,14 @@ The chat shows **"Your specification is ready"**:
 
 Select **Start the experiment** to proceed directly to running the evaluation.
 
-**Checkpoint:** the Profile pane shows your specification with features, behaviours, criteria, and
-test cases.
+**Checkpoint:** you can say what each Wizard control does, and the Profile pane shows your
+specification with features, behaviours, criteria, and test cases.
 
-## Step 5: Start and watch the experiment (15 min) {#step-5}
+## Step 4: Start and watch the experiment (10 min) {#step-4}
 
-<SystemDiagram walkthrough="beginner" step={5} />
+<SystemDiagram walkthrough="beginner" step={4} />
 
-### 5a. Run the experiment
+### 4a. Run the experiment
 
 If you have not already started the experiment, select the **Experiments** tab and press
 **Start an experiment**.
@@ -245,7 +240,7 @@ lists a failed check instead, ask the facilitator. Select **Start**.
 
 ![The Start an experiment dialog, with the specification chosen and Server ready](./assets/web-experiment-dialog.png)
 
-### 5b. Watch the progress
+### 4b. Watch the progress
 
 ![The Trials tab showing live progress](./assets/web-trials-progress.png)
 
@@ -253,11 +248,11 @@ Wait for all trials to finish.
 
 **Checkpoint:** all trials complete successfully.
 
-## Step 6: Inspect the traces in Langfuse (10 min) {#step-6}
+## Step 5: Inspect the traces in Langfuse (5 min) {#step-5}
 
-<SystemDiagram walkthrough="beginner" step={6} />
+<SystemDiagram walkthrough="beginner" step={5} />
 
-### 6a. Open a trace from the Trials tab
+### 5a. Open a trace from the Trials tab
 
 In the Trials tab, each completed test case shows a Langfuse link. Click on the link to open the
 trace directly in Langfuse. Langfuse asks you to log in. Use the Langfuse login that the workshop
@@ -265,7 +260,7 @@ facilitators give you.
 
 ![A completed trial with a Langfuse link](./assets/web-trials-langfuse-link.png)
 
-### 6b. Read a session
+### 5b. Read a session
 
 Langfuse shows how the conversation was structured — each step the application took, its inputs,
 outputs, and which tools it called.
@@ -279,11 +274,11 @@ outputs, and which tools it called.
 
 **Checkpoint:** find the `coordinator-action` step and say which route it chose.
 
-## Step 7: Read the report (10 min) {#step-7}
+## Step 6: Read the report (10 min) {#step-6}
 
-<SystemDiagram walkthrough="beginner" step={7} />
+<SystemDiagram walkthrough="beginner" step={6} />
 
-### 7a. Open the report
+### 6a. Open the report
 
 Go back to METIS and select the **Report** tab of your experiment.
 
@@ -292,7 +287,7 @@ Go back to METIS and select the **Report** tab of your experiment.
 The summary at the top shows overall pass rates. The tree below runs from the <Term>target</Term>
 to its <Term>features</Term>, <Term>expected behaviours</Term>, and <Term>criteria</Term>.
 
-### 7b. Find a failing criterion
+### 6b. Find a failing criterion
 
 Select a criterion to see its <Term>grader</Term>, the judge model, the pass mark, and per-test-case
 results.
@@ -300,7 +295,7 @@ results.
 **Checkpoint:** the report shows a result for each criterion, and you can open one with a low pass
 rate.
 
-## Step 8: Wrap-up and feedback (10 min) {#step-8}
+## Step 7: Wrap-up and feedback (10 min) {#step-7}
 
 Think of one failure visible in the trajectory but not in the final answer.
 
