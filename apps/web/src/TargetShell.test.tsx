@@ -9,6 +9,7 @@ import {
   LoginPage,
   LoginSessionProvider,
   startsAtFirstPage,
+  type LoginSession,
 } from "./LoginGate";
 import { TransportError } from "./transport/api";
 import { at, control, tab, text } from "./markup.test-helper";
@@ -18,6 +19,7 @@ import { ExperimentsTabView, TargetTabs } from "./TargetPage";
 import {
   AccountMenuList,
   AppearanceRow,
+  CliSettingsDialog,
   CollapsedRail,
   TargetRail,
 } from "./TargetRail";
@@ -73,7 +75,9 @@ const otter = {
 
 test("the rail shows the avatar and the name of the current user on a closed account menu button", () => {
   const markup = renderToStaticMarkup(
-    <LoginSessionProvider value={{ user: otter, logout: () => {} }}>
+    <LoginSessionProvider
+      value={{ user: otter, logout: () => {}, workshopEnv: null }}
+    >
       <Router ssrPath="/">
         <TargetRail
           targets={[]}
@@ -107,14 +111,18 @@ test("the rail shows the avatar and the name of the current user on a closed acc
 });
 
 test("the account menu shows the avatar and the username, then Manage accounts for an admin, Appearance, and Log out", () => {
-  const menu = (admin: boolean) => {
+  const menu = (
+    admin: boolean,
+    workshopEnv: LoginSession["workshopEnv"] = null,
+  ) => {
     const markup = at(
       "/",
       <AccountMenuList
-        session={{ user: { ...otter, admin }, logout: () => {} }}
+        session={{ user: { ...otter, admin }, logout: () => {}, workshopEnv }}
         theme="dark"
         onTheme={() => {}}
         onClose={() => {}}
+        onCliSettings={() => {}}
       />,
     );
     const rows = [
@@ -155,6 +163,59 @@ test("the account menu shows the avatar and the username, then Manage accounts f
     ["Manage accounts", "Appearance", "Log out"],
   );
   assert.match(admin.rows[0]?.item ?? "", /href="\/admin"/);
+
+  const workshop = menu(false, [{ name: "LANGFUSE_BASE_URL", value: "u" }]);
+  assert.deepEqual(
+    workshop.rows.map(({ label }) => label),
+    ["CLI settings", "Appearance", "Log out"],
+  );
+});
+
+test("the CLI settings dialog shows the .env lines and copies them as one block", () => {
+  const variables = [
+    { name: "LANGFUSE_PUBLIC_KEY", value: "pk-lf-1" },
+    { name: "LANGFUSE_BASE_URL", value: "https://langfuse.example" },
+  ];
+  const block =
+    "LANGFUSE_PUBLIC_KEY=pk-lf-1\nLANGFUSE_BASE_URL=https://langfuse.example\n";
+  let copied = "";
+  const globals = {
+    document: { activeElement: null },
+    navigator: {
+      clipboard: { writeText: (value: string) => (copied = value) },
+    },
+    window: { setTimeout: () => 0 },
+  };
+  const saved = Object.keys(globals).map(
+    (name) =>
+      [name, Object.getOwnPropertyDescriptor(globalThis, name)] as const,
+  );
+  for (const [name, value] of Object.entries(globals))
+    Object.defineProperty(globalThis, name, { value, configurable: true });
+  try {
+    // The Modal element holds the dialog body. A Modal needs a DOM, so the test reads its children.
+    let body: ReactNode = null;
+    function Host() {
+      const dialog = CliSettingsDialog({ variables, onClose: () => {} });
+      body = (dialog as ReactElement<{ children: ReactNode }>).props.children;
+      return null;
+    }
+    renderToStaticMarkup(<Host />);
+    const pre = elementIn(body, (props) =>
+      String(props.className ?? "").includes("font-mono text-sm"),
+    );
+    assert.equal(pre?.props.children, block);
+    (
+      elementIn(body, (props) => props.autoFocus === true)?.props
+        .onClick as () => void
+    )();
+    assert.equal(copied, block);
+  } finally {
+    for (const [name, descriptor] of saved) {
+      Reflect.deleteProperty(globalThis, name);
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+    }
+  }
 });
 
 // The element of `node` that matches `found`, with each function component called to give its
@@ -386,11 +447,15 @@ test("the YAML view and Download wait for the end of the Interview", () => {
 const experimentsTab = (load: ListLoad) =>
   at("/targets/a/experiments", <ExperimentsTabView load={load} />);
 
-const row = (experimentId: string, minutesAgo: number, load: RowLoad) => ({
+const YEAR = new Date().getFullYear();
+const local = (day: number, hour: number, minute: number, second = 0) =>
+  new Date(YEAR, 0, day, hour, minute, second).toISOString();
+
+const row = (experimentId: string, startedAt: string, load: RowLoad) => ({
   record: {
     experiment_id: experimentId,
     target_id: "a",
-    started_at: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
+    started_at: startedAt,
     step: "simulate" as const,
   },
   load,
@@ -403,19 +468,11 @@ test("an empty Experiments tab says so", () => {
   );
 });
 
-test("each Experiment row links to its view and shows its start, state and progress", () => {
+test("the Experiments tab is a table of the newest start first, and each row links to its view", () => {
   const markup = experimentsTab({
     status: "ready",
     rows: [
-      row("e2", 5, {
-        status: "ready",
-        state: {
-          kind: "simulating",
-          stopping: false,
-          progress: { phase: "simulating", ended: 5, total: 16 },
-        },
-      }),
-      row("e1", 120, {
+      row("exp-stopped", local(5, 12, 0), {
         status: "ready",
         state: {
           kind: "stopped",
@@ -423,22 +480,65 @@ test("each Experiment row links to its view and shows its start, state and progr
           reason: "Timed out",
           resume: "resume-simulate",
         },
+        updatedAt: local(5, 12, 4, 30),
       }),
-      row("e0", 60 * 48, { status: "failed" }),
+      row("exp-failed", local(3, 9, 15), { status: "failed" }),
+      row("exp-live", local(5, 14, 32, 5), {
+        status: "ready",
+        state: {
+          kind: "simulating",
+          stopping: false,
+          progress: { phase: "simulating", ended: 5, total: 16 },
+        },
+        updatedAt: local(5, 14, 40, 9),
+      }),
     ],
   });
+  const headers = [...markup.matchAll(/<th\b([^>]*)>(.*?)<\/th>/g)].map(
+    ([, attributes, inner]) => ({
+      label: text(inner ?? ""),
+      sort: /aria-sort="(\w+)"/.exec(attributes ?? "")?.[1],
+      button: /<button/.test(inner ?? ""),
+    }),
+  );
+  const rows = [
+    ...(/<tbody>(.*)<\/tbody>/.exec(markup)?.[1] ?? "").matchAll(
+      /<tr\b[^>]*>(.*?)<\/tr>/g,
+    ),
+  ].map(([, inner]) =>
+    [...(inner ?? "").matchAll(/<td\b[^>]*>(.*?)<\/td>/g)].map(([, cell]) =>
+      text(cell ?? ""),
+    ),
+  );
 
+  assert.deepEqual(headers.slice(0, 5), [
+    { label: "Experiment ID", sort: undefined, button: true },
+    { label: "Started", sort: "descending", button: true },
+    { label: "Last updated", sort: undefined, button: true },
+    { label: "Status", sort: undefined, button: true },
+    { label: "Progress", sort: undefined, button: false },
+  ]);
+  assert.deepEqual(rows, [
+    [
+      "exp-live",
+      "5 Jan, 14:32:05",
+      "5 Jan, 14:40:09",
+      "Simulating",
+      "5 of 16 simulated",
+      "",
+    ],
+    ["exp-stopped", "5 Jan, 12:00:00", "5 Jan, 12:04:30", "Stopped", "", ""],
+    ["exp-failed", "3 Jan, 09:15:00", "", "Status unavailable", "", ""],
+  ]);
+  const link = control(markup, "exp-live");
+  assert.match(link, /href="\/targets\/a\/experiments\/exp-live"/);
+  assert.match(link, /title="exp-live"/);
   assert.match(
-    control(markup, "5 min ago"),
-    /href="\/targets\/a\/experiments\/e2"/,
+    markup,
+    new RegExp(
+      `<time dateTime="${local(5, 14, 32, 5)}" title="(just now|\\d+ (min|h|d) ago)"`,
+    ),
   );
-  assert.match(
-    control(markup, "2 h ago"),
-    /href="\/targets\/a\/experiments\/e1"/,
-  );
-  assert.match(text(markup), /5 min agoSimulating5 of 16 simulated/);
-  assert.match(text(markup), /2 h agoStopped/);
-  assert.match(text(markup), /2 d agoStatus unavailable/);
 });
 
 test("the Experiments tab says when the list does not load", () => {

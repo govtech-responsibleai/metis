@@ -130,6 +130,7 @@ const PAGE: ReportPage = {
               { turn: 2, user: "Open an account", target: null, errors: [] },
             ],
             conversationProblem: null,
+            sessionUrl: "https://lf.example/project/p1/sessions/s-1",
             criteria: [
               {
                 criterionId: "c1",
@@ -155,6 +156,7 @@ const PAGE: ReportPage = {
             attempt: 2,
             turns: [],
             conversationProblem: "The trace is not complete",
+            sessionUrl: null,
             criteria: [
               {
                 criterionId: "c1",
@@ -281,11 +283,16 @@ const trial = (fields: Partial<TrialRow> & { trial: string }): TrialRow => ({
   scenario: "Opens an account",
   status: "waiting",
   reason: null,
+  sessionUrl: null,
   ...fields,
 });
 
 const TRIALS: TrialRow[] = [
-  trial({ trial: "case-1-p1-1", status: "simulated" }),
+  trial({
+    trial: "case-1-p1-1",
+    status: "simulated",
+    sessionUrl: "https://lf.example/project/p1/sessions/s-1",
+  }),
   trial({
     trial: "case-1-p1-2",
     status: "failed",
@@ -367,6 +374,31 @@ test("the Trials tab shows the progress and one row for each trial in plan order
     /case-11New customerOpens an accountSimulated.*case-12New customerOpens an accountFailedTarget returned HTTP 502.*case-21Old customerCloses an accountSimulating.*case-22Old customerCloses an accountWaiting/,
   );
   assert.doesNotMatch(shown, /Graded|Passed|%\(/);
+});
+
+test("a trial row with a session URL links to it in a new tab, and the others have none", () => {
+  const markup = view(
+    "trials",
+    { status: "not-evaluated" },
+    running(SIMULATING),
+  );
+  const links = [
+    ...markup.matchAll(/<a\b[^>]*aria-label="Open in Langfuse"[^>]*>/g),
+  ];
+
+  assert.equal(links.length, 1);
+  const link = links[0]?.[0] ?? "";
+  assert.ok(
+    link.includes(' href="https://lf.example/project/p1/sessions/s-1"'),
+  );
+  assert.ok(link.includes(' target="_blank"'));
+  assert.ok(link.includes(' rel="noopener noreferrer"'));
+  const rows = [...markup.matchAll(/<tr\b[^>]*>.*?<\/tr>/g)].map((m) => m[0]);
+  assert.match(rows[1] ?? "", /Open in Langfuse/);
+  for (const row of rows.slice(2)) {
+    assert.doesNotMatch(row, /Open in Langfuse/);
+    assert.match(row, /<td[^>]*><\/td><\/tr>$/);
+  }
 });
 
 test("the trials of one Test Case show only its rows", () => {
@@ -712,7 +744,7 @@ test("the trial drawer starts on the first trial with its conversation and its g
 
   assert.match(
     shown,
-    /Trial 1Turn 1UserHelloBank botGood morning\.Turn 2UserOpen an accountBank botNo reply recorded/,
+    /Trial 1Open in LangfuseTurn 1UserHelloBank botGood morning\.Turn 2UserOpen an accountBank botNo reply recorded/,
   );
   assert.match(
     shown,
@@ -870,6 +902,7 @@ test("all experiments shows the Target of each row", () => {
             load: {
               status: "ready",
               state: { kind: "waiting", progress: null, resume: "evaluate" },
+              updatedAt: new Date().toISOString(),
             },
           },
         ],
@@ -1039,4 +1072,21 @@ test("a refused start shows the message of the API in the dialog", () => {
     /role="alert"[^>]*>Another experiment is running\. Try again when it ends\.</,
   );
   assert.doesNotMatch(control(markup, "Start"), /disabled=""/);
+});
+
+test("a trial with a Langfuse session links to it in a new tab", () => {
+  const link = control(drawer(), "Open in Langfuse");
+
+  // It is the app's primary button, so a reader does not miss it, and it has no logo.
+  assert.match(link, /class="[^"]*\bbg-primary\b[^"]*\btd-link\b/);
+  assert.doesNotMatch(drawer(), /langfuse-icon/);
+  assert.ok(
+    link.includes(' href="https://lf.example/project/p1/sessions/s-1"'),
+  );
+  assert.ok(link.includes(' target="_blank"'));
+  assert.ok(link.includes(' rel="noopener noreferrer"'));
+});
+
+test("a trial with no Langfuse session has no link", () => {
+  assert.doesNotMatch(drawer({ trial: 2 }), /Open in Langfuse/);
 });

@@ -174,9 +174,10 @@ export interface paths {
          *     `localhost`, or `::1`). `METIS_API_CONNECTION_CHECK=1` or `0` overrides this. When the check
          *     is off, `live` is false and `status` is `unchecked`.
          *
-         *     The API never puts a value from its own environment into a URL that it requests. A URL that
-         *     names a `${NAME}` variable is not requested, and its probe tells the user to check it with
-         *     `metis wizard connect`.
+         *     The API puts a value from its own environment into a URL that it requests only for a
+         *     variable that `METIS_WORKSHOP_ENV` names, because each user account can already read those
+         *     values. A URL that names any other `${NAME}` variable is not requested, and its probe tells
+         *     the user to check it with `metis wizard connect`.
          */
         post: operations["check_target_connection_api_v1_wizard_connection_check_post"];
         delete?: never;
@@ -667,6 +668,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workshop/env": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the workshop variables for the METIS CLI
+         * @description Return each variable in `METIS_WORKSHOP_ENV` that has a value.
+         *
+         *     A name with no value or an empty value is not in the list. A server with no
+         *     `METIS_WORKSHOP_ENV` gets 404 `not_found`.
+         */
+        get: operations["read_workshop_env_api_v1_workshop_env_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users": {
         parameters: {
             query?: never;
@@ -687,7 +711,7 @@ export interface paths {
          *     METIS makes both values. This response is the only one that has the password. Each request
          *     makes one more user account. An admin makes a user account of each kind. The join token
          *     makes a user account that is not an admin, and `{"admin": true}` with the join token gets
-         *     403 `admin_required`.
+         *     403 `admin_required`. The new user account gets its own demo Target.
          */
         post: operations["create_user_api_v1_users_post"];
         delete?: never;
@@ -2756,6 +2780,11 @@ export interface components {
             turn?: number | null;
             /** Reason */
             reason?: string | null;
+            /**
+             * Session Url
+             * @description The page of the trial's session in the target's Langfuse.
+             */
+            session_url?: string | null;
         } & ({
             /** @constant */
             status?: "started";
@@ -3145,6 +3174,8 @@ export interface components {
             id: string;
             /** Session */
             session: string;
+            /** Sessionurl */
+            sessionUrl?: string | null;
             /** Persona */
             persona: string;
             /** Scenario */
@@ -3648,6 +3679,8 @@ export interface components {
             id: string;
             /** Session */
             session: string;
+            /** Sessionurl */
+            sessionUrl?: string | null;
             /** Persona */
             persona: string;
             /** Scenario */
@@ -3874,6 +3907,24 @@ export interface components {
          * @enum {string}
          */
         WizardRequestState: "pending" | "resolved";
+        /**
+         * WorkshopEnv
+         * @description The workshop variables, in the order of `METIS_WORKSHOP_ENV`.
+         */
+        WorkshopEnv: {
+            /** Variables */
+            variables: components["schemas"]["WorkshopVariable"][];
+        };
+        /**
+         * WorkshopVariable
+         * @description One variable for the `.env` file of a participant.
+         */
+        WorkshopVariable: {
+            /** Name */
+            name: string;
+            /** Value */
+            value: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -5491,6 +5542,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DoctorCheck"][];
+                };
+            };
+        };
+    };
+    read_workshop_env_api_v1_workshop_env_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkshopEnv"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
                 };
             };
         };

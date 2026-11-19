@@ -71,7 +71,14 @@ ADMIN_USERNAME_ENV = "METIS_ADMIN_USERNAME"
 ADMIN_PASSWORD_ENV = "METIS_ADMIN_PASSWORD"
 """The password of the admin that the environment names. Set it with ``METIS_ADMIN_USERNAME``."""
 
+WORKSHOP_ENV_ENV = "METIS_WORKSHOP_ENV"
+"""The names of the variables that each logged-in user can read, separated by commas. The web app
+shows them as `.env` lines, so a participant can use the METIS CLI on their own computer. List
+only values for participants, never a model provider key."""
+
 _USERNAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+
+_VARIABLE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 DATABASE_URL_ENV = "METIS_DATABASE_URL"
 """The SQLAlchemy URL of the store database. The default is
@@ -157,10 +164,10 @@ def connection_check_from_env() -> bool:
     check is on. A server that other people can reach keeps it off, because it would fetch any
     URL that a user types. ``METIS_API_CONNECTION_CHECK`` overrides both.
 
-    The check never expands a `${NAME}` variable into a URL, so it cannot send a server secret
-    to a client's host. It still sends requests to any other URL that a client gives, including
-    an internal address that only the API host can reach. Turn it on for a shared server only
-    when that is acceptable.
+    The check expands a `${NAME}` variable into a URL only when ``METIS_WORKSHOP_ENV`` names it,
+    so it cannot send a server secret to a client's host. It still sends requests to any other
+    URL that a client gives, including an internal address that only the API host can reach.
+    Turn it on for a shared server only when that is acceptable.
     """
     flag = os.environ.get(CONNECTION_CHECK_ENV, "").strip()
     if flag in ("0", "1"):
@@ -186,16 +193,19 @@ class AdminCredentials:
 
 @dataclass(frozen=True)
 class LoginSettings:
-    """Whether login is on, the two tokens, and the admin of the environment.
+    """Whether login is on, the two tokens, the admin of the environment, and the workshop
+    variables.
 
     An unset token is the empty text. ``admin`` is ``None`` when the environment names no admin.
-    ``repr`` leaves out the tokens.
+    ``workshop_env`` holds the names in ``METIS_WORKSHOP_ENV`` in their order, and is ``None``
+    when that variable is unset. ``repr`` leaves out the tokens.
     """
 
     login: bool = False
     join_token: str = field(default="", repr=False)
     admin_token: str = field(default="", repr=False)
     admin: AdminCredentials | None = None
+    workshop_env: tuple[str, ...] | None = None
 
 
 def login_from_env() -> LoginSettings:
@@ -206,7 +216,9 @@ def login_from_env() -> LoginSettings:
     open to all, which the person who set them did not intend. Raises ``SettingsError`` for a
     join token that is the same as the admin token, because then each participant has the power
     of an admin. Raises ``SettingsError`` also for an admin username without a password, or the
-    opposite, or a username that is not lower-case letters, digits, and hyphens.
+    opposite, or a username that is not lower-case letters, digits, and hyphens. Raises
+    ``SettingsError`` for a name in ``METIS_WORKSHOP_ENV`` that is not a variable name, that
+    starts with ``METIS_``, or that is there more than one time.
     """
     flag = os.environ.get(LOGIN_ENV, "").strip()
     if flag not in ("", "0", "1"):
@@ -217,6 +229,7 @@ def login_from_env() -> LoginSettings:
         ADMIN_TOKEN_ENV,
         ADMIN_USERNAME_ENV,
         ADMIN_PASSWORD_ENV,
+        WORKSHOP_ENV_ENV,
     ):
         if os.environ.get(variable, "").strip() and not login:
             raise SettingsError(
@@ -235,7 +248,29 @@ def login_from_env() -> LoginSettings:
         join_token=join_token,
         admin_token=admin_token,
         admin=_admin_from_env(),
+        workshop_env=_workshop_env_from_env(),
     )
+
+
+def _workshop_env_from_env() -> tuple[str, ...] | None:
+    text = os.environ.get(WORKSHOP_ENV_ENV, "").strip()
+    if not text:
+        return None
+    names = tuple(name.strip() for name in text.split(",") if name.strip())
+    for name in names:
+        if not _VARIABLE_NAME.fullmatch(name):
+            raise SettingsError(
+                f"{WORKSHOP_ENV_ENV} has {name!r}, which is not a variable name. Give names "
+                "of letters, digits, and underscores, separated by commas."
+            )
+        if name.startswith("METIS_"):
+            raise SettingsError(
+                f"{WORKSHOP_ENV_ENV} has {name!r}. A METIS_ variable is a setting of this "
+                "server, for example a token or an internal key, so participants must not read it."
+            )
+    if len(set(names)) != len(names):
+        raise SettingsError(f"{WORKSHOP_ENV_ENV} has a name more than one time.")
+    return names
 
 
 def _admin_from_env() -> AdminCredentials | None:
@@ -362,6 +397,7 @@ __all__ = [
     "ADMIN_TOKEN_ENV",
     "ADMIN_USERNAME_ENV",
     "JOIN_TOKEN_ENV",
+    "WORKSHOP_ENV_ENV",
     "AdminCredentials",
     "DEFAULT_HOST",
     "LOGIN_ENV",

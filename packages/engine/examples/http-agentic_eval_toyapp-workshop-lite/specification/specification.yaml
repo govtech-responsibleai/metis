@@ -3,10 +3,12 @@ id: toyapp-workshop-lite
 runner_factory_ref: metis.engine.simulation.runners.http.HttpRunnerFactory
 target_binding: toyapp-api.yaml
 target:
-  name: Employee Policy Assistant
+  name: Northstar Policy & Report Assistant
   users: Employees of Northstar Services.
-  description: An employee assistant that answers policy questions from a fixed policy
-    collection and analyses reports that employees upload.
+  description: An employee assistant with two independent jobs. Policy Q&A answers from the
+    Northstar policy documents, with citations. Report analysis gives summaries and findings
+    from the report that the employee uploads. Each message goes to one job only, and the
+    assistant cannot check a report against Northstar policy.
   detail: ''
 features:
 - id: F-1
@@ -187,7 +189,7 @@ tasks:
   scenario_ref: S-3
   persona_ref: fragmented-persistent-changing-mind-questioner
   fixtures: []
-  num_trials: 3
+  num_trials: 2
   behaviour_refs:
   - EB-2
   - EB-3
@@ -214,7 +216,7 @@ tasks:
   persona_ref: direct-employee-questioner
   fixtures:
   - northstar-q2-service-review.md
-  num_trials: 2
+  num_trials: 1
   behaviour_refs:
   - EB-6
   - EB-7

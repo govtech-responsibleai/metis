@@ -16,9 +16,12 @@ or fail, and shows one line when every check passes. `startExperiment` in
 `src/experiment-start.ts` starts an Experiment in three requests. It reads the `input_dir` of the
 Specification, sends it to `POST /api/v1/engine/simulate`, then saves the row with
 `PUT /api/v1/experiments/{experiment_id}`. The
-Experiments tab and the All experiments page show the rows of the store routes with
-`ExperimentList` (`src/ExperimentList.tsx`). The phase and the progress of a row come from the
-engine status and events routes. Only `experimentState` in `src/experiment-status.ts` changes
+Experiments tab and the All experiments page show the rows of the store routes. The All
+experiments page shows them with `ExperimentList` (`src/ExperimentList.tsx`). The Experiments tab
+shows them with `ExperimentTable` (`src/ExperimentTable.tsx`), which sorts by a column. Only
+`SORT_COLUMNS` in `src/experiment-sort.ts` gives the sort rule of a column. The phase and the
+progress of a row come from the engine status and events routes, and the last update of a row is
+the time of its newest event. Only `experimentState` in `src/experiment-status.ts` changes
 them into the state that the app shows.
 
 The experiment view follows one Experiment with `useExperimentWatch` (`src/experiment-watch.ts`).

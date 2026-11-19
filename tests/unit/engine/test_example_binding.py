@@ -25,7 +25,7 @@ def binding(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_the_example_loads_and_expands_its_spec_url(binding) -> None:
-    assert binding.binding.identity.name == "Agentic Eval Toy App"
+    assert binding.binding.identity.name == "Northstar Policy & Report Assistant"
     assert binding.spec_url == "http://toyapp.example:8000/openapi.json"
     assert binding.binding.tls_verify is True
     assert binding.binding.auth is None

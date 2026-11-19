@@ -275,6 +275,7 @@ def _simulate_in(
         # trial runs.
         raise RunStopped("stopped")
 
+    from metis.core.langfuse_links import target_langfuse_project
     from metis.engine.simulation.binding import TargetBindingError
     from metis.engine.simulation.runner_resolver import resolve_runner_factory
 
@@ -380,6 +381,10 @@ def _simulate_in(
         if use_tui:
             tui_ctx = TUIContext(state=sim_state, tail_buffers=tail_buffers)
 
+        # One lookup per run, with this run's own keys loaded, so each record links to the
+        # right project. A failed lookup only means no links.
+        target_project = target_langfuse_project()
+
         with tui_ctx if tui_ctx else nullcontext():
             execute_experiment(
                 runner_factory=runner_factory,
@@ -397,6 +402,7 @@ def _simulate_in(
                 tui_ctx=tui_ctx,
                 stop=stop,
                 events=events,
+                target_project=target_project,
                 console=console,
             )
     finally:

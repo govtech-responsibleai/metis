@@ -4,6 +4,7 @@
 
 import type { ExperimentTab } from "./routes.ts";
 import { api, TransportError, type Report } from "./transport/api.ts";
+import { webUrl } from "./web-url.ts";
 
 // What the browser knows about the report of one experiment. The answer of the report route is
 // the only signal for "evaluate is done" until the app has an experiment store.
@@ -206,6 +207,9 @@ export interface TrialDetail {
   attempt: number;
   turns: Turn[];
   conversationProblem: string | null;
+  // The page of the trial's session in the target's Langfuse. Null when the report has
+  // none, or has one that is not an http or https URL.
+  sessionUrl: string | null;
   // One entry for each Criterion that has an outcome in the trial.
   criteria: TrialCriterion[];
 }
@@ -362,6 +366,7 @@ function trialDetails(report: Report, row: Row): TrialDetail[] {
       errors: turn.errors ?? [],
     })),
     conversationProblem: trial.conversationProblem ?? null,
+    sessionUrl: webUrl(trial.sessionUrl),
     criteria: Object.entries(trial.results ?? {}).flatMap(([id, counts]) => {
       const outcome = outcomeOf(counts);
       if (!outcome) return [];

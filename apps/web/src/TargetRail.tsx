@@ -3,13 +3,16 @@
 // menu. The selected row follows the URL.
 
 import {
+  Check,
   ChevronsUpDown,
   CirclePlus,
+  Copy,
   FolderClosed,
   LogOut,
   Monitor,
   Moon,
   PanelLeft,
+  SquareTerminal,
   Sun,
   SunMoon,
   Trash2,
@@ -28,9 +31,10 @@ import { useLoginSession, type LoginSession } from "./LoginGate";
 import type { TargetSummary } from "./targets";
 import { useThemeChoice, type ThemeChoice } from "./theme";
 import type { StorageProblem } from "./storage/repository";
+import type { WorkshopVariable } from "./transport/api";
 import { relativeTime } from "./relative-time";
 import { paths } from "./routes";
-import { Avatar, buttonClass, cn } from "./ui";
+import { Avatar, Button, buttonClass, cn, Modal } from "./ui";
 
 export function TargetRail({
   targets,
@@ -213,6 +217,7 @@ function AccountMenu({ compact = false }: { compact?: boolean }) {
   // operating system setting.
   const [theme, setTheme] = useThemeChoice();
   const [open, setOpen] = useState(false);
+  const [envOpen, setEnvOpen] = useState(false);
   const host = useRef<HTMLDivElement | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
   const menuId = useId();
@@ -287,9 +292,74 @@ function AccountMenu({ compact = false }: { compact?: boolean }) {
             compact ? "left-1 w-56" : "inset-x-0",
           )}
           onClose={close}
+          onCliSettings={() => {
+            close();
+            setEnvOpen(true);
+          }}
+        />
+      )}
+      {envOpen && session.workshopEnv && (
+        <CliSettingsDialog
+          variables={session.workshopEnv}
+          onClose={() => setEnvOpen(false)}
         />
       )}
     </div>
+  );
+}
+
+// The text that the Copy button puts on the clipboard: one `NAME=value` line for each variable.
+export function envText(variables: WorkshopVariable[]): string {
+  return variables.map(({ name, value }) => `${name}=${value}\n`).join("");
+}
+
+export function CliSettingsDialog({
+  variables,
+  onClose,
+}: {
+  variables: WorkshopVariable[];
+  onClose: () => void;
+}) {
+  const titleId = useId();
+  const [copied, setCopied] = useState(false);
+  const text = envText(variables);
+  const copy = () => {
+    void navigator.clipboard?.writeText(text);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <Modal
+      labelledBy={titleId}
+      onCancel={onClose}
+      className="max-w-lg gap-4 p-5"
+    >
+      <div className="flex flex-col gap-1">
+        <h2 id={titleId} className="text-base font-semibold">
+          CLI settings
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Paste these lines into <code className="font-mono">.env</code> to use
+          the METIS CLI.
+        </p>
+      </div>
+      <pre className="overflow-x-auto rounded-md border border-border bg-muted px-3 py-2 font-mono text-sm">
+        {text}
+      </pre>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" autoFocus onClick={copy}>
+          {copied ? (
+            <Check size={14} strokeWidth={1.75} aria-hidden />
+          ) : (
+            <Copy size={14} strokeWidth={1.75} aria-hidden />
+          )}
+          {copied ? "Copied" : "Copy"}
+        </Button>
+        <Button type="button" variant="primary" onClick={onClose}>
+          Done
+        </Button>
+      </div>
+    </Modal>
   );
 }
 
@@ -304,6 +374,7 @@ export function AccountMenuList({
   onTheme,
   className,
   onClose,
+  onCliSettings,
 }: {
   id?: string;
   session: LoginSession;
@@ -311,6 +382,7 @@ export function AccountMenuList({
   onTheme: (choice: ThemeChoice) => void;
   className?: string;
   onClose: () => void;
+  onCliSettings: () => void;
 }) {
   const menu = useRef<HTMLDivElement | null>(null);
   const rows = () => [
@@ -389,6 +461,20 @@ export function AccountMenuList({
             </MenuIcon>
             Manage accounts
           </Link>
+        )}
+        {session.workshopEnv && session.workshopEnv.length > 0 && (
+          <button
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            onClick={onCliSettings}
+            className={MENU_ITEM}
+          >
+            <MenuIcon>
+              <SquareTerminal size={15} strokeWidth={1.75} aria-hidden />
+            </MenuIcon>
+            CLI settings
+          </button>
         )}
         <AppearanceRow choice={theme} onChoose={onTheme} />
         <div role="separator" className="-mx-1 my-1 h-px bg-border" />

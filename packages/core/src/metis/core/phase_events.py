@@ -15,8 +15,10 @@ Every line has the same five fields, in this order:
   trial in both phases. It is ``null`` on a line about the whole phase.
 - ``status`` is what happened.
 
-A line can also have some of ``total``, ``done``, ``attempt``, ``turn`` and ``reason``.
-``_SHAPES`` says which of them each kind of line has.
+A line can also have some of ``total``, ``done``, ``attempt``, ``turn``, ``reason`` and
+``session_url``. ``_SHAPES`` says which of them each kind of line has. ``session_url`` is
+the page of the trial's session in the target's Langfuse, on the line that ends a
+simulated trial. The engine chooses which of those lines get it.
 
 Each phase starts with a phase line ``started`` and ends with a phase line ``completed``,
 ``failed`` or ``interrupted``. A simulation that stops before it counts its trials
@@ -24,8 +26,8 @@ writes only its end line. The last phase line of a command gives how the command
 ended. When a phase fails or is interrupted, the command ends, and each later phase that
 it did not start gets a phase line ``skipped``.
 
-An event holds IDs, counts, statuses and short reasons only. It never holds a key, a
-prompt or a model reply. ``emit`` cuts a reason to ``REASON_MAX_LENGTH`` characters.
+An event holds IDs, counts, statuses, short reasons and session URLs only. It never holds
+a key, a prompt or a model reply. ``emit`` cuts a reason to ``REASON_MAX_LENGTH`` characters.
 
 The published schema is ``schemas/phase-event.schema.json``, versioned by
 ``_PHASE_EVENT_VERSION``.
@@ -66,7 +68,7 @@ Status = Literal[
 ]
 Reason = Annotated[str, Field(max_length=REASON_MAX_LENGTH)]
 
-_EXTRAS = ("total", "done", "attempt", "turn", "reason")
+_EXTRAS = ("total", "done", "attempt", "turn", "reason", "session_url")
 
 
 @dataclass(frozen=True)
@@ -100,10 +102,26 @@ _SHAPES = (
     _shape("simulating", True, "started", required=("attempt",)),
     _shape("simulating", True, "running", required=("attempt", "turn")),
     _shape("simulating", True, "retrying", required=("attempt",), optional=("reason",)),
-    _shape("simulating", True, "completed", required=("attempt",)),
-    _shape("simulating", True, "failed", required=("attempt",), optional=("reason",)),
     _shape(
-        "simulating", True, "interrupted", required=("attempt",), optional=("reason",)
+        "simulating",
+        True,
+        "completed",
+        required=("attempt",),
+        optional=("session_url",),
+    ),
+    _shape(
+        "simulating",
+        True,
+        "failed",
+        required=("attempt",),
+        optional=("reason", "session_url"),
+    ),
+    _shape(
+        "simulating",
+        True,
+        "interrupted",
+        required=("attempt",),
+        optional=("reason", "session_url"),
     ),
     _shape("evaluating", True, "started"),
     _shape("evaluating", True, "completed"),
@@ -177,6 +195,10 @@ class PhaseEvent(BaseModel):
         default=None, ge=1, description="Turns of the attempt that are done."
     )
     reason: Reason | None = None
+    session_url: str | None = Field(
+        default=None,
+        description="The page of the trial's session in the target's Langfuse.",
+    )
 
     @model_validator(mode="after")
     def _has_the_fields_of_its_shape(self) -> PhaseEvent:
@@ -245,6 +267,7 @@ class PhaseEventLog:
         attempt: int | None = None,
         turn: int | None = None,
         reason: str | None = None,
+        session_url: str | None = None,
     ) -> PhaseEvent:
         """Write one event with the next ``seq``, and return it."""
         with self._lock:
@@ -266,6 +289,7 @@ class PhaseEventLog:
                 attempt=attempt,
                 turn=turn,
                 reason=short_reason(reason),
+                session_url=session_url,
             )
             line = prefix + _line(event) + "\n"
             try:

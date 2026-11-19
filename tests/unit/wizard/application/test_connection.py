@@ -192,7 +192,7 @@ def test_a_missing_variable_is_named_and_stops_the_request() -> None:
     ("data", "probe"),
     [(http_binding(), "spec_url"), (browser_binding(), "start_url")],
 )
-def test_without_expansion_a_url_that_names_a_variable_is_not_requested(
+def test_a_url_that_names_a_variable_outside_the_url_environ_is_not_requested(
     data, probe
 ) -> None:
     factory = mock_client_factory(_no_network)
@@ -200,7 +200,7 @@ def test_without_expansion_a_url_that_names_a_variable_is_not_requested(
     result = check_connection(
         data,
         live=True,
-        expand_variables=False,
+        url_environ={},
         environ=ENVIRON,
         client_factory=factory,
     )
@@ -213,13 +213,13 @@ def test_without_expansion_a_url_that_names_a_variable_is_not_requested(
     assert result.status is ConnectionStatus.UNCHECKED
 
 
-def test_without_expansion_a_url_with_no_variable_is_requested() -> None:
+def test_with_an_empty_url_environ_a_url_with_no_variable_is_requested() -> None:
     factory = mock_client_factory(lambda _: httpx.Response(200, json=OPENAPI_DOCUMENT))
 
     result = check_connection(
         http_binding(spec_url="https://app.example/openapi.json"),
         live=True,
-        expand_variables=False,
+        url_environ={},
         environ=ENVIRON,
         client_factory=factory,
     )

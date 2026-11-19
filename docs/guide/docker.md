@@ -79,6 +79,15 @@ curl http://localhost:8000/api/v1/users \
 For the API routes, see
 [Turn on login for a shared server](wizard/api.md#turn-on-login-for-a-shared-server).
 
+Each new user account gets a demo Target. To let a person start an experiment from it, also
+set `TOYAPP_API_URL` in `.env`.
+
+To let participants use the METIS CLI on their own computers, name the variables that they need
+in `METIS_WORKSHOP_ENV`, for example
+`METIS_WORKSHOP_ENV=LANGFUSE_PUBLIC_KEY,LANGFUSE_SECRET_KEY,LANGFUSE_BASE_URL`. Each participant
+then selects their username, then **CLI settings**, and copies the `.env` lines. Each user
+account can read these values, so never list a model provider key or a `METIS_` variable.
+
 ## Settings
 
 The container reads `.env`. The model variables are the same as for a local install. The image
@@ -91,6 +100,7 @@ contains no key and no `.env` file.
 | `METIS_ADMIN_TOKEN` | The token of your scripts. It has the power of an admin. |
 | `METIS_ADMIN_USERNAME` | The username of your admin user account. |
 | `METIS_ADMIN_PASSWORD` | The password of your admin user account. |
+| `METIS_WORKSHOP_ENV` | The variables that each user account can copy for the METIS CLI, separated by commas. |
 | `METIS_DATABASE_URL` | The SQLAlchemy URL of the database. The default is the SQLite file in `/data`. |
 | `METIS_API_CONNECTION_CHECK` | `1` turns on the connection check of the web app. It is off in the container. |
 | `METIS_API_ENGINE_MAX_RUNS` | The experiments that run at the same time. The default is 4. |

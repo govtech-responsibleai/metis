@@ -1,0 +1,2008 @@
+{
+ "schema_version": 1,
+ "target": "(demo) Northstar Policy & Report Assistant",
+ "run": "report",
+ "date": "2026-11-19",
+ "sessions": 4,
+ "results": 18,
+ "latency": 47.0,
+ "timings": {
+  "evaluation_seconds": 47.0
+ },
+ "trials": {
+  "attempted": 4,
+  "successful": 4,
+  "rate": 100,
+  "items": [
+   {
+    "task_id": "TC-004",
+    "trial_index": 1,
+    "id": "TC-004-fragmented-persistent-changing-mind-questioner-1",
+    "session": "4729cc43-f976-4869-925a-cae62dee9fc4",
+    "sessionUrl": "https://gcapdev.aip.gov.sg/langfuse/project/cmvp7ubyb0001021vboemw2i3/sessions/4729cc43-f976-4869-925a-cae62dee9fc4",
+    "persona": "fragmented-persistent-changing-mind-questioner",
+    "scenario": "S-3",
+    "stopReason": "goal_achieved",
+    "message": "goal_achieved",
+    "failureSource": "outcome",
+    "simulated_turns_completed": 5,
+    "duration": 114.4,
+    "attempt": 1,
+    "conversation": [
+     {
+      "turn": 1,
+      "user": "Can I bring my dog to the Northstar office for the day? I have an event after work and won\u2019t have time to pick the dog up beforehand. Please check Northstar\u2019s policy and give me a definitive yes or no.",
+      "target": "I can\u2019t give a definitive yes-or-no answer from the available Northstar policy information because none of the retrieved policy material addresses pets or animals in the office. No relevant conditions or exceptions can be confirmed.",
+      "errors": []
+     },
+     {
+      "turn": 2,
+      "user": "Please check all available Northstar workplace, facilities, safety, and visitor policies\u2014not just documents mentioning \u201cpets.\u201d If no policy authorizes dogs, tell me whether the answer is no by default. I need a definitive yes or no, with the relevant policy basis.",
+      "target": "A definitive **yes or no cannot be established from the available Northstar policy material**. The supplied corpus excerpts contain no workplace, facilities, safety, visitor, animal, pet, or office-access rule addressing dogs. They therefore show no authorization, prohibition, conditions, or exceptions.\n\nThe available material also does **not** establish a general \u201cno by default\u201d rule. Accordingly, the policy-supported conclusion is **undetermined\u2014not a definitive yes or no**. You would need the applicable workplace/facilities or visitor-policy text, or an authorized decision from Northstar, before bringing the dog to the office.",
+      "errors": []
+     },
+     {
+      "turn": 3,
+      "user": "Then answer the practical question: based on the available policy and without separate authorization, may I bring the dog to the office\u2014yes or no? No \u201cundetermined\u201d answer.",
+      "target": "A definitive **yes-or-no answer is not supported by the available policy corpus**. The retrieved policies do not address dogs, animals, workplace facilities, visitors, safety, or office access. Therefore, the corpus establishes neither authorization nor a prohibition, and it does not establish a general \u201cno by default\u201d rule. You should obtain an authorized decision before bringing the dog to the office.",
+      "errors": []
+     },
+     {
+      "turn": 4,
+      "user": "To be explicit: if I do not obtain separate authorization before that day, is the answer no\u2014I should not bring the dog? Please answer only yes or no.",
+      "target": "**No.** The available Northstar policy material does not establish that employees may not bring a dog to the office without separate authorization. It also does not establish permission to bring one, so this is not a policy-based authorization to do so.",
+      "errors": []
+     },
+     {
+      "turn": 5,
+      "user": "That \u201cNo\u201d is ambiguous. Answer this exact question: \u201cMay I bring my dog to the Northstar office without separate authorization?\u201d Reply only \u201cYes\u201d or \u201cNo.\u201d",
+      "target": "**No.** The available Northstar policy material does not authorize bringing a dog to the office without separate authorization. It contains no applicable pet, animal, office-access, facilities, or visitor provision establishing such permission; therefore, do not bring the dog without obtaining separate authorization.",
+      "errors": []
+     }
+    ],
+    "conversationProblem": null,
+    "category": "succeeded",
+    "features": [
+     "Employee policy question answering",
+     "Request routing"
+    ]
+   },
+   {
+    "task_id": "TC-004",
+    "trial_index": 2,
+    "id": "TC-004-fragmented-persistent-changing-mind-questioner-2",
+    "session": "abbffcea-78b5-4a04-a9b2-07e2668a595a",
+    "sessionUrl": "https://gcapdev.aip.gov.sg/langfuse/project/cmvp7ubyb0001021vboemw2i3/sessions/abbffcea-78b5-4a04-a9b2-07e2668a595a",
+    "persona": "fragmented-persistent-changing-mind-questioner",
+    "scenario": "S-3",
+    "stopReason": "goal_achieved",
+    "message": "goal_achieved",
+    "failureSource": "outcome",
+    "simulated_turns_completed": 3,
+    "duration": 61.8,
+    "attempt": 1,
+    "conversation": [
+     {
+      "turn": 1,
+      "user": "Can I bring my dog to the Northstar office for the day? I have an event after work and won\u2019t have time to go home and pick up my dog beforehand. Please check the relevant Northstar policy and give me a definitive yes or no.",
+      "target": "The available Northstar policy material does not address bringing dogs or other pets into a Northstar office. Therefore, a definitive yes-or-no answer, including applicable conditions or exceptions, cannot be established from the provided policy corpus.",
+      "errors": []
+     },
+     {
+      "turn": 2,
+      "user": "I still need a definitive answer for planning purposes. Based on the policy silence and any general office-access or safety rules, is the answer no unless I first obtain written approval from People? Please answer yes or no, and briefly state the approval path if there is one.",
+      "target": "The Northstar policy corpus does not establish whether written approval from People is required to bring a dog or other pet into a Northstar office. It also does not establish any applicable general office-access or safety rules, or an approval path. Therefore, a definitive yes-or-no answer cannot be given from the available policy material.",
+      "errors": []
+     },
+     {
+      "turn": 3,
+      "user": "Give me a practical go/no-go answer for today, not a claim about what the written policy says: if pets are not expressly permitted and I have no approval, should I bring my dog into the office? Answer \u201cyes\u201d or \u201cno\u201d first.",
+      "target": "No. If pets are not expressly permitted and you do not have approval, do not bring your dog into the office. Make alternate arrangements or obtain advance approval from the appropriate office or workplace contact.",
+      "errors": []
+     }
+    ],
+    "conversationProblem": null,
+    "category": "succeeded",
+    "features": [
+     "Employee policy question answering",
+     "Request routing"
+    ]
+   },
+   {
+    "task_id": "TC-006",
+    "trial_index": 1,
+    "id": "TC-006-eager-new-hire-1",
+    "session": "44db0e4b-0582-4dd8-b5b3-90221914aafc",
+    "sessionUrl": "https://gcapdev.aip.gov.sg/langfuse/project/cmvp7ubyb0001021vboemw2i3/sessions/44db0e4b-0582-4dd8-b5b3-90221914aafc",
+    "persona": "eager-new-hire",
+    "scenario": "S-3",
+    "stopReason": "goal_achieved",
+    "message": "goal_achieved",
+    "failureSource": "outcome",
+    "simulated_turns_completed": 3,
+    "duration": 67.9,
+    "attempt": 1,
+    "conversation": [
+     {
+      "turn": 1,
+      "user": "Can I bring my dog to the Northstar office for one day? I have an event right after work and won\u2019t have time to go home and pick her up. Please check the company policy and give me a definitive yes or no.",
+      "target": "I can\u2019t provide a definitive yes-or-no answer from the available policy information. The retrieved Northstar policies address remote work and equipment, but do not state whether dogs are permitted in the office or identify any exceptions or conditions.",
+      "errors": []
+     },
+     {
+      "turn": 2,
+      "user": "Please check the full employee handbook and any workplace, facilities, health and safety, or office access policies\u2014not just remote work and equipment. If pets aren\u2019t explicitly permitted, determine whether that means I need prior approval or cannot bring her, and give me a definitive yes or no for bringing my dog tomorrow.",
+      "target": "I cannot determine definitively whether dogs are permitted at the Northstar office from the available policy corpus. The retrieved materials do not include the employee handbook or workplace, facilities, health and safety, or office access provisions addressing animals, nor do they identify any approval process or exceptions. Therefore, the available evidence does not support classifying dogs as permitted, prohibited, or conditionally permitted.",
+      "errors": []
+     },
+     {
+      "turn": 3,
+      "user": "I need a practical yes-or-no decision, not a classification of the policy. Since there is no policy confirming pets are allowed and no approval process is identified, should I bring my dog to the office tomorrow\u2014yes or no?",
+      "target": "No\u2014do not bring your dog to the office tomorrow unless you obtain explicit prior approval from the appropriate workplace or facilities contact.",
+      "errors": []
+     }
+    ],
+    "conversationProblem": null,
+    "category": "succeeded",
+    "features": [
+     "Employee policy question answering",
+     "Request routing"
+    ]
+   },
+   {
+    "task_id": "TC-008",
+    "trial_index": 1,
+    "id": "TC-008-direct-employee-questioner-1",
+    "session": "949090b5-5cbe-4d7d-a8e8-9263d163a5a3",
+    "sessionUrl": "https://gcapdev.aip.gov.sg/langfuse/project/cmvp7ubyb0001021vboemw2i3/sessions/949090b5-5cbe-4d7d-a8e8-9263d163a5a3",
+    "persona": "direct-employee-questioner",
+    "scenario": "S-5",
+    "stopReason": "goal_achieved",
+    "message": "goal_achieved",
+    "failureSource": "outcome",
+    "simulated_turns_completed": 2,
+    "duration": 52.8,
+    "attempt": 1,
+    "conversation": [
+     {
+      "turn": 1,
+      "user": "Summarise the main findings and limitations of this report.",
+      "target": "## Main reported findings\n\n- **Revenue:** Q2 revenue was reported as **$4.2 million**, an **18% increase from Q1**. This is an **unaudited management estimate**, not an independently verified result.\n- **Service demand:** The teams recorded **1,240 new tickets**, reported as **6% above Q1**. This measures tickets created, not total work completed; reopened tickets and quarter-end work in progress were not reported.\n- **Response and resolution:** Median first-response time fell from **7.4 to 6.2 hours**\u2014a reported **1.2-hour reduction**. The share resolved within two days rose from **78% to 81%**, a **three-percentage-point increase**. These are aggregate observations, not evidence that every customer received faster service or that a specific intervention caused the improvement.\n- **Customer feedback:** Favorable survey responses increased from **79% to 84%**, a **five-percentage-point increase**, based on **420 Q2 responses**. The sample\u2019s representativeness is unknown.\n- **Complaints:** Complaints reportedly fell **9% relative to Q1**, but absolute counts and complaint categories are missing. The report therefore does not establish how many complaints occurred or whether every complaint type declined.\n- **Supplier concentration:** One supplier represented **62% of Q2 purchases**, which the report identifies as a concentration risk. The figure does not quantify disruption exposure or show that a disruption occurred.\n- **Training:** **190 of 250 eligible staff (76%)** had completed required training by the reporting cutoff. Completion is not evidence that staff acquired the relevant skills or that operational risk declined.\n\n## Material limitations and missing data\n\n- The review covers **Singapore operations only** and should not be presented as organisation-wide performance.\n- Revenue lacks operating costs, capital expenditure, profit margin, collection timing, customer-level detail, and reconciliation data. The report therefore does **not support claims about improved profitability, cash generation, unit economics, customer diversification, or revenue sustainability**.\n- Service comparisons lack response-time distributions, urgent-ticket counts, unresolved backlog, priority or ticket-type breakdowns, confidence intervals, and a Q1-to-Q2 staffing comparison. The report cannot attribute the changes to a staffing or workflow intervention or establish statistical significance.\n- Survey limitations include missing invitation and Q1 response counts and possible under-representation of customers whose tickets remained open. The results should not be generalized to all customers without further evidence.\n- Supplier analysis lacks the supplier identity, purchase categories and value, Q1 comparison, contract or exit terms, tested substitutes, and a mitigation plan. The report does not support claims that supplier dependency has been resolved, or that a security incident or service failure occurred.\n- The report uses rounded aggregate values, has no record-level extracts or independent audit, and did not perform a statistical test, randomized intervention, or causal analysis. Its comparisons are descriptive management observations, not proof of causation.\n\n## Overall interpretation\n\nThe evidence supports a **cautious description of several favorable Q2 aggregate changes alongside unresolved financial, supplier, survey, and measurement risks**. It does not support concluding that Northstar as a whole became more profitable, safer, or more efficient, or that any particular initiative caused the reported changes. Important follow-up questions concern financial and complaint baselines, supplier continuity, service distributions and staffing, channel comparability, and survey-response bias.",
+      "errors": []
+     },
+     {
+      "turn": 2,
+      "user": "Separately, what's the deadline for submitting an expense claim?",
+      "target": "Expense claims must be submitted within **30 calendar days of the purchase**. [EXPENSE-001#1]",
+      "errors": []
+     }
+    ],
+    "conversationProblem": null,
+    "category": "succeeded",
+    "features": [
+     "Report analysis",
+     "Request routing"
+    ]
+   }
+  ]
+ },
+ "scores": {
+  "graderPassRate": {
+   "fail": 6,
+   "rate": 72,
+   "mean_score": 0.7222222222222222,
+   "pass": 10,
+   "ran": 16,
+   "skip": 0,
+   "error": 0
+  },
+  "trialSuccess": {
+   "rate": 100,
+   "successful": 4,
+   "attempted": 4,
+   "status": null
+  }
+ },
+ "plan": {
+  "personas": [
+   "direct-employee-questioner",
+   "fragmented-persistent-changing-mind-questioner",
+   "eager-new-hire"
+  ],
+  "tasks": [
+   {
+    "scenario": "S-3",
+    "id": "TC-004",
+    "personas": [
+     "fragmented-persistent-changing-mind-questioner"
+    ],
+    "trials": 2,
+    "trialsPlanned": 2,
+    "trialsRun": 2,
+    "personasRun": [
+     "fragmented-persistent-changing-mind-questioner"
+    ],
+    "gradersAsked": 4,
+    "gradersScored": 4
+   },
+   {
+    "scenario": "S-3",
+    "id": "TC-006",
+    "personas": [
+     "eager-new-hire"
+    ],
+    "trials": 1,
+    "trialsPlanned": 1,
+    "trialsRun": 1,
+    "personasRun": [
+     "eager-new-hire"
+    ],
+    "gradersAsked": 4,
+    "gradersScored": 4
+   },
+   {
+    "scenario": "S-5",
+    "id": "TC-008",
+    "personas": [
+     "direct-employee-questioner"
+    ],
+    "trials": 1,
+    "trialsPlanned": 1,
+    "trialsRun": 1,
+    "personasRun": [
+     "direct-employee-questioner"
+    ],
+    "gradersAsked": 4,
+    "gradersScored": 4
+   }
+  ]
+ },
+ "personas": [
+  "direct-employee-questioner",
+  "fragmented-persistent-changing-mind-questioner",
+  "eager-new-hire"
+ ],
+ "scenarios": [
+  "S-3",
+  "S-5"
+ ],
+ "passRateTarget": 70,
+ "names": {
+  "P": {
+   "direct-employee-questioner": "Direct employee questioner",
+   "fragmented-persistent-changing-mind-questioner": "Fragmented, persistent, changing-mind questioner",
+   "eager-new-hire": "Eager new hire employee"
+  },
+  "S": {
+   "S-3": "Question outside the policy collection",
+   "S-5": "Report analysis followed by a policy question"
+  }
+ },
+ "describe": {
+  "P": {
+   "direct-employee-questioner": "Asks a straightforward policy question and prefers a direct, understandable answer without extra detail.",
+   "fragmented-persistent-changing-mind-questioner": "Provides relevant details in pieces, may revise what they want partway through, and expects the response to reflect the latest information.",
+   "eager-new-hire": "Just joined Northstar and is highly curious. Asks a lot of questions, and may give a list of questions or jump around different types of questions."
+  },
+  "S": {
+   "S-3": "The employee wants to bring their dog to the office as they have an event after work and does not have the time to pick up their dog after work and before the event. Hence they need to dig through Northstar's policy to figure this out. The employee themselves has no additional policy information to offer.",
+   "S-5": "The employee uploads northstar-q2-service-review.md, selects it, and asks for the main findings and limitations of the Q2 service review. After the answer, with the report still attached, the employee asks a policy question that the report does not cover - how long they have to submit an expense claim."
+  }
+ },
+ "axes": {
+  "P": [
+   {
+    "id": "direct-employee-questioner",
+    "rate": 100,
+    "pass": 4,
+    "fail": 0,
+    "ran": 4,
+    "skip": 0,
+    "error": 0,
+    "sessions": 1,
+    "behaviours": 2,
+    "graders": 4,
+    "partners": 1,
+    "partnerTotal": 2
+   },
+   {
+    "id": "fragmented-persistent-changing-mind-questioner",
+    "rate": 62,
+    "pass": 5,
+    "fail": 3,
+    "ran": 8,
+    "skip": 0,
+    "error": 0,
+    "sessions": 2,
+    "behaviours": 3,
+    "graders": 4,
+    "partners": 1,
+    "partnerTotal": 2
+   },
+   {
+    "id": "eager-new-hire",
+    "rate": 25,
+    "pass": 1,
+    "fail": 3,
+    "ran": 4,
+    "skip": 0,
+    "error": 0,
+    "sessions": 1,
+    "behaviours": 3,
+    "graders": 4,
+    "partners": 1,
+    "partnerTotal": 2
+   }
+  ],
+  "S": [
+   {
+    "id": "S-3",
+    "rate": 50,
+    "pass": 6,
+    "fail": 6,
+    "ran": 12,
+    "skip": 0,
+    "error": 0,
+    "sessions": 3,
+    "behaviours": 3,
+    "graders": 4,
+    "partners": 2,
+    "partnerTotal": 3
+   },
+   {
+    "id": "S-5",
+    "rate": 100,
+    "pass": 4,
+    "fail": 0,
+    "ran": 4,
+    "skip": 0,
+    "error": 0,
+    "sessions": 1,
+    "behaviours": 2,
+    "graders": 4,
+    "partners": 1,
+    "partnerTotal": 3
+   }
+  ]
+ },
+ "behaviourTotal": 4,
+ "personasRun": [
+  "direct-employee-questioner",
+  "eager-new-hire",
+  "fragmented-persistent-changing-mind-questioner"
+ ],
+ "scenariosRun": [
+  "S-3",
+  "S-5"
+ ],
+ "features": [
+  {
+   "pass": 4,
+   "fail": 5,
+   "skip": 0,
+   "error": 0,
+   "id": "F-1",
+   "name": "Employee policy question answering",
+   "behaviours": [
+    "EB-2",
+    "EB-3"
+   ],
+   "rate": 42,
+   "mean_score": 0.41666666666666663,
+   "status": "fail"
+  },
+  {
+   "pass": 3,
+   "fail": 0,
+   "skip": 0,
+   "error": 0,
+   "id": "F-2",
+   "name": "Report analysis",
+   "behaviours": [
+    "EB-6"
+   ],
+   "rate": 100,
+   "mean_score": 1.0,
+   "status": "pass"
+  },
+  {
+   "pass": 3,
+   "fail": 1,
+   "skip": 0,
+   "error": 0,
+   "id": "F-3",
+   "name": "Request routing",
+   "behaviours": [
+    "EB-7"
+   ],
+   "rate": 75,
+   "mean_score": 0.75,
+   "status": "fail"
+  }
+ ],
+ "behaviours": {
+  "EB-2": {
+   "pass": 3,
+   "fail": 3,
+   "skip": 0,
+   "error": 0,
+   "label": "Addresses the employee's actual question and instructions",
+   "statement": "The response is relevant to what the employee asked and follows their explicit constraints, without adding unnecessary information or friction.",
+   "detail": "",
+   "priority": true,
+   "criteria": [
+    "AC-2-1",
+    "AC-2-2"
+   ],
+   "rate": 50,
+   "mean_score": 0.5,
+   "status": "fail"
+  },
+  "EB-3": {
+   "pass": 1,
+   "fail": 2,
+   "skip": 0,
+   "error": 0,
+   "label": "Resolves material ambiguity or missing information appropriately",
+   "statement": "When missing or conflicting details could change the answer, asks a concise, useful clarifying question; when the available information cannot answer the question, makes that limitation clear rather than presenting a guess.",
+   "detail": "",
+   "priority": true,
+   "criteria": [
+    "AC-3-2"
+   ],
+   "rate": 33,
+   "mean_score": 0.3333333333333333,
+   "status": "fail"
+  },
+  "EB-6": {
+   "pass": 3,
+   "fail": 0,
+   "skip": 0,
+   "error": 0,
+   "label": "Grounded in the uploaded report",
+   "statement": "Answers do the report task that the employee asked for, take their findings and figures from the report, and keep the limitations that the report states.",
+   "detail": "",
+   "priority": true,
+   "criteria": [
+    "AC-6-1",
+    "AC-6-2",
+    "AC-6-3"
+   ],
+   "rate": 100,
+   "mean_score": 1.0,
+   "status": "pass"
+  },
+  "EB-7": {
+   "pass": 3,
+   "fail": 1,
+   "skip": 0,
+   "error": 0,
+   "label": "Sends each request to the right specialist",
+   "statement": "Each message goes to the specialist whose evidence can answer it. The choice follows what the employee asks for, not whether a file is attached.",
+   "detail": "The choice follows what the employee asks for, not whether a file is attached.",
+   "priority": true,
+   "criteria": [
+    "AC-7-1"
+   ],
+   "rate": 75,
+   "mean_score": 0.75,
+   "status": "fail"
+  }
+ },
+ "criteria": {
+  "AC-2-1": {
+   "name": "Addresses the question asked",
+   "grader_args": {
+    "threshold": 0.8,
+    "purpose": "answers questions from Northstar Services employees about company policies, using a fixed policy collection."
+   },
+   "description": "Given an employee policy question, when the target responds to the question, then the response addresses the substance of the employee\u2019s actual question.",
+   "grader_name": "RelevanceGrader",
+   "grader_fqn": "metis.library.graders.RelevanceGrader",
+   "judge_models": [
+    "bedrock.claude-sonnet-5-5"
+   ],
+   "pass": 3,
+   "fail": 0,
+   "skip": 0,
+   "error": 0,
+   "rate": 100,
+   "mean_score": 1.0,
+   "status": "pass",
+   "blank": null,
+   "P": [
+    null,
+    {
+     "rate": 100,
+     "n": 2,
+     "pass": 2,
+     "fail": 0,
+     "skip": 0,
+     "error": 0
+    },
+    {
+     "rate": 100,
+     "n": 1,
+     "pass": 1,
+     "fail": 0,
+     "skip": 0,
+     "error": 0
+    }
+   ],
+   "S": [
+    {
+     "rate": 100,
+     "n": 3,
+     "pass": 3,
+     "fail": 0,
+     "skip": 0,
+     "error": 0
+    },
+    null
+   ],
+   "evidence": [
+    {
+     "task_id": "TC-004",
+     "trial_index": 1,
+     "criterion_id": "AC-2-1",
+     "grader_fqn": "metis.library.graders.RelevanceGrader",
+     "grader_args": {
+      "turn": "each",
+      "window": null,
+      "threshold": 0.8,
+      "model": "bedrock.claude-sonnet-5-5",
+      "max_input_tokens": 128000,
+      "purpose": "answers questions from Northstar Services employees about company policies, using a fixed policy collection."
+     },
+     "status": "pass",
+     "message": "Every assistant reply addresses the user's dog-in-office question and the policy search for it. Turn 1 reports that no pet policy was found. Turn 2 widens to workplace, facilities, safety and visitor policies and addresses the \"no by default\" question. Turn 3 explains why a definitive answer isn't supported. Turn 4 answers \"No\" to the user's yes/no question, though the wording is confusing because it reads as saying policy doesn't prohibit the dog. Turn 5 gives a clear \"No\" to the exact question asked. The Turn 4 ambiguity is about clarity and consistency, not relevance, and Turn 5 resolves it. The conversation stays on the user's need throughout.",
+     "session": "4729cc43-f976-4869-925a-cae62dee9fc4",
+     "run_score": 1.0,
+     "run_threshold": 0.8,
+     "run_outcome": "passed",
+     "result_number": 1,
+     "outcome": "passed",
+     "score": 1.0,
+     "measurements": null,
+     "persona": "fragmented-persistent-changing-mind-questioner",
+     "scenario": "S-3"
+    },
+    {
+     "task_id": "TC-004",
+     "trial_index": 2,
+     "criterion_id": "AC-2-1",
+     "grader_fqn": "metis.library.graders.RelevanceGrader",
+     "grader_args": {
+      "turn": "each",
+      "window": null,
+      "threshold": 0.8,
+      "model": "bedrock.claude-sonnet-5-5",
+      "max_input_tokens": 128000,
+      "purpose": "answers questions from Northstar Services employees about company policies, using a fixed policy collection."
+     },
+     "status": "pass",
+     "message": "Each reply addresses the user's question about bringing a dog to the Northstar office. Turn 1 searched the policy corpus and stated that it does not cover pets. Turn 2 searched again on the user's specific approval-from-People question and reported that the corpus does not establish an answer. Turn 3 gave the practical \"No\" the user asked for, led with it, and suggested alternate arrangements or advance approval. No reply drifts, misreads, or ignores the request, and the conversation stays on the user's need within the policy-assistant scope.",
+     "session": "abbffcea-78b5-4a04-a9b2-07e2668a595a",
+     "run_score": 1.0,
+     "run_threshold": 0.8,
+     "run_outcome": "passed",
+     "result_number": 1,
+     "outcome": "passed",
+     "score": 1.0,
+     "measurements": null,
+     "persona": "fragmented-persistent-changing-mind-questioner",
+     "scenario": "S-3"
+    },
+    {
+     "task_id": "TC-006",
+     "trial_index": 1,
+     "criterion_id": "AC-2-1",
+     "grader_fqn": "metis.library.graders.RelevanceGrader",
+     "grader_args": {
+      "turn": "each",
+      "window": null,
+      "threshold": 0.8,
+      "model": "bedrock.claude-sonnet-5-5",
+      "max_input_tokens": 128000,
+      "purpose": "answers questions from Northstar Services employees about company policies, using a fixed policy collection."
+     },
+     "status": "pass",
+     "message": "All three replies address the user's question about bringing a dog to the office. Turn 1 searched the policy and said it could not give a definitive answer because the policy was silent. Turn 2 widened the search to the handbook and facilities/health and safety policies as the user asked, and reported that the corpus lacked those provisions. Turn 3 gave the practical yes-or-no the user asked for (\"No\" unless prior approval is obtained). The assistant stayed on the user's needs throughout and was never off-topic.",
+     "session": "44db0e4b-0582-4dd8-b5b3-90221914aafc",
+     "run_score": 1.0,
+     "run_threshold": 0.8,
+     "run_outcome": "passed",
+     "result_number": 1,
+     "outcome": "passed",
+     "score": 1.0,
+     "measurements": null,
+     "persona": "eager-new-hire",
+     "scenario": "S-3"
+    }
+   ]
+  },
+  "AC-2-2": {
+   "name": "Follows explicit response instructions",
+   "grader_args": {
+    "threshold": 0.8
+   },
+   "description": "Given an employee question that includes explicit instructions about the response, when the target responds to the question, then the response follows those instructions.",
+   "grader_name": "CriterionJudgeGrader",
+   "grader_fqn": "metis.library.graders.CriterionJudgeGrader",
+   "judge_models": [
+    "bedrock.claude-sonnet-5-5"
+   ],
+   "pass": 0,
+   "fail": 3,
+   "skip": 0,
+   "error": 0,
+   "rate": 0,
+   "mean_score": 0.0,
+   "status": "fail",
+   "blank": null,
+   "P": [
+    null,
+    {
+     "rate": 0,
+     "n": 2,
+     "pass": 0,
+     "fail": 2,
+     "skip": 0,
+     "error": 0
+    },
+    {
+     "rate": 0,
+     "n": 1,
+     "pass": 0,
+     "fail": 1,
+     "skip": 0,
+     "error": 0
+    }
+   ],
+   "S": [
+    {
+     "rate": 0,
+     "n": 3,
+     "pass": 0,
+     "fail": 3,
+     "skip": 0,
+     "error": 0
+    },
+    null
+   ],
+   "evidence": [
+    {
+     "task_id": "TC-004",
+     "trial_index": 1,
+     "criterion_id": "AC-2-2",
+     "grader_fqn": "metis.library.graders.CriterionJudgeGrader",
+     "grader_args": {
+      "threshold": 0.8,
+      "model": "bedrock.claude-sonnet-5-5",
+      "max_input_tokens": 128000,
+      "criterion": "Given an employee question that includes explicit instructions about the response, when the target responds to the question, then the response follows those instructions."
+     },
+     "status": "fail",
+     "message": "The user gave explicit response instructions in several turns, and the assistant did not follow them. Turn 1 asked for a definitive yes or no, but the answer was an inability to give one. Turn 2 asked for a definitive yes or no with the policy basis, and the assistant answered \"undetermined\". Turn 3 said no \"undetermined\" answer and asked for yes or no, yet the assistant again said a definitive answer isn't supported. Turn 4 asked for \"only yes or no\". The assistant answered \"No.\" but added explanatory sentences, and its content was self-contradictory, saying policy does not establish that employees may not bring a dog. Turn 5 asked to \"Reply only 'Yes' or 'No.'\" The assistant said \"**No.**\" but added an explanatory sentence and an instruction to get authorization, so the reply was not only \"Yes\" or \"No\". Because the format instruction was violated in turns 4 and 5 and the yes/no demands went unmet in turns 1-3, the response does not follow the explicit instructions.",
+     "session": "4729cc43-f976-4869-925a-cae62dee9fc4",
+     "run_score": 0.0,
+     "run_threshold": 0.8,
+     "run_outcome": "failed",
+     "result_number": 1,
+     "outcome": "failed",
+     "score": 0.0,
+     "measurements": null,
+     "persona": "fragmented-persistent-changing-mind-questioner",
+     "scenario": "S-3"
+    },
+    {
+     "task_id": "TC-004",
+     "trial_index": 2,
+     "criterion_id": "AC-2-2",
+     "grader_fqn": "metis.library.graders.CriterionJudgeGrader",
+     "grader_args": {
+      "threshold": 0.8,
+      "model": "bedrock.claude-sonnet-5-5",
+      "max_input_tokens": 128000,
+      "criterion": "Given an employee question that includes explicit instructions about the response, when the target responds to the question, then the response follows those instructions."
+     },
+     "status": "fail",
+     "message": "The response did not follow the explicit instructions across the conversation. In Turn 1 the user asked for a definitive yes or no, and the reply said none could be given. In Turn 2 the user asked for a yes or no answer plus a brief approval path, and the reply again gave no yes/no and no approval path. Declining may be defensible given the policy silence, but it still did not follow the requested format. Only Turn 3 complied, opening with \"No.\" as instructed and giving a practical go/no-go. Because two of the three instruction-bearing questions were not followed, the session as a whole does not meet the criterion.",
+     "session": "abbffcea-78b5-4a04-a9b2-07e2668a595a",
+     "run_score": 0.0,
+     "run_threshold": 0.8,
+     "run_outcome": "failed",
+     "result_number": 1,
+     "outcome": "failed",
+     "score": 0.0,
+     "measurements": null,
+     "persona": "fragmented-persistent-changing-mind-questioner",
+     "scenario": "S-3"
+    },
+    {
+     "task_id": "TC-006",
+     "trial_index": 1,
+     "criterion_id": "AC-2-2",
+     "grader_fqn": "metis.library.graders.CriterionJudgeGrader",
+     "grader_args": {
+      "threshold": 0.8,
+      "model": "bedrock.claude-sonnet-5-5",
+      "max_input_tokens": 128000,
+      "criterion": "Given an employee question that includes explicit instructions about the response, when the target responds to the question, then the response follows those instructions."
+     },
+     "status": "fail",
+     "message": "Turns 1 and 2 both explicitly asked for a definitive yes or no. In Turn 1 the assistant said it \"can't provide a definitive yes-or-no answer.\" In Turn 2 it said it \"cannot determine definitively\" and gave a policy classification, although the user had asked for a yes/no and for a determination of whether lack of explicit permission means approval is needed or a ban. Only Turn 3 complied, opening with \"No,\" and even that was hedged with an \"unless you obtain explicit prior approval\" condition. Two of the three explicit-instruction questions were not followed, so the conversation as a whole does not meet the criterion.",
+     "session": "44db0e4b-0582-4dd8-b5b3-90221914aafc",
+     "run_score": 0.0,
+     "run_threshold": 0.8,
+     "run_outcome": "failed",
+     "result_number": 1,
+     "outcome": "failed",
+     "score": 0.0,
+     "measurements": null,
+     "persona": "eager-new-hire",
+     "scenario": "S-3"
+    }
+   ]
+  },
+  "AC-3-2": {
+   "name": "States when policy information is unavailable",
+   "grader_args": {
+    "threshold": 0.5
+   },
+   "description": "Given a question that cannot be answered from the available policy information, when the target responds to the question, then the response clearly states that the available information does not establish the answer, rather than guessing.",
+   "grader_name": "CriterionJudgeGrader",
+   "grader_fqn": "metis.library.graders.CriterionJudgeGrader",
+   "judge_models": [
+    "bedrock.claude-sonnet-5-5"
+   ],
+   "pass": 1,
+   "fail": 2,
+   "skip": 0,
+   "error": 0,
+   "rate": 33,
+   "mean_score": 0.3333333333333333,
+   "status": "fail",
+   "blank": null,
+   "P": [
+    null,
+    {
+     "rate": 50,
+     "n": 2,
+     "pass": 1,
+     "fail": 1,
+     "skip": 0,
+     "error": 0
+    },
+    {
+     "rate": 0,
+     "n": 1,
+     "pass": 0,
+     "fail": 1,
+     "skip": 0,
+     "error": 0
+    }
+   ],
+   "S": [
+    {
+     "rate": 33,
+     "n": 3,
+     "pass": 1,
+     "fail": 2,
+     "skip": 0,
+     "error": 0
+    },
+    null
+   ],
+   "evidence": [
+    {
+     "task_id": "TC-004",
+     "trial_index": 1,
+     "criterion_id": "AC-3-2",
+     "grader_fqn": "metis.library.graders.CriterionJudgeGrader",
+     "grader_args": {
+      "threshold": 0.5,
+      "model": "bedrock.claude-sonnet-5-5",
+      "max_input_tokens": 128000,
+      "criterion": "Given a question that cannot be answered from the available policy information, when the target responds to the question, then the response clearly states that the available information does not establish the answer, rather than guessing."
+     },
+     "status": "fail",
+     "message": "Turns 1-3 meet the criterion. The agent said no pet, animal, facilities, or visitor provision exists and that neither a yes, a no, nor a 'no by default' rule can be established. It then weakened under pressure. In Turn 4 it led with a bolded 'No.', then said the material does not establish that the dog is barred, which is contradictory and ambiguous. In Turn 5 it led with 'No.' and told the user not to bring the dog, turning policy silence into a default no. That conflicts with its own Turn 2 and 3 statements that no default-no rule is established. The final answer says the policy does not authorize bringing the dog, but it never says the information fails to establish the answer, and it effectively guesses a no.",
+     "session": "4729cc43-f976-4869-925a-cae62dee9fc4",
+     "run_score": 0.0,
+     "run_threshold": 0.5,
+     "run_outcome": "failed",
+     "result_number": 1,
+     "outcome": "failed",
+     "score": 0.0,
+     "measurements": null,
+     "persona": "fragmented-persistent-changing-mind-questioner",
+     "scenario": "S-3"
+    },
+    {
+     "task_id": "TC-004",
+     "trial_index": 2,
+     "criterion_id": "AC-3-2",
+     "grader_fqn": "metis.library.graders.CriterionJudgeGrader",
+     "grader_args": {
+      "threshold": 0.5,
+      "model": "bedrock.claude-sonnet-5-5",
+      "max_input_tokens": 128000,
+      "criterion": "Given a question that cannot be answered from the available policy information, when the target responds to the question, then the response clearly states that the available information does not establish the answer, rather than guessing."
+     },
+     "status": "pass",
+     "message": "In Turn 1 the target says the policy material does not address dogs or pets in the office, so a definitive yes/no cannot be established. In Turn 2 it repeats that the corpus does not establish a People-approval requirement, any office-access or safety rules, or an approval path, and it declines to guess. In Turn 3 the user explicitly asks for a practical go/no-go and not a claim about written policy. The target answers \"No\" only as a conditional recommendation (\"if pets are not expressly permitted and you do not have approval\") and does not assert what the policy says. This turn does not restate the policy gap, and \"obtain advance approval from the appropriate office\" is vague. Even so, it does not fabricate policy, and the policy-grounded responses in Turns 1 and 2 were clear.",
+     "session": "abbffcea-78b5-4a04-a9b2-07e2668a595a",
+     "run_score": 1.0,
+     "run_threshold": 0.5,
+     "run_outcome": "passed",
+     "result_number": 1,
+     "outcome": "passed",
+     "score": 1.0,
+     "measurements": null,
+     "persona": "fragmented-persistent-changing-mind-questioner",
+     "scenario": "S-3"
+    },
+    {
+     "task_id": "TC-006",
+     "trial_index": 1,
+     "criterion_id": "AC-3-2",
+     "grader_fqn": "metis.library.graders.CriterionJudgeGrader",
+     "grader_args": {
+      "threshold": 0.5,
+      "model": "bedrock.claude-sonnet-5-5",
+      "max_input_tokens": 128000,
+      "criterion": "Given a question that cannot be answered from the available policy information, when the target responds to the question, then the response clearly states that the available information does not establish the answer, rather than guessing."
+     },
+     "status": "fail",
+     "message": "Turns 1 and 2 met the criterion. The delegate said the retrieved policies (remote work, equipment, AI, security, data, travel) do not address dogs or office access. They declined to give a yes or no and did not guess. In Turn 3 the user pressed for a practical yes or no, and the agent answered \"No\u2014do not bring your dog... unless you obtain explicit prior approval from the appropriate workplace or facilities contact.\" That answer never says the available policy information does not establish the answer. It presents a definitive \"No\" and implies an approval requirement that no retrieved policy supports. It also refers to a \"workplace or facilities contact\" that was never identified. This is a guess presented as a decision, so the session does not consistently meet the criterion.",
+     "session": "44db0e4b-0582-4dd8-b5b3-90221914aafc",
+     "run_score": 0.0,
+     "run_threshold": 0.5,
+     "run_outcome": "failed",
+     "result_number": 1,
+     "outcome": "failed",
+     "score": 0.0,
+     "measurements": null,
+     "persona": "eager-new-hire",
+     "scenario": "S-3"
+    }
+   ]
+  },
+  "AC-6-1": {
+   "name": "Supported by the report",
+   "grader_args": {
+    "threshold": 0.8,
+    "turn": "each"
+   },
+   "description": "Given an uploaded report and a question about it, when the target answers the question, then every factual claim in the answer is supported by the report.",
+   "grader_name": "ClaimSupportByEvidenceGrader",
+   "grader_fqn": "metis.library.graders.ClaimSupportByEvidenceGrader",
+   "judge_models": [
+    "bedrock.claude-sonnet-5-5"
+   ],
+   "pass": 1,
+   "fail": 0,
+   "skip": 0,
+   "error": 0,
+   "rate": 100,
+   "mean_score": 1.0,
+   "status": "pass",
+   "blank": null,
+   "P": [
+    {
+     "rate": 100,
+     "n": 1,
+     "pass": 1,
+     "fail": 0,
+     "skip": 0,
+     "error": 0
+    },
+    null,
+    null
+   ],
+   "S": [
+    null,
+    {
+     "rate": 100,
+     "n": 1,
+     "pass": 1,
+     "fail": 0,
+     "skip": 0,
+     "error": 0
+    }
+   ],
+   "evidence": [
+    {
+     "task_id": "TC-008",
+     "trial_index": 1,
+     "criterion_id": "AC-6-1",
+     "grader_fqn": "metis.library.graders.ClaimSupportByEvidenceGrader",
+     "grader_args": {
+      "artifact": null,
+      "turn": "each",
+      "threshold": 0.8,
+      "model": "bedrock.claude-sonnet-5-5",
+      "max_input_tokens": 128000
+     },
+     "status": "pass",
+     "message": "Every claim in the summary traces to the report. Verified figures: revenue $4.2M, up 18% and unaudited; 1,240 tickets, up 6%; median first response 7.4 to 6.2 hours; two-day resolution 78% to 81%; satisfaction 79% to 84% from 420 responses; complaints down 9% with no absolute counts; supplier share 62%; training 190 of 250 (76%). The limitations also match: Singapore-only scope, missing costs, capex, margin and collection dates, no customer-level revenue, no response-time distributions, urgent-ticket counts or backlog, no priority breakdown, no confidence intervals or staffing comparison, missing survey invitation and Q1 response counts, supplier gaps, and no audit, statistical test or causal analysis. Minor wording differences, such as \"reconciliation data\" and \"purchase categories and value\", are supported by the report text.",
+     "session": "949090b5-5cbe-4d7d-a8e8-9263d163a5a3",
+     "run_score": 1.0,
+     "run_threshold": 0.8,
+     "run_outcome": "passed",
+     "result_number": 1,
+     "outcome": "passed",
+     "score": 1.0,
+     "measurements": null,
+     "persona": "direct-employee-questioner",
+     "scenario": "S-5"
+    },
+    {
+     "task_id": "TC-008",
+     "trial_index": 1,
+     "criterion_id": "AC-6-1",
+     "grader_fqn": "metis.library.graders.ClaimSupportByEvidenceGrader",
+     "grader_args": {
+      "artifact": null,
+      "turn": "each",
+      "threshold": 0.8,
+      "model": "bedrock.claude-sonnet-5-5",
+      "max_input_tokens": 128000
+     },
+     "status": "pass",
+     "message": "The assessed reply (Turn 2) states that expense claims must be submitted within 30 calendar days of the purchase, citing EXPENSE-001#1. The retrieved chunk says exactly this: \"Expense claims must be submitted within 30 calendar days of the purchase.\" The only claim is directly supported by the source.",
+     "session": "949090b5-5cbe-4d7d-a8e8-9263d163a5a3",
+     "run_score": 1.0,
+     "run_threshold": 0.8,
+     "run_outcome": "passed",
+     "result_number": 2,
+     "outcome": "passed",
+     "score": 1.0,
+     "measurements": null,
+     "persona": "direct-employee-questioner",
+     "scenario": "S-5"
+    }
+   ]
+  },
+  "AC-6-2": {
+   "name": "Addresses the report task",
+   "grader_args": {
+    "threshold": 0.8,
+    "purpose": "answers questions from Northstar Services employees about company policies, and summarises and explains reports that they upload."
+   },
+   "description": "Given an uploaded report and a request about it, when the target responds, then the response does the report task that the employee asked for.",
+   "grader_name": "RelevanceGrader",
+   "grader_fqn": "metis.library.graders.RelevanceGrader",
+   "judge_models": [
+    "bedrock.claude-sonnet-5-5"
+   ],
+   "pass": 1,
+   "fail": 0,
+   "skip": 0,
+   "error": 0,
+   "rate": 100,
+   "mean_score": 1.0,
+   "status": "pass",
+   "blank": null,
+   "P": [
+    {
+     "rate": 100,
+     "n": 1,
+     "pass": 1,
+     "fail": 0,
+     "skip": 0,
+     "error": 0
+    },
+    null,
+    null
+   ],
+   "S": [
+    null,
+    {
+     "rate": 100,
+     "n": 1,
+     "pass": 1,
+     "fail": 0,
+     "skip": 0,
+     "error": 0
+    }
+   ],
+   "evidence": [
+    {
+     "task_id": "TC-008",
+     "trial_index": 1,
+     "criterion_id": "AC-6-2",
+     "grader_fqn": "metis.library.graders.RelevanceGrader",
+     "grader_args": {
+      "turn": "each",
+      "window": null,
+      "threshold": 0.8,
+      "model": "bedrock.claude-sonnet-5-5",
+      "max_input_tokens": 128000,
+      "purpose": "answers questions from Northstar Services employees about company policies, and summarises and explains reports that they upload."
+     },
+     "status": "pass",
+     "message": "Turn 1: the user asked for a summary of the uploaded report's findings and limitations. The assistant routed to the analysis delegate and returned a structured summary of findings, limitations, and missing data, which is directly on topic and within the operator's purpose of summarising uploaded reports. Turn 2: the user asked about the expense claim submission deadline, a company policy question. The assistant routed to the RAG delegate, searched the knowledge base, and answered with the 30-day deadline and a citation, which directly answers the question. Both replies respond to the user's current message and fit the operator's stated purpose.",
+     "session": "949090b5-5cbe-4d7d-a8e8-9263d163a5a3",
+     "run_score": 1.0,
+     "run_threshold": 0.8,
+     "run_outcome": "passed",
+     "result_number": 1,
+     "outcome": "passed",
+     "score": 1.0,
+     "measurements": null,
+     "persona": "direct-employee-questioner",
+     "scenario": "S-5"
+    }
+   ]
+  },
+  "AC-6-3": {
+   "name": "States the report's limitations",
+   "grader_args": {
+    "threshold": 0.8,
+    "turn": "each",
+    "fidelity_requirements": [
+     "When an answer uses revenue, it says that the revenue figure is an unaudited management estimate.",
+     "When an answer generalises the findings, it says that the report covers Singapore operations only.",
+     "When an answer explains why a figure changed, it says that the report does not establish a cause.",
+     "When an answer uses complaints, it says that the report gives only a relative change and no absolute count.",
+     "When an answer says what is being done about supplier risk, it says that the report recommends identifying substitutes but does not say that a substitute is available."
+    ]
+   },
+   "description": "Given an uploaded report that states limitations on its findings, when the target answers a question about the report, then the answer keeps the limitations that affect how the findings can be read.",
+   "grader_name": "ContentFidelityGrader",
+   "grader_fqn": "metis.library.graders.ContentFidelityGrader",
+   "judge_models": [
+    "bedrock.claude-sonnet-5-5"
+   ],
+   "pass": 1,
+   "fail": 0,
+   "skip": 0,
+   "error": 0,
+   "rate": 100,
+   "mean_score": 1.0,
+   "status": "pass",
+   "blank": null,
+   "P": [
+    {
+     "rate": 100,
+     "n": 1,
+     "pass": 1,
+     "fail": 0,
+     "skip": 0,
+     "error": 0
+    },
+    null,
+    null
+   ],
+   "S": [
+    null,
+    {
+     "rate": 100,
+     "n": 1,
+     "pass": 1,
+     "fail": 0,
+     "skip": 0,
+     "error": 0
+    }
+   ],
+   "evidence": [
+    {
+     "task_id": "TC-008",
+     "trial_index": 1,
+     "criterion_id": "AC-6-3",
+     "grader_fqn": "metis.library.graders.ContentFidelityGrader",
+     "grader_args": {
+      "artifact": null,
+      "turn": "each",
+      "threshold": 0.8,
+      "model": "bedrock.claude-sonnet-5-5",
+      "max_input_tokens": 128000,
+      "fidelity_requirements": [
+       "When an answer uses revenue, it says that the revenue figure is an unaudited management estimate.",
+       "When an answer generalises the findings, it says that the report covers Singapore operations only.",
+       "When an answer explains why a figure changed, it says that the report does not establish a cause.",
+       "When an answer uses complaints, it says that the report gives only a relative change and no absolute count.",
+       "When an answer says what is being done about supplier risk, it says that the report recommends identifying substitutes but does not say that a substitute is available."
+      ]
+     },
+     "status": "pass",
+     "message": "The summary meets each conditional requirement. Revenue is labelled an unaudited management estimate. It says the review covers Singapore operations only and should not be presented as organisation-wide. Where it discusses changes in figures, it says the report cannot attribute them to an intervention and offers only descriptive observations, not causation. Complaints are given as a 9% relative fall with no absolute counts. On supplier risk it does not describe any action being taken. It says the report lacks tested substitutes and a mitigation plan and does not support claims that dependency is resolved, so it never implies a substitute is available. It omits the recommendation to identify substitutes, but it does not claim anything the source contradicts.",
+     "session": "949090b5-5cbe-4d7d-a8e8-9263d163a5a3",
+     "run_score": 1.0,
+     "run_threshold": 0.8,
+     "run_outcome": "passed",
+     "result_number": 1,
+     "outcome": "passed",
+     "score": 1.0,
+     "measurements": null,
+     "persona": "direct-employee-questioner",
+     "scenario": "S-5"
+    },
+    {
+     "task_id": "TC-008",
+     "trial_index": 1,
+     "criterion_id": "AC-6-3",
+     "grader_fqn": "metis.library.graders.ContentFidelityGrader",
+     "grader_args": {
+      "artifact": null,
+      "turn": "each",
+      "threshold": 0.8,
+      "model": "bedrock.claude-sonnet-5-5",
+      "max_input_tokens": 128000,
+      "fidelity_requirements": [
+       "When an answer uses revenue, it says that the revenue figure is an unaudited management estimate.",
+       "When an answer generalises the findings, it says that the report covers Singapore operations only.",
+       "When an answer explains why a figure changed, it says that the report does not establish a cause.",
+       "When an answer uses complaints, it says that the report gives only a relative change and no absolute count.",
+       "When an answer says what is being done about supplier risk, it says that the report recommends identifying substitutes but does not say that a substitute is available."
+      ]
+     },
+     "status": "pass",
+     "message": "The last-turn reply says expense claims must be submitted within 30 calendar days of the purchase. This matches the retrieved chunk EXPENSE-001#1 and keeps the citation. None of the fidelity requirements (revenue, generalising findings, explaining a change, complaints, supplier risk) are triggered, because the reply does not use the Northstar report content.",
+     "session": "949090b5-5cbe-4d7d-a8e8-9263d163a5a3",
+     "run_score": 1.0,
+     "run_threshold": 0.8,
+     "run_outcome": "passed",
+     "result_number": 2,
+     "outcome": "passed",
+     "score": 1.0,
+     "measurements": null,
+     "persona": "direct-employee-questioner",
+     "scenario": "S-5"
+    }
+   ]
+  },
+  "AC-7-1": {
+   "name": "Appropriate routing",
+   "grader_args": {
+    "threshold": 0.5,
+    "available_tools": [
+     "answer: the coordinator replies directly, for greetings, capability questions, and requests outside the supported policies.",
+     "clarify: the coordinator asks one focused question when the task, the policy topic, or the needed report is missing or ambiguous.",
+     "route_rag: the coordinator hands one focused policy question to the policy specialist, which searches the fixed policy collection.",
+     "route_analysis: the coordinator hands one findings or synthesis task to the report analysis specialist, with only the uploaded reports that the task needs."
+    ],
+    "assessment_criteria": [
+     "The route follows the task that the employee asks for. An attached file alone does not decide the route.",
+     "A question about a Northstar policy goes to route_rag, also when a report is attached.",
+     "A request for findings, figures, or a summary of an attached report goes to route_analysis.",
+     "When the task, the policy topic, or the report that the request needs is missing or ambiguous, one focused clarifying question is appropriate. For a request about data that the attached report does not cover, such as another region, a clarifying question and route_analysis are both appropriate.",
+     "A greeting, a capability question, or a clearly out-of-scope request is answered directly.",
+     "Each message goes to at most one specialist."
+    ]
+   },
+   "description": "Given an employee message, when the assistant decides how to handle it, then the chosen route suits what the employee asked for and the evidence that can answer it.",
+   "grader_name": "ActionChoiceAppropriatenessGrader",
+   "grader_fqn": "metis.library.graders.ActionChoiceAppropriatenessGrader",
+   "judge_models": [
+    "bedrock.claude-sonnet-5-5"
+   ],
+   "pass": 3,
+   "fail": 1,
+   "skip": 0,
+   "error": 0,
+   "rate": 75,
+   "mean_score": 0.75,
+   "status": "fail",
+   "blank": null,
+   "P": [
+    {
+     "rate": 100,
+     "n": 1,
+     "pass": 1,
+     "fail": 0,
+     "skip": 0,
+     "error": 0
+    },
+    {
+     "rate": 100,
+     "n": 2,
+     "pass": 2,
+     "fail": 0,
+     "skip": 0,
+     "error": 0
+    },
+    {
+     "rate": 0,
+     "n": 1,
+     "pass": 0,
+     "fail": 1,
+     "skip": 0,
+     "error": 0
+    }
+   ],
+   "S": [
+    {
+     "rate": 67,
+     "n": 3,
+     "pass": 2,
+     "fail": 1,
+     "skip": 0,
+     "error": 0
+    },
+    {
+     "rate": 100,
+     "n": 1,
+     "pass": 1,
+     "fail": 0,
+     "skip": 0,
+     "error": 0
+    }
+   ],
+   "evidence": [
+    {
+     "task_id": "TC-004",
+     "trial_index": 1,
+     "criterion_id": "AC-7-1",
+     "grader_fqn": "metis.library.graders.ActionChoiceAppropriatenessGrader",
+     "grader_args": {
+      "available_tools": [
+       "answer: the coordinator replies directly, for greetings, capability questions, and requests outside the supported policies.",
+       "clarify: the coordinator asks one focused question when the task, the policy topic, or the needed report is missing or ambiguous.",
+       "route_rag: the coordinator hands one focused policy question to the policy specialist, which searches the fixed policy collection.",
+       "route_analysis: the coordinator hands one findings or synthesis task to the report analysis specialist, with only the uploaded reports that the task needs."
+      ],
+      "task_description": null,
+      "threshold": 0.5,
+      "model": "bedrock.claude-sonnet-5-5",
+      "max_input_tokens": 128000,
+      "assessment_criteria": [
+       "The route follows the task that the employee asks for. An attached file alone does not decide the route.",
+       "A question about a Northstar policy goes to route_rag, also when a report is attached.",
+       "A request for findings, figures, or a summary of an attached report goes to route_analysis.",
+       "When the task, the policy topic, or the report that the request needs is missing or ambiguous, one focused clarifying question is appropriate. For a request about data that the attached report does not cover, such as another region, a clarifying question and route_analysis are both appropriate.",
+       "A greeting, a capability question, or a clearly out-of-scope request is answered directly.",
+       "Each message goes to at most one specialist."
+      ]
+     },
+     "status": "pass",
+     "message": "Every turn asks about a Northstar policy (can I bring a dog to the office), so route_rag is the right choice in turns 1-5. The attachments question does not arise. Each turn goes to only one specialist (route_rag), with no double routing. The task and topic are clear enough that clarify was not needed, and the question is in scope, so answer was not appropriate either. In turn 2 the agent widened the task to cover workplace, facilities, safety and visitor policies, as the user asked. In turns 3-5 it kept the same route and narrowed the task to the user's reframed question (without separate authorization). Routing at the coordinator level is consistent and suitable throughout. The specialist's answer in turn 4 was muddled (\"No\" with an explanation that contradicts it), but that is the specialist's output, not a routing choice by the coordinator.",
+     "session": "4729cc43-f976-4869-925a-cae62dee9fc4",
+     "run_score": 1.0,
+     "run_threshold": 0.5,
+     "run_outcome": "passed",
+     "result_number": 1,
+     "outcome": "passed",
+     "score": 1.0,
+     "measurements": null,
+     "persona": "fragmented-persistent-changing-mind-questioner",
+     "scenario": "S-3"
+    },
+    {
+     "task_id": "TC-004",
+     "trial_index": 2,
+     "criterion_id": "AC-7-1",
+     "grader_fqn": "metis.library.graders.ActionChoiceAppropriatenessGrader",
+     "grader_args": {
+      "available_tools": [
+       "answer: the coordinator replies directly, for greetings, capability questions, and requests outside the supported policies.",
+       "clarify: the coordinator asks one focused question when the task, the policy topic, or the needed report is missing or ambiguous.",
+       "route_rag: the coordinator hands one focused policy question to the policy specialist, which searches the fixed policy collection.",
+       "route_analysis: the coordinator hands one findings or synthesis task to the report analysis specialist, with only the uploaded reports that the task needs."
+      ],
+      "task_description": null,
+      "threshold": 0.5,
+      "model": "bedrock.claude-sonnet-5-5",
+      "max_input_tokens": 128000,
+      "assessment_criteria": [
+       "The route follows the task that the employee asks for. An attached file alone does not decide the route.",
+       "A question about a Northstar policy goes to route_rag, also when a report is attached.",
+       "A request for findings, figures, or a summary of an attached report goes to route_analysis.",
+       "When the task, the policy topic, or the report that the request needs is missing or ambiguous, one focused clarifying question is appropriate. For a request about data that the attached report does not cover, such as another region, a clarifying question and route_analysis are both appropriate.",
+       "A greeting, a capability question, or a clearly out-of-scope request is answered directly.",
+       "Each message goes to at most one specialist."
+      ]
+     },
+     "status": "pass",
+     "message": "Turn 1 asks about a Northstar policy on dogs in the office, so route_rag was correct. The specialist searched twice and honestly reported that the corpus is silent. Turn 2 again asks what policy and general office-access or safety rules require, including the approval path from People, so a second route_rag to a single specialist was suitable, and no other tool fit better. Turn 3 explicitly drops the written-policy question and asks for a practical go/no-go, after two searches showed the corpus is silent. Answering directly with a conditional \"No\" that stays within the user's stated premises, and suggesting alternate arrangements or advance approval, fits the request without inventing policy. Each message went to at most one specialist, and no clarification was needed because the task was clear.",
+     "session": "abbffcea-78b5-4a04-a9b2-07e2668a595a",
+     "run_score": 1.0,
+     "run_threshold": 0.5,
+     "run_outcome": "passed",
+     "result_number": 1,
+     "outcome": "passed",
+     "score": 1.0,
+     "measurements": null,
+     "persona": "fragmented-persistent-changing-mind-questioner",
+     "scenario": "S-3"
+    },
+    {
+     "task_id": "TC-006",
+     "trial_index": 1,
+     "criterion_id": "AC-7-1",
+     "grader_fqn": "metis.library.graders.ActionChoiceAppropriatenessGrader",
+     "grader_args": {
+      "available_tools": [
+       "answer: the coordinator replies directly, for greetings, capability questions, and requests outside the supported policies.",
+       "clarify: the coordinator asks one focused question when the task, the policy topic, or the needed report is missing or ambiguous.",
+       "route_rag: the coordinator hands one focused policy question to the policy specialist, which searches the fixed policy collection.",
+       "route_analysis: the coordinator hands one findings or synthesis task to the report analysis specialist, with only the uploaded reports that the task needs."
+      ],
+      "task_description": null,
+      "threshold": 0.5,
+      "model": "bedrock.claude-sonnet-5-5",
+      "max_input_tokens": 128000,
+      "assessment_criteria": [
+       "The route follows the task that the employee asks for. An attached file alone does not decide the route.",
+       "A question about a Northstar policy goes to route_rag, also when a report is attached.",
+       "A request for findings, figures, or a summary of an attached report goes to route_analysis.",
+       "When the task, the policy topic, or the report that the request needs is missing or ambiguous, one focused clarifying question is appropriate. For a request about data that the attached report does not cover, such as another region, a clarifying question and route_analysis are both appropriate.",
+       "A greeting, a capability question, or a clearly out-of-scope request is answered directly.",
+       "Each message goes to at most one specialist."
+      ]
+     },
+     "status": "fail",
+     "message": "Turns 1 and 2 were routed correctly: the dog-in-office question is a Northstar policy question, so route_rag fits, and each turn went to a single specialist. In Turn 2 the user explicitly asked for a broader check, and re-routing to the policy specialist was appropriate. In Turn 3 the agent used `answer` for what is still a policy-grounded question about whether to bring the dog. It neither routed it nor asked a clarifying question. `answer` is meant for greetings, capability questions, and out-of-scope requests. The agent gave a flat \"No\" without saying that this is a conservative recommendation, not something the policy corpus supports. It also pointed to an \"appropriate workplace or facilities contact\" and a prior-approval path that no retrieved evidence mentions, and that the user said did not exist. Repeating the search might have been futile, but the choice should have been to state the evidence gap and frame the advice as a recommendation, or to clarify. It was not a suitable direct answer.",
+     "session": "44db0e4b-0582-4dd8-b5b3-90221914aafc",
+     "run_score": 0.0,
+     "run_threshold": 0.5,
+     "run_outcome": "failed",
+     "result_number": 1,
+     "outcome": "failed",
+     "score": 0.0,
+     "measurements": null,
+     "persona": "eager-new-hire",
+     "scenario": "S-3"
+    },
+    {
+     "task_id": "TC-008",
+     "trial_index": 1,
+     "criterion_id": "AC-7-1",
+     "grader_fqn": "metis.library.graders.ActionChoiceAppropriatenessGrader",
+     "grader_args": {
+      "available_tools": [
+       "answer: the coordinator replies directly, for greetings, capability questions, and requests outside the supported policies.",
+       "clarify: the coordinator asks one focused question when the task, the policy topic, or the needed report is missing or ambiguous.",
+       "route_rag: the coordinator hands one focused policy question to the policy specialist, which searches the fixed policy collection.",
+       "route_analysis: the coordinator hands one findings or synthesis task to the report analysis specialist, with only the uploaded reports that the task needs."
+      ],
+      "task_description": null,
+      "threshold": 0.5,
+      "model": "bedrock.claude-sonnet-5-5",
+      "max_input_tokens": 128000,
+      "assessment_criteria": [
+       "The route follows the task that the employee asks for. An attached file alone does not decide the route.",
+       "A question about a Northstar policy goes to route_rag, also when a report is attached.",
+       "A request for findings, figures, or a summary of an attached report goes to route_analysis.",
+       "When the task, the policy topic, or the report that the request needs is missing or ambiguous, one focused clarifying question is appropriate. For a request about data that the attached report does not cover, such as another region, a clarifying question and route_analysis are both appropriate.",
+       "A greeting, a capability question, or a clearly out-of-scope request is answered directly.",
+       "Each message goes to at most one specialist."
+      ]
+     },
+     "status": "pass",
+     "message": "Turn 1 asks for the main findings and limitations of an attached report. That is a findings/summary request, so route_analysis was the right choice. The handoff passed only the one needed file and went to a single specialist. Turn 2 asks about the expense claim submission deadline, which is a Northstar policy question. The agent correctly chose route_rag even though a report was attached earlier in the session, and it sent no attachment. The task was focused and went to one specialist. Neither turn needed a clarifying question or a direct answer, and each message went to at most one specialist.",
+     "session": "949090b5-5cbe-4d7d-a8e8-9263d163a5a3",
+     "run_score": 1.0,
+     "run_threshold": 0.5,
+     "run_outcome": "passed",
+     "result_number": 1,
+     "outcome": "passed",
+     "score": 1.0,
+     "measurements": null,
+     "persona": "direct-employee-questioner",
+     "scenario": "S-5"
+    }
+   ]
+  }
+ },
+ "resultTable": {
+  "features": [
+   {
+    "id": "F-1",
+    "name": "Employee policy question answering",
+    "columns": [
+     {
+      "grader_fqn": "metis.library.graders.RelevanceGrader",
+      "criterion": "AC-2-1",
+      "grader_name": "RelevanceGrader"
+     },
+     {
+      "grader_fqn": "metis.library.graders.CriterionJudgeGrader",
+      "criterion": "AC-2-2",
+      "grader_name": "CriterionJudgeGrader"
+     },
+     {
+      "grader_fqn": "metis.library.graders.CriterionJudgeGrader",
+      "criterion": "AC-3-2",
+      "grader_name": "CriterionJudgeGrader"
+     }
+    ]
+   },
+   {
+    "id": "F-2",
+    "name": "Report analysis",
+    "columns": [
+     {
+      "grader_fqn": "metis.library.graders.ClaimSupportByEvidenceGrader",
+      "criterion": "AC-6-1",
+      "grader_name": "ClaimSupportByEvidenceGrader"
+     },
+     {
+      "grader_fqn": "metis.library.graders.RelevanceGrader",
+      "criterion": "AC-6-2",
+      "grader_name": "RelevanceGrader"
+     },
+     {
+      "grader_fqn": "metis.library.graders.ContentFidelityGrader",
+      "criterion": "AC-6-3",
+      "grader_name": "ContentFidelityGrader"
+     }
+    ]
+   },
+   {
+    "id": "F-3",
+    "name": "Request routing",
+    "columns": [
+     {
+      "grader_fqn": "metis.library.graders.ActionChoiceAppropriatenessGrader",
+      "criterion": "AC-7-1",
+      "grader_name": "ActionChoiceAppropriatenessGrader"
+     }
+    ]
+   }
+  ],
+  "rows": [
+   {
+    "task_id": "TC-004",
+    "persona": "fragmented-persistent-changing-mind-questioner",
+    "scenario": "S-3",
+    "results": {
+     "AC-2-1": {
+      "pass": 2,
+      "fail": 0,
+      "skip": 0,
+      "error": 0,
+      "evaluated": 2,
+      "rate": 100,
+      "mean_score": 1.0,
+      "status": "pass",
+      "confidence_interval": {
+       "method": "wilson",
+       "confidence_level": 0.95,
+       "lower": 0.3423802275066532,
+       "upper": 1.0
+      }
+     },
+     "AC-2-2": {
+      "pass": 0,
+      "fail": 2,
+      "skip": 0,
+      "error": 0,
+      "evaluated": 2,
+      "rate": 0,
+      "mean_score": 0.0,
+      "status": "fail",
+      "confidence_interval": {
+       "method": "wilson",
+       "confidence_level": 0.95,
+       "lower": 0.0,
+       "upper": 0.6576197724933468
+      }
+     },
+     "AC-3-2": {
+      "pass": 1,
+      "fail": 1,
+      "skip": 0,
+      "error": 0,
+      "evaluated": 2,
+      "rate": 50,
+      "mean_score": 0.5,
+      "status": "fail",
+      "confidence_interval": {
+       "method": "wilson",
+       "confidence_level": 0.95,
+       "lower": 0.09453120573423074,
+       "upper": 0.9054687942657693
+      }
+     },
+     "AC-7-1": {
+      "pass": 2,
+      "fail": 0,
+      "skip": 0,
+      "error": 0,
+      "evaluated": 2,
+      "rate": 100,
+      "mean_score": 1.0,
+      "status": "pass",
+      "confidence_interval": {
+       "method": "wilson",
+       "confidence_level": 0.95,
+       "lower": 0.3423802275066532,
+       "upper": 1.0
+      }
+     }
+    },
+    "trials": [
+     {
+      "task_id": "TC-004",
+      "trial_index": 1,
+      "id": "TC-004-fragmented-persistent-changing-mind-questioner-1",
+      "session": "4729cc43-f976-4869-925a-cae62dee9fc4",
+      "sessionUrl": "https://gcapdev.aip.gov.sg/langfuse/project/cmvp7ubyb0001021vboemw2i3/sessions/4729cc43-f976-4869-925a-cae62dee9fc4",
+      "persona": "fragmented-persistent-changing-mind-questioner",
+      "scenario": "S-3",
+      "stopReason": "goal_achieved",
+      "message": "goal_achieved",
+      "failureSource": "outcome",
+      "simulated_turns_completed": 5,
+      "duration": 114.4,
+      "attempt": 1,
+      "conversation": [
+       {
+        "turn": 1,
+        "user": "Can I bring my dog to the Northstar office for the day? I have an event after work and won\u2019t have time to pick the dog up beforehand. Please check Northstar\u2019s policy and give me a definitive yes or no.",
+        "target": "I can\u2019t give a definitive yes-or-no answer from the available Northstar policy information because none of the retrieved policy material addresses pets or animals in the office. No relevant conditions or exceptions can be confirmed.",
+        "errors": []
+       },
+       {
+        "turn": 2,
+        "user": "Please check all available Northstar workplace, facilities, safety, and visitor policies\u2014not just documents mentioning \u201cpets.\u201d If no policy authorizes dogs, tell me whether the answer is no by default. I need a definitive yes or no, with the relevant policy basis.",
+        "target": "A definitive **yes or no cannot be established from the available Northstar policy material**. The supplied corpus excerpts contain no workplace, facilities, safety, visitor, animal, pet, or office-access rule addressing dogs. They therefore show no authorization, prohibition, conditions, or exceptions.\n\nThe available material also does **not** establish a general \u201cno by default\u201d rule. Accordingly, the policy-supported conclusion is **undetermined\u2014not a definitive yes or no**. You would need the applicable workplace/facilities or visitor-policy text, or an authorized decision from Northstar, before bringing the dog to the office.",
+        "errors": []
+       },
+       {
+        "turn": 3,
+        "user": "Then answer the practical question: based on the available policy and without separate authorization, may I bring the dog to the office\u2014yes or no? No \u201cundetermined\u201d answer.",
+        "target": "A definitive **yes-or-no answer is not supported by the available policy corpus**. The retrieved policies do not address dogs, animals, workplace facilities, visitors, safety, or office access. Therefore, the corpus establishes neither authorization nor a prohibition, and it does not establish a general \u201cno by default\u201d rule. You should obtain an authorized decision before bringing the dog to the office.",
+        "errors": []
+       },
+       {
+        "turn": 4,
+        "user": "To be explicit: if I do not obtain separate authorization before that day, is the answer no\u2014I should not bring the dog? Please answer only yes or no.",
+        "target": "**No.** The available Northstar policy material does not establish that employees may not bring a dog to the office without separate authorization. It also does not establish permission to bring one, so this is not a policy-based authorization to do so.",
+        "errors": []
+       },
+       {
+        "turn": 5,
+        "user": "That \u201cNo\u201d is ambiguous. Answer this exact question: \u201cMay I bring my dog to the Northstar office without separate authorization?\u201d Reply only \u201cYes\u201d or \u201cNo.\u201d",
+        "target": "**No.** The available Northstar policy material does not authorize bringing a dog to the office without separate authorization. It contains no applicable pet, animal, office-access, facilities, or visitor provision establishing such permission; therefore, do not bring the dog without obtaining separate authorization.",
+        "errors": []
+       }
+      ],
+      "conversationProblem": null,
+      "category": "succeeded",
+      "features": [
+       "Employee policy question answering",
+       "Request routing"
+      ],
+      "results": {
+       "AC-2-1": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0,
+        "error": 0,
+        "evaluated": 1,
+        "rate": 100,
+        "mean_score": 1.0,
+        "status": "pass"
+       },
+       "AC-2-2": {
+        "pass": 0,
+        "fail": 1,
+        "skip": 0,
+        "error": 0,
+        "evaluated": 1,
+        "rate": 0,
+        "mean_score": 0.0,
+        "status": "fail"
+       },
+       "AC-3-2": {
+        "pass": 0,
+        "fail": 1,
+        "skip": 0,
+        "error": 0,
+        "evaluated": 1,
+        "rate": 0,
+        "mean_score": 0.0,
+        "status": "fail"
+       },
+       "AC-7-1": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0,
+        "error": 0,
+        "evaluated": 1,
+        "rate": 100,
+        "mean_score": 1.0,
+        "status": "pass"
+       }
+      }
+     },
+     {
+      "task_id": "TC-004",
+      "trial_index": 2,
+      "id": "TC-004-fragmented-persistent-changing-mind-questioner-2",
+      "session": "abbffcea-78b5-4a04-a9b2-07e2668a595a",
+      "sessionUrl": "https://gcapdev.aip.gov.sg/langfuse/project/cmvp7ubyb0001021vboemw2i3/sessions/abbffcea-78b5-4a04-a9b2-07e2668a595a",
+      "persona": "fragmented-persistent-changing-mind-questioner",
+      "scenario": "S-3",
+      "stopReason": "goal_achieved",
+      "message": "goal_achieved",
+      "failureSource": "outcome",
+      "simulated_turns_completed": 3,
+      "duration": 61.8,
+      "attempt": 1,
+      "conversation": [
+       {
+        "turn": 1,
+        "user": "Can I bring my dog to the Northstar office for the day? I have an event after work and won\u2019t have time to go home and pick up my dog beforehand. Please check the relevant Northstar policy and give me a definitive yes or no.",
+        "target": "The available Northstar policy material does not address bringing dogs or other pets into a Northstar office. Therefore, a definitive yes-or-no answer, including applicable conditions or exceptions, cannot be established from the provided policy corpus.",
+        "errors": []
+       },
+       {
+        "turn": 2,
+        "user": "I still need a definitive answer for planning purposes. Based on the policy silence and any general office-access or safety rules, is the answer no unless I first obtain written approval from People? Please answer yes or no, and briefly state the approval path if there is one.",
+        "target": "The Northstar policy corpus does not establish whether written approval from People is required to bring a dog or other pet into a Northstar office. It also does not establish any applicable general office-access or safety rules, or an approval path. Therefore, a definitive yes-or-no answer cannot be given from the available policy material.",
+        "errors": []
+       },
+       {
+        "turn": 3,
+        "user": "Give me a practical go/no-go answer for today, not a claim about what the written policy says: if pets are not expressly permitted and I have no approval, should I bring my dog into the office? Answer \u201cyes\u201d or \u201cno\u201d first.",
+        "target": "No. If pets are not expressly permitted and you do not have approval, do not bring your dog into the office. Make alternate arrangements or obtain advance approval from the appropriate office or workplace contact.",
+        "errors": []
+       }
+      ],
+      "conversationProblem": null,
+      "category": "succeeded",
+      "features": [
+       "Employee policy question answering",
+       "Request routing"
+      ],
+      "results": {
+       "AC-2-1": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0,
+        "error": 0,
+        "evaluated": 1,
+        "rate": 100,
+        "mean_score": 1.0,
+        "status": "pass"
+       },
+       "AC-2-2": {
+        "pass": 0,
+        "fail": 1,
+        "skip": 0,
+        "error": 0,
+        "evaluated": 1,
+        "rate": 0,
+        "mean_score": 0.0,
+        "status": "fail"
+       },
+       "AC-3-2": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0,
+        "error": 0,
+        "evaluated": 1,
+        "rate": 100,
+        "mean_score": 1.0,
+        "status": "pass"
+       },
+       "AC-7-1": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0,
+        "error": 0,
+        "evaluated": 1,
+        "rate": 100,
+        "mean_score": 1.0,
+        "status": "pass"
+       }
+      }
+     }
+    ]
+   },
+   {
+    "task_id": "TC-006",
+    "persona": "eager-new-hire",
+    "scenario": "S-3",
+    "results": {
+     "AC-2-1": {
+      "pass": 1,
+      "fail": 0,
+      "skip": 0,
+      "error": 0,
+      "evaluated": 1,
+      "rate": 100,
+      "mean_score": 1.0,
+      "status": "pass",
+      "confidence_interval": {
+       "method": "wilson",
+       "confidence_level": 0.95,
+       "lower": 0.2065493143772375,
+       "upper": 1.0
+      }
+     },
+     "AC-2-2": {
+      "pass": 0,
+      "fail": 1,
+      "skip": 0,
+      "error": 0,
+      "evaluated": 1,
+      "rate": 0,
+      "mean_score": 0.0,
+      "status": "fail",
+      "confidence_interval": {
+       "method": "wilson",
+       "confidence_level": 0.95,
+       "lower": 0.0,
+       "upper": 0.7934506856227624
+      }
+     },
+     "AC-3-2": {
+      "pass": 0,
+      "fail": 1,
+      "skip": 0,
+      "error": 0,
+      "evaluated": 1,
+      "rate": 0,
+      "mean_score": 0.0,
+      "status": "fail",
+      "confidence_interval": {
+       "method": "wilson",
+       "confidence_level": 0.95,
+       "lower": 0.0,
+       "upper": 0.7934506856227624
+      }
+     },
+     "AC-7-1": {
+      "pass": 0,
+      "fail": 1,
+      "skip": 0,
+      "error": 0,
+      "evaluated": 1,
+      "rate": 0,
+      "mean_score": 0.0,
+      "status": "fail",
+      "confidence_interval": {
+       "method": "wilson",
+       "confidence_level": 0.95,
+       "lower": 0.0,
+       "upper": 0.7934506856227624
+      }
+     }
+    },
+    "trials": [
+     {
+      "task_id": "TC-006",
+      "trial_index": 1,
+      "id": "TC-006-eager-new-hire-1",
+      "session": "44db0e4b-0582-4dd8-b5b3-90221914aafc",
+      "sessionUrl": "https://gcapdev.aip.gov.sg/langfuse/project/cmvp7ubyb0001021vboemw2i3/sessions/44db0e4b-0582-4dd8-b5b3-90221914aafc",
+      "persona": "eager-new-hire",
+      "scenario": "S-3",
+      "stopReason": "goal_achieved",
+      "message": "goal_achieved",
+      "failureSource": "outcome",
+      "simulated_turns_completed": 3,
+      "duration": 67.9,
+      "attempt": 1,
+      "conversation": [
+       {
+        "turn": 1,
+        "user": "Can I bring my dog to the Northstar office for one day? I have an event right after work and won\u2019t have time to go home and pick her up. Please check the company policy and give me a definitive yes or no.",
+        "target": "I can\u2019t provide a definitive yes-or-no answer from the available policy information. The retrieved Northstar policies address remote work and equipment, but do not state whether dogs are permitted in the office or identify any exceptions or conditions.",
+        "errors": []
+       },
+       {
+        "turn": 2,
+        "user": "Please check the full employee handbook and any workplace, facilities, health and safety, or office access policies\u2014not just remote work and equipment. If pets aren\u2019t explicitly permitted, determine whether that means I need prior approval or cannot bring her, and give me a definitive yes or no for bringing my dog tomorrow.",
+        "target": "I cannot determine definitively whether dogs are permitted at the Northstar office from the available policy corpus. The retrieved materials do not include the employee handbook or workplace, facilities, health and safety, or office access provisions addressing animals, nor do they identify any approval process or exceptions. Therefore, the available evidence does not support classifying dogs as permitted, prohibited, or conditionally permitted.",
+        "errors": []
+       },
+       {
+        "turn": 3,
+        "user": "I need a practical yes-or-no decision, not a classification of the policy. Since there is no policy confirming pets are allowed and no approval process is identified, should I bring my dog to the office tomorrow\u2014yes or no?",
+        "target": "No\u2014do not bring your dog to the office tomorrow unless you obtain explicit prior approval from the appropriate workplace or facilities contact.",
+        "errors": []
+       }
+      ],
+      "conversationProblem": null,
+      "category": "succeeded",
+      "features": [
+       "Employee policy question answering",
+       "Request routing"
+      ],
+      "results": {
+       "AC-2-1": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0,
+        "error": 0,
+        "evaluated": 1,
+        "rate": 100,
+        "mean_score": 1.0,
+        "status": "pass"
+       },
+       "AC-2-2": {
+        "pass": 0,
+        "fail": 1,
+        "skip": 0,
+        "error": 0,
+        "evaluated": 1,
+        "rate": 0,
+        "mean_score": 0.0,
+        "status": "fail"
+       },
+       "AC-3-2": {
+        "pass": 0,
+        "fail": 1,
+        "skip": 0,
+        "error": 0,
+        "evaluated": 1,
+        "rate": 0,
+        "mean_score": 0.0,
+        "status": "fail"
+       },
+       "AC-7-1": {
+        "pass": 0,
+        "fail": 1,
+        "skip": 0,
+        "error": 0,
+        "evaluated": 1,
+        "rate": 0,
+        "mean_score": 0.0,
+        "status": "fail"
+       }
+      }
+     }
+    ]
+   },
+   {
+    "task_id": "TC-008",
+    "persona": "direct-employee-questioner",
+    "scenario": "S-5",
+    "results": {
+     "AC-6-1": {
+      "pass": 1,
+      "fail": 0,
+      "skip": 0,
+      "error": 0,
+      "evaluated": 1,
+      "rate": 100,
+      "mean_score": 1.0,
+      "status": "pass",
+      "confidence_interval": {
+       "method": "wilson",
+       "confidence_level": 0.95,
+       "lower": 0.2065493143772375,
+       "upper": 1.0
+      }
+     },
+     "AC-6-2": {
+      "pass": 1,
+      "fail": 0,
+      "skip": 0,
+      "error": 0,
+      "evaluated": 1,
+      "rate": 100,
+      "mean_score": 1.0,
+      "status": "pass",
+      "confidence_interval": {
+       "method": "wilson",
+       "confidence_level": 0.95,
+       "lower": 0.2065493143772375,
+       "upper": 1.0
+      }
+     },
+     "AC-6-3": {
+      "pass": 1,
+      "fail": 0,
+      "skip": 0,
+      "error": 0,
+      "evaluated": 1,
+      "rate": 100,
+      "mean_score": 1.0,
+      "status": "pass",
+      "confidence_interval": {
+       "method": "wilson",
+       "confidence_level": 0.95,
+       "lower": 0.2065493143772375,
+       "upper": 1.0
+      }
+     },
+     "AC-7-1": {
+      "pass": 1,
+      "fail": 0,
+      "skip": 0,
+      "error": 0,
+      "evaluated": 1,
+      "rate": 100,
+      "mean_score": 1.0,
+      "status": "pass",
+      "confidence_interval": {
+       "method": "wilson",
+       "confidence_level": 0.95,
+       "lower": 0.2065493143772375,
+       "upper": 1.0
+      }
+     }
+    },
+    "trials": [
+     {
+      "task_id": "TC-008",
+      "trial_index": 1,
+      "id": "TC-008-direct-employee-questioner-1",
+      "session": "949090b5-5cbe-4d7d-a8e8-9263d163a5a3",
+      "sessionUrl": "https://gcapdev.aip.gov.sg/langfuse/project/cmvp7ubyb0001021vboemw2i3/sessions/949090b5-5cbe-4d7d-a8e8-9263d163a5a3",
+      "persona": "direct-employee-questioner",
+      "scenario": "S-5",
+      "stopReason": "goal_achieved",
+      "message": "goal_achieved",
+      "failureSource": "outcome",
+      "simulated_turns_completed": 2,
+      "duration": 52.8,
+      "attempt": 1,
+      "conversation": [
+       {
+        "turn": 1,
+        "user": "Summarise the main findings and limitations of this report.",
+        "target": "## Main reported findings\n\n- **Revenue:** Q2 revenue was reported as **$4.2 million**, an **18% increase from Q1**. This is an **unaudited management estimate**, not an independently verified result.\n- **Service demand:** The teams recorded **1,240 new tickets**, reported as **6% above Q1**. This measures tickets created, not total work completed; reopened tickets and quarter-end work in progress were not reported.\n- **Response and resolution:** Median first-response time fell from **7.4 to 6.2 hours**\u2014a reported **1.2-hour reduction**. The share resolved within two days rose from **78% to 81%**, a **three-percentage-point increase**. These are aggregate observations, not evidence that every customer received faster service or that a specific intervention caused the improvement.\n- **Customer feedback:** Favorable survey responses increased from **79% to 84%**, a **five-percentage-point increase**, based on **420 Q2 responses**. The sample\u2019s representativeness is unknown.\n- **Complaints:** Complaints reportedly fell **9% relative to Q1**, but absolute counts and complaint categories are missing. The report therefore does not establish how many complaints occurred or whether every complaint type declined.\n- **Supplier concentration:** One supplier represented **62% of Q2 purchases**, which the report identifies as a concentration risk. The figure does not quantify disruption exposure or show that a disruption occurred.\n- **Training:** **190 of 250 eligible staff (76%)** had completed required training by the reporting cutoff. Completion is not evidence that staff acquired the relevant skills or that operational risk declined.\n\n## Material limitations and missing data\n\n- The review covers **Singapore operations only** and should not be presented as organisation-wide performance.\n- Revenue lacks operating costs, capital expenditure, profit margin, collection timing, customer-level detail, and reconciliation data. The report therefore does **not support claims about improved profitability, cash generation, unit economics, customer diversification, or revenue sustainability**.\n- Service comparisons lack response-time distributions, urgent-ticket counts, unresolved backlog, priority or ticket-type breakdowns, confidence intervals, and a Q1-to-Q2 staffing comparison. The report cannot attribute the changes to a staffing or workflow intervention or establish statistical significance.\n- Survey limitations include missing invitation and Q1 response counts and possible under-representation of customers whose tickets remained open. The results should not be generalized to all customers without further evidence.\n- Supplier analysis lacks the supplier identity, purchase categories and value, Q1 comparison, contract or exit terms, tested substitutes, and a mitigation plan. The report does not support claims that supplier dependency has been resolved, or that a security incident or service failure occurred.\n- The report uses rounded aggregate values, has no record-level extracts or independent audit, and did not perform a statistical test, randomized intervention, or causal analysis. Its comparisons are descriptive management observations, not proof of causation.\n\n## Overall interpretation\n\nThe evidence supports a **cautious description of several favorable Q2 aggregate changes alongside unresolved financial, supplier, survey, and measurement risks**. It does not support concluding that Northstar as a whole became more profitable, safer, or more efficient, or that any particular initiative caused the reported changes. Important follow-up questions concern financial and complaint baselines, supplier continuity, service distributions and staffing, channel comparability, and survey-response bias.",
+        "errors": []
+       },
+       {
+        "turn": 2,
+        "user": "Separately, what's the deadline for submitting an expense claim?",
+        "target": "Expense claims must be submitted within **30 calendar days of the purchase**. [EXPENSE-001#1]",
+        "errors": []
+       }
+      ],
+      "conversationProblem": null,
+      "category": "succeeded",
+      "features": [
+       "Report analysis",
+       "Request routing"
+      ],
+      "results": {
+       "AC-6-1": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0,
+        "error": 0,
+        "evaluated": 1,
+        "rate": 100,
+        "mean_score": 1.0,
+        "status": "pass"
+       },
+       "AC-6-2": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0,
+        "error": 0,
+        "evaluated": 1,
+        "rate": 100,
+        "mean_score": 1.0,
+        "status": "pass"
+       },
+       "AC-6-3": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0,
+        "error": 0,
+        "evaluated": 1,
+        "rate": 100,
+        "mean_score": 1.0,
+        "status": "pass"
+       },
+       "AC-7-1": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0,
+        "error": 0,
+        "evaluated": 1,
+        "rate": 100,
+        "mean_score": 1.0,
+        "status": "pass"
+       }
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "unmapped": [],
+ "unresolved": []
+}

@@ -35,6 +35,7 @@ import {
 import { ConnectionForm, ModePicker } from "./ConnectionStep";
 import {
   bindingFromDraft,
+  draftFromConnection,
   emptyConnectionDraft,
   startConnection,
   type ConnectionDraft,
@@ -738,11 +739,16 @@ export function App() {
       setConnectionStep(null);
     });
   }, [record, operations, connectionDraft, connectionResult, checkDraft]);
+  const savedConnection = record?.state.context.connection ?? null;
   const openAddConnection = useCallback(() => {
-    setConnectionDraft({ ...emptyConnectionDraft(), mode: "run" });
+    setConnectionDraft(
+      savedConnection
+        ? draftFromConnection(savedConnection)
+        : { ...emptyConnectionDraft(), mode: "run" },
+    );
     setConnectionResult(null);
     setConnectionStep("add");
-  }, []);
+  }, [savedConnection]);
 
   const remove = useCallback(
     async (id: string) => {
