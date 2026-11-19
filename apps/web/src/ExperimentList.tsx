@@ -1,8 +1,9 @@
 import { ChevronRight } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import {
   experimentState,
+  lastUpdated,
   progressText,
   type ExperimentState,
 } from "./experiment-status";
@@ -21,26 +22,29 @@ export interface ExperimentItem {
 export type RowLoad =
   | { status: "loading" }
   | { status: "failed" }
-  | { status: "ready"; state: ExperimentState };
+  | { status: "ready"; state: ExperimentState; updatedAt: string };
+
+export type ListRow = ExperimentItem & { load: RowLoad };
 
 export type ListLoad =
   | { status: "loading" }
   | { status: "failed"; message: string }
-  | { status: "ready"; rows: Array<ExperimentItem & { load: RowLoad }> };
+  | { status: "ready"; rows: ListRow[] };
 
 function errorText(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
-async function rowLoad({ experiment_id, step }: ExperimentRecord) {
+async function rowLoad(record: ExperimentRecord) {
   try {
     const [status, events] = await Promise.all([
-      api.engineStatus(experiment_id),
-      api.engineEvents(experiment_id),
+      api.engineStatus(record.experiment_id),
+      api.engineEvents(record.experiment_id),
     ]);
     return {
       status: "ready",
-      state: experimentState(step, status, events),
+      state: experimentState(record.step, status, events),
+      updatedAt: lastUpdated(record, events),
     } as const;
   } catch {
     return { status: "failed" } as const;
@@ -90,7 +94,14 @@ export function useExperimentList(
   return held?.key === key ? held.load : { status: "loading" };
 }
 
-export function ExperimentList({ load }: { load: ListLoad }) {
+// The loading, failed and empty states of a list of Experiments. `children` draws the rows.
+export function ListStates({
+  load,
+  children,
+}: {
+  load: ListLoad;
+  children: (rows: ListRow[]) => ReactNode;
+}) {
   if (load.status === "loading")
     return (
       <p role="status" className="text-sm text-muted-foreground">
@@ -105,27 +116,31 @@ export function ExperimentList({ load }: { load: ListLoad }) {
     );
   if (load.rows.length === 0)
     return <p className="text-sm text-muted-foreground">No experiments yet.</p>;
+  return children(load.rows);
+}
+
+export function ExperimentList({ load }: { load: ListLoad }) {
   return (
-    <Panel className="overflow-hidden">
-      <ul>
-        {load.rows.map((row) => (
-          <li
-            key={row.record.experiment_id}
-            className="border-b border-border last:border-b-0"
-          >
-            <ExperimentRow {...row} />
-          </li>
-        ))}
-      </ul>
-    </Panel>
+    <ListStates load={load}>
+      {(rows) => (
+        <Panel className="overflow-hidden">
+          <ul>
+            {rows.map((row) => (
+              <li
+                key={row.record.experiment_id}
+                className="border-b border-border last:border-b-0"
+              >
+                <ExperimentRow {...row} />
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+    </ListStates>
   );
 }
 
-function ExperimentRow({
-  record,
-  targetTitle,
-  load,
-}: ExperimentItem & { load: RowLoad }) {
+function ExperimentRow({ record, targetTitle, load }: ListRow) {
   return (
     <Link
       href={paths.experiment(record.target_id, record.experiment_id)}

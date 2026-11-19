@@ -870,6 +870,7 @@ test("all experiments shows the Target of each row", () => {
             load: {
               status: "ready",
               state: { kind: "waiting", progress: null, resume: "evaluate" },
+              updatedAt: new Date().toISOString(),
             },
           },
         ],

@@ -194,6 +194,19 @@ export function progressOf(events: readonly PhaseEvent[]): Progress | null {
   };
 }
 
+// The time of the newest event, or the start of the Experiment before the engine writes one.
+export function lastUpdated(
+  { started_at }: ExperimentRecord,
+  events: readonly PhaseEvent[],
+): string {
+  const newest = events.reduce<PhaseEvent | undefined>(
+    (found, event) =>
+      found === undefined || event.seq > found.seq ? event : found,
+    undefined,
+  );
+  return newest?.at ?? started_at;
+}
+
 const PHASE_WORD: Record<Phase, string> = {
   simulating: "simulated",
   evaluating: "graded",
