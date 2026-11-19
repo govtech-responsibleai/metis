@@ -21,9 +21,10 @@ install anything, but these services are not generally open to the public:
 2. **The target application**, the toy app that you evaluate:
    [https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/](https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/) ([source code](https://github.com/govtech-responsibleai/agentic-eval-toyapp))
 3. **A Langfuse server**, which records each conversation as a trace. You open it from a link in
-   METIS, in step 6.
+   the toy app in step 1, and from a link in METIS in step 6.
 
-To log in to METIS, you need the secret key that is shown on the presentation slides.
+To log in to METIS, you need the secret key that is shown on the presentation slides. The
+workshop facilitators give you the login for Langfuse.
 :::
 
 :::tip[Comfortable with the terminal?]
@@ -37,7 +38,7 @@ The picture shows how the pieces fit together:
 
 | Step | What you do | Time |
 |---|---|---|
-| [Step 1](#step-1) | Explore the toy application | 10 min |
+| [Step 1](#step-1) | Explore the toy application | 15 min |
 | [Step 2](#step-2) | Log in to METIS | 5 min |
 | [Step 3](#step-3) | Learn the Wizard interface | 10 min |
 | [Step 4](#step-4) | Build a specification | 20 min |
@@ -46,7 +47,7 @@ The picture shows how the pieces fit together:
 | [Step 7](#step-7) | Read the report | 10 min |
 | [Step 8](#step-8) | Wrap-up and feedback | 10 min |
 
-## Step 1: Explore the toy application (10 min) {#step-1}
+## Step 1: Explore the toy application (15 min) {#step-1}
 
 The [agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp) is an
 employee assistant. For each message it chooses one of four actions: answer directly, ask a
@@ -65,9 +66,23 @@ but the policy collection has no answer.
 
 ![The toy app in a demo session](./assets/toyapp-demo-session.png)
 
-METIS grades the whole conversation, not just the final answer.
+### 1c. View the demo in Langfuse
 
-**Checkpoint:** name the four actions the toy app can take.
+The toy app records each conversation in Langfuse as a <Term>trace</Term>. Select **Open in
+Langfuse** to open the trace of the demo session that you just watched.
+
+![The toy app's session bar, with the Open in Langfuse button](./assets/toyapp-open-in-langfuse.png)
+
+:::note
+Langfuse asks you to log in. Use the Langfuse login that the workshop facilitators give you.
+:::
+
+Select the trace, and find the `coordinator-action` step. It shows which of the four actions the
+app chose for the pet question. Langfuse shows the steps that led to the final answer, as well as
+the answer itself, and METIS grades both. You come back to Langfuse in step 6, to read the
+conversations that METIS runs.
+
+**Checkpoint:** name the four actions the toy app can take, and say which one it chose in the demo.
 
 ## Step 2: Log in to METIS (5 min) {#step-2}
 
@@ -203,7 +218,7 @@ Wait for all trials to finish.
 ### 6a. Open a trace from the Trials tab
 
 In the Trials tab, each completed test case shows a Langfuse link. Click on the link to open the
-trace directly in Langfuse.
+trace directly in Langfuse. If Langfuse asks you to log in, use the login from step 1c.
 
 ![A completed trial with a Langfuse link](./assets/web-trials-langfuse-link.png)
 
