@@ -163,7 +163,7 @@ The example, `packages/engine/examples/http-agentic_eval_toyapp-1/toyapp-api.yam
 # The agentic-eval toy app's REST API, bound to the generic HTTP runner. Its OpenAPI
 # document declares no server URL, so paths are written from the host root.
 schema_version: 1
-identity: {name: Agentic Eval Toy App}
+identity: {name: Northstar Policy & Report Assistant}
 transport: http
 spec_url: ${TOYAPP_API_URL}/openapi.json  # TOYAPP_API_URL is the host, e.g. http://127.0.0.1:8000
 # The app has no authentication, so there is no auth block.
