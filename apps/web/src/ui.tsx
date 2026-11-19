@@ -253,6 +253,39 @@ export function Chip({
   );
 }
 
+// The initials of a username: the first letter of each of its first two hyphen parts, so
+// "curious-otter" gives "CO" and "admin" gives "A".
+export function initials(username: string): string {
+  return username
+    .split("-")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+// A round mark with the initials of a user account. It is decoration, because the username is
+// always next to it or in the label of its control.
+export function Avatar({
+  username,
+  size = "md",
+}: {
+  username: string;
+  size?: "sm" | "md";
+}) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "inline-flex shrink-0 select-none items-center justify-center rounded-full bg-border font-semibold text-muted-foreground",
+        size === "sm" ? "h-6 w-6 text-[10px]" : "h-7 w-7 text-[11px]",
+      )}
+    >
+      {initials(username)}
+    </span>
+  );
+}
+
 // A small monospace token — an id, metric metadata, or a filename. JetBrains Mono is reserved for
 // machine-facing data, so it reads as implementation detail rather than ordinary prose.
 // `tone` picks the ink, because `cn` is a plain join rather than tailwind-merge: a `text-*` passed

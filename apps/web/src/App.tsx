@@ -8,7 +8,7 @@ import {
   useSyncExternalStore,
   type CSSProperties,
 } from "react";
-import { PanelLeft, PanelRight, Puzzle } from "lucide-react";
+import { Puzzle } from "lucide-react";
 import type {
   LoadedInterviewRecord,
   CapabilityConfidence,
@@ -56,7 +56,7 @@ import {
   stepPosition,
 } from "./SpecificationView";
 import { ProfileToolbar, YamlView, type ProfileMode } from "./ProfileToolbar";
-import { TargetRail } from "./TargetRail";
+import { CollapsedRail, TargetRail } from "./TargetRail";
 import { ExperimentsTab, TargetTabs } from "./TargetPage";
 import { ExperimentDialog } from "./ExperimentDialog";
 import { exportedSpecification } from "./export";
@@ -827,11 +827,7 @@ export function App() {
           onCollapse={() => setRailOpen(false)}
         />
       ) : (
-        <EdgeStrip
-          side="left"
-          label="Show targets"
-          onClick={() => setRailOpen(true)}
-        />
+        <CollapsedRail onExpand={() => setRailOpen(true)} />
       )}
       <main className="flex min-w-0 flex-1 flex-col">
         {error && (
@@ -1535,31 +1531,6 @@ function NotFound({ onNew }: { onNew: () => void }) {
   );
 }
 
-function EdgeStrip({
-  side,
-  label,
-  onClick,
-}: {
-  side: "left" | "right";
-  label: string;
-  onClick: () => void;
-}) {
-  const Icon = side === "left" ? PanelLeft : PanelRight;
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      className={cn(
-        "flex h-full w-8 shrink-0 items-start justify-center bg-muted/30 pt-4 text-muted-foreground hover:bg-muted hover:text-foreground",
-        side === "left" ? "border-r border-border" : "border-l border-border",
-      )}
-    >
-      <Icon size={16} strokeWidth={1.75} aria-hidden />
-    </button>
-  );
-}
 function ThinkingLine({ message }: { message: string }) {
   return (
     <div

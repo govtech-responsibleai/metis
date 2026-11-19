@@ -50,7 +50,7 @@ The web app uses Figtree, and the report and the docs use Lato. Numbers and code
 Mono. The smallest text size is 12px.
 
 Dark mode uses neutral black and grey. The user picks System, Light or Dark at the foot of the left
-rail. The docs site follows the system setting, and its navbar switch changes it. The report has no
+rail, or with login on, in the account menu there. The docs site follows the system setting, and its navbar switch changes it. The report has no
 dark mode yet.
 
 The login page is the one place where the web app shows the brand. The form takes half of the
