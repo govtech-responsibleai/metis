@@ -8,9 +8,9 @@ import type {
   ModelStatus,
   Specification,
 } from "./transport/api";
+import { TriangleAlert } from "lucide-react";
+import { TextInput } from "./fields";
 import { Button, Mono, Panel } from "./ui";
-
-export const MODEL_GUIDE = "docs/guide/models.md";
 
 // The roles whose model a Specification records. The interview role stays in the
 // environment, so the run settings step does not show it.
@@ -31,52 +31,69 @@ const DEFAULT_FIELD: Record<
 
 const ROLE_HELP: Record<RunModelRole, string> = {
   user_agent:
-    "Acts as a real user. Use a capable model that is different from your target.",
+    "Acts as the user. Use a model that is different from your target.",
   runner_agent:
-    "Works out how to act on the target for a generic runner. Empty uses the user agent model.",
+    "Acts on the target for the generic runner. Empty uses the user agent model.",
   judge:
-    "Scores each criterion. Use a model from a different family than your target.",
+    "Scores each Criterion. Use a model family that is different from your target.",
 };
 
 // The roles that a run of this Specification calls. The runner agent runs only for a generic
 // runner, which a target binding selects.
-/**
- * The model that a run uses when the field of `role` stays empty. It matches the engine: the
- * runner agent uses `RUNNER_AGENT_MODEL` when it is set, else the user agent model of the run,
- * so its placeholder follows the typed user agent value.
- */
-export function placeholderModel(
-  role: RunModelRole,
-  statuses: readonly ModelStatus[],
-  values: RunModels,
-): string {
-  const byRole = new Map(statuses.map((status) => [status.role, status]));
-  const status = byRole.get(role);
-  if (role === "runner_agent" && status?.source === "user agent model") {
-    return (
-      values.user_agent?.trim() ||
-      byRole.get("user_agent")?.model ||
-      status.model
-    );
-  }
-  return status?.model ?? "";
-}
-
 export function runRoles(specification: Specification): RunModelRole[] {
   return specification.target_binding
     ? ["user_agent", "runner_agent", "judge"]
     : ["user_agent", "judge"];
 }
 
-// The model names that the Specification records now.
-export function runModels(specification: Specification): RunModels {
+// The runner agent uses the user agent model of the run when `RUNNER_AGENT_MODEL` is not set.
+function runnerFollowsUserAgent(statuses: readonly ModelStatus[]): boolean {
+  return statuses.some(
+    (status) =>
+      status.role === "runner_agent" && status.source === "user agent model",
+  );
+}
+
+// The models that the fields start with, for the roles that the run calls: the model that the
+// Specification records, else the model of the environment, so the fields show the models that
+// the run uses.
+export function filledRunModels(
+  specification: Specification,
+  statuses: readonly ModelStatus[],
+): RunModels {
   const defaults = specification.defaults ?? {};
+  const environment = new Map(statuses.map((s) => [s.role, s.model]));
   const models: RunModels = {};
-  for (const role of Object.keys(DEFAULT_FIELD) as RunModelRole[]) {
-    const value = defaults[DEFAULT_FIELD[role]];
+  const roles = runRoles(specification);
+  for (const role of roles) {
+    const value = defaults[DEFAULT_FIELD[role]] ?? environment.get(role);
     if (value) models[role] = value;
   }
+  if (
+    roles.includes("runner_agent") &&
+    !defaults.runner_agent_model &&
+    runnerFollowsUserAgent(statuses)
+  )
+    models.runner_agent = models.user_agent;
   return models;
+}
+
+// One field changes. While the runner agent field holds the user agent model, it follows the
+// user agent field, as the run does.
+export function withRunModel(
+  models: RunModels,
+  role: RunModelRole,
+  value: string,
+  statuses: readonly ModelStatus[],
+): RunModels {
+  const next = { ...models, [role]: value };
+  if (
+    role === "user_agent" &&
+    runnerFollowsUserAgent(statuses) &&
+    models.runner_agent === models.user_agent
+  )
+    next.runner_agent = value;
+  return next;
 }
 
 // Write model names into the Specification defaults. A blank name removes the default, so the
@@ -92,15 +109,6 @@ export function withRunModels(
     else delete defaults[DEFAULT_FIELD[role]];
   }
   return { ...state, specification: { ...state.specification, defaults } };
-}
-
-// The state to package when the user continues from the run settings step. With no draft, the
-// user changed nothing, so the state, and so the ZIP, stays the same.
-export function stateForDownload(
-  state: InterviewState,
-  drafts: RunModels | null,
-): InterviewState {
-  return drafts ? withRunModels(state, drafts) : state;
 }
 
 // Whether the Interview can start. Only the interview role is required. The run roles are needed
@@ -149,47 +157,53 @@ export function RunSettings({
 }) {
   const byRole = new Map(statuses.map((status) => [status.role, status]));
   return (
-    <Panel className="flex flex-col gap-4 p-5">
-      <div className="flex flex-col gap-1">
+    <Panel className="flex flex-col">
+      <div className="flex flex-col gap-1 px-5 pt-5">
         <h2 className="text-base font-semibold">Run settings</h2>
         <p className="text-sm text-muted-foreground">
           These models affect scores, so the specification records them. The
-          download starts when you continue. Keys stay in <Mono>.env</Mono>.
-          Leave a field empty to use the environment. See{" "}
-          <Mono>{MODEL_GUIDE}</Mono>.
+          fields start with the models in <Mono>.env</Mono>.
         </p>
       </div>
-      {roles.map((role) => {
-        const status = byRole.get(role);
-        const id = `run-model-${role}`;
-        return (
-          <div key={role} className="flex flex-col gap-1">
-            <label htmlFor={id} className="text-sm font-medium">
-              {status?.label ?? role}
-            </label>
-            <input
-              id={id}
-              className="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
-              value={values[role] ?? ""}
-              placeholder={placeholderModel(role, statuses, values)}
-              disabled={busy}
-              onChange={(event) => onChange(role, event.currentTarget.value)}
-            />
-            <p className="text-xs text-muted-foreground">{ROLE_HELP[role]}</p>
-            {status && !status.configured && (
-              <p className="text-xs text-muted-foreground">
-                Not configured: set {status.missing_vars.join(" or ")} before
-                the run.
+      <div className="flex flex-col gap-4 px-5 py-5">
+        {roles.map((role) => {
+          const status = byRole.get(role);
+          return (
+            <div key={role} className="flex flex-col gap-1.5">
+              {/* The label and the help line start where the text in the box starts. */}
+              <label
+                htmlFor={`run-model-${role}`}
+                className="px-3 text-sm font-medium text-foreground"
+              >
+                {status?.label ?? role}
+              </label>
+              <TextInput
+                id={`run-model-${role}`}
+                value={values[role] ?? ""}
+                spellCheck={false}
+                disabled={busy}
+                onChange={(value) => onChange(role, value)}
+              />
+              <p className="px-3 text-xs text-muted-foreground">
+                {ROLE_HELP[role]}
               </p>
-            )}
-          </div>
-        );
-      })}
-      <div className="flex items-center gap-2">
-        {onBack && (
+              {status && !status.configured && (
+                <p className="flex items-center gap-1.5 px-3 text-xs text-warning">
+                  <TriangleAlert size={14} aria-hidden />
+                  Set {status.missing_vars.join(" or ")} before the run.
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center justify-between gap-2 border-t border-border px-5 py-4">
+        {onBack ? (
           <Button disabled={busy} onClick={onBack}>
             ← Back
           </Button>
+        ) : (
+          <span />
         )}
         <Button variant="primary" disabled={busy} onClick={onContinue}>
           Continue and download

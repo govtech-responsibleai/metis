@@ -368,12 +368,13 @@ Document facts:
 1. Answer each Interview screen.
 2. Review the final Personas, Scenarios, and Test Cases.
 3. Select **Continue** on the final review screen to complete the Interview.
-4. On the **Run settings** step, type the user agent, runner agent, and judge model names, or leave
-   a field empty to use the environment. These models affect scores, so the specification records
-   them. The step takes model names only. Keys stay in `.env`. See the
-   [model guide](../models.md).
+4. On the **Run settings** step, check the user agent, runner agent, and judge model names. The
+   fields start with the models that the specification records, else the models in `.env`. While
+   the runner agent field holds the user agent model, it follows the user agent field. These models
+   affect scores, so the specification records them. The step takes model names only. Keys stay in
+   `.env`. See the [model guide](../models.md).
 5. Select **Continue and download**. The browser downloads `YYYYMMDD-HHMMSS-interview-<random>.zip`, with
-   the models that you set. If you change no field, the download is the same as without the step.
+   the models that the fields show.
 
 To download the specification again later, select **Download** in the toolbar of the Profile.
 

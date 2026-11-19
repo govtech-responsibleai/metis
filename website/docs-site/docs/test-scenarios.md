@@ -57,9 +57,9 @@ not need to open it.
 ### Finish early
 
 To finish before the last step, select **Skip interview and download specification**. The Wizard
-drafts the remaining steps without asking you. Then, on **Run settings**, enter the models for
-the **User agent** and the **Judge**, or leave the fields empty to use `.env`. Select **Continue
-and download**.
+drafts the remaining steps without asking you. Then, on **Run settings**, check the models for
+the **User agent** and the **Judge**. The fields start with the models in `.env`. Select
+**Continue and download**.
 
 If the Wizard says "I couldn't finish this into a runnable evaluation on my own", continue the
 interview step by step.

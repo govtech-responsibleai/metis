@@ -47,9 +47,10 @@ import {
   completesNow,
   interviewReady,
   RunSettings,
-  runModels,
+  filledRunModels,
   runRoles,
-  stateForDownload,
+  withRunModel,
+  withRunModels,
   type Completion,
   type RunModels,
 } from "./RunSettings";
@@ -773,17 +774,17 @@ export function App() {
     [navigate, operations, refreshList],
   );
 
-  // Save the model names, if the user changed any, then start the download. With no change,
-  // the record and the ZIP are the same as before the step.
+  // Save the model names that the fields show, then start the download.
   const continueToDownload = useCallback(async () => {
     if (!record) return;
-    let next = record;
+    const state = withRunModels(
+      record.state,
+      runModelDrafts ??
+        filledRunModels(record.state.specification, modelStatuses),
+    );
+    const next = { ...record, updated_at: Date.now(), state };
     await operations.run(record.id, async () => {
-      const state = stateForDownload(record.state, runModelDrafts);
-      if (state !== record.state) {
-        next = { ...record, updated_at: Date.now(), state };
-        await operations.save(next);
-      }
+      await operations.save(next);
       setRunSettingsFor(null);
       setRunModelDrafts(null);
       try {
@@ -794,7 +795,14 @@ export function App() {
         );
       }
     });
-  }, [record, runModelDrafts, operations, packageAndDownload, downloadCurrent]);
+  }, [
+    record,
+    runModelDrafts,
+    modelStatuses,
+    operations,
+    packageAndDownload,
+    downloadCurrent,
+  ]);
 
   const profileToolbar = view && (
     <ProfileToolbar
@@ -1026,13 +1034,24 @@ export function App() {
                     <RunSettings
                       roles={runRoles(view.specification)}
                       statuses={modelStatuses}
-                      values={runModelDrafts ?? runModels(view.specification)}
+                      values={
+                        runModelDrafts ??
+                        filledRunModels(view.specification, modelStatuses)
+                      }
                       busy={busy || operations.pendingSaves.has(view.id)}
                       onChange={(role, value) => {
-                        setRunModelDrafts((current) => ({
-                          ...(current ?? runModels(view.specification)),
-                          [role]: value,
-                        }));
+                        setRunModelDrafts((current) =>
+                          withRunModel(
+                            current ??
+                              filledRunModels(
+                                view.specification,
+                                modelStatuses,
+                              ),
+                            role,
+                            value,
+                            modelStatuses,
+                          ),
+                        );
                       }}
                       onContinue={() => void continueToDownload()}
                       onBack={() => void backFromDone()}
