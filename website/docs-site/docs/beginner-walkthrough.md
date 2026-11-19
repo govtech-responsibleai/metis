@@ -14,12 +14,12 @@ conversations in Langfuse, and read the report that grades them. Each step ends 
 
 This walkthrough is for a hands-on workshop presented by the METIS team, and you can follow it
 only during the workshop. The organisers set up and host everything that it uses, so you do not
-install anything, but these services are not open to the public:
+install anything, but these services are not generally open to the public:
 
 1. **The METIS web app**, where you build a specification and run the experiment:
    [https://demo1-web.metis.aip.gov.sg/](https://demo1-web.metis.aip.gov.sg/)
 2. **The target application**, the toy app that you evaluate:
-   [https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/](https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/)
+   [https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/](https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/) ([source code](https://github.com/govtech-responsibleai/agentic-eval-toyapp))
 3. **A Langfuse server**, which records each conversation as a trace. You open it from a link in
    METIS, in step 6.
 
