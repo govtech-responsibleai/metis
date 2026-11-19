@@ -1,5 +1,5 @@
 {
- "title": "Northstar Policy & Report Assistant",
+ "title": "(demo) Northstar Policy & Report Assistant",
  "state": {
   "specification": {
    "schema_version": 1,
@@ -7,7 +7,7 @@
    "runner_factory_ref": "metis.engine.simulation.runners.http.HttpRunnerFactory",
    "target_binding": "toyapp-api.yaml",
    "target": {
-    "name": "Northstar Policy & Report Assistant",
+    "name": "(demo) Northstar Policy & Report Assistant",
     "users": "Employees of Northstar Services.",
     "description": "An employee assistant with two independent jobs. Policy Q&A answers from the Northstar policy documents, with citations. Report analysis gives summaries and findings from the report that the employee uploads. Each message goes to one job only, and the assistant cannot check a report against Northstar policy.",
     "detail": ""
