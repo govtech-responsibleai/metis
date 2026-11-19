@@ -189,7 +189,7 @@ tasks:
   scenario_ref: S-3
   persona_ref: fragmented-persistent-changing-mind-questioner
   fixtures: []
-  num_trials: 3
+  num_trials: 2
   behaviour_refs:
   - EB-2
   - EB-3
@@ -216,7 +216,7 @@ tasks:
   persona_ref: direct-employee-questioner
   fixtures:
   - northstar-q2-service-review.md
-  num_trials: 2
+  num_trials: 1
   behaviour_refs:
   - EB-6
   - EB-7

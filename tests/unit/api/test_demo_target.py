@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from metis.api.demo import DEMO_FILES, EXPERIMENTS, add_demo_target_to_new_local_user
 from metis.api.main import create_app
 from metis.api.store import Store
+from metis.core import execution_layout
 
 ADMIN = {"Authorization": "Bearer workshop-admin-token"}
 TARGETS = "/api/v1/targets"
@@ -110,12 +111,22 @@ def test_the_demo_experiment_shows_its_trials_and_its_report_with_no_new_run(
     report = browser.get(f"/api/v1/experiments/{experiment_id}/report").json()
     page = browser.get(f"/api/v1/experiments/{experiment_id}/report.html")
 
+    trials = report["trials"]["items"]
     assert status["status"] == "completed"
     assert status["phase"] == "evaluating"
-    assert len(events) > 6
+    assert status["total"] == 4
+    assert {event["trial"] for event in events if event["trial"]} == {
+        trial["id"] for trial in trials
+    }
     assert report["target"] == NAME
-    assert len(report["trials"]["items"]) == 6
-    assert all(trial["conversation"] for trial in report["trials"]["items"])
+    assert report["sessions"] == 4
+    assert [(trial["task_id"], trial["trial_index"]) for trial in trials] == [
+        ("TC-004", 1),
+        ("TC-004", 2),
+        ("TC-006", 1),
+        ("TC-008", 1),
+    ]
+    assert all(trial["conversation"] for trial in trials)
     assert NAME in page.text
 
 
@@ -182,6 +193,16 @@ def test_the_demo_interview_has_the_specification_of_the_lite_example(
     saved = yaml.safe_load(store.read_specification(target.id).specification_yaml)
 
     assert saved == {**example, "target_binding": "target-binding.yaml"}
+
+
+def test_the_demo_experiment_ran_the_specification_of_the_lite_example() -> None:
+    [experiment] = (DEMO_FILES / EXPERIMENTS).iterdir()
+
+    frozen = experiment / execution_layout.SPECIFICATION
+
+    assert yaml.safe_load(frozen.read_text(encoding="utf-8")) == yaml.safe_load(
+        (EXAMPLE / "specification.yaml").read_text(encoding="utf-8")
+    )
 
 
 def test_the_demo_files_are_only_the_files_that_the_web_app_reads() -> None:
