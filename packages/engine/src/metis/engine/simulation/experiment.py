@@ -319,8 +319,8 @@ async def _worker(
     Each attempt is one trace in the METIS-internal Langfuse. Its session is the trial's
     (``tracing.trial_session_id``), which the trial's grading traces share.
 
-    With ``target_project``, each record gets ``target_session_langfuse_url``: the page of its target
-    session in the target's Langfuse project.
+    With ``target_project``, each record gets ``target_session_langfuse_url``: the page of its
+    target session in the target's Langfuse project.
     """
     structlog.contextvars.clear_contextvars()
     structlog.contextvars.bind_contextvars(worker=f"w{worker_id}")
