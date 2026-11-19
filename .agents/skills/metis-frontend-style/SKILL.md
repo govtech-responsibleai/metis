@@ -39,7 +39,7 @@ The values live in **`docs/design.md`** in the repository. That guide is the sou
 
 In light mode, navy-soft is close to the near-black text: the contrast between the two is only about 1.3:1. So never mark a state with accent text alone. Add a border, a left marker, or a tint as well. Dark mode keeps neutral black and grey surfaces. Do not use navy for a dark surface.
 
-**Dark mode.** The web app has a System / Light / Dark switch at the foot of the left rail. `src/theme.ts` sets `data-theme` on `<html>`, and `index.html` sets it before the first paint. All dark values are in the one `:root[data-theme="dark"]` block. Do not add a `prefers-color-scheme` block or `dark:` classes. The report has no dark mode.
+**Dark mode.** The web app has a System, Light, and Dark switch at the foot of the left rail. With login on, it is the Appearance row of the account menu there. `src/theme.ts` sets `data-theme` on `<html>`, and `index.html` sets it before the first paint. All dark values are in the one `:root[data-theme="dark"]` block. Do not add a `prefers-color-scheme` block or `dark:` classes. The report has no dark mode.
 
 **Data colours.** Taxonomy chips use slate, periwinkle, dark gold, and green (`--tag-*`). The report heat scale goes from soft rose at 0%, through grey, to soft teal at 100% (`SCALE` in `_report_page.py`). Do not use a status colour for a chip.
 

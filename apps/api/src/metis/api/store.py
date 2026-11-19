@@ -94,14 +94,17 @@ from metis.api.records import (
     record_problem,
 )
 from metis.api.tables import (
+    admins,
     experiments,
     interviews,
+    login_sessions,
     metadata,
     specifications,
     targets,
     users,
 )
 from metis.core import project_layout
+from metis.core.logging import get_logger
 from metis.wizard import (
     CompilationError,
     InterviewState,
@@ -116,6 +119,8 @@ if TYPE_CHECKING:
 
     from sqlalchemy import Table
     from sqlalchemy.engine import Connection, Engine, RowMapping
+
+logger = get_logger(__name__)
 
 DATABASE = Path(project_layout.DATABASE)
 """The default SQLite file of the store, relative to the project folder."""
@@ -453,6 +458,43 @@ class Store:
                 raise _not_found(f"The store has no Target {target_id}.")
             for folder in self.target_dirs(target_id):
                 shutil.rmtree(folder, ignore_errors=True)
+
+    def delete_user_account(self, user_id: str) -> None:
+        """Delete a user account with its login sessions and its records, then its folder.
+
+        One transaction deletes the rows of the user account: its login sessions, its admin
+        row, the Experiment, Specification, and Interview rows of its Targets, its Targets, and
+        its ``users`` row. Then the store deletes `users/<user id>/` in the server project
+        folder. A folder that the store cannot delete is logged, and the rows stay deleted.
+
+        The store lock covers the full delete, so it does not mix with a save of that user
+        account. An unknown ``user_id`` changes no row.
+
+        :raises ValueError: When ``user_id`` is not the id of a user account that the store
+            made, for example the local user account.
+        """
+        folder = user_project_dir(self._server_dir, user_id)
+        owned = select(targets.c.id).where(targets.c.user_id == user_id)
+        with self._lock:
+            with self._engine.begin() as connection:
+                for table in (experiments, specifications, interviews):
+                    connection.execute(
+                        delete(table).where(table.c.target_id.in_(owned))
+                    )
+                connection.execute(delete(targets).where(targets.c.user_id == user_id))
+                for table in (login_sessions, admins):
+                    connection.execute(delete(table).where(table.c.user_id == user_id))
+                connection.execute(delete(users).where(users.c.id == user_id))
+            try:
+                shutil.rmtree(folder)
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                logger.warning(
+                    "user_folder_not_deleted",
+                    user_id=user_id,
+                    error_type=type(exc).__name__,
+                )
 
     # Specifications.
 

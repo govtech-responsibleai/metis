@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { REVEAL_INTERVAL_MS, transitionFrames } from "./reveal";
+import {
+  REVEAL_INTERVAL_MS,
+  SETTLE_INTERVAL_MS,
+  settleFrames,
+  transitionFrames,
+} from "./reveal";
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
@@ -69,6 +74,30 @@ export function RevealText({ value }: { value: string }) {
       {/* The changing visual text stays out of the accessibility tree. Assistive technology gets
           the complete value once, instead of hearing the field again for every revealed word. */}
       <span aria-hidden>{displayed}</span>
+      <span className="sr-only">{value}</span>
+    </>
+  );
+}
+
+// A new value that the user must see is new, such as a new password. Its characters settle into
+// place once, when the component mounts. With reduced motion, the value shows at once.
+export function SettleText({ value }: { value: string }) {
+  const reducedMotion = usePrefersReducedMotion();
+  const [frames] = useState(() => settleFrames(value, reducedMotion));
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    if (reducedMotion || index >= frames.length - 1) return;
+    const timer = window.setTimeout(
+      () => setIndex((current) => current + 1),
+      SETTLE_INTERVAL_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [frames, index, reducedMotion]);
+
+  return (
+    <>
+      <span aria-hidden>{reducedMotion ? value : frames[index]}</span>
       <span className="sr-only">{value}</span>
     </>
   );

@@ -25,6 +25,7 @@ import functools
 import threading
 import time
 from collections import deque
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal, Protocol
 
@@ -37,7 +38,7 @@ from metis.core.phase_events import EVENTS_FILE, PhaseEvent
 from metis.engine import run as engine_run
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Iterator, Sequence
     from pathlib import Path
 
     from metis.core.phase_events import Phase
@@ -254,6 +255,19 @@ class EngineRuns:
         """The run of ``experiment_id`` in ``project_dir`` when it runs or waits, else ``None``."""
         with self._lock:
             return self._find(project_dir, experiment_id)
+
+    @contextmanager
+    def idle_in(self, project_dir: Path) -> Iterator[bool]:
+        """Yield whether no run of ``project_dir`` runs or waits, and hold the lock of the runs.
+
+        A queued run counts, because it would start later in the folder of ``project_dir``. No
+        run starts and no start is queued until the block ends, so the answer stays true for
+        the full block.
+        """
+        with self._lock:
+            running = any(key[0] == project_dir for key in self._running)
+            queued = any(run.project_dir == project_dir for run in self._queue)
+            yield not (running or queued)
 
     def shutdown(self, timeout: float) -> None:
         """Empty the queue, stop every run, and wait for the threads.
