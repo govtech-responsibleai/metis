@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Callable, Iterator
 from contextlib import ExitStack
 from pathlib import Path
@@ -225,11 +224,18 @@ def test_the_demo_files_are_only_the_files_that_the_web_app_reads() -> None:
     )
     [experiment] = [path.name for path in (DEMO_FILES / EXPERIMENTS).iterdir()]
 
+    traces = sorted(
+        f"evaluations/experiments/{experiment}/outputs/traces/{path.name}"
+        for path in (DEMO_FILES / EXPERIMENTS / experiment / "outputs/traces").iterdir()
+    )
+
+    assert len(traces) == 4
     assert files == [
         f"evaluations/experiments/{experiment}/logs/events.jsonl",
         f"evaluations/experiments/{experiment}/outputs/reports/report.html",
         f"evaluations/experiments/{experiment}/outputs/reports/report.json",
         f"evaluations/experiments/{experiment}/outputs/reports/results.json",
+        *traces,
         f"evaluations/experiments/{experiment}/specification/fixtures/northstar-q2-service-review.md",
         f"evaluations/experiments/{experiment}/specification/specification.yaml",
         f"evaluations/experiments/{experiment}/specification/toyapp-api.yaml",
@@ -238,11 +244,28 @@ def test_the_demo_files_are_only_the_files_that_the_web_app_reads() -> None:
     ]
 
 
-def test_the_demo_files_have_no_id_of_a_real_session() -> None:
-    made_up = re.compile(r"00000000-0000-4000-8000-\d{12}")
-    any_id = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+def test_each_demo_trial_links_to_its_langfuse_session_and_has_its_traces(
+    new_user_browser: Callable[[], TestClient],
+) -> None:
+    browser = new_user_browser()
+    [target] = _targets(browser)
+    [experiment] = browser.get(f"{TARGETS}/{target['id']}/experiments").json()[
+        "experiments"
+    ]
+    experiment_id = experiment["experiment_id"]
+    events = browser.get(f"/api/v1/engine/{experiment_id}/events").json()
+    report = browser.get(f"/api/v1/experiments/{experiment_id}/report").json()
+    [folder] = (DEMO_FILES / EXPERIMENTS).iterdir()
 
-    for path in DEMO_FILES.rglob("*"):
-        if path.is_file():
-            found = set(any_id.findall(path.read_text(encoding="utf-8")))
-            assert all(made_up.fullmatch(value) for value in found), path.name
+    ended = {
+        event["trial"]: event["session_url"]
+        for event in events
+        if event["trial"]
+        and event["phase"] == "simulating"
+        and event["status"] == "completed"
+    }
+    for trial in report["trials"]["items"]:
+        assert trial["sessionUrl"].endswith(f"/sessions/{trial['session']}")
+        assert ended[trial["id"]] == trial["sessionUrl"]
+        traces = folder / execution_layout.TRACES
+        assert (traces / execution_layout.trace_file_name(trial["session"])).is_file()

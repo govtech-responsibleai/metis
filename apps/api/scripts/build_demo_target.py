@@ -7,7 +7,8 @@ Run it again after a new run of the example, or after the example changes:
         --experiment evaluations/experiments/toyapp-workshop-lite-<timestamp>
 
 The Experiment needs its report, so run `metis insights report` on it first. The script keeps
-only the files that the web app reads, and it replaces each session id with a made-up id.
+only the files that the web app reads. It keeps the saved traces of each session, and the
+session ids and Langfuse session URLs of the run, so each trial links to its session in Langfuse.
 The demo has the name of the example's Target with "(demo) " before it, in the Interview, in
 the Specification of the Experiment, and in its report. The Experiment folder has the name of
 the source folder with "demo-" before it, so the experiments table shows that it came with the
@@ -21,7 +22,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import shutil
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -45,7 +45,6 @@ from metis.wizard import (
 )
 
 EVENTS = execution_layout.LOGS / execution_layout.EVENTS_FILE
-_UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -77,14 +76,6 @@ def _interview(example: Path, document: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _made_up_ids(texts: list[str]) -> dict[str, str]:
-    found = sorted({match for text in texts for match in _UUID.findall(text)})
-    return {
-        real: f"00000000-0000-4000-8000-{number:012d}"
-        for number, real in enumerate(found, start=1)
-    }
-
-
 def _planned(specification: dict[str, Any]) -> set[tuple[str, int]]:
     return {
         (task["id"], index)
@@ -96,7 +87,8 @@ def _planned(specification: dict[str, Any]) -> set[tuple[str, int]]:
 def _experiment_files(
     specification: dict[str, Any], experiment: Path
 ) -> dict[PurePosixPath, str]:
-    """The event log, the results and the report of the planned trials of ``experiment``."""
+    """The event log, the results, the report and the traces of the planned trials of
+    ``experiment``."""
     planned = _planned(specification)
     results = EvaluationResults.load_file(experiment / execution_layout.RESULTS)
     results.records = [
@@ -126,7 +118,16 @@ def _experiment_files(
         if "total" in event:
             event["total"] = len(kept)
         events.append(json.dumps(event, separators=(",", ":")) + "\n")
+    traces = {
+        execution_layout.TRACES / name: (
+            experiment / execution_layout.TRACES / name
+        ).read_text(encoding="utf-8")
+        for name in sorted(
+            execution_layout.trace_file_name(item["session"]) for item in trials
+        )
+    }
     return {
+        **traces,
         EVENTS: "".join(events),
         execution_layout.RESULTS: results.model_dump_json(indent=1) + "\n",
         execution_layout.REPORT_JSON: json.dumps(
@@ -158,14 +159,10 @@ def build(example: Path, experiment: Path, output: Path) -> None:
         yaml.safe_dump(specification, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
     )
-    texts = _experiment_files(specification, experiment)
-    ids = _made_up_ids(list(texts.values()))
-    for relative, text in texts.items():
+    for relative, text in _experiment_files(specification, experiment).items():
         path = folder / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            _UUID.sub(lambda match: ids[match.group()], text), encoding="utf-8"
-        )
+        path.write_text(text, encoding="utf-8")
 
 
 def main() -> None:
