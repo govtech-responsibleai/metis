@@ -125,6 +125,38 @@ the same provider, and most often the same target. Each run makes up to its conc
 at the same time, so the server makes up to `METIS_API_ENGINE_MAX_RUNS` × concurrency calls at
 the same time. If runs fail with rate-limit errors, lower the value.
 
+To check a value before a workshop, run the load test. It starts a number of experiments at the
+same moment, follows them to the end, and says yes or no:
+
+```bash
+METIS_API_ENGINE_MAX_RUNS=4 make run-api      # in one terminal
+make load-test LOAD_TEST_USERS=60             # in another, from the same folder
+```
+
+The load test runs against an API on your computer, not against the container. It writes a copy
+of the input folder for each user into the project folder of the API, and the project folder of
+the container is in the volume. Each copy has its own Specification id, so no two starts share an
+experiment folder. Start the API with the same `.env` and the same value of
+`METIS_API_ENGINE_MAX_RUNS` as the server. Login must be off.
+
+The verdict is yes only when every start is accepted, every experiment ends completed after its
+evaluate, and the status route answers 95 % of its requests in under one second. The report also
+gives the queue wait and the run time of each user. They are not part of the verdict, because a
+long wait beyond `METIS_API_ENGINE_MAX_RUNS` is the queue at work. The exit code is 0 for yes and
+1 for no. On Ctrl-C or at the timeout, the load test stops every experiment that it started.
+
+Each run is real. It makes the model and target calls of N experiments, three trials each with the
+default input, and their evaluations. The input copies stay in `evaluations/load-test/` and the
+experiments in `evaluations/experiments/`, and the report prints both paths.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `LOAD_TEST_USERS` | 4 | The experiments to start at the same moment. |
+| `LOAD_TEST_URL` | `http://127.0.0.1:8001` | The address of the API, as `make run-api` starts it. |
+| `LOAD_TEST_INPUT` | `packages/engine/examples/http-agentic_eval_toyapp-1` | The input folder to copy for each user. |
+| `LOAD_TEST_TIMEOUT` | 1800 | Seconds for the whole test. A timeout gives no. |
+| `LOAD_TEST_PROJECT_DIR` | as `metis-api` finds it | The project folder of the API, when the API runs from another folder. |
+
 The queue is in the memory of the server. When the container restarts, the queue is lost, and
 no queued experiment starts on its own. A queued new experiment then shows Stopped. A queued
 resume shows the state from before it, for example Waiting for evaluate. In both cases, Resume

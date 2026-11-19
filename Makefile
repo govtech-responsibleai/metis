@@ -1,4 +1,4 @@
-.PHONY: check-pnpm install-docs run-docs build-docs check-docs generate-grader-docs install-landing run-landing build-landing run-site build-site help install install-wizard install-engine install-api install-web install-extras install-extras-playwright run run-api run-web lint lint-fix format format-check fix typecheck check check-env ci test test-unit format-check-web typecheck-web test-web build-web check-api-web check-web docker-build docker-run clean release-branch
+.PHONY: check-pnpm install-docs run-docs build-docs check-docs generate-grader-docs install-landing run-landing build-landing run-site build-site help install install-wizard install-engine install-api install-web install-extras install-extras-playwright run run-api run-web load-test lint lint-fix format format-check fix typecheck check check-env ci test test-unit format-check-web typecheck-web test-web build-web check-api-web check-web docker-build docker-run clean release-branch
 
 help:
 	@printf "Available targets:\n"
@@ -21,6 +21,7 @@ help:
 	@printf "  make run-site             Start the landing page and the docs together\n"
 	@printf "  make run-docs             Start the docs on port 3000 only\n"
 	@printf "  make run-landing          Start the landing page on port 8443 only\n"
+	@printf "  make load-test            Start LOAD_TEST_USERS (4) experiments at once on a running API; yes or no\n"
 	@printf "\n"
 	@printf "Container:\n"
 	@printf "  make docker-build         Build IMAGE_TAG (default metis:<commit>); PLATFORM=linux/amd64 for a server\n"
@@ -133,6 +134,21 @@ run-api: export HOST = 127.0.0.1
 run-api: export PORT = 8001
 run-api:
 	uv run metis-api
+
+# The load test is a client of an API that runs on this computer, for example `make run-api`.
+# It writes its input copies into the project folder of that API, so it cannot test the container,
+# whose project folder is in the volume. Each run is real: N x the trials of the input.
+LOAD_TEST_USERS ?= 4
+LOAD_TEST_URL ?= http://127.0.0.1:8001
+LOAD_TEST_INPUT ?= packages/engine/examples/http-agentic_eval_toyapp-1
+LOAD_TEST_TIMEOUT ?= 1800
+# The project folder of the API. When it is empty, the load test finds it as metis-api does.
+LOAD_TEST_PROJECT_DIR ?=
+
+load-test:
+	uv run python metis_load_test.py --users "$(LOAD_TEST_USERS)" --url "$(LOAD_TEST_URL)" \
+		--input "$(LOAD_TEST_INPUT)" --timeout "$(LOAD_TEST_TIMEOUT)" \
+		$(if $(LOAD_TEST_PROJECT_DIR),--project-dir "$(LOAD_TEST_PROJECT_DIR)")
 
 format-check-web:
 	npm --prefix apps/web run format:check
