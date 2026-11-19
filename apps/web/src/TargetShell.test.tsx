@@ -106,7 +106,7 @@ test("the rail shows the avatar and the name of the current user on a closed acc
   assert.doesNotMatch(markup, /role="radio/);
 });
 
-test("the account menu shows the avatar and the username, then Appearance and Log out", () => {
+test("the account menu shows the avatar and the username, then Manage accounts for an admin, Appearance, and Log out", () => {
   const menu = (admin: boolean) => {
     const markup = at(
       "/",
@@ -148,6 +148,13 @@ test("the account menu shows the avatar and the username, then Appearance and Lo
     options.map((option) => /aria-checked="(\w+)"/.exec(option)?.[1]),
     ["false", "false", "true"],
   );
+
+  const admin = menu(true);
+  assert.deepEqual(
+    admin.rows.map(({ label }) => label),
+    ["Manage accounts", "Appearance", "Log out"],
+  );
+  assert.match(admin.rows[0]?.item ?? "", /href="\/admin"/);
 });
 
 // The element of `node` that matches `found`, with each function component called to give its

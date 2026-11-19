@@ -434,7 +434,7 @@ function NewAccount({ account }: { account: NewUserAccount }) {
   );
 }
 
-function Credential({ label, value }: { label: string; value: string }) {
+export function Credential({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
     void navigator.clipboard?.writeText(value);

@@ -163,3 +163,26 @@ export function transitionFrames({
   // that the user can already see remain in place while only the new correction moves.
   return diffFrames(displayed, next);
 }
+
+// The frames of a value whose characters settle into place from left to right. The characters
+// that have not settled show other characters of the same value, so the width stays the same and
+// no character of another alphabet shows. Each frame settles at least one more character, and a
+// long value settles in at most `SETTLE_STEPS` frames. The last frame is the value.
+export const SETTLE_STEPS = 12;
+export const SETTLE_INTERVAL_MS = 25;
+
+export function settleFrames(value: string, reducedMotion: boolean): string[] {
+  if (reducedMotion || value.length < 2) return [value];
+  const characters = [...value];
+  const steps = Math.min(characters.length, SETTLE_STEPS);
+  return Array.from({ length: steps + 1 }, (_, step) => {
+    const settled = Math.ceil((characters.length * step) / steps);
+    return characters
+      .map((character, index) =>
+        index < settled
+          ? character
+          : characters[(index * 7 + step * 3 + 1) % characters.length],
+      )
+      .join("");
+  });
+}

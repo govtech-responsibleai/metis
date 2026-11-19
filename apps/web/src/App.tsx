@@ -57,6 +57,7 @@ import {
 } from "./SpecificationView";
 import { ProfileToolbar, YamlView, type ProfileMode } from "./ProfileToolbar";
 import { CollapsedRail, TargetRail } from "./TargetRail";
+import { AdminRoute } from "./AdminPage";
 import { ExperimentsTab, TargetTabs } from "./TargetPage";
 import { ExperimentDialog } from "./ExperimentDialog";
 import { exportedSpecification } from "./export";
@@ -892,6 +893,8 @@ export function App() {
           <NotFound onNew={startNew} />
         ) : place.page === "experiments" ? (
           <AllExperimentsPage />
+        ) : place.page === "admin" ? (
+          <AdminRoute fallback={<NotFound onNew={startNew} />} />
         ) : view === null && targetId !== null ? (
           <div className="m-auto flex flex-col gap-4 p-8" role="status">
             <p>

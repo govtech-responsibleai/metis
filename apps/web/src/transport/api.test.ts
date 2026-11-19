@@ -611,3 +611,58 @@ test("a join sends the join token as a bearer token", async () => {
   assert.equal(asked, 0);
   stop();
 });
+
+test("the admin calls use the login session and no token", async () => {
+  const calls: Array<{
+    path: string;
+    method?: string;
+    auth: string | null;
+    body: unknown;
+  }> = [];
+  const account = {
+    id: "u1",
+    username: "brave-otter",
+    created_at: "2026-11-17T00:00:00Z",
+    admin: true,
+  };
+  globalThis.fetch = async (input, init) => {
+    calls.push({
+      path: String(input),
+      method: init?.method,
+      auth: new Headers(init?.headers).get("Authorization"),
+      body:
+        init?.body === undefined ? undefined : JSON.parse(String(init.body)),
+    });
+    return new Response(
+      JSON.stringify(
+        init?.method === "POST"
+          ? { ...account, password: "k3m7p-x9q2r" }
+          : { users: [account] },
+      ),
+      { status: init?.method === "POST" ? 201 : 200 },
+    );
+  };
+
+  assert.deepEqual(await users.list(), { users: [account] });
+  assert.equal((await users.create(true)).password, "k3m7p-x9q2r");
+  assert.equal(
+    (await users.resetPassword("brave otter")).password,
+    "k3m7p-x9q2r",
+  );
+
+  assert.deepEqual(calls, [
+    { path: "/api/v1/users", method: undefined, auth: null, body: undefined },
+    {
+      path: "/api/v1/users",
+      method: "POST",
+      auth: null,
+      body: { admin: true },
+    },
+    {
+      path: "/api/v1/users/brave%20otter/password",
+      method: "POST",
+      auth: null,
+      body: undefined,
+    },
+  ]);
+});

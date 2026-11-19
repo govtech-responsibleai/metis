@@ -23,6 +23,8 @@ export type Place =
     } & ExperimentPart)
   | { page: "compare"; targetId: string }
   | { page: "experiments" }
+  // The user accounts of the server. Only an admin sees this page.
+  | { page: "admin" }
   | { page: "not-found" };
 
 const segment = encodeURIComponent;
@@ -42,6 +44,7 @@ export const paths = {
     `${paths.experiment(targetId, experimentId, "trials")}/${segment(taskId)}`,
   compare: (targetId: string) => `${paths.target(targetId)}/compare`,
   experiments: () => "/experiments",
+  admin: () => "/admin",
 };
 
 function segments(path: string): string[] | null {
@@ -59,6 +62,7 @@ export function placeOf(path: string): Place {
   if (root === undefined) return { page: "new-target" };
   if (root === "experiments" && targetId === undefined)
     return { page: "experiments" };
+  if (root === "admin" && targetId === undefined) return { page: "admin" };
   if (root !== "targets" || targetId === undefined || rest.length > 0)
     return { page: "not-found" };
   if (targetId === "new")

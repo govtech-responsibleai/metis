@@ -13,6 +13,7 @@ import {
   Sun,
   SunMoon,
   Trash2,
+  UsersRound,
 } from "lucide-react";
 import {
   useEffect,
@@ -375,6 +376,20 @@ export function AccountMenuList({
         onKeyDown={move}
         className="flex flex-col"
       >
+        {session.user.admin && (
+          <Link
+            href={paths.admin()}
+            role="menuitem"
+            tabIndex={-1}
+            onClick={onClose}
+            className={MENU_ITEM}
+          >
+            <MenuIcon>
+              <UsersRound size={15} strokeWidth={1.75} aria-hidden />
+            </MenuIcon>
+            Manage accounts
+          </Link>
+        )}
         <AppearanceRow choice={theme} onChoose={onTheme} />
         <div role="separator" className="-mx-1 my-1 h-px bg-border" />
         <button
