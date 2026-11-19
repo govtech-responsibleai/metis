@@ -687,7 +687,7 @@ export interface paths {
          *     METIS makes both values. This response is the only one that has the password. Each request
          *     makes one more user account. An admin makes a user account of each kind. The join token
          *     makes a user account that is not an admin, and `{"admin": true}` with the join token gets
-         *     403 `admin_required`.
+         *     403 `admin_required`. The new user account gets its own demo Target.
          */
         post: operations["create_user_api_v1_users_post"];
         delete?: never;

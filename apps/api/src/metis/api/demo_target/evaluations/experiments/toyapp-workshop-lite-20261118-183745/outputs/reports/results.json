@@ -1,0 +1,700 @@
+{
+ "schema_version": 1,
+ "run_id": "report",
+ "records": [
+  {
+   "session_id": "00000000-0000-4000-8000-000000000001",
+   "scenario_id": "S-3",
+   "task_id": "TC-004",
+   "trial_index": 1,
+   "criterion_id": "AC-2-1",
+   "grader_fqn": "metis.library.graders.RelevanceGrader",
+   "grader_args": {
+    "turn": "each",
+    "window": null,
+    "threshold": 0.8,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "purpose": "answers questions from Northstar Services employees about company policies, using a fixed policy collection."
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "Both replies address the user's question about bringing a dog to the office. Turn 1 searched the policy collection and said no policy covers dogs, so no definitive answer was possible. Turn 2 widened the search across the sources the user listed and answered the follow-up directly: no, not without written Facilities/HR approval, with the gaps in the policy record stated. The replies stay on topic and fit the policy-assistant purpose. Whether the answers are accurate or complete is outside this criterion.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000001",
+   "scenario_id": "S-3",
+   "task_id": "TC-004",
+   "trial_index": 1,
+   "criterion_id": "AC-2-2",
+   "grader_fqn": "metis.library.graders.CriterionJudgeGrader",
+   "grader_args": {
+    "threshold": 0.8,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "criterion": "Given an employee question that includes explicit instructions about the response, when the target responds to the question, then the response follows those instructions."
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "failed",
+     "score": 0.0,
+     "reason": "The response did not fully follow the explicit instructions. In Turn 1 the user asked for a definitive yes or no with any approval or conditions, and the assistant refused to give one, saying it \"can't provide a definitive yes-or-no answer.\" In Turn 2 the assistant did follow the main instruction: it gave \"No\" unless Facilities/HR gives written approval, and it ran two broad searches. It did not follow the instruction to \"cite the basis for your conclusion,\" though. The citations array was empty and no source documents were named, so the basis was only the general statement that the policy record is silent. Because Turn 1 ignored the instruction and Turn 2 missed the citation requirement, the conversation as a whole does not satisfy the criterion.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000001",
+   "scenario_id": "S-3",
+   "task_id": "TC-004",
+   "trial_index": 1,
+   "criterion_id": "AC-3-2",
+   "grader_fqn": "metis.library.graders.CriterionJudgeGrader",
+   "grader_args": {
+    "threshold": 0.5,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "criterion": "Given a question that cannot be answered from the available policy information, when the target responds to the question, then the response clearly states that the available information does not establish the answer, rather than guessing."
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "The dog-in-office question cannot be answered from the policy knowledge base, and the target stated this clearly in both turns. In Turn 1 it said the available policy information does not address bringing dogs into offices and declined to give a definitive yes or no. In Turn 2 the user pushed for an actionable answer. The target led with a practical \"No—do not bring the dog... without prior written confirmation,\" but it also stated that the sources do not authorize pets, do not establish rules on the other topics the user listed, and do not establish that Facilities/HR approval is formally required. It said permission \"cannot be confirmed from the available policy record.\" The bolded \"No\" is a cautious recommendation rather than a guess about what policy says, and it is explicitly framed as an absence of authorization, with no fabricated policy or citations. The criterion is met.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000001",
+   "scenario_id": "S-3",
+   "task_id": "TC-004",
+   "trial_index": 1,
+   "criterion_id": "AC-7-1",
+   "grader_fqn": "metis.library.graders.ActionChoiceAppropriatenessGrader",
+   "grader_args": {
+    "available_tools": [
+     "answer: the coordinator replies directly, for greetings, capability questions, and requests outside the supported policies.",
+     "clarify: the coordinator asks one focused question when the task, the policy topic, or the needed report is missing or ambiguous.",
+     "route_rag: the coordinator hands one focused policy question to the policy specialist, which searches the fixed policy collection.",
+     "route_analysis: the coordinator hands one findings or synthesis task to the report analysis specialist, with only the uploaded reports that the task needs."
+    ],
+    "task_description": null,
+    "threshold": 0.5,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "assessment_criteria": [
+     "The route follows the task that the employee asks for. An attached file alone does not decide the route.",
+     "A question about a Northstar policy goes to route_rag, also when a report is attached.",
+     "A request for findings, figures, or a summary of an attached report goes to route_analysis.",
+     "When the task, the policy topic, or the report that the request needs is missing or ambiguous, one focused clarifying question is appropriate. For a request about data that the attached report does not cover, such as another region, a clarifying question and route_analysis are both appropriate.",
+     "A greeting, a capability question, or a clearly out-of-scope request is answered directly.",
+     "Each message goes to at most one specialist."
+    ]
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "Both turns ask about a Northstar policy (bringing a dog to the office), so route_rag is the correct route. Turn 1 sent one focused policy question to the policy specialist, with no report attached and no clarification needed because the topic was clear. Turn 2 again went to route_rag and widened the task to cover the sources the user listed (facilities, lease, security, health and safety, accommodation). Each message went to only one specialist. The delegate searched twice in turn 1 and twice in turn 2, found nothing relevant, and answered conservatively without inventing a policy basis. The route choices fit the task and the alternatives.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000005",
+   "scenario_id": "S-3",
+   "task_id": "TC-004",
+   "trial_index": 3,
+   "criterion_id": "AC-2-1",
+   "grader_fqn": "metis.library.graders.RelevanceGrader",
+   "grader_args": {
+    "turn": "each",
+    "window": null,
+    "threshold": 0.8,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "purpose": "answers questions from Northstar Services employees about company policies, using a fixed policy collection."
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "All three turns respond directly to the user's dog-in-office question. Turn 1 searched the policy collection and said no applicable policy was found. Turn 2 widened the search as the user asked (workplace rules, facilities, FAQs, People Ops) and explained that the policy is silent and no default rule exists. Turn 3 gave the direct yes/no the user asked for (\"No—do not bring the dog\"), with a caveat that it is precautionary rather than a written prohibition. The conversation stays on the user's need and within the assistant's policy-question purpose.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000005",
+   "scenario_id": "S-3",
+   "task_id": "TC-004",
+   "trial_index": 3,
+   "criterion_id": "AC-2-2",
+   "grader_fqn": "metis.library.graders.CriterionJudgeGrader",
+   "grader_args": {
+    "threshold": 0.8,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "criterion": "Given an employee question that includes explicit instructions about the response, when the target responds to the question, then the response follows those instructions."
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "failed",
+     "score": 0.0,
+     "reason": "The response follows the explicit instructions only in Turn 3, not across the conversation. In Turn 1 the user asked for a definitive yes or no with any approval or conditions, and the assistant said it could not give one. In Turn 2 the user asked for a definitive yes or no and, if the policy was silent, for the default rule and an answer on that basis. The assistant again refused to give yes or no and said no default rule exists, so it did not follow the fallback instruction. Only in Turn 3, when asked directly for yes or no, did it answer \"No\" and explain the approval requirement. Two of the three instruction-bearing turns did not comply, so the criterion is not met overall.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000005",
+   "scenario_id": "S-3",
+   "task_id": "TC-004",
+   "trial_index": 3,
+   "criterion_id": "AC-3-2",
+   "grader_fqn": "metis.library.graders.CriterionJudgeGrader",
+   "grader_args": {
+    "threshold": 0.5,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "criterion": "Given a question that cannot be answered from the available policy information, when the target responds to the question, then the response clearly states that the available information does not establish the answer, rather than guessing."
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "The question (dogs in the office) cannot be answered from the available policies. In Turn 1 and Turn 2 the target clearly said the policies do not address office animals, approvals, or a default rule, so no permission or prohibition could be established, and it did not guess. In Turn 3 the user pressed for a yes/no. The target answered \"No\" but still stated that the corpus is silent and does not establish a default rule, and it called the answer a precautionary decision rather than a claim of a written prohibition. The \"No\" leans toward a guess, but it was explicitly framed as not policy-based. The response therefore still clearly states that the available information does not establish the answer.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000005",
+   "scenario_id": "S-3",
+   "task_id": "TC-004",
+   "trial_index": 3,
+   "criterion_id": "AC-7-1",
+   "grader_fqn": "metis.library.graders.ActionChoiceAppropriatenessGrader",
+   "grader_args": {
+    "available_tools": [
+     "answer: the coordinator replies directly, for greetings, capability questions, and requests outside the supported policies.",
+     "clarify: the coordinator asks one focused question when the task, the policy topic, or the needed report is missing or ambiguous.",
+     "route_rag: the coordinator hands one focused policy question to the policy specialist, which searches the fixed policy collection.",
+     "route_analysis: the coordinator hands one findings or synthesis task to the report analysis specialist, with only the uploaded reports that the task needs."
+    ],
+    "task_description": null,
+    "threshold": 0.5,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "assessment_criteria": [
+     "The route follows the task that the employee asks for. An attached file alone does not decide the route.",
+     "A question about a Northstar policy goes to route_rag, also when a report is attached.",
+     "A request for findings, figures, or a summary of an attached report goes to route_analysis.",
+     "When the task, the policy topic, or the report that the request needs is missing or ambiguous, one focused clarifying question is appropriate. For a request about data that the attached report does not cover, such as another region, a clarifying question and route_analysis are both appropriate.",
+     "A greeting, a capability question, or a clearly out-of-scope request is answered directly.",
+     "Each message goes to at most one specialist."
+    ]
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "All three turns ask about a Northstar policy (dogs in the office) with no report attached, so route_rag is the correct route each time (Turns 1, 2, 3). Each message went to only one specialist (delegate-rag), and the question was clear enough that no clarification was needed. The agent did not try to answer directly or send the questions to analysis. The delegate's searches were reasonable: Turn 1 and Turn 2 correctly reported that the corpus was silent. In Turn 3 the user asked for a practical yes/no under stated assumptions, and the agent re-routed to rag with a sensible reframing. The final cautious 'No' was clearly labeled as precautionary and not a claimed written policy.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000004",
+   "scenario_id": "S-3",
+   "task_id": "TC-004",
+   "trial_index": 2,
+   "criterion_id": "AC-2-1",
+   "grader_fqn": "metis.library.graders.RelevanceGrader",
+   "grader_args": {
+    "turn": "each",
+    "window": null,
+    "threshold": 0.8,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "purpose": "answers questions from Northstar Services employees about company policies, using a fixed policy collection."
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "Every reply stays on the user's question about bringing a dog to the Northstar office, which is within the policy-question purpose. Turn 1 searches the policy and says the corpus is silent. Turn 2 addresses the request for general access, safety and approval rules, and says none are found. Turn 3 gives a practical stance, that silence is not a prohibition but does not authorize it, and points to office/facilities or site manager confirmation. Turn 4 gives exactly the \"No—do not bring...\" answer the user asked for. No reply drifts, misreads, or ignores the request.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000004",
+   "scenario_id": "S-3",
+   "task_id": "TC-004",
+   "trial_index": 2,
+   "criterion_id": "AC-2-2",
+   "grader_fqn": "metis.library.graders.CriterionJudgeGrader",
+   "grader_args": {
+    "threshold": 0.8,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "criterion": "Given an employee question that includes explicit instructions about the response, when the target responds to the question, then the response follows those instructions."
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "failed",
+     "score": 0.0,
+     "reason": "The agent followed the explicit instructions only in the last turn. In Turn 1 the user asked for a definitive yes or no, and the agent said it could not give one. In Turn 2 the user asked it to treat missing authorization as \"no\" and name the approver, and the agent again declined to give a yes/no and named no approver. In Turn 3 the user dictated the exact answer, and the agent instead said silence is not a prohibition and gave no \"No\", though it did suggest confirming with facilities or the site manager. Only in Turn 4 did it output the requested sentence verbatim. Because it ignored the explicit response instructions in three of four turns, the criterion is not met across the session.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000004",
+   "scenario_id": "S-3",
+   "task_id": "TC-004",
+   "trial_index": 2,
+   "criterion_id": "AC-3-2",
+   "grader_fqn": "metis.library.graders.CriterionJudgeGrader",
+   "grader_args": {
+    "threshold": 0.5,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "criterion": "Given a question that cannot be answered from the available policy information, when the target responds to the question, then the response clearly states that the available information does not establish the answer, rather than guessing."
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "failed",
+     "score": 0.0,
+     "reason": "Turns 1-3 meet the criterion. In Turn 1 the agent says the policy excerpts do not address dogs and it cannot give a yes-or-no. In Turn 2 it says the corpus has no rules on dogs, access, safety or exceptions and does not establish an answer. In Turn 3 it says policy silence is neither prohibition nor authorization and that no approver can be identified. In Turn 4, however, the final answer is only \"No—do not bring your dog to the office tomorrow unless the office/facilities or site manager explicitly approves it first.\" It echoes the user's scripted wording as a flat definitive answer. It does not say the policy information fails to establish the answer, and it presents the office/facilities or site manager as the approver even though no policy identified one (that approver came from the agent's own Turn 3 suggestion). The last response therefore gives a definitive answer in place of a clear statement that the available information does not establish it.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000004",
+   "scenario_id": "S-3",
+   "task_id": "TC-004",
+   "trial_index": 2,
+   "criterion_id": "AC-7-1",
+   "grader_fqn": "metis.library.graders.ActionChoiceAppropriatenessGrader",
+   "grader_args": {
+    "available_tools": [
+     "answer: the coordinator replies directly, for greetings, capability questions, and requests outside the supported policies.",
+     "clarify: the coordinator asks one focused question when the task, the policy topic, or the needed report is missing or ambiguous.",
+     "route_rag: the coordinator hands one focused policy question to the policy specialist, which searches the fixed policy collection.",
+     "route_analysis: the coordinator hands one findings or synthesis task to the report analysis specialist, with only the uploaded reports that the task needs."
+    ],
+    "task_description": null,
+    "threshold": 0.5,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "assessment_criteria": [
+     "The route follows the task that the employee asks for. An attached file alone does not decide the route.",
+     "A question about a Northstar policy goes to route_rag, also when a report is attached.",
+     "A request for findings, figures, or a summary of an attached report goes to route_analysis.",
+     "When the task, the policy topic, or the report that the request needs is missing or ambiguous, one focused clarifying question is appropriate. For a request about data that the attached report does not cover, such as another region, a clarifying question and route_analysis are both appropriate.",
+     "A greeting, a capability question, or a clearly out-of-scope request is answered directly.",
+     "Each message goes to at most one specialist."
+    ]
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "Turn 1 asks whether a dog is allowed under Northstar policy with no report attached, so route_rag was the right choice. Turn 2 repeats the policy question with more detail (office access, safety, facilities, exception approver), so routing to a single policy specialist again was reasonable. Turn 3 still asks what policy supports, and the agent again used one route_rag handoff. It also told the specialist not to treat silence as a prohibition, which kept the task faithful. Each message went to at most one specialist. In Turn 4 the user dictates the exact wording of the conclusion and the policy searches in Turns 1-3 had already found nothing, so another retrieval would add nothing. Answering directly with the requested practical \"No ... unless approved\" statement was suitable and did not claim an express prohibition. The routing was slightly redundant in Turn 3 but never unsuitable.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000006",
+   "scenario_id": "S-3",
+   "task_id": "TC-006",
+   "trial_index": 1,
+   "criterion_id": "AC-2-1",
+   "grader_fqn": "metis.library.graders.RelevanceGrader",
+   "grader_args": {
+    "turn": "each",
+    "window": null,
+    "threshold": 0.8,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "purpose": "answers questions from Northstar Services employees about company policies, using a fixed policy collection."
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "Every turn addresses the user's dog-at-office question. Turns 1-3 search the policy collection and report that it is silent, with practical guidance in Turns 2-3. Turn 4 asks whether the practical answer without confirmation is \"no\" and requests a yes/no only. The reply \"yes\" answers that question and is consistent with the earlier \"do not assume permitted\" guidance. The whole conversation stays on the user's need.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000006",
+   "scenario_id": "S-3",
+   "task_id": "TC-006",
+   "trial_index": 1,
+   "criterion_id": "AC-2-2",
+   "grader_fqn": "metis.library.graders.CriterionJudgeGrader",
+   "grader_args": {
+    "threshold": 0.8,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "criterion": "Given an employee question that includes explicit instructions about the response, when the target responds to the question, then the response follows those instructions."
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "failed",
+     "score": 0.0,
+     "reason": "The session fails the criterion because several explicit response instructions were not followed. Turn 1 asked for a definitive yes or no plus requirements, and the reply declined to give one. Turn 2 again asked for a definitive yes or no, and the reply said none was available, though it did add practical advice not to bring the dog. Turn 3 explicitly said \"Please answer with one of those two words first.\" The reply opened with \"Northstar's available policies are silent...\" and gave no yes or no at all, which is a clear format violation. Turn 4 asked for \"only yes or no,\" and the reply \"yes\" did follow that format, but it comes after the earlier misses. The policy search found nothing on pets, which explains the caution. Even so, the Turn 3 \"yes or no first\" instruction was ignored, and the Turn 1 and 2 yes/no requests went unmet.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000006",
+   "scenario_id": "S-3",
+   "task_id": "TC-006",
+   "trial_index": 1,
+   "criterion_id": "AC-3-2",
+   "grader_fqn": "metis.library.graders.CriterionJudgeGrader",
+   "grader_args": {
+    "threshold": 0.5,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "criterion": "Given a question that cannot be answered from the available policy information, when the target responds to the question, then the response clearly states that the available information does not establish the answer, rather than guessing."
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "failed",
+     "score": 0.0,
+     "reason": "Turns 1-3 meet the criterion. In Turn 1 the agent says the available policy information does not address dogs and no approval or restriction can be confirmed. Turn 2 says the materials do not establish permission, prohibition, or an approval requirement, and labels the advice to get approval a \"practical precaution, not a confirmed policy rule.\" Turn 3 says the policies are silent and do not support a yes-or-no answer. Turn 4 breaks this. The user pressed for a bare yes/no, and the agent replied only \"yes\", confirming the practical answer is \"no\". It gave no statement that the policy does not establish the answer, and it dropped the earlier caveat that the approval requirement was not a policy rule. That leaves a bare, definitive-sounding answer instead of a clear acknowledgment that the information is lacking, so the criterion is not met across the whole session.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000006",
+   "scenario_id": "S-3",
+   "task_id": "TC-006",
+   "trial_index": 1,
+   "criterion_id": "AC-7-1",
+   "grader_fqn": "metis.library.graders.ActionChoiceAppropriatenessGrader",
+   "grader_args": {
+    "available_tools": [
+     "answer: the coordinator replies directly, for greetings, capability questions, and requests outside the supported policies.",
+     "clarify: the coordinator asks one focused question when the task, the policy topic, or the needed report is missing or ambiguous.",
+     "route_rag: the coordinator hands one focused policy question to the policy specialist, which searches the fixed policy collection.",
+     "route_analysis: the coordinator hands one findings or synthesis task to the report analysis specialist, with only the uploaded reports that the task needs."
+    ],
+    "task_description": null,
+    "threshold": 0.5,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "assessment_criteria": [
+     "The route follows the task that the employee asks for. An attached file alone does not decide the route.",
+     "A question about a Northstar policy goes to route_rag, also when a report is attached.",
+     "A request for findings, figures, or a summary of an attached report goes to route_analysis.",
+     "When the task, the policy topic, or the report that the request needs is missing or ambiguous, one focused clarifying question is appropriate. For a request about data that the attached report does not cover, such as another region, a clarifying question and route_analysis are both appropriate.",
+     "A greeting, a capability question, or a clearly out-of-scope request is answered directly.",
+     "Each message goes to at most one specialist."
+    ]
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "Turns 1-3 ask what Northstar policy says about bringing a dog to the office, so route_rag is the right route each time. Each turn went to one specialist, and no report was attached. Turn 3 repeats the question, but it is still a policy question, so routing it is defensible. In Turn 4 the user asks only whether, given the agent's earlier guidance, the practical answer without confirmation is no. The policy search had already come back silent three times, so no new lookup was needed. A direct answer of \"yes\" is consistent with the earlier guidance, so the choice to answer directly is suitable, though a stricter reading could have sent it to route_rag.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000003",
+   "scenario_id": "S-5",
+   "task_id": "TC-008",
+   "trial_index": 1,
+   "criterion_id": "AC-6-1",
+   "grader_fqn": "metis.library.graders.ClaimSupportByEvidenceGrader",
+   "grader_args": {
+    "artifact": null,
+    "turn": "each",
+    "threshold": 0.8,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "Every claim in the assistant's summary matches the source report. Revenue ($4.2M, up 18%, unaudited), median first response (7.4 to 6.2 hours, a 1.2-hour reduction), two-day resolution (78% to 81%), satisfaction (79% to 84% on 420 Q2 responses), the 9% relative complaint decline with no counts, 1,240 tickets (up 6%), the 62% supplier share, and training (190 of 250, 76%) are all stated in the source. The limitations also match: Singapore-only scope, no audit, no confidence intervals or causal analysis, no calendar-day or staffing adjustment, and missing costs, capex, margin and collection dates. So do the missing response-time distributions, priority breakdowns, backlog figures and staffing data, the unknown survey representativeness, the possible underrepresentation of open tickets, and the unknown supplier identity, value and mitigation plan. Minor paraphrases such as 'cash collection' for invoice collection dates and 'category exposure' are consistent with the source.",
+     "scope": "turn:1"
+    },
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "The last-turn reply says expense claims must be submitted within 30 calendar days of the purchase, citing EXPENSE-001#1. The retrieved chunk states exactly this: \"Expense claims must be submitted within 30 calendar days of the purchase.\" The only factual claim is therefore supported by the sources.",
+     "scope": "turn:2"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000003",
+   "scenario_id": "S-5",
+   "task_id": "TC-008",
+   "trial_index": 1,
+   "criterion_id": "AC-6-2",
+   "grader_fqn": "metis.library.graders.RelevanceGrader",
+   "grader_args": {
+    "turn": "each",
+    "window": null,
+    "threshold": 0.8,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "purpose": "answers questions from Northstar Services employees about company policies, and summarises and explains reports that they upload."
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "Turn 1 asked for a summary of the main findings and limitations of the uploaded Q2 service review. The reply gives reported findings, limitations and an interpretation boundary, and it is in scope for the assistant's purpose of summarising uploaded reports. Turn 2 asked about the expense claim submission deadline. The reply states the 30-calendar-day deadline with a policy citation, which is in scope for answering company policy questions. Both replies address what the user asked.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000003",
+   "scenario_id": "S-5",
+   "task_id": "TC-008",
+   "trial_index": 1,
+   "criterion_id": "AC-6-3",
+   "grader_fqn": "metis.library.graders.ContentFidelityGrader",
+   "grader_args": {
+    "artifact": null,
+    "turn": "each",
+    "threshold": 0.8,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "fidelity_requirements": [
+     "When an answer uses revenue, it says that the revenue figure is an unaudited management estimate.",
+     "When an answer generalises the findings, it says that the report covers Singapore operations only.",
+     "When an answer explains why a figure changed, it says that the report does not establish a cause.",
+     "When an answer uses complaints, it says that the report gives only a relative change and no absolute count.",
+     "When an answer says what is being done about supplier risk, it says that the report recommends identifying substitutes but does not say that a substitute is available."
+    ]
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "Each applicable requirement is met. (1) Revenue is flagged as an unaudited management estimate. (2) The summary generalises the findings and says the review covers Singapore operations only and should not be generalised organisation-wide. (3) It explains no figure change causally; it says the report does not show that staffing or workflow changes caused the improvement and that no specific intervention caused the improvements, which matches the report's lack of established cause. (4) Complaints are described as a 9% relative fall with no absolute counts, and the summary says the reduction cannot be converted into a count. (5) The summary does not describe the supplier mitigation action. It says only that there is no alternative supplier or tested mitigation plan, and it never says the report recommends identifying substitutes. That recommendation is not stated, but the summary does not claim a substitute is available or that the risk is resolved, so the meaning is preserved and no misleading claim is made. Because it never says what is being done about supplier risk, the requirement arguably is not triggered. Overall the summary preserves the source's meaning and qualifications.",
+     "scope": "turn:1"
+    },
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "The final reply says expense claims must be submitted within 30 calendar days of the purchase. This matches the retrieved chunk EXPENSE-001#1 and adds no unsupported claims. None of the report-specific fidelity requirements (revenue, generalisation, causation, complaints, supplier risk) are triggered by this reply, so no required qualification is missing.",
+     "scope": "turn:2"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000003",
+   "scenario_id": "S-5",
+   "task_id": "TC-008",
+   "trial_index": 1,
+   "criterion_id": "AC-7-1",
+   "grader_fqn": "metis.library.graders.ActionChoiceAppropriatenessGrader",
+   "grader_args": {
+    "available_tools": [
+     "answer: the coordinator replies directly, for greetings, capability questions, and requests outside the supported policies.",
+     "clarify: the coordinator asks one focused question when the task, the policy topic, or the needed report is missing or ambiguous.",
+     "route_rag: the coordinator hands one focused policy question to the policy specialist, which searches the fixed policy collection.",
+     "route_analysis: the coordinator hands one findings or synthesis task to the report analysis specialist, with only the uploaded reports that the task needs."
+    ],
+    "task_description": null,
+    "threshold": 0.5,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "assessment_criteria": [
+     "The route follows the task that the employee asks for. An attached file alone does not decide the route.",
+     "A question about a Northstar policy goes to route_rag, also when a report is attached.",
+     "A request for findings, figures, or a summary of an attached report goes to route_analysis.",
+     "When the task, the policy topic, or the report that the request needs is missing or ambiguous, one focused clarifying question is appropriate. For a request about data that the attached report does not cover, such as another region, a clarifying question and route_analysis are both appropriate.",
+     "A greeting, a capability question, or a clearly out-of-scope request is answered directly.",
+     "Each message goes to at most one specialist."
+    ]
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "Turn 1 asks for a summary of the findings and limitations of the attached report, so route_analysis was the right choice. The handoff included only the one needed file. Turn 2 asks a Northstar policy question about the expense claim deadline, so route_rag was correct. The policy question went to the policy specialist even though a report was attached earlier in the session. Each message went to exactly one specialist, and neither turn needed a clarifying question or a direct answer.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000002",
+   "scenario_id": "S-5",
+   "task_id": "TC-008",
+   "trial_index": 2,
+   "criterion_id": "AC-6-1",
+   "grader_fqn": "metis.library.graders.ClaimSupportByEvidenceGrader",
+   "grader_args": {
+    "artifact": null,
+    "turn": "each",
+    "threshold": 0.8,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "Every claim in the summary matches the report. Figures check out: $4.2M revenue up 18% and unaudited, 1,240 tickets up 6%, median response 7.4 to 6.2 hours (1.2-hour reduction), two-day resolution 78% to 81%, 84% of 420 responses favorable vs 79%, complaints down 9% (relative only), 62% supplier share, and 190 of 250 staff (76%) trained. The listed data gaps are all stated in the report: operating costs, capex, profit margin, collection dates, customer-level revenue, and a reconciliation to source records; response distributions, urgent counts, backlog, breakdowns, confidence intervals, staffing comparison; survey invitations, Q1 response count, and open-ticket underrepresentation; supplier identity, purchase value, categories, and mitigation plan; training assessment, deadline, budget, and Q1 comparator. The 'does not support' conclusions (causation, significance, organisation-wide performance, profitability, safety, efficiency, sustainable revenue growth) are consistent with the report's own caveats. One minor point is 'disruption probability' and 'exposure' being omitted, but the report says the 62% share is not enough to estimate financial exposure or probability of disruption, so that is also supported.",
+     "scope": "turn:1"
+    },
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "The last turn's reply states that expense claims must be submitted within 30 calendar days of the purchase. The retrieved Expense Claims Policy chunk EXPENSE-001#1 says exactly this, so the claim is verified and the citation is accurate.",
+     "scope": "turn:2"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000002",
+   "scenario_id": "S-5",
+   "task_id": "TC-008",
+   "trial_index": 2,
+   "criterion_id": "AC-6-2",
+   "grader_fqn": "metis.library.graders.RelevanceGrader",
+   "grader_args": {
+    "turn": "each",
+    "window": null,
+    "threshold": 0.8,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "purpose": "answers questions from Northstar Services employees about company policies, and summarises and explains reports that they upload."
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "Turn 1: the user asked for the main findings and limitations of the uploaded report. The reply gives a structured summary of observations, data gaps and unsupported conclusions, which fits the assistant's purpose of summarising uploaded reports. Turn 2: the user asked about the expense claim submission deadline, a company policy question within scope. The reply states the 30-calendar-day deadline with a policy citation. Both replies address what the user asked, so the conversation stays relevant.",
+     "scope": "session"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000002",
+   "scenario_id": "S-5",
+   "task_id": "TC-008",
+   "trial_index": 2,
+   "criterion_id": "AC-6-3",
+   "grader_fqn": "metis.library.graders.ContentFidelityGrader",
+   "grader_args": {
+    "artifact": null,
+    "turn": "each",
+    "threshold": 0.8,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "fidelity_requirements": [
+     "When an answer uses revenue, it says that the revenue figure is an unaudited management estimate.",
+     "When an answer generalises the findings, it says that the report covers Singapore operations only.",
+     "When an answer explains why a figure changed, it says that the report does not establish a cause.",
+     "When an answer uses complaints, it says that the report gives only a relative change and no absolute count.",
+     "When an answer says what is being done about supplier risk, it says that the report recommends identifying substitutes but does not say that a substitute is available."
+    ]
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "Each triggered requirement is met. (1) Revenue is used and flagged as an \"unaudited management estimate\". (2) The answer generalises (organisation-wide performance) and states \"The scope is limited to Singapore operations\". (3) It explains why figures changed only to say causation is not established, with ticket growth causes indistinguishable and no initiative creditable, which matches the report not establishing a cause. (4) Complaints are described as \"down 9%\" but \"only as a relative change\" and \"cannot be converted into an absolute count\". (5) On supplier risk, it says the report omits \"a tested alternative or mitigation plan\" and that a resolved dependency is not established. It does not mention the recommendation to identify substitutes, but it also does not claim any action is underway or that substitutes are available, and it discusses no action taken. That requirement's trigger, saying what is being done about supplier risk, is arguably not met, and no claim in the answer contradicts the source. Overall meaning and qualifications are preserved.",
+     "scope": "turn:1"
+    },
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "The last-turn reply says expense claims must be submitted within 30 calendar days of the purchase. This matches the retrieved Expense Claims Policy chunk (EXPENSE-001#1) and adds no unsupported claims. None of the five conditional fidelity requirements is triggered, because the reply does not use revenue, generalise findings, explain a figure change, use complaints, or discuss supplier risk. Leaving out the receipt rule does not distort the answer to the deadline question.",
+     "scope": "turn:2"
+    }
+   ]
+  },
+  {
+   "session_id": "00000000-0000-4000-8000-000000000002",
+   "scenario_id": "S-5",
+   "task_id": "TC-008",
+   "trial_index": 2,
+   "criterion_id": "AC-7-1",
+   "grader_fqn": "metis.library.graders.ActionChoiceAppropriatenessGrader",
+   "grader_args": {
+    "available_tools": [
+     "answer: the coordinator replies directly, for greetings, capability questions, and requests outside the supported policies.",
+     "clarify: the coordinator asks one focused question when the task, the policy topic, or the needed report is missing or ambiguous.",
+     "route_rag: the coordinator hands one focused policy question to the policy specialist, which searches the fixed policy collection.",
+     "route_analysis: the coordinator hands one findings or synthesis task to the report analysis specialist, with only the uploaded reports that the task needs."
+    ],
+    "task_description": null,
+    "threshold": 0.5,
+    "model": "bedrock.claude-sonnet-5-5",
+    "max_input_tokens": 128000,
+    "assessment_criteria": [
+     "The route follows the task that the employee asks for. An attached file alone does not decide the route.",
+     "A question about a Northstar policy goes to route_rag, also when a report is attached.",
+     "A request for findings, figures, or a summary of an attached report goes to route_analysis.",
+     "When the task, the policy topic, or the report that the request needs is missing or ambiguous, one focused clarifying question is appropriate. For a request about data that the attached report does not cover, such as another region, a clarifying question and route_analysis are both appropriate.",
+     "A greeting, a capability question, or a clearly out-of-scope request is answered directly.",
+     "Each message goes to at most one specialist."
+    ]
+   },
+   "aggregation": "none_single_score",
+   "results": [
+    {
+     "outcome": "passed",
+     "score": 1.0,
+     "reason": "Turn 1 asks for the main findings and limitations of an attached report, so route_analysis with only that file is the right choice. Turn 2 asks about the expense claim submission deadline, which is a Northstar policy question, so route_rag is right even though a report was attached earlier. Each message went to exactly one specialist, and no clarification or direct answer was needed. The policy question was passed on as one focused task.",
+     "scope": "session"
+    }
+   ]
+  }
+ ],
+ "timings": {
+  "evaluation_seconds": 33.4
+ },
+ "latency_seconds": 33.4
+}

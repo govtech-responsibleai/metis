@@ -97,6 +97,9 @@ Each Interview makes one Target. The rail on the left lists the Targets, newest 
 System, Light, or Dark. With login off, these are at the foot of the rail. With login on, select
 your username at the foot of the rail, and they are on the **Appearance** row of the menu.
 
+A new user account starts with one Target, the demo Target
+**Northstar Policy & Report Assistant**. See [The demo Target](#the-demo-target).
+
 A Target page has two tabs:
 
 - **Specification** holds the Interview and its Profile. A new Target opens this tab with the
@@ -174,6 +177,13 @@ the page shows the Trials tab at that moment, it moves to the Report tab. It sta
 when you selected the Trials tab yourself.
 
 The comparison does not show experiments yet. It says what it will show.
+
+### The demo Target
+
+The demo Target shows you a full end-to-end run before you make your own Target. It contains
+one complete run for the Northstar Policy & Report Assistant, the
+[agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp): the
+Interview, the Specification, one finished Experiment and its Report.
 
 ## Start a guided Interview
 
