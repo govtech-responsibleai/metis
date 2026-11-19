@@ -1,7 +1,7 @@
 """The app composition root.
 
 `main.py` creates the FastAPI app, keeps `/health`, includes the wizard, store, experiment,
-report, engine, doctor, user, and auth routers, and installs the handlers that give every
+report, engine, doctor, workshop, user, and auth routers, and installs the handlers that give every
 failure one stable JSON shape. When login is on, `login_guard` lets a request reach an `/api`
 route only with a login session. The wizard routes keep no state: each request carries the whole
 Interview state in its body. The store routes keep the Targets, Interviews, Specifications, and
@@ -47,6 +47,8 @@ from metis.api.routes.reports import router as reports_router
 from metis.api.routes.targets import router as targets_router
 from metis.api.routes.wizard import ServiceError
 from metis.api.routes.wizard import router as wizard_router
+from metis.api.routes.workshop import WorkshopVariable
+from metis.api.routes.workshop import router as workshop_router
 from metis.api.settings import (
     InterviewHandler,
     Settings,
@@ -124,6 +126,14 @@ _OPENAPI_TAGS = [
         ),
     },
     {
+        "name": "workshop",
+        "description": (
+            "Read the variables that the operator gives to each participant, as the lines of "
+            "a .env file for the METIS CLI. METIS_WORKSHOP_ENV names them. A server without "
+            "it returns 404 not_found."
+        ),
+    },
+    {
         "name": "reports",
         "description": (
             "Read the report of an experiment folder in the project folder, as JSON or "
@@ -148,6 +158,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     Login settings that disagree stop the start. See ``login_from_env``. When the environment
     names an admin, the app makes that admin or sets its password before the first request.
+    The app reads the values of the workshop variables one time, from the environment that
+    includes the project `.env`.
 
     Before it accepts a request, the app sets up the process for the engine one time. At
     shutdown it empties the engine queue, stops the engine runs, and waits for them, for at
@@ -177,6 +189,16 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.join_token = settings.login.join_token
     app.state.admin_token = settings.login.admin_token
     app.state.secure_cookie = settings.secure_cookie
+    workshop_env = settings.login.workshop_env
+    app.state.workshop_env = (
+        None
+        if workshop_env is None
+        else tuple(
+            WorkshopVariable(name=name, value=settings.env[name])
+            for name in workshop_env
+            if settings.env.get(name, "").strip()
+        )
+    )
     accounts = Accounts(app.state.store.engine, server_dir=app.state.store.project_dir)
     app.state.accounts = accounts
     admin = settings.login.admin
@@ -235,6 +257,7 @@ def create_app(
     app.include_router(reports_router)
     app.include_router(engine_router)
     app.include_router(doctor_router)
+    app.include_router(workshop_router)
 
     @app.exception_handler(RouteError)
     def _on_route_error(_request: Request, exc: RouteError) -> JSONResponse:

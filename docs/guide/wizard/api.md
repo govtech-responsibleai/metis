@@ -605,8 +605,24 @@ Both are optional. Make each with a tool such as `openssl rand -hex 32`.
 neither. At each start, the API makes this user account or sets its password. Login has no limit
 on the number of tries, so use a long random password.
 
+Participants can also use the METIS CLI on their own computers. For this, they need some
+values of the server, such as the Langfuse keys of the target. Name these variables in
+`METIS_WORKSHOP_ENV`, separated by commas:
+
+```bash
+METIS_WORKSHOP_ENV=LANGFUSE_PUBLIC_KEY,LANGFUSE_SECRET_KEY,LANGFUSE_BASE_URL
+```
+
+The API reads their values at startup, also from `.env`. `GET /api/v1/workshop/env` returns each
+variable that has a value, in the same order, and the web app shows them as `.env` lines under
+**CLI settings** in the account menu. Without `METIS_WORKSHOP_ENV`, the route returns 404
+`not_found`. Each user account with a login session can read these values. List only values for
+participants. Never list a model provider key or a `METIS_` variable.
+
 The API does not start when one of these variables is set and `METIS_LOGIN` is not `1`, when the
-two tokens are the same, or when only one of the two admin variables is set.
+two tokens are the same, when only one of the two admin variables is set, or when
+`METIS_WORKSHOP_ENV` has a name that is not a variable name, a name that starts with `METIS_`,
+or a name more than one time.
 
 When login is on, each route under `/api` needs a login session. A request without one gets 401
 `login_required`. The exceptions are `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`,

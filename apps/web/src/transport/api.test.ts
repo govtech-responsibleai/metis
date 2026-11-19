@@ -9,6 +9,7 @@ import {
   store,
   TransportError,
   users,
+  workshopEnv,
   type InterviewState,
   type Report,
 } from "./api.ts";
@@ -666,4 +667,22 @@ test("the admin calls use the login session and no token", async () => {
       body: undefined,
     },
   ]);
+});
+
+test("workshopEnv gives the variables, null when the server gives none, and other failures as they are", async () => {
+  const variables = [{ name: "LANGFUSE_PUBLIC_KEY", value: "pk-lf-1" }];
+  globalThis.fetch = async (input) => {
+    assert.equal(input, "/api/v1/workshop/env");
+    return Response.json({ variables });
+  };
+  assert.deepEqual(await workshopEnv(), variables);
+
+  globalThis.fetch = async () => failure(404, "not_found", "No variables.");
+  assert.equal(await workshopEnv(), null);
+
+  globalThis.fetch = async () => failure(500, "internal_error", "Broken.");
+  await assert.rejects(
+    workshopEnv(),
+    (cause: unknown) => cause instanceof TransportError && cause.status === 500,
+  );
 });

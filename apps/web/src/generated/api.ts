@@ -667,6 +667,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workshop/env": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the workshop variables for the METIS CLI
+         * @description Return each variable in `METIS_WORKSHOP_ENV` that has a value.
+         *
+         *     A name with no value or an empty value is not in the list. A server with no
+         *     `METIS_WORKSHOP_ENV` gets 404 `not_found`.
+         */
+        get: operations["read_workshop_env_api_v1_workshop_env_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users": {
         parameters: {
             query?: never;
@@ -3878,6 +3901,24 @@ export interface components {
          * @enum {string}
          */
         WizardRequestState: "pending" | "resolved";
+        /**
+         * WorkshopEnv
+         * @description The workshop variables, in the order of `METIS_WORKSHOP_ENV`.
+         */
+        WorkshopEnv: {
+            /** Variables */
+            variables: components["schemas"]["WorkshopVariable"][];
+        };
+        /**
+         * WorkshopVariable
+         * @description One variable for the `.env` file of a participant.
+         */
+        WorkshopVariable: {
+            /** Name */
+            name: string;
+            /** Value */
+            value: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -5495,6 +5536,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DoctorCheck"][];
+                };
+            };
+        };
+    };
+    read_workshop_env_api_v1_workshop_env_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkshopEnv"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
                 };
             };
         };

@@ -319,6 +319,7 @@ Use the glossary terms "user account" and "login session".
 | `POST /api/v1/auth/login` | Check the credentials and set the login cookie. |
 | `POST /api/v1/auth/logout` | End the login session. |
 | `GET /api/v1/auth/me` | Tell if login is on, and name the current user account and if it is an admin. |
+| `GET /api/v1/workshop/env` | Give the variables of `METIS_WORKSHOP_ENV` that have a value, for the `.env` of the METIS CLI. |
 
 The user routes need the admin token or the login session of an admin.
 
@@ -366,6 +367,14 @@ same, or when a token is set and login is off.
 neither. At each start, `Accounts.ensure_admin` makes that user account or sets its password,
 and makes it an admin. A changed password ends its login sessions.
 
+`METIS_WORKSHOP_ENV` names variables, separated by commas. At startup, `_lifespan` reads their
+values from `Settings.env`, which includes the project `.env`, and leaves out a name with no
+value. `routes/workshop.py` returns them in the same order, and 404 `not_found` when the
+setting is unset. Each user account with a login session can read them, so the login guard is
+their only protection. Do not add the route to `_OPEN_PATHS`. The API does not start when the
+setting is set and login is off, or when it has a name that is not a variable name, a name that
+starts with `METIS_`, or a name more than one time.
+
 `Store.delete_user_account` holds the lock of a save and deletes the rows of the user account in
 one transaction, then its folder `users/<user id>/`. The route checks in this order: 404
 `not_found`, then 409 `cannot_delete_self`, `environment_admin`, `local_account`, and
@@ -391,6 +400,7 @@ src/metis/api/
 ├── experiment_dirs.py the project folder of a request, and an experiment folder from its id
 ├── errors.py          RouteError, which the app maps to the service error shape
 ├── routes/accounts.py user and auth routes, and the login guard of all /api routes
+├── routes/workshop.py the workshop variables for the .env of the METIS CLI
 ├── accounts.py        user accounts and login sessions: credentials, hashes, and rows
 ├── records.py         the wire models of the store routes
 ├── store.py           the store: rows through SQLAlchemy, files in evaluations/interviews/ and specifications/

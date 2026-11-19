@@ -267,7 +267,11 @@ test("a delete asks first, then removes the row of the user account", () => {
   assert.deepEqual(deleted, after({ type: "loaded", accounts: [lead] }));
 });
 
-const session = (user: UserAccount) => ({ user, logout: () => {} });
+const session = (user: UserAccount) => ({
+  user,
+  logout: () => {},
+  workshopEnv: null,
+});
 
 test("only an admin sees the admin page", () => {
   const fallback = <p>This page does not exist.</p>;

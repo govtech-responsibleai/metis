@@ -378,7 +378,9 @@ login session. The routes under `/api/v1/users` list, make, and delete user acco
 their passwords. They need the login session of an admin, or the admin token in
 `METIS_ADMIN_TOKEN`. The join token in `METIS_JOIN_TOKEN` can only make user accounts that are
 not admins. `METIS_ADMIN_USERNAME` and `METIS_ADMIN_PASSWORD`
-name one admin, which the API makes or updates at each start.
+name one admin, which the API makes or updates at each start. `METIS_WORKSHOP_ENV` names the
+variables that each user account can read through `GET /api/v1/workshop/env`, as `.env` lines
+for the METIS CLI.
 
 ---
 

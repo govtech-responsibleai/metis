@@ -9,6 +9,7 @@ import {
   LoginPage,
   LoginSessionProvider,
   startsAtFirstPage,
+  type LoginSession,
 } from "./LoginGate";
 import { TransportError } from "./transport/api";
 import { at, control, tab, text } from "./markup.test-helper";
@@ -18,6 +19,7 @@ import { ExperimentsTabView, TargetTabs } from "./TargetPage";
 import {
   AccountMenuList,
   AppearanceRow,
+  CliSettingsDialog,
   CollapsedRail,
   TargetRail,
 } from "./TargetRail";
@@ -73,7 +75,9 @@ const otter = {
 
 test("the rail shows the avatar and the name of the current user on a closed account menu button", () => {
   const markup = renderToStaticMarkup(
-    <LoginSessionProvider value={{ user: otter, logout: () => {} }}>
+    <LoginSessionProvider
+      value={{ user: otter, logout: () => {}, workshopEnv: null }}
+    >
       <Router ssrPath="/">
         <TargetRail
           targets={[]}
@@ -107,14 +111,18 @@ test("the rail shows the avatar and the name of the current user on a closed acc
 });
 
 test("the account menu shows the avatar and the username, then Manage accounts for an admin, Appearance, and Log out", () => {
-  const menu = (admin: boolean) => {
+  const menu = (
+    admin: boolean,
+    workshopEnv: LoginSession["workshopEnv"] = null,
+  ) => {
     const markup = at(
       "/",
       <AccountMenuList
-        session={{ user: { ...otter, admin }, logout: () => {} }}
+        session={{ user: { ...otter, admin }, logout: () => {}, workshopEnv }}
         theme="dark"
         onTheme={() => {}}
         onClose={() => {}}
+        onCliSettings={() => {}}
       />,
     );
     const rows = [
@@ -155,6 +163,59 @@ test("the account menu shows the avatar and the username, then Manage accounts f
     ["Manage accounts", "Appearance", "Log out"],
   );
   assert.match(admin.rows[0]?.item ?? "", /href="\/admin"/);
+
+  const workshop = menu(false, [{ name: "LANGFUSE_BASE_URL", value: "u" }]);
+  assert.deepEqual(
+    workshop.rows.map(({ label }) => label),
+    ["CLI settings", "Appearance", "Log out"],
+  );
+});
+
+test("the CLI settings dialog shows the .env lines and copies them as one block", () => {
+  const variables = [
+    { name: "LANGFUSE_PUBLIC_KEY", value: "pk-lf-1" },
+    { name: "LANGFUSE_BASE_URL", value: "https://langfuse.example" },
+  ];
+  const block =
+    "LANGFUSE_PUBLIC_KEY=pk-lf-1\nLANGFUSE_BASE_URL=https://langfuse.example\n";
+  let copied = "";
+  const globals = {
+    document: { activeElement: null },
+    navigator: {
+      clipboard: { writeText: (value: string) => (copied = value) },
+    },
+    window: { setTimeout: () => 0 },
+  };
+  const saved = Object.keys(globals).map(
+    (name) =>
+      [name, Object.getOwnPropertyDescriptor(globalThis, name)] as const,
+  );
+  for (const [name, value] of Object.entries(globals))
+    Object.defineProperty(globalThis, name, { value, configurable: true });
+  try {
+    // The Modal element holds the dialog body. A Modal needs a DOM, so the test reads its children.
+    let body: ReactNode = null;
+    function Host() {
+      const dialog = CliSettingsDialog({ variables, onClose: () => {} });
+      body = (dialog as ReactElement<{ children: ReactNode }>).props.children;
+      return null;
+    }
+    renderToStaticMarkup(<Host />);
+    const pre = elementIn(body, (props) =>
+      String(props.className ?? "").includes("font-mono text-sm"),
+    );
+    assert.equal(pre?.props.children, block);
+    (
+      elementIn(body, (props) => props.autoFocus === true)?.props
+        .onClick as () => void
+    )();
+    assert.equal(copied, block);
+  } finally {
+    for (const [name, descriptor] of saved) {
+      Reflect.deleteProperty(globalThis, name);
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+    }
+  }
 });
 
 // The element of `node` that matches `found`, with each function component called to give its

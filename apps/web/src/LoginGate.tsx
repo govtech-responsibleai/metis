@@ -21,15 +21,20 @@ import {
   onLoginRequired,
   TransportError,
   users,
+  workshopEnv,
   type NewUserAccount,
   type UserAccount,
+  type WorkshopVariable,
 } from "./transport/api";
 import { Button, cn } from "./ui";
 
 // The user account of the login session and the logout action. It is null when login is off.
+// `workshopEnv` holds the `.env` lines for the METIS CLI that the server gives, and is null when
+// it gives none.
 export interface LoginSession {
   user: UserAccount;
   logout: () => void;
+  workshopEnv: WorkshopVariable[] | null;
 }
 
 const LoginSessionContext = createContext<LoginSession | null>(null);
@@ -60,9 +65,24 @@ const toFirstPage = () => navigate("/", { replace: true });
 export function LoginGate({ children }: { children: ReactNode }) {
   const [gate, setGate] = useState<Gate>({ kind: "loading" });
   const lastUserId = useRef<string | null>(null);
+  const [env, setEnv] = useState<WorkshopVariable[] | null>(null);
   useEffect(() => {
     if (gate.kind === "open" && gate.user) lastUserId.current = gate.user.id;
   }, [gate]);
+
+  const userId = gate.kind === "open" ? gate.user?.id : undefined;
+  useEffect(() => {
+    setEnv(null);
+    if (!userId) return;
+    let current = true;
+    workshopEnv().then(
+      (variables) => current && setEnv(variables),
+      () => {},
+    );
+    return () => {
+      current = false;
+    };
+  }, [userId]);
 
   const check = useCallback(() => {
     setGate({ kind: "loading" });
@@ -111,7 +131,7 @@ export function LoginGate({ children }: { children: ReactNode }) {
     );
   return (
     <LoginSessionProvider
-      value={gate.user ? { user: gate.user, logout } : null}
+      value={gate.user ? { user: gate.user, logout, workshopEnv: env } : null}
     >
       {children}
     </LoginSessionProvider>
