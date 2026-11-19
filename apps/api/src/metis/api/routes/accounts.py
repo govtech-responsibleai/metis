@@ -25,13 +25,17 @@ from fastapi.security import APIKeyCookie, HTTPAuthorizationCredentials, HTTPBea
 from pydantic import BaseModel
 
 from metis.api.accounts import LOGIN_SESSION_LIFETIME, Accounts, UserAccount
+from metis.api.demo import add_demo_target
 from metis.api.routes.wizard import ServiceError
 from metis.api.store import LOCAL_USER_ID, Store, user_project_dir
+from metis.core.logging import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from metis.api.engine_runs import EngineRuns
+
+logger = get_logger(__name__)
 
 LOGIN_COOKIE = "metis_login"
 """The cookie that holds the value of a login session."""
@@ -151,6 +155,14 @@ def get_accounts(request: Request) -> Accounts:
             "The user accounts were not composed at application startup."
         )
     return accounts
+
+
+def get_server_store(request: Request) -> Store:
+    """Return the store of the server, which makes the store of each user account."""
+    store: Store | None = getattr(request.app.state, "store", None)
+    if store is None:
+        raise RuntimeError("The store was not composed at application startup.")
+    return store
 
 
 def _login_is_on(request: Request) -> bool:
@@ -324,6 +336,7 @@ def require_admin(caller: Annotated[Caller, Depends(get_caller)]) -> Caller:
 def create_user(
     accounts: Annotated[Accounts, Depends(get_accounts)],
     caller: Annotated[Caller, Depends(get_caller)],
+    store: Annotated[Store, Depends(get_server_store)],
     body: NewUserRequest | None = None,
 ) -> NewUserAccountBody:
     """Make a user account and return its username and password.
@@ -331,7 +344,7 @@ def create_user(
     METIS makes both values. This response is the only one that has the password. Each request
     makes one more user account. An admin makes a user account of each kind. The join token
     makes a user account that is not an admin, and `{"admin": true}` with the join token gets
-    403 `admin_required`.
+    403 `admin_required`. The new user account gets its own demo Target.
     """
     admin = body is not None and body.admin
     if caller is Token.JOIN and admin:
@@ -341,6 +354,11 @@ def create_user(
     if caller is not Token.JOIN and not _is_admin(caller):
         raise _admin_required()
     new = accounts.create(admin=admin)
+    try:
+        add_demo_target(store.for_user(new.account.id))
+    except Exception:
+        # The account exists, and this response is the only one that has its password.
+        logger.exception("demo_target_not_added", user_id=new.account.id)
     return NewUserAccountBody(**_body(new.account).model_dump(), password=new.password)
 
 

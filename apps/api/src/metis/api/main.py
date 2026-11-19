@@ -28,6 +28,7 @@ from fastapi.responses import JSONResponse
 
 from metis.api import __version__, core_version
 from metis.api.accounts import Accounts
+from metis.api.demo import add_demo_target_to_new_local_user
 from metis.api.engine_runs import EngineFunctions, EngineRuns
 from metis.api.errors import RouteError
 from metis.api.routes.accounts import (
@@ -142,7 +143,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     connection check, compile, and package routes call no model, so they work without keys.
 
     The app builds the store from the settings when the caller did not give one. The user
-    accounts use the database of the store.
+    accounts use the database of the store. With login off, a store that the app builds and
+    that has no local user account yet gets the demo Target.
 
     Login settings that disagree stop the start. See ``login_from_env``. When the environment
     names an admin, the app makes that admin or sets its password before the first request.
@@ -169,6 +171,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     if getattr(app.state, "store", None) is None:
         owned = Store(settings.database_url, settings.project_dir)
         app.state.store = owned
+        if not settings.login.login:
+            add_demo_target_to_new_local_user(owned)
     app.state.login = settings.login.login
     app.state.join_token = settings.login.join_token
     app.state.admin_token = settings.login.admin_token

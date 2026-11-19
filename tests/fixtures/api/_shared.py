@@ -12,7 +12,7 @@ they act as two browsers of one project.
 Import the fixtures you need into a conftest to register them for that test subtree:
 
     from tests.fixtures.api._shared import (
-        client, make_client, no_engine_setup, project_dir, project_cwd, store
+        client, make_client, no_demo_target, no_engine_setup, project_dir, project_cwd, store
     )
 """
 
@@ -68,6 +68,12 @@ def project_cwd(project_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Start each test in the project folder, so an app that builds its own store finds it."""
     monkeypatch.chdir(project_dir)
     monkeypatch.delenv("METIS_DATABASE_URL", raising=False)
+
+
+@pytest.fixture
+def no_demo_target(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make each new user account with no Target, for a test that counts the records of a user."""
+    monkeypatch.setattr("metis.api.routes.accounts.add_demo_target", lambda store: None)
 
 
 def database_url(project_dir: Path) -> str:

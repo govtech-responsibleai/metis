@@ -17,6 +17,8 @@ if TYPE_CHECKING:
 
     from tests.fixtures.api.engine import FakeEngine
 
+pytestmark = pytest.mark.usefixtures("no_demo_target")
+
 JOIN = {"Authorization": "Bearer workshop-join-token"}
 EXPERIMENT = "test-exp-20260101-000000"
 INPUT_DIR = "evaluations/specifications/t1"
