@@ -86,7 +86,7 @@ Environment is ready.`}
 
 ## Step 2: Familiarise yourself with your target application (10 min) {#step-2}
 
-<SystemDiagram step={2} />
+<SystemDiagram walkthrough="advanced" step={2} />
 
 Before you evaluate your application, make sure you understand what it does. Open it and interact
 with it as an end user would. Pay attention to:
@@ -105,7 +105,7 @@ that a check on the final answer alone would miss.
 
 ## Step 3: Build a specification in the Wizard (20 min) {#step-3}
 
-<SystemDiagram step={3} />
+<SystemDiagram walkthrough="advanced" step={3} />
 
 A <Term>specification</Term> says what your application should do and how to test it. The Wizard
 interviews you about your application and drafts it. See [Start the interview](wizard-interview.md)
@@ -175,7 +175,7 @@ and `specification.yaml` has a `target_binding:` line that points to the target 
 
 ## Step 4: Simulate user interactions (10 min) {#step-4}
 
-<SystemDiagram step={4} />
+<SystemDiagram walkthrough="advanced" step={4} />
 
 `simulate` plays a simulated user against your application and records each conversation as a
 <Term>trial</Term>. See [Run the test suite](run-test-suite.md).
@@ -202,7 +202,7 @@ ls evaluations/experiments/<your-experiment>/outputs/trials/*/record.json
 
 ## Step 5: Inspect the traces in Langfuse (10 min) {#step-5}
 
-<SystemDiagram step={5} />
+<SystemDiagram walkthrough="advanced" step={5} />
 
 A Langfuse <Term>session</Term> holds the whole conversation. Each trial's `record.json` holds the
 session ID of its conversation in `target_session_id`:
@@ -248,7 +248,7 @@ application did at that point.
 
 ## Step 6: Grade the traces (10 min) {#step-6}
 
-<SystemDiagram step={6} />
+<SystemDiagram walkthrough="advanced" step={6} />
 
 `evaluate` reads each conversation from Langfuse and runs the <Term>graders</Term> from the
 <Term>specification</Term>. See [Run the graders](run-graders.md). Use the output folder that
@@ -271,7 +271,7 @@ If a trial failed, run the command again.
 
 ## Step 7: Read the report (10 min) {#step-7}
 
-<SystemDiagram step={7} />
+<SystemDiagram walkthrough="advanced" step={7} />
 
 Generate the report from the results of step 6:
 

@@ -1,21 +1,26 @@
 import {useId} from 'react';
 import styles from './styles.module.css';
 
-// What each step of a walkthrough uses. A part that the step does not use is dimmed.
-// Without a `step`, every part is lit, which gives the overview.
-//
-// Advanced (CLI) walkthrough steps:
-//   2: inspect toy app, 3: build spec, 4: simulate, 5: Langfuse, 6: evaluate, 7: report
-// Beginner (Web) walkthrough steps:
-//   1: inspect toy app, 3: learn wizard, 4: build spec, 5: experiment, 6: Langfuse, 7: report
+// What each step of a walkthrough uses. A part that the step does not use is dimmed. The two
+// walkthroughs number their steps differently, so each has its own table, picked by the
+// `walkthrough` prop. Without a `step`, every part is lit, which gives the overview. A step with
+// no entry, such as installing METIS, dims every part.
 const IN_USE = {
-  1: ['app'],
-  2: ['app'],
-  3: ['metis', 'gateway', 'modelCalls'],
-  4: ['metis', 'app', 'langfuse', 'gateway', 'callApp', 'logTraces', 'modelCalls'],
-  5: ['metis', 'langfuse', 'openSession', 'app', 'gateway', 'callApp', 'logTraces', 'readTraces', 'modelCalls'],
-  6: ['metis', 'langfuse', 'openSession', 'readTraces'],
-  7: ['metis'],
+  beginner: {
+    1: ['app', 'langfuse', 'logTraces'], // try a demo session and open its trace
+    4: ['metis', 'gateway', 'modelCalls'], // the Wizard drafts the specification
+    5: ['metis', 'app', 'langfuse', 'gateway', 'callApp', 'logTraces', 'readTraces', 'modelCalls'], // simulate and grade
+    6: ['metis', 'langfuse', 'openSession'], // open a trace from the Trials tab
+    7: ['metis'], // read the report
+  },
+  advanced: {
+    2: ['app'], // look at the target application
+    3: ['metis', 'gateway', 'modelCalls'], // the Wizard drafts the specification
+    4: ['metis', 'app', 'langfuse', 'gateway', 'callApp', 'logTraces', 'modelCalls'], // simulate
+    5: ['metis', 'langfuse', 'openSession'], // find a trial's session in Langfuse
+    6: ['metis', 'langfuse', 'gateway', 'readTraces', 'modelCalls'], // grade the traces
+    7: ['metis'], // read the report
+  },
 };
 
 const DESCRIPTION =
@@ -37,11 +42,11 @@ const DESCRIPTION =
 //   Model gateway
 //   (bottom-centre)
 //
-export default function SystemDiagram({step}) {
+export default function SystemDiagram({walkthrough, step}) {
   const id = useId();
   const arrow = `${id}-arrow`;
   const shadow = `${id}-shadow`;
-  const lit = step === undefined ? null : IN_USE[step] ?? [];
+  const lit = step === undefined ? null : IN_USE[walkthrough]?.[step] ?? [];
   const part = (name) => (lit === null || lit.includes(name) ? styles.on : styles.off);
 
   // Box geometry
