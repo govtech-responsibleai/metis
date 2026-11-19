@@ -5,21 +5,33 @@ title: Beginner (Web) Walkthrough
 <TocToggle />
 <StepControls storageKey="metis-beginner-walkthrough-steps" />
 
-:::warning
+In this walkthrough, you will evaluate an AI assistant with METIS, entirely in your browser. You
+describe the assistant to the Wizard, run simulated conversations against it, follow those
+conversations in Langfuse, and read the report that grades them. Each step ends with a
+**checkpoint**, which is what you should see before you move on.
 
-This walkthrough is for a hands-on workshop presented by the METIS team.
-The URL and credentials to access METIS will be shown on the presentation slides.
+:::warning[For workshop participants only]
 
-The addresses you need:
+This walkthrough is for a hands-on workshop presented by the METIS team, and you can follow it
+only during the workshop. The organisers set up and host everything that it uses, so you do not
+install anything, but these services are not open to the public:
 
-1. METIS web app: [https://demo1-web.metis.aip.gov.sg/](https://demo1-web.metis.aip.gov.sg/)
-2. Toy app: [https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/](https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/)
-3. Toy app source code: [https://github.com/govtech-responsibleai/agentic-eval-toyapp](https://github.com/govtech-responsibleai/agentic-eval-toyapp)
+1. **The METIS web app**, where you build a specification and run the experiment:
+   [https://demo1-web.metis.aip.gov.sg/](https://demo1-web.metis.aip.gov.sg/)
+2. **The target application**, the toy app that you evaluate:
+   [https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/](https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/)
+3. **A Langfuse server**, which records each conversation as a trace. You open it from a link in
+   METIS, in step 6.
+
+To log in to METIS, you need the secret key that is shown on the presentation slides.
 :::
 
 :::tip[Comfortable with the terminal?]
-Try the [Advanced (CLI) Walkthrough](advanced-walkthrough.md) for the full command-line experience.
+Try the [Advanced (CLI) Walkthrough](advanced-walkthrough.md) to run METIS on your own machine,
+against your own application.
 :::
+
+The picture shows how the pieces fit together:
 
 <SystemDiagram />
 
@@ -42,7 +54,7 @@ clarifying question, hand over to the policy specialist, or hand over to the rep
 
 ### 1a. Open the toy app
 
-Open the toy app URL shown on the presentation slides. Select **Demo** to try a pre-made session.
+Open the [toy app](https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/). Select **Demo** to try a pre-made session.
 
 ![The Demo menu of the toy app](./assets/toyapp-demo-menu.png)
 
