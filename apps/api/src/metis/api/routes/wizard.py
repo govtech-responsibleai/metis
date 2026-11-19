@@ -542,13 +542,16 @@ def check_target_connection(
     `localhost`, or `::1`). `METIS_API_CONNECTION_CHECK=1` or `0` overrides this. When the check
     is off, `live` is false and `status` is `unchecked`.
 
-    The API never puts a value from its own environment into a URL that it requests. A URL that
-    names a `${NAME}` variable is not requested, and its probe tells the user to check it with
-    `metis wizard connect`.
+    The API puts a value from its own environment into a URL that it requests only for a
+    variable that `METIS_WORKSHOP_ENV` names, because each user account can already read those
+    values. A URL that names any other `${NAME}` variable is not requested, and its probe tells
+    the user to check it with `metis wizard connect`.
     """
     # The check calls no model, so it reads its switch from the app and works without keys.
     live: bool = getattr(request.app.state, "connection_check", False)
-    return check_connection(body.binding, live=live, expand_variables=False)
+    workshop_env = getattr(request.app.state, "workshop_env", None) or ()
+    url_environ = {variable.name: variable.value for variable in workshop_env}
+    return check_connection(body.binding, live=live, url_environ=url_environ)
 
 
 @router.post(
