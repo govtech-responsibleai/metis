@@ -1046,8 +1046,8 @@ test("a refused start shows the message of the API in the dialog", () => {
 test("a trial with a Langfuse session links to it in a new tab", () => {
   const link = control(drawer(), "Open in Langfuse");
 
-  // report.css makes td-link a button in the blue of the Langfuse icon, with no logo.
-  assert.match(link, /class="td-link"/);
+  // It is the app's primary button, so a reader does not miss it, and it has no logo.
+  assert.match(link, /class="[^"]*\bbg-primary\b[^"]*\btd-link\b/);
   assert.doesNotMatch(drawer(), /langfuse-icon/);
   assert.ok(
     link.includes(' href="https://lf.example/project/p1/sessions/s-1"'),

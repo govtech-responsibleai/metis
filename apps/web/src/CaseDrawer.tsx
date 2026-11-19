@@ -15,7 +15,7 @@ import type {
   TrialDetail,
 } from "./report";
 import { OUTCOME, RateText, Tip } from "./ReportParts";
-import { cn, Modal } from "./ui";
+import { buttonClass, cn, Modal } from "./ui";
 
 const ENDING: Record<string, string> = {
   succeeded: "Reached its goal",
@@ -468,7 +468,7 @@ function TrialSection({
         <h4 className="td-title">Trial {trial.index}</h4>
         {trial.sessionUrl && (
           <a
-            className="td-link"
+            className={cn(buttonClass("primary"), "td-link")}
             href={trial.sessionUrl}
             target="_blank"
             rel="noopener noreferrer"

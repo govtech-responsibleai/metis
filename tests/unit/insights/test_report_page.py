@@ -304,15 +304,16 @@ def test_a_trial_links_to_its_langfuse_session(experiment: Path) -> None:
         f'<a class="td-link" href="{url}" target="_blank" rel="noopener noreferrer">'
     ) in html
     assert 'rel="noopener noreferrer">Open in Langfuse</a>' in html
-    # The button has the blue of the Langfuse icon, and no Langfuse logo.
+    # The button has no Langfuse logo.
     assert "<svg" not in html.split("Open in Langfuse")[0].rsplit("<a ", 1)[1]
 
 
-def test_the_langfuse_button_has_the_langfuse_blue() -> None:
-    from metis.insights._report_styles import PALETTE, REPORT_CSS
+def test_the_langfuse_button_is_a_primary_button() -> None:
+    from metis.insights._report_styles import REPORT_CSS
 
-    assert PALETTE["langfuse"] == "#4e9cff"
-    assert "background:var(--langfuse)" in REPORT_CSS
+    # Near-black with white text, as the web app's primary button (docs/design.md).
+    assert ".td-link{" in REPORT_CSS
+    assert "background:var(--ink);color:#fff" in REPORT_CSS
 
 
 def test_a_trial_without_a_session_url_has_no_link(experiment: Path) -> None:
