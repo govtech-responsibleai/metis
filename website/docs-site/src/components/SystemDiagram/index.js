@@ -8,17 +8,17 @@ import styles from './styles.module.css';
 const IN_USE = {
   beginner: {
     1: ['app', 'langfuse', 'logTraces'], // try a demo session and open its trace
-    4: ['metis', 'gateway', 'modelCalls'], // the Wizard drafts the specification
-    5: ['metis', 'app', 'langfuse', 'gateway', 'callApp', 'logTraces', 'readTraces', 'modelCalls'], // simulate and grade
+    4: ['metis'], // the Wizard drafts the specification
+    5: ['metis', 'app', 'langfuse', 'callApp', 'logTraces', 'readTraces'], // simulate and grade
     6: ['metis', 'langfuse', 'openSession'], // open a trace from the Trials tab
     7: ['metis'], // read the report
   },
   advanced: {
     2: ['app'], // look at the target application
-    3: ['metis', 'gateway', 'modelCalls'], // the Wizard drafts the specification
-    4: ['metis', 'app', 'langfuse', 'gateway', 'callApp', 'logTraces', 'modelCalls'], // simulate
+    3: ['metis'], // the Wizard drafts the specification
+    4: ['metis', 'app', 'langfuse', 'callApp', 'logTraces'], // simulate
     5: ['metis', 'langfuse', 'openSession'], // find a trial's session in Langfuse
-    6: ['metis', 'langfuse', 'gateway', 'readTraces', 'modelCalls'], // grade the traces
+    6: ['metis', 'langfuse', 'readTraces'], // grade the traces
     7: ['metis'], // read the report
   },
 };
@@ -26,9 +26,9 @@ const IN_USE = {
 const DESCRIPTION =
   'METIS drafts specifications, plays simulated users against the toy app, reads traces from ' +
   'Langfuse to grade them, and generates a report. The toy app logs every conversation to ' +
-  'Langfuse as a trace. A model gateway serves the language model calls.';
+  'Langfuse as a trace.';
 
-//  Layout (all four boxes are peers, no container):
+//  Layout (all three boxes are peers, no container):
 //
 //     METIS            Toy app
 //     (left)        (top-centre)
@@ -37,10 +37,6 @@ const DESCRIPTION =
 //       |<-- reads --->|
 //       |-- inspects ->| Langfuse
 //       |              (right)
-//       |
-//       v
-//   Model gateway
-//   (bottom-centre)
 //
 export default function SystemDiagram({walkthrough, step}) {
   const id = useId();
@@ -53,7 +49,6 @@ export default function SystemDiagram({walkthrough, step}) {
   const metis = {x: 60, y: 180, w: 240, h: 90};
   const app = {x: 410, y: 70, w: 220, h: 90};
   const langfuse = {x: 690, y: 180, w: 210, h: 90};
-  const gateway = {x: 410, y: 360, w: 220, h: 70};
 
   // Y coords for the two METIS↔Langfuse horizontal arrows (inside both boxes' vertical span)
   const readY = metis.y + 28;   // "reads traces" ← (upper)
@@ -65,7 +60,7 @@ export default function SystemDiagram({walkthrough, step}) {
   return (
     <figure className={styles.figure}>
       <svg
-        viewBox="0 40 960 420"
+        viewBox="0 40 960 260"
         role="img"
         aria-label={step === undefined ? 'System architecture' : `System architecture, step ${step}`}
         aria-description={DESCRIPTION}
@@ -86,7 +81,7 @@ export default function SystemDiagram({walkthrough, step}) {
           </filter>
         </defs>
 
-        <rect y="40" width="960" height="420" rx="16" fill="#ffffff" />
+        <rect y="40" width="960" height="260" rx="16" fill="#ffffff" />
 
         {/* METIS (left) */}
         <g className={part('metis')}>
@@ -111,12 +106,6 @@ export default function SystemDiagram({walkthrough, step}) {
           <text x={langfuse.x + langfuse.w / 2} y={langfuse.y + 75} fontSize="12.5" fill="#be185d" textAnchor="middle">as a trace</text>
         </g>
 
-        {/* Model gateway (bottom-centre) */}
-        <g className={part('gateway')}>
-          <rect x={gateway.x} y={gateway.y} width={gateway.w} height={gateway.h} rx="14" fill="#fffbeb" stroke="#f59e0b" strokeWidth="2" filter={`url(#${shadow})`} />
-          <text x={gateway.x + gateway.w / 2} y={gateway.y + 30} fontSize="16" fontWeight="700" fill="#92400e" textAnchor="middle">Model gateway</text>
-          <text x={gateway.x + gateway.w / 2} y={gateway.y + 50} fontSize="12.5" fill="#b45309" textAnchor="middle">LLM access</text>
-        </g>
 
         {/* --- Connections --- */}
 
@@ -144,11 +133,6 @@ export default function SystemDiagram({walkthrough, step}) {
           <text x={midX} y={inspectY + 18} fontSize="12.5" fill="#334155" textAnchor="middle">inspects a Langfuse session</text>
         </g>
 
-        {/* METIS --model calls--> Model gateway (down then right) */}
-        <g className={part('modelCalls')}>
-          <path d={`M${metis.x + metis.w / 2},${metis.y + metis.h} V${gateway.y + gateway.h / 2} H${gateway.x}`} fill="none" stroke="#475569" strokeWidth="2" markerEnd={`url(#${arrow})`} />
-          <text x={(metis.x + metis.w / 2 + gateway.x) / 2} y={gateway.y + gateway.h / 2 - 8} fontSize="12.5" fill="#334155" textAnchor="middle">model calls</text>
-        </g>
       </svg>
     </figure>
   );
