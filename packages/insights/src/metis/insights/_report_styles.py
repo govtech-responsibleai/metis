@@ -27,6 +27,11 @@ PALETTE: dict[str, str] = {
     "t-fail-ink": "#a3262f",
     "t-skip": "#f1f2f2",
     "t-err": "#f7ecd6",
+    # The blue of the Langfuse icon, for the one button that opens Langfuse. Near-black text
+    # on it is 7.1:1. The two darker steps are its hover and press.
+    "langfuse": "#4e9cff",
+    "langfuse-hover": "#3b8cf5",
+    "langfuse-press": "#2f7fe8",
 }
 
 _ROOT = (
@@ -152,7 +157,7 @@ table.dt{border-collapse:separate;border-spacing:0;font-size:14px;min-width:100%
 .trial-detail{border-top:1px solid var(--line);padding-top:14px}
 .td-title{font-size:16px;margin-bottom:10px;color:var(--ink);text-transform:none;letter-spacing:0}
 .td-head{display:flex;align-items:center;gap:14px;margin-bottom:12px}.td-head .td-title{margin-bottom:0}
-.td-link{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:6px;background:var(--tree);color:var(--ink);font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap}.td-link:hover{background:var(--line)}.td-link:active{background:var(--edge)}.td-link:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.td-link{display:inline-flex;align-items:center;padding:6px 12px;border:1px solid var(--langfuse);border-radius:6px;background:var(--langfuse);color:var(--ink);font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap}.td-link:hover{background:var(--langfuse-hover);border-color:var(--langfuse-hover)}.td-link:active{background:var(--langfuse-press);border-color:var(--langfuse-press)}.td-link:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .dm-facts{display:flex;gap:28px;flex:0 0 auto}.dm-facts div{text-align:right}.dm-facts b{display:block;font-size:26px;line-height:1.1}.dm-facts span{font-size:13px;color:var(--muted)}
 .dm-sec{display:flex;align-items:center;gap:8px;margin:18px 0 8px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .ci-list{border:1px solid var(--line);border-radius:8px;padding:4px 14px 8px;margin-bottom:6px}

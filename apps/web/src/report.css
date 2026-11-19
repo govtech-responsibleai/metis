@@ -1119,8 +1119,30 @@
   margin-bottom: 0;
 }
 .report .td-link {
-  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border: 1px solid hsl(var(--langfuse));
+  border-radius: var(--radius);
+  background: hsl(var(--langfuse));
+  color: hsl(var(--langfuse-foreground));
+  font-size: 14px;
+  font-weight: 600;
   text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 150ms;
+}
+.report .td-link:hover {
+  background: hsl(var(--langfuse-hover));
+  border-color: hsl(var(--langfuse-hover));
+}
+.report .td-link:active {
+  background: hsl(var(--langfuse-press));
+  border-color: hsl(var(--langfuse-press));
+}
+.report .td-link:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
 }
 .report .endnote {
   background: var(--tree);

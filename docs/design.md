@@ -76,6 +76,11 @@ The tables below give the colours for the surfaces, the result states and the da
 | Line | `#E3E7E8` | `#292929` |
 | Primary button | `#171717`, white text | `#F5F5F5`, near-black text |
 | Accent | `#0A2A3D` navy-soft | `#59B9C0` light teal |
+| Open in Langfuse button | `#4E9CFF`, near-black text | the same |
+
+The "Open in Langfuse" button of a trial uses the blue of the Langfuse icon, so a reader knows it
+opens Langfuse, and it does not show the Langfuse logo. Its hover is `#3B8CF5` and its press is
+`#2F7FE8`. No other control uses this blue.
 
 ### Status colours
 

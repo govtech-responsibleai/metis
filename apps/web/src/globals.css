@@ -83,6 +83,13 @@
   --brand-link: 233 52% 66%; /* #7C86D6 — the links of the trace art */
   --brand-wait: 194 13% 60%; /* #8CA0A6 — an observation with no result yet */
   --brand-fail: 347 42% 60%; /* #C46E80 — a failed observation in the trace art */
+
+  /* The blue of the Langfuse icon, for the one button that opens Langfuse. It is the same in
+     both themes, so the dark block does not set these again. Near-black text on it is 7.1:1. */
+  --langfuse: 214 100% 65%; /* #4E9CFF */
+  --langfuse-hover: 214 90% 60%; /* #3B8CF5 */
+  --langfuse-press: 214 80% 55%; /* #2F7FE8 */
+  --langfuse-foreground: 0 0% 4%; /* #0A0A0A */
 }
 
 /* Dark mode keeps neutral black and grey surfaces. The accent is a light teal
