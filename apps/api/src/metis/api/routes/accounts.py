@@ -1,6 +1,6 @@
 """HTTP routes for user accounts and login sessions, and the guard of the other routes.
 
-The user routes make and list user accounts. ``Caller`` and
+The user routes make and list user accounts, and reset their passwords. ``Caller`` and
 ``get_caller`` are the one rule of who can use them: the login session of an admin, or the admin
 token, opens each user route, and the join token can make a user account that is not an admin.
 The auth routes start and end a login session and name the current user account.
@@ -353,6 +353,30 @@ def list_users(
 ) -> UserAccountList:
     """Return each user account with its id, username, creation time, and admin flag."""
     return UserAccountList(users=[_body(account) for account in accounts.accounts()])
+
+
+@users_router.post(
+    "/{username}/password",
+    summary="Reset the password of a user account",
+    response_model=NewUserAccountBody,
+    responses=_ERRORS,
+    dependencies=[Depends(require_admin)],
+)
+def reset_password(
+    username: str,
+    accounts: Annotated[Accounts, Depends(get_accounts)],
+) -> NewUserAccountBody:
+    """Give a user account a new password, end its login sessions, and return the password.
+
+    METIS makes the password. This response is the only one that has it. An unknown username
+    gets 404 `not_found`.
+    """
+    new = accounts.reset_password(username)
+    if new is None:
+        raise AccountError(
+            404, "not_found", f"No user account has the username {username!r}."
+        )
+    return NewUserAccountBody(**_body(new.account).model_dump(), password=new.password)
 
 
 @auth_router.post(

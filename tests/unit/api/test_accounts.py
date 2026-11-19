@@ -142,6 +142,7 @@ def _user_routes(username: str) -> tuple[tuple[str, str], ...]:
     return (
         ("get", USERS),
         ("post", USERS),
+        ("post", f"{USERS}/{username}/password"),
     )
 
 
@@ -179,6 +180,7 @@ def test_the_admin_token_opens_each_user_route_with_no_login_session(
         made_admin = script.post(USERS, headers=ADMIN_TOKEN, json={"admin": True})
         listed = script.get(USERS, headers=ADMIN_TOKEN)
         username = participant.json()["username"]
+        reset = script.post(f"{USERS}/{username}/password", headers=ADMIN_TOKEN)
 
         assert script.cookies.get("metis_login") is None
         assert (participant.status_code, participant.json()["admin"]) == (201, False)
@@ -189,6 +191,8 @@ def test_the_admin_token_opens_each_user_route_with_no_login_session(
             username,
             made_admin.json()["username"],
         ]
+        assert reset.status_code == 200
+        assert reset.json()["password"] != participant.json()["password"]
 
 
 def test_the_join_token_opens_no_user_route_but_the_join(browser: TestClient) -> None:
@@ -254,7 +258,10 @@ def test_the_api_description_names_the_credentials_of_the_user_routes(
         {"LoginSession": []},
         {"AdminToken": []},
     ]
-    for path, method in ((USERS, "get"),):
+    for path, method in (
+        (USERS, "get"),
+        (f"{USERS}/{{username}}/password", "post"),
+    ):
         assert schema["paths"][path][method]["security"] == [
             {"LoginSession": []},
             {"AdminToken": []},
@@ -637,6 +644,37 @@ def test_the_environment_makes_an_existing_user_account_an_admin(
         "created_at": existing.account.created_at.isoformat().replace("+00:00", "Z"),
         "admin": True,
     }
+
+
+def test_an_admin_resets_a_password_and_the_old_login_sessions_end(
+    admin: TestClient, make_client: MakeClient
+) -> None:
+    user = _new_user(admin)
+    with make_client() as participant:
+        assert _log_in(participant, user).status_code == 200
+
+        reset = admin.post(f"{USERS}/{user['username']}/password")
+
+        assert reset.status_code == 200
+        body = reset.json()
+        assert _account(body) == _account(user)
+        assert re.fullmatch(
+            r"[a-hj-km-np-z2-9]{5}-[a-hj-km-np-z2-9]{5}", body["password"]
+        )
+        assert body["password"] != user["password"]
+        assert participant.get(ME).status_code == 401
+        assert _log_in(participant, user).status_code == 401
+        assert (
+            _log_in(participant, {**user, "password": body["password"]}).status_code
+            == 200
+        )
+
+
+def test_a_reset_of_an_unknown_username_gets_not_found(admin: TestClient) -> None:
+    response = admin.post(f"{USERS}/no-such-user/password")
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "not_found"
 
 
 def test_a_user_account_without_a_password_hash_accepts_no_password() -> None:

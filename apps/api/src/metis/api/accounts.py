@@ -3,9 +3,9 @@
 A user account is one person who can log in to a METIS server. METIS makes its username and its
 password. The database keeps a scrypt hash of the password and never the password.
 
-An admin is a user account that can list the user accounts and make them. The ``admins`` table
-names each admin. The environment of the server can name one admin with its own password, which
-METIS sets at each start (``ensure_admin``).
+An admin is a user account that can list the user accounts, make them, and reset their
+passwords. The ``admins`` table names each admin. The environment of the server can name one
+admin with its own password, which METIS sets at each start (``ensure_admin``).
 
 For debugging, ``users/<user id>/user.json`` in the server project folder names each user account:
 its id, its username, and when it was made, last logged in, and last written. METIS writes the file
@@ -297,6 +297,37 @@ class Accounts:
             created_at=_utc(row.created_at),
             admin=True,
         )
+
+    def reset_password(self, username: str) -> NewUserAccount | None:
+        """Give ``username`` a new password and end its login sessions.
+
+        Returns ``None`` when no user account has the username. The new password is in the
+        result only, and the database keeps its hash.
+        """
+        account = self.account(username)
+        if account is None:
+            return None
+        password = new_password()
+        with self._engine.begin() as connection:
+            connection.execute(
+                update(users)
+                .where(users.c.id == account.id)
+                .values(password_hash=hash_password(password))
+            )
+            connection.execute(
+                delete(login_sessions).where(login_sessions.c.user_id == account.id)
+            )
+        return NewUserAccount(account=account, password=password)
+
+    def account(self, username: str) -> UserAccount | None:
+        """The user account of ``username``, or ``None`` when no user account has it.
+
+        The lookup ignores space around the username and its case.
+        """
+        query = _accounts_query().where(users.c.username == username.strip().lower())
+        with self._engine.connect() as connection:
+            row = connection.execute(query).one_or_none()
+        return None if row is None else _account(row)
 
     def accounts(self) -> list[UserAccount]:
         """All user accounts, oldest first."""
