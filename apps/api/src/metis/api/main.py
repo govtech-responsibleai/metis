@@ -3,12 +3,13 @@
 `main.py` creates the FastAPI app, keeps `/health`, includes the wizard, store, experiment,
 report, engine, doctor, user, and auth routers, and installs the handlers that give every
 failure one stable JSON shape. When login is on, `login_guard` lets a request reach an `/api`
-route only with a login session. The wizard routes keep no state: each request carries the
-whole Interview state in its body. The store routes keep the Targets, Interviews,
-Specifications, and Experiments in the `Store` that the app composes at startup. The report
-routes read the experiment folders. The engine routes run up to the run limit of jobs at a
-time, each on a thread in this process, and queue the rest. The store and the experiment folders are in the project folder that
-`create_app` gets, or the default project folder that `find_project_root` finds.
+route only with a login session. The wizard routes keep no state: each request carries the whole
+Interview state in its body. The store routes keep the Targets, Interviews, Specifications, and
+Experiments in the `Store` that the app composes at startup. The report routes read the
+experiment folders. The engine routes run up to the run limit of jobs at a time, each on a
+thread in this process, and queue the rest. The store and the experiment folders are in the
+project folder that `create_app` gets, or the default project folder that `find_project_root`
+finds.
 
 When the web folder of the API package has a built web app, the app also serves that web app on
 every path that no API route takes. See `metis.api.web`. Without a built web app, the app serves
