@@ -360,11 +360,11 @@ The screen shows the progress of each trial, with the log below it:
 
 ![The simulate dashboard, with the progress of the trials above and the log tail below](./assets/simulate-dashboard.png)
 
-The prepared <Term>specification</Term> has three <Term>test cases</Term>, which give six trials. In one of them, the policy
+The prepared <Term>specification</Term> has three <Term>test cases</Term>, which give four trials. In one of them, the policy
 has no answer and the employee asks for a plain yes or no. Wait for the command to finish. It
 prints the output folder and the `evaluate` command.
 
-**Checkpoint:** six trials finish, and each has a `record.json` file:
+**Checkpoint:** four trials finish, and each has a `record.json` file:
 
 ```bash
 ls evaluations/experiments/<your-experiment>/outputs/trials/*/record.json
@@ -456,30 +456,30 @@ Each <Term>trial</Term> is graded in turn, with a progress bar for each trial. I
 <TerminalOutput
   command="uv run metis engine evaluate --experiment-dir evaluations/experiments/<your-experiment>"
   output={`Selected experiment: /path/to/metis/evaluations/experiments/toyapp-workshop-lite-20261102-004033
-  Loaded 6 trial record(s)
+  Loaded 4 trial record(s)
 Models: Judge bedrock.claude-sonnet-5-5
 
 ############################################################
-  SESSION 1/6: fragmented-persistent-changing-mind-questioner x S-3
+  SESSION 1/4: fragmented-persistent-changing-mind-questioner x S-3
 ############################################################
-fragmented-persistent-changing-mind-questioner x S-3 - evaluating ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  1/6
+fragmented-persistent-changing-mind-questioner x S-3 - evaluating ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  1/4
 
 ############################################################
-  SESSION 2/6: fragmented-persistent-changing-mind-questioner x S-3
+  SESSION 2/4: fragmented-persistent-changing-mind-questioner x S-3
 ############################################################
-fragmented-persistent-changing-mind-questioner x S-3 - evaluating ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  2/6
+fragmented-persistent-changing-mind-questioner x S-3 - evaluating ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  2/4
 
 ...
 
 ############################################################
-  SESSION 6/6: direct-employee-questioner x S-5
+  SESSION 4/4: direct-employee-questioner x S-5
 ############################################################
-direct-employee-questioner x S-5 - evaluating ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  6/6
+direct-employee-questioner x S-5 - evaluating ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  4/4
 
-Evaluation complete ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  6/6
+Evaluation complete ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  4/4
 
 ============================================================
-  EVALUATION COMPLETE - 6 run(s), 0 failed
+  EVALUATION COMPLETE - 4 run(s), 0 failed
   Specification: /path/to/metis/evaluations/experiments/toyapp-workshop-lite-20261102-004033
   Log: /path/to/metis/evaluations/experiments/toyapp-workshop-lite-20261102-004033/logs/evaluate.log
   Results: /path/to/metis/evaluations/experiments/toyapp-workshop-lite-20261102-004033/outputs/reports/results.json
