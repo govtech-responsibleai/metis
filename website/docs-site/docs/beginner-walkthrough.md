@@ -58,15 +58,27 @@ a toy app built to demonstrate METIS. It is an assistant for the employees of a 
 Northstar Services. For each message it chooses one of four actions: answer directly, ask a
 clarifying question, hand over to the policy specialist, or hand over to the report specialist.
 
-### 1a. Open the toy app
+### 1a. Get to know the toy app
 
-Open the [toy app](https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/). Select **Demo** to try a pre-made session.
+You cannot evaluate an application that you do not understand, so spend a few minutes learning
+what this one does before you describe it to METIS:
 
-![The toy app, with the Demo button highlighted](./assets/toyapp-demo-menu.png)
+- Read the [README](https://github.com/govtech-responsibleai/agentic-eval-toyapp/blob/main/README.md),
+  which says what the app can do, what it cannot do, and how it handles each message.
+- Look over the [API docs](https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/docs), which list the
+  calls that METIS uses to send the app a message and read its reply.
+
+Then open the [toy app](https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/), and type a message in
+the chat box. Ask it about a Northstar policy, for example "What is the lodging limit for domestic
+travel?", and then try a question that the policies do not cover. Watch which specialist answers,
+and whether the app asks you to clarify.
+
+![The toy app, with the Your message chat box highlighted](./assets/toyapp-chat-box.png)
 
 ### 1b. Inspect a demo session
 
-Choose **Pet policy: question outside the collection**. The employee asks for a plain yes or no,
+The demo sessions are conversations that were recorded earlier. Select **Demo**, and choose
+**Pet policy: question outside the collection**. The employee asks for a plain yes or no,
 but the policy collection has no answer.
 
 ![The Demo menu, with the Pet policy demo highlighted](./assets/toyapp-demo-choose-pet.png)
