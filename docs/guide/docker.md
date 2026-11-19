@@ -50,10 +50,28 @@ To turn login on, set these variables in `.env` and start the container again.
 
 ```bash
 METIS_LOGIN=1
-METIS_ADMIN_TOKEN=<a long random value>
+METIS_JOIN_TOKEN=<a long random value>
+METIS_ADMIN_TOKEN=<a different long random value>
+METIS_ADMIN_USERNAME=<your username>
+METIS_ADMIN_PASSWORD=<a long random password>
 ```
 
-Then make a user account for each person. See
+Participants type the join token on the login page to make their own user accounts. It can do
+nothing more. The admin token is for your own scripts, and has the power of an admin. Never give
+it to participants. Set both admin variables or neither. At each start, the container makes your
+admin user account or sets its password. Login has no limit on the number of tries, so use a
+long random password, for example from `openssl rand -hex 16`.
+
+If you forget your admin password, change `METIS_ADMIN_PASSWORD` and start the container again.
+
+From a script, send the admin token in an `Authorization: Bearer` header:
+
+```bash
+curl http://localhost:8000/api/v1/users \
+  -H "Authorization: Bearer $METIS_ADMIN_TOKEN"
+```
+
+For the API routes, see
 [Turn on login for a shared server](wizard/api.md#turn-on-login-for-a-shared-server).
 
 ## Settings
@@ -64,7 +82,10 @@ contains no key and no `.env` file.
 | Variable | Purpose |
 |---|---|
 | `METIS_LOGIN` | `1` turns login on. |
-| `METIS_ADMIN_TOKEN` | The token that makes and lists user accounts. |
+| `METIS_JOIN_TOKEN` | The token that participants use to make user accounts. |
+| `METIS_ADMIN_TOKEN` | The token of your scripts. It has the power of an admin. |
+| `METIS_ADMIN_USERNAME` | The username of your admin user account. |
+| `METIS_ADMIN_PASSWORD` | The password of your admin user account. |
 | `METIS_DATABASE_URL` | The SQLAlchemy URL of the database. The default is the SQLite file in `/data`. |
 | `METIS_API_CONNECTION_CHECK` | `1` turns on the connection check of the web app. It is off in the container. |
 
