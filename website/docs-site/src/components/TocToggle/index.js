@@ -51,7 +51,7 @@ function useSteps(enabled) {
 }
 
 // A row of circles under the navbar: a start circle that scrolls to the top of the page, then one
-// for each step. It stands in for the contents list while that list is hidden, because the list
+// for each step, labelled with the number in its heading's id, so that a page can start at step 0. It stands in for the contents list while that list is hidden, because the list
 // doubles as a progress indicator. Circles already passed are filled, the current one has a ring,
 // and each step's circle links to its step. The start circle is the current one until the reader
 // reaches step 1.
@@ -61,7 +61,7 @@ function StepProgress() {
 
   const items = [
     {id: 'top', title: 'Back to the top of the page', label: '↑'},
-    ...steps.map((step, index) => ({...step, label: index + 1})),
+    ...steps.map((step) => ({...step, label: step.id.slice('step-'.length)})),
   ];
   const position = current + 1;
 

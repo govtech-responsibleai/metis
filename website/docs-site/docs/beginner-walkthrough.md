@@ -41,8 +41,15 @@ can open them without logging in.
 
 :::tip[Comfortable with the terminal?]
 Take on the [Advanced (CLI) Walkthrough](advanced-walkthrough.md) instead. It challenges you to
-set up METIS on your own machine and evaluate an application of your own from the command line.
+set up METIS on your own machine and evaluate an application of your own, with the web app and the
+command line.
 :::
+
+This walkthrough teaches you to:
+
+1. Tell agentic evaluations apart from traditional LLM evals.
+2. Run the METIS workflow from <Term>specification</Term> to report in your browser.
+3. Use Langfuse to inspect how an agent moved through a conversation.
 
 | Step | What you do | Time |
 |---|---|---|
@@ -362,6 +369,9 @@ Tell us how the workshop went, and what you would like to evaluate with METIS:
 :::
 
 **Checkpoint:** you have submitted the feedback form.
+
+If you enjoyed this walkthrough or found METIS useful, please star the
+[METIS repository](https://github.com/govtech-responsibleai/metis) on GitHub.
 
 :::tip[Ready for a challenge?]
 Try the [Advanced (CLI) Walkthrough](advanced-walkthrough.md). It takes you through the same steps

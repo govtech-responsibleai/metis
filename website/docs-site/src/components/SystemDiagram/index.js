@@ -13,12 +13,10 @@ const IN_USE = {
     5: ['metis'], // read the report
   },
   advanced: {
-    2: ['app'], // look at the target application
+    1: ['app'], // look at the target application
     3: ['metis'], // the Wizard drafts the specification
-    4: ['metis', 'app', 'langfuse', 'callApp', 'logTraces'], // simulate
-    5: ['metis', 'langfuse', 'openSession'], // find a trial's session in Langfuse
-    6: ['metis', 'langfuse', 'readTraces'], // grade the traces
-    7: ['metis'], // read the report
+    4: ['metis', 'app', 'langfuse', 'callApp', 'logTraces', 'openSession', 'readTraces'], // simulate, inspect, and grade
+    5: ['metis'], // read the report
   },
 };
 
