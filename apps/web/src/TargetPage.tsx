@@ -4,11 +4,8 @@
 
 import { Play } from "lucide-react";
 import { Link } from "wouter";
-import {
-  ExperimentList,
-  useExperimentList,
-  type ListLoad,
-} from "./ExperimentList";
+import { useExperimentList, type ListLoad } from "./ExperimentList";
+import { ExperimentTable } from "./ExperimentTable";
 import { paths, type TargetTab } from "./routes";
 import { store } from "./transport/api";
 import { Button, cn } from "./ui";
@@ -109,7 +106,7 @@ export function ExperimentsTabView({ load }: { load: ListLoad }) {
   return (
     // The left padding puts the content in line with the text of the first tab label.
     <div className="quiet-scrollbar min-h-0 flex-1 overflow-y-auto py-6 pl-9 pr-6">
-      <ExperimentList load={load} />
+      <ExperimentTable load={load} />
     </div>
   );
 }

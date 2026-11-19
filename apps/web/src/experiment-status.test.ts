@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   ACTIONS,
   experimentState,
+  lastUpdated,
   phaseSteps,
   progressText,
   queueText,
@@ -301,4 +302,23 @@ test("a simulate that completed with no evaluate still waits for evaluate", () =
   );
   assert.equal(state.kind, "waiting");
   assert.equal("resume" in state && state.resume, "evaluate");
+});
+
+test("an Experiment was last updated at its newest event, or at its start before any event", () => {
+  const record: ExperimentRecord = {
+    experiment_id: "e1",
+    target_id: "t",
+    started_at: "2026-11-19T10:00:00Z",
+    step: "simulate",
+  };
+
+  assert.equal(lastUpdated(record, []), "2026-11-19T10:00:00Z");
+  assert.equal(
+    lastUpdated(record, [
+      event({ seq: 1, at: "2026-11-19T10:01:00Z" }),
+      event({ seq: 3, at: "2026-11-19T10:09:00Z" }),
+      event({ seq: 2, at: "2026-11-19T10:05:00Z" }),
+    ]),
+    "2026-11-19T10:09:00Z",
+  );
 });
