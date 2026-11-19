@@ -94,9 +94,10 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT', '8000') + '/health', timeout=4)"
 
-# The API will start engine runs as child processes and stop them with SIGINT when it stops.
-# tini as PID 1 and the exec form of CMD let the stop signal reach the API, and tini reaps the
-# children. Run one API process in one container only. The store, the experiment folders, and
-# the live run are not shared between processes. See "Run one container" in docs/guide/docker.md.
+# The API runs each experiment on a thread of its own, up to METIS_API_ENGINE_MAX_RUNS at once,
+# and queues the rest. tini as PID 1 and the exec form of CMD let the stop signal reach the API,
+# which then stops its runs. Run one API process in one container only. The store, the
+# experiment folders, the live runs, and the queue are not shared between processes. See "Run
+# one container" in docs/guide/docker.md.
 ENTRYPOINT ["tini", "--"]
 CMD ["metis-api", "--project-dir", "/data"]

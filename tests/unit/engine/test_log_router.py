@@ -5,13 +5,16 @@ from __future__ import annotations
 import io
 import logging
 import re
+import threading
 from pathlib import Path
 from typing import Any
 
+import pytest
 import structlog
 from rich.console import Console
 
 from metis.core.logging import configure_logging, get_logger
+from metis.engine.logging import router as router_module
 from metis.engine.logging.router import (
     LogRouter,
     setup_engine_logging,
@@ -486,3 +489,151 @@ class TestTeardownRestoresLogging:
 
         assert structlog.get_config() == before
         assert logging.getLogger().handlers == handlers
+
+
+class TestContextRouting:
+    """Each run's router is found through the context, so runs on two threads stay apart."""
+
+    def setup_method(self) -> None:
+        structlog.reset_defaults()
+        logging.getLogger().handlers.clear()
+
+    def teardown_method(self) -> None:
+        structlog.reset_defaults()
+        logging.getLogger().handlers.clear()
+
+    def _record_process_output(self) -> list[dict[str, Any]]:
+        """Use a renderer that records each event as the renderer of the process."""
+        configure_logging(level="DEBUG")
+        seen: list[dict[str, Any]] = []
+
+        def renderer(_logger: Any, _name: str, event_dict: Any) -> str:
+            seen.append(dict(event_dict))
+            return ""
+
+        processors = list(structlog.get_config()["processors"])
+        structlog.configure(
+            processors=[*processors[:-1], renderer], cache_logger_on_first_use=False
+        )
+        return seen
+
+    def _hold_a_run(self, log_dir: Path, *, use_tui: bool):
+        """Start a run on a thread that holds it until ``release`` is set."""
+        ready, release = threading.Event(), threading.Event()
+
+        def run() -> None:
+            router = setup_engine_logging(log_dir, log_format="text", use_tui=use_tui)
+            router.open_trial("scn", "per", trial_index=1, num_trials=1)
+            ready.set()
+            release.wait(10)
+            teardown_engine_logging(router)
+
+        thread = threading.Thread(target=run)
+        thread.start()
+        assert ready.wait(10)
+        return thread, release
+
+    def test_an_event_with_no_run_goes_to_the_process_renderer_while_a_run_is_alive(
+        self, tmp_path: Path
+    ) -> None:
+        seen = self._record_process_output()
+        thread, release = self._hold_a_run(tmp_path, use_tui=False)
+
+        get_logger("test.no_run").info(
+            "outside", scenario_id="scn", persona_id="per", trial_index=1
+        )
+        release.set()
+        thread.join(10)
+
+        assert [event["event"] for event in seen] == ["outside"]
+        assert "outside" not in (tmp_path / "simulate-scn_per-01.log").read_text()
+
+    def test_a_second_run_does_not_change_the_structlog_config(
+        self, tmp_path: Path
+    ) -> None:
+        configure_logging(level="INFO")
+        before = structlog.get_config()
+        first, release_first = self._hold_a_run(tmp_path / "one", use_tui=False)
+        during = structlog.get_config()["processors"]
+
+        second, release_second = self._hold_a_run(tmp_path / "two", use_tui=False)
+        assert structlog.get_config()["processors"] is during
+        release_first.set()
+        first.join(10)
+        assert structlog.get_config()["processors"] is during
+        release_second.set()
+        second.join(10)
+
+        assert structlog.get_config() == before
+
+    def test_a_tui_run_writes_its_events_to_its_file_and_not_to_the_process(
+        self, tmp_path: Path
+    ) -> None:
+        seen = self._record_process_output()
+        ready, release = threading.Event(), threading.Event()
+
+        def run() -> None:
+            router = setup_engine_logging(tmp_path, log_format="text", use_tui=True)
+            router.open_trial("scn", "per", trial_index=1, num_trials=1)
+            get_logger("test.tui").info(
+                "inside", scenario_id="scn", persona_id="per", trial_index=1
+            )
+            ready.set()
+            release.wait(10)
+            teardown_engine_logging(router)
+
+        thread = threading.Thread(target=run)
+        thread.start()
+        assert ready.wait(10)
+        release.set()
+        thread.join(10)
+
+        assert seen == []
+        assert "inside" in (tmp_path / "simulate-scn_per-01.log").read_text()
+
+    def test_an_event_that_reaches_the_router_after_the_last_run_ends_is_rendered(
+        self, tmp_path: Path
+    ) -> None:
+        # A thread with no run can read the processors of the run, then call them after
+        # the last run ends. Its event must still reach the renderer of the process.
+        seen = self._record_process_output()
+        router = setup_engine_logging(tmp_path, log_format="text", use_tui=False)
+        teardown_engine_logging(router)
+
+        router_module._route(None, "info", {"event": "late"})
+
+        assert [event["event"] for event in seen] == ["late"]
+
+    def test_a_second_teardown_of_a_router_changes_nothing(
+        self, tmp_path: Path
+    ) -> None:
+        configure_logging(level="DEBUG")
+        first = setup_engine_logging(tmp_path / "one", log_format="text", use_tui=False)
+        teardown_engine_logging(first)
+        teardown_engine_logging(first)
+
+        # The next run of the process still gets its own trial log.
+        router = setup_engine_logging(
+            tmp_path / "two", log_format="text", use_tui=False
+        )
+        router.open_trial("scn", "per", trial_index=1, num_trials=1)
+        get_logger("test.twice").info(
+            "after", scenario_id="scn", persona_id="per", trial_index=1
+        )
+        teardown_engine_logging(router)
+
+        assert "after" in (tmp_path / "two" / "simulate-scn_per-01.log").read_text()
+
+    def test_a_setup_that_fails_leaves_the_logging_as_it_was(
+        self, tmp_path: Path
+    ) -> None:
+        configure_logging(level="INFO")
+        before = structlog.get_config()
+        blocked = tmp_path / "file"
+        blocked.write_text("not a folder")
+
+        with pytest.raises(OSError):
+            setup_engine_logging(blocked / "logs", log_format="text", use_tui=False)
+
+        assert structlog.get_config() == before
+        assert router_module._install_count == 0

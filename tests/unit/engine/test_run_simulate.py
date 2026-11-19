@@ -14,7 +14,7 @@ import structlog
 from rich.console import Console
 
 from metis.core import execution_layout
-from metis.core.logging import configure_logging
+from metis.core.logging import configure_logging, get_logger
 from metis.engine.run import (
     EvaluationInputError,
     RunError,
@@ -389,3 +389,102 @@ def test_the_trial_lines_and_the_summary_go_to_the_console_it_was_given(
     assert "worker line" in text.getvalue()
     assert "SIMULATION SUMMARY" in text.getvalue()
     assert "Goals achieved: 1/1" in text.getvalue()
+
+
+def test_two_simulates_on_two_threads_keep_their_trial_logs_apart(
+    monkeypatch, tmp_path: Path
+) -> None:
+    # One Specification for both, so both runs log under the same trial key.
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    first = _experiment(tmp_path / "a")
+    second = _experiment(tmp_path / "b")
+    configure_logging(level="DEBUG")
+    both_open = threading.Barrier(2, timeout=10)
+    halfway = threading.Barrier(2, timeout=10)
+    first_ended = threading.Event()
+
+    def fake_execute_experiment(*_args: object, **kwargs: object) -> None:
+        output_dir = kwargs["output_dir"]
+        assert isinstance(output_dir, Path)
+        router = kwargs["log_router"]
+        router.open_trial("TC-001", "alice", trial_index=1, num_trials=1)  # type: ignore[union-attr]
+        both_open.wait()
+        log = get_logger("test.two_runs")
+        for n in range(20):
+            if n == 10:
+                halfway.wait()
+                if output_dir == second:
+                    # The first run ends, and puts back its logging, while this one logs.
+                    assert first_ended.wait(10)
+            log.info(
+                "step",
+                scenario_id="TC-001",
+                persona_id="alice",
+                trial_index=1,
+                run=str(output_dir),
+                n=n,
+            )
+        router.close_trial("TC-001", "alice", trial_index=1)  # type: ignore[union-attr]
+        _write_record(output_dir, "TC-001-alice-1")
+
+    monkeypatch.setattr(
+        experiment_module, "execute_experiment", fake_execute_experiment
+    )
+    errors: list[BaseException] = []
+
+    def run(experiment_dir: Path) -> None:
+        try:
+            simulate(
+                experiment_dir,
+                concurrency=1,
+                stop=threading.Event(),
+                console=_console()[0],
+            )
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            if experiment_dir == first:
+                first_ended.set()
+
+    threads = [threading.Thread(target=run, args=(d,)) for d in (first, second)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=20)
+
+    assert errors == []
+    for own, other in ((first, second), (second, first)):
+        log_file = own / execution_layout.LOGS / "simulate-TC-001_alice-01.log"
+        lines = [line for line in log_file.read_text().splitlines() if " step " in line]
+        assert [f"n={n}" in line for n, line in enumerate(lines)] == [True] * 20
+        # Both folders have the same name, in two project folders, so the tag is the path.
+        assert all(
+            f"run={own} " in line or line.endswith(f"run={own}") for line in lines
+        )
+        assert not any(f"run={other}" in line for line in lines)
+
+
+def test_a_simulate_whose_orchestration_log_fails_puts_back_the_logging(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from metis.engine.logging import router as router_module
+    from metis.engine.run import _simulation
+
+    experiment_dir = _experiment(tmp_path)
+    _fake_trials(monkeypatch)
+    configure_logging(level="INFO")
+    before = structlog.get_config()
+
+    def no_orchestration_log(*_args: object, **_kwargs: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(_simulation, "OrchestrationLogger", no_orchestration_log)
+
+    with pytest.raises(OSError, match="disk full"):
+        simulate(
+            experiment_dir, concurrency=1, stop=threading.Event(), console=_console()[0]
+        )
+
+    assert structlog.get_config() == before
+    assert router_module._install_count == 0

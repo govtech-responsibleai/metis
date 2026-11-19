@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from rich.console import Console
 
-from metis.api.engine_runs import EngineRuns, read_events
+from metis.api.engine_runs import EngineRuns, Step, read_events
 from metis.api.errors import RouteError
 from metis.api.experiment_dirs import find_experiment_dir, request_project_dir
 from metis.api.routes.wizard import ServiceError
@@ -40,9 +40,8 @@ if TYPE_CHECKING:
     import threading
     from collections.abc import Callable
 
-    from metis.api.engine_runs import Run
+    from metis.api.engine_runs import LiveRun
     from metis.api.settings import EngineSettings
-    from metis.core.phase_events import Phase
 
 router = APIRouter(prefix="/api/v1/engine", tags=["engine"])
 
@@ -111,6 +110,7 @@ class EngineRunAccepted(BaseModel):
 
 
 EngineRunStatus = Literal[
+    "queued",
     "running",
     "stopping",
     "completed",
@@ -126,14 +126,24 @@ class EngineStatus(BaseModel):
 
     experiment_id: str
     phase: Literal["simulating", "evaluating"] | None = Field(
-        description="The phase of the live run, else of the last phase line."
+        description=(
+            "The phase of the live run: of its newest phase line, or of its first step "
+            "before it writes one. For a queued run, the phase of its first step. Else "
+            "the phase of the last phase line."
+        )
     )
     status: EngineRunStatus = Field(
         description=(
-            "running or stopping while a run is alive. Else the status of the last phase "
-            "line: completed, failed, or interrupted. unfinished when that line is "
-            "started, because the run ended with no last line. not_started when the "
-            "events log has no phase line."
+            "queued while the run waits for a free slot. running or stopping while a run "
+            "is alive. Else the status of the last phase line: completed, failed, or "
+            "interrupted. unfinished when that line is started, because the run ended "
+            "with no last line. not_started when the events log has no phase line."
+        )
+    )
+    queue_ahead: int | None = Field(
+        description=(
+            "The runs before this one in the queue, across all user accounts, so 0 means "
+            "that it starts next. null in every status but queued."
         )
     )
     total: int | None = Field(
@@ -152,8 +162,12 @@ _RESPONSES: dict[int | str, dict[str, object]] = {
     404: {"model": ServiceError},
     409: {"model": ServiceError},
     422: {"model": ServiceError},
+}
+_START_RESPONSES: dict[int | str, dict[str, object]] = {
+    **_RESPONSES,
     503: {"model": ServiceError},
 }
+"""A start also gives 503 ``engine_stopping`` while the server shuts down."""
 
 
 def _runs(request: Request) -> EngineRuns:
@@ -291,14 +305,15 @@ def _trace_wait(langfuse_timeout: int) -> TraceWaitSettings:
     status_code=202,
     summary="Start a simulation of an input folder",
     response_model=EngineRunAccepted,
-    responses=_RESPONSES,
+    responses=_START_RESPONSES,
 )
 def start_simulation(body: SimulateRequest, request: Request) -> EngineRunAccepted:
-    """Create an experiment folder from the input folder and run every trial in it.
+    """Create an experiment folder from the input folder, run every trial, then grade them.
 
     The request checks the inputs as `metis engine simulate --input-dir` does, then creates
     `evaluations/experiments/<specification id>-<YYYYmmdd-HHMMSS>/`. The trials run after the
-    response.
+    response. When the simulation completes, the same job grades every trial, with the
+    default concurrency and Langfuse timeout of the server.
     """
     settings = _settings(request)
     concurrency = _limit(
@@ -306,6 +321,8 @@ def start_simulation(body: SimulateRequest, request: Request) -> EngineRunAccept
     )
     project_dir = request_project_dir(request)
     input_dir = _input_dir(project_dir, body.input_dir)
+    # Before the folder is made, so a bad setting fails the start and leaves no folder.
+    trace_wait = _trace_wait(settings.langfuse_timeout)
     runs = _runs(request)
 
     def prepare() -> Path:
@@ -328,22 +345,53 @@ def start_simulation(body: SimulateRequest, request: Request) -> EngineRunAccept
     experiment_id = runs.start(
         project_dir=project_dir,
         experiment_id=None,
-        phase="simulating",
         prepare=prepare,
-        work=work,
+        steps=[
+            Step("simulating", work),
+            _evaluate_after_simulate(runs, settings, lambda: trace_wait),
+        ],
     )
     return EngineRunAccepted(experiment_id=experiment_id)
+
+
+def _evaluate_after_simulate(
+    runs: EngineRuns,
+    settings: EngineSettings,
+    trace_wait: Callable[[], TraceWaitSettings | None],
+) -> Step:
+    """The evaluate that the server runs after a simulate completes, on the same thread.
+
+    It is ``resume_evaluation`` under ``command="run"``, as ``metis engine run --resume``. A
+    simulate that ran trials has deleted the evaluation outputs, so it grades every trial.
+    A resume that ran no trial keeps a complete evaluation, and the evaluate writes its
+    evaluating lines only. Thus it needs no ``regrade``. The simulate request has no evaluate
+    settings, so it takes the defaults of the server. ``trace_wait`` gives the trace wait
+    that the checks of the start made.
+    """
+
+    def work(experiment_dir: Path, stop: threading.Event, console: Console) -> None:
+        wait = trace_wait()
+        assert wait is not None  # the checks run before the thread starts
+        runs.functions.resume_evaluation(
+            experiment_dir,
+            trace_wait=wait,
+            concurrency=settings.concurrency,
+            stop=stop,
+            console=console,
+            command="run",
+        )
+
+    return Step("evaluating", work)
 
 
 def _start_existing(
     request: Request,
     experiment_id: str,
     *,
-    phase: Phase,
-    work: Callable[[Path, threading.Event, Console], object],
+    steps: list[Step],
     check: Callable[[Path], None] | None = None,
 ) -> EngineRunAccepted:
-    """Start ``work`` on an experiment folder, after the checks of the request.
+    """Start the job of ``steps`` on an experiment folder, after the checks of the request.
 
     The order of the checks is: the folder, the live run, the layout of the folder, then
     ``check``.
@@ -361,9 +409,8 @@ def _start_existing(
     runs.start(
         project_dir=project_dir,
         experiment_id=experiment_id,
-        phase=phase,
         prepare=prepare,
-        work=work,
+        steps=steps,
     )
     return EngineRunAccepted(experiment_id=experiment_id)
 
@@ -373,7 +420,7 @@ def _start_existing(
     status_code=202,
     summary="Run again the trials of an experiment that did not end",
     response_model=EngineRunAccepted,
-    responses=_RESPONSES,
+    responses=_START_RESPONSES,
 )
 def resume_simulation(
     experiment_id: str,
@@ -383,7 +430,8 @@ def resume_simulation(
     """Run again each trial whose record is missing, cannot be read, or was interrupted.
 
     When it runs any trial again, the run deletes the evaluation outputs of the experiment,
-    so the report routes return results_missing until the next evaluate.
+    so the report routes return results_missing until the evaluate after it. When the
+    simulation completes, the same job grades the trials with no evaluation.
     """
     body = body or ResumeSimulationRequest()
     settings = _settings(request)
@@ -392,12 +440,27 @@ def resume_simulation(
     )
     runs = _runs(request)
 
+    # Set in ``check``, so a bad setting is reported after the folder, run, and layout errors.
+    trace_wait: TraceWaitSettings | None = None
+
+    def check(_experiment_dir: Path) -> None:
+        nonlocal trace_wait
+        trace_wait = _trace_wait(settings.langfuse_timeout)
+
     def work(experiment_dir: Path, stop: threading.Event, console: Console) -> None:
         runs.functions.resume_simulation(
             experiment_dir, concurrency=concurrency, stop=stop, console=console
         )
 
-    return _start_existing(request, experiment_id, phase="simulating", work=work)
+    return _start_existing(
+        request,
+        experiment_id,
+        steps=[
+            Step("simulating", work),
+            _evaluate_after_simulate(runs, settings, lambda: trace_wait),
+        ],
+        check=check,
+    )
 
 
 def _start_evaluation(
@@ -459,7 +522,7 @@ def _start_evaluation(
         )
 
     return _start_existing(
-        request, experiment_id, phase="evaluating", work=work, check=check
+        request, experiment_id, steps=[Step("evaluating", work)], check=check
     )
 
 
@@ -468,7 +531,7 @@ def _start_evaluation(
     status_code=202,
     summary="Grade every trial of an experiment",
     response_model=EngineRunAccepted,
-    responses=_RESPONSES,
+    responses=_START_RESPONSES,
 )
 def start_evaluation(
     experiment_id: str, request: Request, body: EvaluateRequest | None = None
@@ -487,7 +550,7 @@ def start_evaluation(
     status_code=202,
     summary="Grade the trials of an experiment that have no evaluation",
     response_model=EngineRunAccepted,
-    responses=_RESPONSES,
+    responses=_START_RESPONSES,
 )
 def resume_evaluation(
     experiment_id: str, request: Request, body: ResumeEvaluationRequest | None = None
@@ -528,30 +591,42 @@ def experiment_status(experiment_id: str, request: Request) -> EngineStatus:
     """Return the phase, the status, and the counts of the experiment."""
     project_dir = request_project_dir(request)
     experiment_dir = find_experiment_dir(project_dir, experiment_id)
-    run = _runs(request).current(project_dir, experiment_id)
-    return _status(experiment_id, experiment_dir, run)
+    live = _runs(request).current(project_dir, experiment_id)
+    return _status(experiment_id, experiment_dir, live)
 
 
-def _status(experiment_id: str, experiment_dir: Path, run: Run | None) -> EngineStatus:
+def _status(
+    experiment_id: str, experiment_dir: Path, live: LiveRun | None
+) -> EngineStatus:
     events = [event for event, _ in read_events(experiment_dir)]
     last_seq = max((event.seq for event in events), default=0)
     # A skipped line says that a phase did not run, so the line before it gives the state.
     phase_lines = [e for e in events if e.trial is None and e.status != "skipped"]
-    if run is not None:
+    if live is not None and live.queue_ahead is not None:
+        return EngineStatus(
+            experiment_id=experiment_id,
+            phase=live.run.steps[0].phase,
+            status="queued",
+            queue_ahead=live.queue_ahead,
+            total=None,
+            done=None,
+            reason=None,
+            last_seq=last_seq,
+        )
+    if live is not None:
+        run = live.run
+        # A job moves from step to step, so its phase is that of its newest own line.
+        own = [e for e in phase_lines if e.seq > run.start_seq]
+        phase = own[-1].phase if own else run.steps[0].phase
         started = next(
-            (
-                e
-                for e in reversed(phase_lines)
-                if e.seq > run.start_seq
-                and e.phase == run.phase
-                and e.status == "started"
-            ),
+            (e for e in reversed(own) if e.phase == phase and e.status == "started"),
             None,
         )
         return EngineStatus(
             experiment_id=experiment_id,
-            phase=run.phase,
+            phase=phase,
             status="stopping" if run.stop.is_set() else "running",
+            queue_ahead=None,
             total=started.total if started else None,
             done=started.done if started else None,
             reason=None,
@@ -562,6 +637,7 @@ def _status(experiment_id: str, experiment_dir: Path, run: Run | None) -> Engine
             experiment_id=experiment_id,
             phase=None,
             status="not_started",
+            queue_ahead=None,
             total=None,
             done=None,
             reason=None,
@@ -587,6 +663,7 @@ def _status(experiment_id: str, experiment_dir: Path, run: Run | None) -> Engine
         experiment_id=experiment_id,
         phase=newest.phase,
         status=status,
+        queue_ahead=None,
         total=started.total if started else None,
         done=started.done if started else None,
         reason=newest.reason if newest.status == "failed" else None,

@@ -124,8 +124,7 @@ def prepare_experiment(input_dir: Path, *, project_dir: Path, console: Console) 
     It calls no model and runs no trial, so a caller can name the experiment before the
     trials start. ``project_dir`` must be an existing folder.
 
-    The caller sets up the process first: it loads ``.env``. Only one run at a time is safe
-    in one process.
+    The caller sets up the process first: it loads ``.env``.
 
     :raises InvalidInputsError: When an input is not valid, or ``project_dir`` is not an
         existing folder. Nothing is created.

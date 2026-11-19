@@ -46,8 +46,9 @@ def test_a_resume_of_a_simulation_runs_with_the_default_concurrency(
 
     assert response.status_code == 202
     assert response.json() == {"experiment_id": experiment_dir.name}
-    wait_until(lambda: len(fake_engine.calls) == 1)
-    [call] = fake_engine.calls
+    # The job is the resume, then its evaluate.
+    wait_until(lambda: len(fake_engine.calls) == 2)
+    call = fake_engine.calls[0]
     assert (call.name, call.experiment_dir) == ("resume_simulation", experiment_dir)
     assert call.options == {"concurrency": 1}
 
@@ -270,27 +271,36 @@ def test_a_start_for_the_experiment_that_runs_is_run_in_progress(
 
 
 @pytest.mark.parametrize("name", list(ROUTES))
-def test_a_start_while_another_experiment_runs_is_engine_busy(
-    engine_client: TestClient,
+def test_a_start_while_every_slot_is_taken_waits_for_a_slot(
+    make_engine_client: Callable[..., TestClient],
     fake_engine: FakeEngine,
     make_experiment_dir: Callable[..., Path],
     name: str,
 ) -> None:
+    client = make_engine_client(max_runs=1)
     running = make_experiment_dir("test-exp-20260101-000001")
     other = make_experiment_dir("test-exp-20260101-000002")
     fake_engine.mode = "hold"
-    engine_client.post(ROUTES["resume_simulation"].format(id=running.name))
+    client.post(ROUTES["resume_simulation"].format(id=running.name))
+    wait_until(lambda: len(fake_engine.calls) == 1)
 
-    response = engine_client.post(ROUTES[name].format(id=other.name))
+    response = client.post(ROUTES[name].format(id=other.name))
 
-    assert response.status_code == 503
-    assert response.json()["code"] == "engine_busy"
-    assert running.name in response.json()["message"]
+    assert response.status_code == 202
     assert len(fake_engine.calls) == 1
+    fake_engine.release.set()
+    wait_until(lambda: any(call.experiment_dir == other for call in fake_engine.calls))
+    first = next(call for call in fake_engine.calls if call.experiment_dir == other)
+    assert first.name == name
+    # The queued start waited for the whole job of the running one, its evaluate too.
+    assert [call.name for call in fake_engine.calls[:2]] == [
+        "resume_simulation",
+        "resume_evaluation",
+    ]
 
 
 def test_a_bad_timeout_is_checked_after_the_folder_and_the_run(
-    engine_client: TestClient,
+    make_engine_client: Callable[..., TestClient],
     fake_engine: FakeEngine,
     project_dir: Path,
     make_experiment_dir: Callable[..., Path],
@@ -300,6 +310,7 @@ def test_a_bad_timeout_is_checked_after_the_folder_and_the_run(
     bare.mkdir(parents=True)
     running = make_experiment_dir("test-exp-20260101-000001")
     other = make_experiment_dir("test-exp-20260101-000002")
+    engine_client = make_engine_client(max_runs=1)
     fake_engine.mode = "hold"
     engine_client.post(ROUTES["resume_simulation"].format(id=running.name))
 
@@ -323,6 +334,6 @@ def test_a_bad_timeout_is_checked_after_the_folder_and_the_run(
     assert codes == [
         "experiment_not_found",
         "run_in_progress",
-        "engine_busy",
+        "invalid_langfuse_timeout",
         "invalid_experiment",
     ]

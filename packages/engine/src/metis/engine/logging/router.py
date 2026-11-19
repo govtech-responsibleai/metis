@@ -1,18 +1,26 @@
 """Routes structlog events to per-trial log files and the TUI tail buffer.
 
-When the TUI is active, the LogRouter replaces core's _rich_console_renderer
-as the final processor in structlog's chain. It renders each event to:
+Each simulation has its own ``LogRouter``, held in a context variable for the time of the
+run. While at least one run is alive, one processor (``_route``) replaces the renderer of
+the process as the last processor of structlog's chain. It sends each event to the router of
+the run in its context, so two simulations on two threads never write to each other's files.
+An event with no run in its context goes to the renderer of the process, as before. The
+router renders each event to:
 1. Per-trial log files (plain text or JSON — always at DEBUG)
 2. The TUI tail buffer (styled Rich Text, same format as core's renderer)
-3. Returns "" so structlog's PrintLogger writes nothing to stderr
-   (Rich Live owns the terminal)
+3. The renderer of the process when the TUI is off; else nothing, because Rich Live owns
+   the terminal
+
+When the last run ends, the structlog configuration is the one from before the first run.
 """
 
 from __future__ import annotations
 
+import contextvars
 import json as json_mod
 import logging
 import os
+import threading
 import time
 from typing import IO, TYPE_CHECKING, Any, Literal
 
@@ -99,8 +107,8 @@ class LogRouter:
         self._start_time = time.monotonic()
         self._append = append
         # What setup_engine_logging changed, so teardown_engine_logging can put it back.
-        self.previous_config: dict[str, Any] = {}
         self.previous_handler_levels: dict[logging.Handler, int] = {}
+        self.context_token: contextvars.Token[LogRouter | None] | None = None
         log_dir.mkdir(parents=True, exist_ok=True)
 
     def _trial_key(self, scenario_id: str, persona_id: str, trial_index: int) -> str:
@@ -248,6 +256,67 @@ class LogRouter:
         return f"{line}\n{exception}" if exception else line
 
 
+_CURRENT_ROUTER: contextvars.ContextVar[LogRouter | None] = contextvars.ContextVar(
+    "metis_engine_log_router", default=None
+)
+"""The router of the run in this context. The asyncio tasks of a run inherit it."""
+
+_INSTALL_LOCK = threading.Lock()
+_install_count = 0
+_previous_config: dict[str, Any] = {}
+_process_renderer: Any = None
+"""The last processor that ``_route`` replaced, for an event with no run in its context."""
+
+
+def _route(logger: Any, method_name: str, event_dict: EventDict) -> Any:
+    """The last structlog processor while a run is alive: the router of the current run."""
+    router = _CURRENT_ROUTER.get()
+    if router is not None:
+        return router.process(logger, method_name, event_dict)
+    if _process_renderer is not None:
+        return _process_renderer(logger, method_name, event_dict)
+    return event_dict
+
+
+def _install_route() -> Any:
+    """Install ``_route`` for the first run of the process. Return the renderer it replaced."""
+    global _install_count, _previous_config, _process_renderer
+    with _INSTALL_LOCK:
+        if _install_count == 0:
+            config = structlog.get_config()
+            processors = list(config.get("processors", []))
+            _previous_config = dict(config)
+            _process_renderer = processors[-1] if processors else None
+            if processors:
+                processors[-1] = _route
+            else:
+                processors.append(_route)
+            structlog.configure(
+                processors=processors,
+                wrapper_class=config.get("wrapper_class"),
+                context_class=config.get("context_class"),
+                logger_factory=config.get("logger_factory"),
+                cache_logger_on_first_use=False,
+            )
+        _install_count += 1
+        return _process_renderer
+
+
+def _remove_route() -> None:
+    """Put back the configuration from before the first run, when the last run ends.
+
+    ``_process_renderer`` stays: a thread with no run can still call ``_route`` from the
+    processors that it read before this, and its event must reach the renderer. The next
+    first run replaces it.
+    """
+    global _install_count, _previous_config
+    with _INSTALL_LOCK:
+        _install_count -= 1
+        if _install_count == 0:
+            structlog.configure(**_previous_config)
+            _previous_config = {}
+
+
 def setup_engine_logging(
     log_dir: Path,
     log_format: Literal["text", "json"] = "text",
@@ -255,55 +324,39 @@ def setup_engine_logging(
     use_tui: bool = True,
     append: bool = False,
 ) -> LogRouter:
-    """Create a LogRouter and install it as structlog's renderer.
+    """Create a LogRouter and make it the router of the run in the current context.
 
-    Replaces the last processor (core's _rich_console_renderer) with the
-    router, which handles both file output and TUI tail rendering.
-    When use_tui=False, core's renderer is kept as fallback so events
+    The first run of the process installs one processor in place of the renderer of the
+    process (core's _rich_console_renderer). Later runs change no configuration. When
+    use_tui=False, the renderer of the process is the fallback of the router, so events
     still appear on stderr.
     Must be called AFTER configure_logging().
 
     ``append`` keeps an existing per-trial log rather than truncating it; pass
     the resume flag so a resumed run does not erase the earlier process's log.
 
-    The router records the structlog configuration and the handler levels that this
-    changes, so ``teardown_engine_logging`` can put them back.
+    Call ``teardown_engine_logging`` in the same context.
     """
-    config = structlog.get_config()
-    current_processors = list(config.get("processors", []))
-
-    # Capture the current renderer to use as fallback when no TUI
-    fallback = None
-    if not use_tui and current_processors:
-        fallback = current_processors[-1]
-
-    router = LogRouter(
-        log_dir=log_dir,
-        log_format=log_format,
-        tail_buffers=tail_buffers,
-        fallback_renderer=fallback,
-        append=append,
-    )
-    router.previous_config = dict(config)
-
-    # Replace the last processor (the renderer) with our router
-    if current_processors:
-        current_processors[-1] = router.process
-    else:
-        current_processors.append(router.process)
-
-    structlog.configure(
-        processors=current_processors,
-        wrapper_class=config.get("wrapper_class"),
-        context_class=config.get("context_class"),
-        logger_factory=config.get("logger_factory"),
-        cache_logger_on_first_use=False,
-    )
+    process_renderer = _install_route()
+    try:
+        router = LogRouter(
+            log_dir=log_dir,
+            log_format=log_format,
+            tail_buffers=tail_buffers,
+            fallback_renderer=None if use_tui else process_renderer,
+            append=append,
+        )
+    except BaseException:
+        # No router to tear down, so the setup takes back its own install.
+        _remove_route()
+        raise
+    router.context_token = _CURRENT_ROUTER.set(router)
 
     # In TUI mode, suppress the stdlib root handler's stderr output.
     # Third-party libraries (Playwright, httpx) use stdlib logging which
     # writes to stderr via the StreamHandler installed by configure_logging().
     # These writes corrupt the alternate screen that Rich Live owns.
+    # Only the CLI uses the TUI, and it runs one simulation in its process.
     if use_tui:
         root = logging.getLogger()
         for handler in root.handlers:
@@ -317,10 +370,16 @@ def setup_engine_logging(
 def teardown_engine_logging(router: LogRouter) -> None:
     """Close all file handles and put back the logging from before ``setup_engine_logging``.
 
-    It restores the structlog configuration and the level of each stderr handler that TUI
-    mode silenced, so a caller whose process outlives the run keeps its own logging.
+    The context has no router again. The last run of the process puts back the structlog
+    configuration, and each run puts back the level of each stderr handler that TUI mode
+    silenced, so a caller whose process outlives the run keeps its own logging. A second
+    teardown of the same router changes nothing, so it cannot remove the route of another run.
     """
     router.close_all()
-    structlog.configure(**router.previous_config)
+    if router.context_token is None:
+        return
+    _CURRENT_ROUTER.reset(router.context_token)
+    router.context_token = None
+    _remove_route()
     for handler, level in router.previous_handler_levels.items():
         handler.setLevel(level)

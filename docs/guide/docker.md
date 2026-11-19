@@ -93,6 +93,7 @@ contains no key and no `.env` file.
 | `METIS_ADMIN_PASSWORD` | The password of your admin user account. |
 | `METIS_DATABASE_URL` | The SQLAlchemy URL of the database. The default is the SQLite file in `/data`. |
 | `METIS_API_CONNECTION_CHECK` | `1` turns on the connection check of the web app. It is off in the container. |
+| `METIS_API_ENGINE_MAX_RUNS` | The experiments that run at the same time. The default is 4. |
 
 With the connection check on, the server sends a request to each target URL that a user enters.
 This includes internal addresses that only the server can reach.
@@ -101,6 +102,23 @@ The container listens on port 8000. Compose and `make docker-run` set `HOST` and
 `.env`, so a `PORT` there has no effect. A platform that gets `.env` as environment variables does
 not do this, so leave `PORT` and `HOST` out of the variables you give it. To use another port on
 your computer, change the first number of `ports` in `docker-compose.yml`.
+
+## Experiments at the same time
+
+The server runs up to `METIS_API_ENGINE_MAX_RUNS` experiments at the same time, for all users.
+An experiment that starts when every place is taken waits in a queue, first in first out. Its
+page shows Queued and the number of experiments before it. It starts on its own when a place
+frees, and its evaluate starts on its own when its simulate ends. No browser tab must stay open.
+
+Choose the value from the rate limits of your model provider and of the target. Every run calls
+the same provider, and most often the same target. Each run makes up to its concurrency of calls
+at the same time, so the server makes up to `METIS_API_ENGINE_MAX_RUNS` × concurrency calls at
+the same time. If runs fail with rate-limit errors, lower the value.
+
+The queue is in the memory of the server. When the container restarts, the queue is lost, and
+no queued experiment starts on its own. A queued new experiment then shows Stopped. A queued
+resume shows the state from before it, for example Waiting for evaluate. In both cases, Resume
+starts it again.
 
 ## Make targets
 
@@ -157,9 +175,9 @@ autoscaling. The API does not support more than one process, for three reasons:
   own database.
 - The experiment folders are on the volume of one container. They are the source of truth for
   every run.
-- The API keeps the run that is alive now in memory. A second process does not know about it.
-  It can start a second run of the same experiment, and it answers a stop or status request as
-  if no run were alive.
+- The API keeps the runs that are alive now, and the queue, in memory. A second process does not
+  know about them. It can start a second run of the same experiment, it answers a stop or status
+  request as if no run were alive or queued, and it has a queue and a run limit of its own.
 
 A second process on the same volume is not safe either. The store locks a save only inside its
 own process, so saves from two processes can mix.
@@ -173,8 +191,9 @@ Check these settings on a hosting platform:
 | Deploy strategy | Stop the old container before the new one starts. A rolling deploy runs two containers on one volume for a short time. |
 | Start command | `metis-api`, the `CMD` of the image. Do not start the API with Uvicorn or Gunicorn directly. |
 
-More CPUs do not need more processes. The API requests are small, and the engine run spends most
-of its time waiting for model calls.
+More CPUs do not need more processes. The API requests are small, and the engine runs spend most
+of their time waiting for model calls. To run more experiments at the same time, raise
+`METIS_API_ENGINE_MAX_RUNS`. See [Experiments at the same time](#experiments-at-the-same-time).
 
 ## Certificates
 

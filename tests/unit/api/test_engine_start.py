@@ -56,8 +56,8 @@ def test_a_start_creates_the_experiment_and_returns_its_id(
     assert experiment_id.startswith(f"{SPECIFICATION_ID}-")
     experiment_dir = project_dir / project_layout.EXPERIMENTS / experiment_id
     assert (experiment_dir / execution_layout.SPECIFICATION).is_file()
-    wait_until(lambda: len(fake_engine.calls) == 1)
-    [call] = fake_engine.calls
+    wait_until(lambda: len(fake_engine.calls) == 2)
+    call = fake_engine.calls[0]
     assert call.name == "simulate"
     assert call.experiment_dir == experiment_dir
     assert call.options == {"concurrency": 1}
@@ -74,7 +74,8 @@ def test_a_start_passes_the_concurrency_of_the_request(
         json={"input_dir": _relative(project_dir, input_dir), "concurrency": 3},
     )
 
-    wait_until(lambda: len(fake_engine.calls) == 1)
+    # The job is the simulate, then its evaluate.
+    wait_until(lambda: len(fake_engine.calls) == 2)
     assert fake_engine.calls[0].options == {"concurrency": 3}
 
 
@@ -196,23 +197,32 @@ def test_a_folder_name_that_is_taken_is_experiment_exists(
     assert fake_engine.calls == []
 
 
-def test_a_start_while_a_run_is_alive_is_engine_busy(
-    engine_client: TestClient,
+def test_a_start_with_no_free_slot_makes_its_folder_and_waits(
+    make_engine_client: Callable[..., TestClient],
     fake_engine: FakeEngine,
     project_dir: Path,
     input_dir: Path,
 ) -> None:
+    client = make_engine_client(max_runs=1)
     fake_engine.mode = "hold"
-    body = {"input_dir": _relative(project_dir, input_dir)}
-    first = engine_client.post(SIMULATE, json=body).json()["experiment_id"]
+    other = write_input_dir(
+        project_dir / "evaluations" / "specifications" / "t2",
+        specification_id="other-exp",
+    )
+    first = client.post(
+        SIMULATE, json={"input_dir": _relative(project_dir, input_dir)}
+    ).json()["experiment_id"]
 
-    response = engine_client.post(SIMULATE, json=body)
+    response = client.post(SIMULATE, json={"input_dir": _relative(project_dir, other)})
 
-    assert response.status_code == 503
-    assert response.json()["code"] == "engine_busy"
-    assert response.json()["retryable"] is True
-    assert first in response.json()["message"]
-    assert _experiments(project_dir) == [first]
+    assert response.status_code == 202
+    second = response.json()["experiment_id"]
+    assert second.startswith("other-exp-")
+    assert _experiments(project_dir) == sorted([first, second])
+    wait_until(lambda: len(fake_engine.calls) == 1)
+    assert client.post(f"/api/v1/engine/{first}/stop").status_code == 202
+    wait_until(lambda: len(fake_engine.calls) == 2)
+    assert fake_engine.calls[1].experiment_dir.name == second
 
 
 @pytest.mark.parametrize(

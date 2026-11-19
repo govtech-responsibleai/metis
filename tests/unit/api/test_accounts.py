@@ -821,6 +821,50 @@ def test_a_user_account_with_a_live_engine_run_cannot_be_deleted(
     assert (project_dir / "users" / user["id"]).is_dir()
 
 
+def test_a_user_account_with_a_queued_engine_run_cannot_be_deleted(
+    login_on: None,
+    make_engine_client: Callable[..., TestClient],
+    fake_engine: FakeEngine,
+    project_dir: Path,
+) -> None:
+    # One slot, which a run of another user account holds. The participant's start waits in
+    # the queue, and would start later in the folder of the account, so it counts as live.
+    lead = make_engine_client(max_runs=1)
+    body = {"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD}
+    assert lead.post(LOGIN, json=body).status_code == 200
+    holder, user = _new_user(lead), _new_user(lead)
+    clients = []
+    experiment = "test-exp-20260101-000000"
+    for account in (holder, user):
+        client = TestClient(lead.app)
+        assert _log_in(client, account).status_code == 200
+        write_input_dir(
+            project_dir
+            / "users"
+            / account["id"]
+            / project_layout.EXPERIMENTS
+            / experiment
+            / execution_layout.SPECIFICATION_DIR
+        )
+        clients.append(client)
+    fake_engine.mode = "hold"
+    holding, participant = clients
+    assert (
+        holding.post(f"/api/v1/engine/simulate/{experiment}/resume").status_code == 202
+    )
+    assert (
+        participant.post(f"/api/v1/engine/simulate/{experiment}/resume").status_code
+        == 202
+    )
+    assert participant.get(f"/api/v1/engine/{experiment}").json()["status"] == "queued"
+
+    response = lead.delete(f"{USERS}/{user['username']}")
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "run_in_progress"
+    assert (project_dir / "users" / user["id"]).is_dir()
+
+
 def test_the_local_user_account_cannot_be_deleted(
     make_client: MakeClient, monkeypatch: pytest.MonkeyPatch, project_dir: Path
 ) -> None:

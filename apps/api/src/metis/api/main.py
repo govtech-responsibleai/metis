@@ -3,12 +3,13 @@
 `main.py` creates the FastAPI app, keeps `/health`, includes the wizard, store, experiment,
 report, engine, doctor, user, and auth routers, and installs the handlers that give every
 failure one stable JSON shape. When login is on, `login_guard` lets a request reach an `/api`
-route only with a login session. The wizard routes keep no state: each request carries the
-whole Interview state in its body. The store routes keep the Targets, Interviews,
-Specifications, and Experiments in the `Store` that the app composes at startup. The report
-routes read the experiment folders. The engine routes run one engine run at a time, on a
-thread, in this process. The store and the experiment folders are in the project folder that
-`create_app` gets, or the default project folder that `find_project_root` finds.
+route only with a login session. The wizard routes keep no state: each request carries the whole
+Interview state in its body. The store routes keep the Targets, Interviews, Specifications, and
+Experiments in the `Store` that the app composes at startup. The report routes read the
+experiment folders. The engine routes run up to the run limit of jobs at a time, each on a
+thread in this process, and queue the rest. The store and the experiment folders are in the
+project folder that `create_app` gets, or the default project folder that `find_project_root`
+finds.
 
 When the web folder of the API package has a built web app, the app also serves that web app on
 every path that no API route takes. See `metis.api.web`. Without a built web app, the app serves
@@ -93,8 +94,11 @@ _OPENAPI_TAGS = [
         "name": "engine",
         "description": (
             "Start, resume, evaluate, stop, and follow the run of an experiment folder. The "
-            "API runs one engine run at a time in its own process. A start returns 202 at "
-            "once. Poll the status route for the state, and the events route for each trial."
+            "API runs up to METIS_API_ENGINE_MAX_RUNS runs at a time in its own process, and "
+            "queues the rest, first in first out. A simulate start also grades the trials "
+            "when the simulation completes. A start returns 202 at once. Poll the status "
+            "route for the state, which is queued while the run waits, and the events route "
+            "for each trial."
         ),
     },
     {
@@ -144,12 +148,14 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     names an admin, the app makes that admin or sets its password before the first request.
 
     Before it accepts a request, the app sets up the process for the engine one time. At
-    shutdown it stops the engine run and waits for it, for at most the stop time limit.
+    shutdown it empties the engine queue, stops the engine runs, and waits for them, for at
+    most the stop time limit in all.
     """
     owned: Store | None = None
     settings = Settings.from_env(project_dir=app.state.project_dir)
     runs: EngineRuns = app.state.engine_runs
     app.state.engine_settings = settings.engine
+    runs.open(settings.engine.max_runs)
     # Before the store, so a setup that fails leaves nothing to close.
     runs.functions.setup_process()
     if getattr(app.state, "wizard_dependencies", None) is None:

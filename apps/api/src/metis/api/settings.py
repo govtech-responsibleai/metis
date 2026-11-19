@@ -89,10 +89,11 @@ class EngineSettings:
     ``concurrency`` and ``langfuse_timeout`` are the values of a request that gives none, as
     ``--concurrency`` and ``--langfuse-timeout`` of the engine CLI. A request cannot give more
     than the maximum. ``stop_timeout`` is the number of seconds that the shutdown waits for
-    the run to stop.
+    the runs to stop, in all. ``max_runs`` is the number of jobs that run at the same time;
+    a start beyond it waits in the queue.
 
-    ``langfuse_timeout`` is 180 seconds, longer than the 90 of the CLI. The web app can start
-    an evaluation as soon as the simulation ends, while the last traces still reach Langfuse.
+    ``langfuse_timeout`` is 180 seconds, longer than the 90 of the CLI. The server starts the
+    evaluate as soon as the simulation ends, while the last traces still reach Langfuse.
     A session whose traces have settled is graded after its first check, so the longer limit
     costs time only when traces are late or missing.
     """
@@ -102,6 +103,7 @@ class EngineSettings:
     langfuse_timeout: int = 180
     max_langfuse_timeout: int = 600
     stop_timeout: int = 30
+    max_runs: int = 4
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> EngineSettings:
@@ -133,6 +135,7 @@ _ENGINE_VARIABLES = {
     "langfuse_timeout": "METIS_API_LANGFUSE_TIMEOUT",
     "max_langfuse_timeout": "METIS_API_MAX_LANGFUSE_TIMEOUT",
     "stop_timeout": "METIS_API_STOP_TIMEOUT",
+    "max_runs": "METIS_API_ENGINE_MAX_RUNS",
 }
 
 

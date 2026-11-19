@@ -668,7 +668,8 @@ folder `users/<user id>/`. You cannot undo it. It returns 204. An unknown userna
 - `environment_admin`: the admin of `METIS_ADMIN_USERNAME`, which the server makes again at each
   start.
 - `local_account`: the user account that holds the records of the server with login off.
-- `run_in_progress`: a user account with an experiment run. Stop the run, then try again.
+- `run_in_progress`: a user account with an experiment that runs or waits in the queue. Stop it,
+  then try again.
 
 The join token cannot list, reset, or delete user accounts, and it cannot read records. You can
 thus give it to each participant, and a website that gives credentials to its visitors can hold

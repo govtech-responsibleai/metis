@@ -62,8 +62,8 @@ def simulate(
     ``log_level`` is the lowest level that its log tail shows.
 
     The caller sets up the process first: it loads ``.env``, calls
-    ``metis.engine.tracing.tracing_key()``, and sets up process logging. Only one run at a
-    time is safe in one process.
+    ``metis.engine.tracing.tracing_key()``, and sets up process logging. Runs on
+    other threads of the process can run at the same time, each with its own log files.
 
     :raises RunStopped: When ``stop`` was set. A stop before the trials start runs none.
     :raises EvaluationInputError: When ``experiment_dir`` is not an experiment folder of
@@ -102,8 +102,7 @@ def resume_simulation(
     trial is never graded from the evaluation of its old run. The logs are appended to.
     A stop before the trials start leaves the folder as it is.
 
-    The caller sets up the process first, and only one run at a time is safe in one
-    process, as for ``simulate``.
+    The caller sets up the process first, as for ``simulate``.
 
     :raises RunStopped: When ``stop`` was set while trials ran.
     :raises EvaluationInputError: When ``experiment_dir`` is not an experiment folder of
@@ -368,17 +367,19 @@ def _simulate_in(
         use_tui=use_tui,
         append=resume,
     )
-    orchestration_logger = OrchestrationLogger(
-        log_dir=resolved_log_dir, log_format=log_format, append=resume
-    )
-    if resume:
-        orchestration_logger.resume_started(len(redo_plan), len(completed_records))
-
-    tui_ctx: TUIContext | None = None
-    if use_tui:
-        tui_ctx = TUIContext(state=sim_state, tail_buffers=tail_buffers)
-
+    # Everything after the setup is inside the try, so an error always puts back the logging.
+    orchestration_logger: OrchestrationLogger | None = None
     try:
+        orchestration_logger = OrchestrationLogger(
+            log_dir=resolved_log_dir, log_format=log_format, append=resume
+        )
+        if resume:
+            orchestration_logger.resume_started(len(redo_plan), len(completed_records))
+
+        tui_ctx: TUIContext | None = None
+        if use_tui:
+            tui_ctx = TUIContext(state=sim_state, tail_buffers=tail_buffers)
+
         with tui_ctx if tui_ctx else nullcontext():
             execute_experiment(
                 runner_factory=runner_factory,
@@ -400,7 +401,8 @@ def _simulate_in(
             )
     finally:
         teardown_engine_logging(log_router)
-        orchestration_logger.close()
+        if orchestration_logger is not None:
+            orchestration_logger.close()
 
     console.print(
         _format_final_summary(

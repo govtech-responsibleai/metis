@@ -344,13 +344,13 @@ test("simulate posts the input folder", async () => {
   assert.equal(init?.body, '{"input_dir":"evaluations/specifications/t1"}');
 });
 
-test("a busy engine refuses a start with a retryable error", async () => {
+test("a refused start keeps the code, the message and the retry flag of the API", async () => {
   globalThis.fetch = async () =>
     new Response(
       JSON.stringify({
         type: "failure",
-        code: "engine_busy",
-        message: "Another experiment is running.",
+        code: "model_unavailable",
+        message: "Set the model key.",
         retryable: true,
       }),
       { status: 503 },
@@ -360,8 +360,9 @@ test("a busy engine refuses a start with a retryable error", async () => {
     api.simulate("evaluations/specifications/t1"),
     (cause) =>
       cause instanceof TransportError &&
-      cause.code === "engine_busy" &&
-      cause.message === "Another experiment is running." &&
+      cause.status === 503 &&
+      cause.code === "model_unavailable" &&
+      cause.message === "Set the model key." &&
       cause.retryable,
   );
 });
