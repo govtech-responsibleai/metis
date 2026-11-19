@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
     from tests.fixtures.api.engine import FakeEngine
 
-ADMIN = {"Authorization": "Bearer workshop-admin-token"}
+JOIN = {"Authorization": "Bearer workshop-join-token"}
 EXPERIMENT = "test-exp-20260101-000000"
 INPUT_DIR = "evaluations/specifications/t1"
 
@@ -51,12 +51,12 @@ def users(
     Both browsers use one app, as on a real server, so they share its one engine run.
     """
     monkeypatch.setenv("METIS_LOGIN", "1")
-    monkeypatch.setenv("METIS_ADMIN_TOKEN", "workshop-admin-token")
+    monkeypatch.setenv("METIS_JOIN_TOKEN", "workshop-join-token")
     monkeypatch.delenv("HOST", raising=False)
     server = make_engine_client()
     made: list[User] = []
     for client in (server, TestClient(server.app)):
-        account = client.post("/api/v1/users", headers=ADMIN).json()
+        account = client.post("/api/v1/users", headers=JOIN).json()
         login = client.post(
             "/api/v1/auth/login",
             json={"username": account["username"], "password": account["password"]},

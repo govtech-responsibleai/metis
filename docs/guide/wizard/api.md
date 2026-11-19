@@ -592,30 +592,52 @@ Set these variables in the environment of the API, then start it:
 
 ```bash
 METIS_LOGIN=1
-METIS_ADMIN_TOKEN=<a long random value>
+METIS_JOIN_TOKEN=<a long random value>
+METIS_ADMIN_TOKEN=<a different long random value>
+METIS_ADMIN_USERNAME=<your username>
+METIS_ADMIN_PASSWORD=<a long random password>
 ```
 
-Make the admin token with a tool such as `openssl rand -hex 32`. The API does not start when
-`METIS_ADMIN_TOKEN` is set and `METIS_LOGIN` is not `1`.
+`METIS_JOIN_TOKEN` is the join token, which participants type on the login page.
+`METIS_ADMIN_TOKEN` is the admin token, for your own scripts. Do not give it to participants.
+Both are optional. Make each with a tool such as `openssl rand -hex 32`.
+`METIS_ADMIN_USERNAME` and `METIS_ADMIN_PASSWORD` name the admin of the server. Set both or
+neither. At each start, the API makes this user account or sets its password. Login has no limit
+on the number of tries, so use a long random password.
+
+The API does not start when one of these variables is set and `METIS_LOGIN` is not `1`, when the
+two tokens are the same, or when only one of the two admin variables is set.
 
 When login is on, each route under `/api` needs a login session. A request without one gets 401
 `login_required`. The exceptions are `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`,
-and the user routes. `/health` is always open.
+and the user routes, which check their own credentials. `/health` is always open.
 
 ### Make a user account
 
-The admin token protects the user routes. Send it in an `Authorization: Bearer` header, over
-HTTPS. Do not put it in a URL or in a web page. When the server has no admin token, the user
-routes return 404 `not_found`.
+An admin is a user account that can manage the other user accounts. The admin token has the
+same power, with no login session. The join token can only make user accounts that are not
+admins.
 
-| Route | Purpose |
-|---|---|
-| `POST /api/v1/users` | Make a user account and return its credentials. |
-| `GET /api/v1/users` | List the user accounts with their id, username, and creation time. |
+| Route | Purpose | Who can use it |
+|---|---|---|
+| `POST /api/v1/users` | Make a user account and return its credentials. | The join token, an admin, or the admin token |
+| `GET /api/v1/users` | List the user accounts with their id, username, creation time, and admin flag. | An admin, or the admin token |
+| `POST /api/v1/users/{username}/password` | Give a user account a new password and return it. | An admin, or the admin token |
+| `DELETE /api/v1/users/{username}` | Delete a user account with its records and its folder. | An admin, or the admin token |
+
+Send a token in an `Authorization: Bearer` header, over HTTPS. Do not put it in a URL. A request
+with that header does not use its login cookie. An unknown token gets 401 `invalid_token`. A
+caller that is not allowed gets 403 `admin_required`. With login off, each user route returns 404
+`not_found`.
+
+`POST /api/v1/users` takes an optional body `{"admin": true}` to make an admin. The join token
+cannot send it.
+
+A participant makes a user account with the join token:
 
 ```bash
 curl -X POST https://metis.example/api/v1/users \
-  -H "Authorization: Bearer $METIS_ADMIN_TOKEN"
+  -H "Authorization: Bearer $METIS_JOIN_TOKEN"
 ```
 
 ```json
@@ -623,7 +645,8 @@ curl -X POST https://metis.example/api/v1/users \
   "id": "3f6c2a9d5b7e4c1e8a0f2d4b6c8e0a1c",
   "username": "curious-otter",
   "password": "k7mwp-3xr9t",
-  "created_at": "2026-11-14T08:30:00Z"
+  "created_at": "2026-11-14T08:30:00Z",
+  "admin": false
 }
 ```
 
@@ -634,9 +657,23 @@ with the id, the username, and the times of creation, last login, and last write
 tell which user account a folder belongs to. Each request makes one more user account. A user account
 has no end date, and a person cannot change its credentials.
 
-The admin token can only make and list user accounts. It does not open another route, and it
-cannot read the records of a user account. A website that gives credentials to its visitors can
-thus hold the token on its server. That website must decide who gets a user account, and how many.
+`POST /api/v1/users/{username}/password` gives a user account a new password and ends its login
+sessions. The response has the shape above, and it is the only one that has the new password.
+
+`DELETE /api/v1/users/{username}` deletes a user account with its Targets, their records, and the
+folder `users/<user id>/`. You cannot undo it. It returns 204. An unknown username gets 404
+`not_found`. The API refuses these deletes with 409:
+
+- `cannot_delete_self`: the user account of your login session.
+- `environment_admin`: the admin of `METIS_ADMIN_USERNAME`, which the server makes again at each
+  start.
+- `local_account`: the user account that holds the records of the server with login off.
+- `run_in_progress`: a user account with an experiment run. Stop the run, then try again.
+
+The join token cannot list, reset, or delete user accounts, and it cannot read records. You can
+thus give it to each participant, and a website that gives credentials to its visitors can hold
+it on its server. That website must decide who gets a user account, and how many. The admin token
+opens only the user routes. Keep it for your own scripts.
 
 ### Records of each user account
 
@@ -660,13 +697,14 @@ a login does not see them.
 |---|---|
 | `POST /api/v1/auth/login` | Check a username and a password, and start a login session. |
 | `POST /api/v1/auth/logout` | End the login session. |
-| `GET /api/v1/auth/me` | Tell if login is on, and name the current user account. |
+| `GET /api/v1/auth/me` | Tell if login is on, and name the current user account and if it is an admin. |
 
 `POST /api/v1/auth/login` takes `{"username": "...", "password": "..."}`. Correct credentials
 return the user account and set the `metis_login` cookie. The cookie is HTTP-only and
 `SameSite=Lax`. It is also `Secure` when `HOST` is not an address of the same computer, so serve
 a shared server over HTTPS. Wrong credentials get 401 `invalid_credentials`. The check ignores
-the case of the letters and space around each value.
+space around each value and the case of the username. The case of a password that METIS made
+does not matter.
 
 A login session ends at logout, or 30 days after the login. Then the person logs in again with
 the same credentials.

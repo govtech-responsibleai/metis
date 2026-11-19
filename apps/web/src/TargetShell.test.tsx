@@ -55,6 +55,7 @@ test("the rail names the current user and offers logout in a login session", () 
     id: "3f6c2a9d5b7e4c1e8a0f2d4b6c8e0a1c",
     username: "curious-otter",
     created_at: "2026-11-14T08:30:00Z",
+    admin: false,
   };
 
   const markup = renderToStaticMarkup(
@@ -99,6 +100,7 @@ test("the login page has a workshop join with a hidden token box", () => {
   const token = [...markup.matchAll(/<input[^>]*>/g)][2]?.[0] ?? "";
 
   assert.match(markup, /<h2[^>]*>Joining a workshop\?<\/h2>/);
+  assert.match(text(markup), /Enter the join token to create an account\./);
   assert.match(token, /aria-label="Workshop token"/);
   assert.match(token, /type="password"/);
   assert.match(token, /autoComplete="off"/);
@@ -106,14 +108,10 @@ test("the login page has a workshop join with a hidden token box", () => {
   assert.match(markup, /<button[^>]*type="submit"[^>]*>Join<\/button>/);
 });
 
-test("a failed join says if the token is wrong or the server has no joining", () => {
+test("a failed join says that the join token is not correct", () => {
   assert.equal(
     joinFailure(new TransportError("x", { status: 401 })),
-    "Incorrect, please try again.",
-  );
-  assert.equal(
-    joinFailure(new TransportError("x", { status: 404 })),
-    "This METIS server has no workshop joining.",
+    "The join token is not correct. Try again.",
   );
   assert.equal(
     joinFailure(new TransportError("Couldn't reach the METIS API.")),

@@ -276,17 +276,24 @@ Use the glossary terms "user account" and "login session".
 
 | Route | Purpose |
 |---|---|
-| `POST /api/v1/users` | Make a user account and return its credentials. Needs the admin token. |
-| `GET /api/v1/users` | List the user accounts. Needs the admin token. |
+| `POST /api/v1/users` | Make a user account and return its credentials. The join token can also call it. |
+| `GET /api/v1/users` | List the user accounts. |
+| `POST /api/v1/users/{username}/password` | Give a user account a new password and end its login sessions. |
+| `DELETE /api/v1/users/{username}` | Delete a user account with its Targets and its project folder. |
 | `POST /api/v1/auth/login` | Check the credentials and set the login cookie. |
 | `POST /api/v1/auth/logout` | End the login session. |
-| `GET /api/v1/auth/me` | Tell if login is on, and name the current user account. |
+| `GET /api/v1/auth/me` | Tell if login is on, and name the current user account and if it is an admin. |
+
+The user routes need the admin token or the login session of an admin.
 
 `routes/accounts.py` holds `login_guard`, the one place that decides if a request can reach a
 route. When login is on, each `/api` route needs a login session, except the paths in
-`_OPEN_PATHS`. A new router gets this rule with no code of its own. Do not add a login check to
-a route. Add a path to `_OPEN_PATHS` only when another secret protects it, or when the route
-changes only the login session of its own cookie, as logout does. The guard also
+`_OPEN_PATHS` and the paths under `/api/v1/users`. A new router gets this rule with no code of
+its own. Do not add a login check to a route. Add a path to `_OPEN_PATHS` only when another
+secret protects it, or when the route changes only the login session of its own cookie, as
+logout does. Each route on `users_router` must depend on `get_caller`, because the guard does
+not check those paths. A test checks that each of them refuses a request with no credentials.
+The guard also
 refuses a request that changes data from a page of another origin. It reads `Sec-Fetch-Site`,
 and `Origin` for a browser that does not send it. Do not compare with `Host` when
 `Sec-Fetch-Site` is present, because a proxy can change `Host`.
@@ -294,7 +301,9 @@ and `Origin` for a browser that does not send it. Do not compare with `Host` whe
 `accounts.py` makes the credentials. A username is an adjective and an animal. A password is
 ten characters from an alphabet with no characters that look alike. A person cannot choose or
 change them, so each password is random and login needs no rate limit. Keep that rule, or add
-a rate limit. The `users` table keeps a scrypt hash. The `password_hash` column can be empty, for
+a rate limit. The one exception is the admin of the environment: the operator chooses its
+password, with no length rule. A login checks the password in its own case, then in lower case.
+The `users` table keeps a scrypt hash. The `password_hash` column can be empty, for
 a user account of a later login method. For debugging, `users/<user id>/user.json` holds the id,
 the username, and the times of creation, last login, and last write. `Accounts` writes it with
 mode 0600 when it makes the user account and at each correct login, and a write that fails is
@@ -302,9 +311,31 @@ only logged. Do not add the password or its hash to the file: a copy of the serv
 not be enough to log in. The `login_sessions` table keeps the SHA-256 of the cookie value, never
 the value. Records link to the id of a user account, never to its username.
 
-The admin token in `METIS_ADMIN_TOKEN` can only make and list user accounts. Do not give it
-another power, because a website outside this repository holds it. The user routes return 404
-when the token is unset. The API does not start with an admin token and login off.
+An admin is a user account with a row in the `admins` table. It is a separate table because
+`create_all` never adds a column to the `users` table of an earlier database.
+
+`get_caller` is the one rule of the user routes. It returns the `UserAccount` of the login
+session, `Token.ADMIN`, or `Token.JOIN`. A request with an `Authorization` header uses only its
+token, and `get_caller` does not read the cookie. An unknown token gets 401 `invalid_token`.
+`require_admin` lets through an admin and the admin token, and gives 403 `admin_required` to the
+others. With login off, each user route returns 404.
+
+The join token in `METIS_JOIN_TOKEN` can only make user accounts that are not admins. Do not
+give it another power, because each participant knows it. The admin token in
+`METIS_ADMIN_TOKEN` is for the scripts of the facilitator. It has the power of an admin on the
+user routes, and it opens no other route. The API does not start when the two tokens are the
+same, or when a token is set and login is off.
+
+`METIS_ADMIN_USERNAME` and `METIS_ADMIN_PASSWORD` name the admin of the environment. Set both or
+neither. At each start, `Accounts.ensure_admin` makes that user account or sets its password,
+and makes it an admin. A changed password ends its login sessions.
+
+`Store.delete_user_account` holds the lock of a save and deletes the rows of the user account in
+one transaction, then its folder `users/<user id>/`. The route checks in this order: 404
+`not_found`, then 409 `cannot_delete_self`, `environment_admin`, `local_account`, and
+`run_in_progress`. The run check is last, because only it can pass at a later try.
+`EngineRuns.idle_in` holds the lock of the runs for the full delete, so a run cannot start in
+the folder.
 
 ## Module layout
 
