@@ -97,6 +97,31 @@ export function bindingFromDraft(
   return binding;
 }
 
+// The draft for a saved connection, so the form opens with the binding that the Target has.
+export function draftFromConnection(
+  connection: TargetConnection,
+): ConnectionDraft {
+  const { binding } = connection;
+  return {
+    ...emptyConnectionDraft(),
+    mode: "run",
+    transport: binding.transport,
+    name: binding.identity.name,
+    specUrl: binding.spec_url ?? "",
+    secretEnv: binding.auth?.secret_env ?? "",
+    secretHeaders: (binding.secret_headers ?? [])
+      .map((header) => `${header.match} ${header.header} ${header.env}`)
+      .join("\n"),
+    forbiddenCalls: (binding.forbidden_calls ?? []).join("\n"),
+    submissions: (binding.submissions ?? []).join("\n"),
+    tlsVerify: binding.tls_verify ?? true,
+    startUrl: binding.start_url ?? "",
+    loginNote: binding.login?.note ?? "",
+    loginSecrets: (binding.login?.secrets ?? []).join("\n"),
+    notes: binding.advice?.notes ?? "",
+  };
+}
+
 // The connection to keep from a check result, or null when the binding is not valid.
 export function connectionFromCheck(
   result: ConnectionCheckResult | null,
