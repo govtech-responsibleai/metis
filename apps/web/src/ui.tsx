@@ -4,7 +4,7 @@
 // surfaces — sentence case left to the package's own strings.
 
 import { ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { createPortal } from "react-dom";
 
@@ -96,8 +96,24 @@ export function Tooltip({
 }) {
   const id = useId();
   const triggerRef = useRef<HTMLDivElement | null>(null);
+  const tipRef = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState({ left: 0, top: 0 });
+  // How far the tooltip moves from the centre of its trigger to stay inside the window. The arrow
+  // moves back by the same distance, so it still points at the trigger.
+  const [shift, setShift] = useState(0);
+
+  useLayoutEffect(() => {
+    const width = tipRef.current?.offsetWidth;
+    if (!visible || width === undefined) return;
+    const margin = 8;
+    const half = width / 2;
+    const left = Math.min(
+      Math.max(position.left, half + margin),
+      window.innerWidth - half - margin,
+    );
+    setShift(left - position.left);
+  }, [visible, position.left, label]);
 
   const showBelowTrigger = () => {
     const bounds = triggerRef.current?.getBoundingClientRect();
@@ -130,9 +146,10 @@ export function Tooltip({
         typeof document !== "undefined" &&
         createPortal(
           <div
+            ref={tipRef}
             id={id}
             role="tooltip"
-            style={{ left: position.left, top: position.top }}
+            style={{ left: position.left + shift, top: position.top }}
             className={cn(
               "pointer-events-none fixed z-[100] w-max max-w-72 -translate-x-1/2",
               "rounded-[8px] border border-border bg-foreground px-3 py-2",
@@ -141,6 +158,7 @@ export function Tooltip({
           >
             <span
               aria-hidden
+              style={{ marginLeft: -shift }}
               className="absolute left-1/2 -top-1.5 h-3 w-3 -translate-x-1/2 rotate-45 border-l border-t border-border bg-foreground"
             />
             <span className="relative">{label}</span>
