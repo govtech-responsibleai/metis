@@ -70,6 +70,7 @@ export type CurrentUser = JsonResponse<CurrentUserOperation>;
 export type UserAccount = Schema["UserAccountBody"];
 export type NewUserAccount = Schema["NewUserAccountBody"];
 export type UserAccountList = Schema["UserAccountList"];
+export type WorkshopVariable = Schema["WorkshopVariable"];
 export type InterviewStep = Schema["InterviewStep"];
 export type Perspective = Schema["Perspective"];
 export type InterviewDocument = Schema["InterviewDocument"];
@@ -819,6 +820,17 @@ export const users = {
     });
   },
 };
+
+// The `.env` lines that the operator gives to participants, or null when the server gives none.
+export async function workshopEnv(): Promise<WorkshopVariable[] | null> {
+  try {
+    const env = await call<Schema["WorkshopEnv"]>("/api/v1/workshop/env");
+    return env.variables;
+  } catch (error) {
+    if (error instanceof TransportError && error.status === 404) return null;
+    throw error;
+  }
+}
 
 export const store = {
   targets: () => call<TargetList>("/api/v1/targets"),
