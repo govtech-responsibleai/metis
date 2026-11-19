@@ -1282,8 +1282,9 @@ class TestSessionUrl:
             "https://user:s3cret@lf.example",
             "https://user@lf.example",
             "ftp://lf.example",
+            "https://[lf.example",
         ],
-        ids=["user-and-password", "user", "not-http"],
+        ids=["user-and-password", "user", "not-http", "malformed-host"],
     )
     async def test_an_unsafe_url_stays_out_of_the_end_event(
         self,

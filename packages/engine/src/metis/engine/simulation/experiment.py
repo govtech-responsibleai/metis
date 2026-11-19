@@ -784,14 +784,17 @@ def trial_end_session_url(record: TrialRecord) -> str | None:
     """The Langfuse URL for the end event of a trial, or ``None``.
 
     Only a completed trial gets one: its record's ``target_session_langfuse_url``, when that
-    is an ``http`` or ``https`` URL without a user or a password. A ``LANGFUSE_BASE_URL``
+    is a well-formed ``http`` or ``https`` URL without a user or a password. A ``LANGFUSE_BASE_URL``
     such as ``https://user:pass@host`` gives such a URL, which must not reach the events
     log, so it is left out with a warning. The record keeps its URL either way.
     """
     url = record.target_session_langfuse_url
     if url is None or trial_end_status(record) != "completed":
         return None
-    parts = urlsplit(url)
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return None
     if parts.scheme not in ("http", "https") or not parts.hostname:
         return None
     if parts.username is not None or parts.password is not None:
