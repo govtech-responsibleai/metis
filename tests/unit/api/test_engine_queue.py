@@ -356,3 +356,22 @@ def test_a_start_after_shutdown_is_refused_and_makes_no_folder(
     assert refused.value.retryable is True
     assert prepared == []
     assert fake_engine.calls == []
+
+
+def test_a_second_lifespan_of_one_app_starts_runs_again(
+    make_engine_client: Callable[..., TestClient],
+    fake_engine: FakeEngine,
+    folders: list[Path],
+) -> None:
+    # The first lifespan ends with a shutdown, which refuses new starts. The app keeps its
+    # EngineRuns, so the next lifespan must open it again.
+    client = make_engine_client()
+    client.__exit__(None, None, None)
+    client.__enter__()
+
+    response = client.post(f"/api/v1/engine/simulate/{folders[0].name}/resume")
+
+    assert response.status_code == 202, response.json()
+    wait_until(
+        lambda: folders[0] in [call.experiment_dir for call in fake_engine.calls]
+    )

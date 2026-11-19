@@ -152,7 +152,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = Settings.from_env(project_dir=app.state.project_dir)
     runs: EngineRuns = app.state.engine_runs
     app.state.engine_settings = settings.engine
-    runs.max_runs = settings.engine.max_runs
+    runs.open(settings.engine.max_runs)
     # Before the store, so a setup that fails leaves nothing to close.
     runs.functions.setup_process()
     if getattr(app.state, "wizard_dependencies", None) is None:

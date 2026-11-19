@@ -168,7 +168,7 @@ class EngineRuns:
     def __init__(self, functions: EngineFunctions, max_runs: int = 1) -> None:
         self.functions = functions
         self.max_runs = max_runs
-        """The jobs that run at the same time. The lifespan sets it from the settings."""
+        """The jobs that run at the same time. The lifespan sets it with ``open``."""
         self._lock = threading.Lock()
         self._running: dict[tuple[Path, str], tuple[Run, threading.Thread]] = {}
         self._queue: deque[Run] = deque()
@@ -221,6 +221,16 @@ class EngineRuns:
             self._queue.append(run)
             self._start_next()
             return run.experiment_id
+
+    def open(self, max_runs: int) -> None:
+        """Accept starts again, with ``max_runs`` slots. The lifespan calls it at startup.
+
+        ``shutdown`` refuses every start after it, and the app keeps this object, so a
+        second lifespan of the same app opens it again. The shutdown has emptied the queue.
+        """
+        with self._lock:
+            self.max_runs = max_runs
+            self._closed = False
 
     def stop(self, project_dir: Path, experiment_id: str) -> None:
         """Stop the run of ``experiment_id`` in ``project_dir``.
