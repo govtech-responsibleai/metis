@@ -78,19 +78,32 @@
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--ifm-color-primary) 28%, transparent);
 }
 
-/* Fixed under the navbar at the right edge. The contents list is only shown on wide screens, so
-   the button is too. */
+/* The slot at the top of the contents list. It stays put while a long list scrolls under it. */
+.slot {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-bottom: 0.5rem;
+  background: var(--ifm-background-color);
+}
+
+/* The contents list is only shown on wide screens, so the button is too. While the list is shown,
+   the button sits at its top. While it is hidden, the button is fixed under the navbar at the right
+   edge, at the end of the progress bar. */
 .toggle {
   display: none;
 }
 
 @media (min-width: 997px) {
-  .toggle {
-    display: block;
+  .floating {
     position: fixed;
     top: calc(var(--ifm-navbar-height) + 0.75rem);
     right: 1rem;
     z-index: 10;
+  }
+
+  .toggle {
+    display: block;
     padding: 0.25rem 0.75rem;
     border: 1px solid var(--ifm-color-emphasis-300);
     border-radius: 999px;

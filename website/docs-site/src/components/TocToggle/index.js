@@ -1,4 +1,5 @@
 import {useEffect, useState} from 'react';
+import {createPortal} from 'react-dom';
 import styles from './styles.module.css';
 
 const HIDDEN_CLASS = 'toc-hidden';
@@ -96,27 +97,53 @@ function StepProgress() {
   );
 }
 
+// A slot at the top of the contents list on the right, for the button to sit in. Docusaurus renders
+// the list outside the page's markdown, so the slot is added to it once the page has loaded. It is
+// null on narrow screens, where the list is not shown.
+function usePanelSlot() {
+  const [slot, setSlot] = useState(null);
+
+  useEffect(() => {
+    const panel = document.querySelector('.theme-doc-toc-desktop');
+    if (!panel) return undefined;
+    const element = document.createElement('div');
+    element.className = styles.slot;
+    panel.prepend(element);
+    setSlot(element);
+    return () => element.remove();
+  }, []);
+
+  return slot;
+}
+
 // A button that hides or shows the table of contents on the right. It puts a class on the page,
-// which `custom.css` uses to hide the list. While the list is hidden, a row of circles takes its
-// place as a progress bar. The class is removed when the reader leaves the page, so that other
-// pages keep their contents.
+// which `custom.css` uses to hide the list. While the list is shown, the button sits at its top.
+// While the list is hidden, a row of circles takes its place as a progress bar, and the button
+// moves to the right end of that bar. The class is removed when the reader leaves the page, so
+// that other pages keep their contents.
 export default function TocToggle() {
   const [hidden, setHidden] = useState(false);
+  const slot = usePanelSlot();
 
   useEffect(() => {
     document.documentElement.classList.toggle(HIDDEN_CLASS, hidden);
     return () => document.documentElement.classList.remove(HIDDEN_CLASS);
   }, [hidden]);
 
+  const inPanel = slot && !hidden;
+  const button = (
+    <button
+      type="button"
+      className={`${styles.toggle} ${inPanel ? styles.inPanel : styles.floating}`}
+      aria-pressed={hidden}
+      onClick={() => setHidden(!hidden)}>
+      {hidden ? 'Show contents' : 'Hide contents'}
+    </button>
+  );
+
   return (
     <>
-      <button
-        type="button"
-        className={styles.toggle}
-        aria-pressed={hidden}
-        onClick={() => setHidden(!hidden)}>
-        {hidden ? 'Show contents' : 'Hide contents'}
-      </button>
+      {inPanel ? createPortal(button, slot) : button}
       {hidden && <StepProgress />}
     </>
   );

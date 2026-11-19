@@ -585,6 +585,14 @@ blockquote > :last-child {
   max-width: 96rem !important;
 }
 
+/* The contents column runs to the page gutter, so that it ends in line with the navbar rather than
+   leaving an empty strip on the right. The TocToggle button sits at its top. */
+@media (min-width: 997px) {
+  :is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) main > .container {
+    padding-right: 0 !important;
+  }
+}
+
 :is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) .theme-doc-markdown {
   max-width: 70rem;
 }
@@ -597,8 +605,17 @@ html.toc-hidden:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walk
   max-width: none;
 }
 
-html.toc-hidden:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) .theme-doc-toc-desktop {
+/* The contents sit in a column of their own, a quarter of the row wide. The whole column is hidden,
+   not only the list in it, so that the text can take its place. */
+html.toc-hidden:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) [class*='docItemCol'] + .col {
   display: none;
+}
+
+/* Prose keeps a comfortable line length however wide the text column grows, while screenshots,
+   code, tables, and diagrams use the full width. Markdown puts each image in a paragraph of its
+   own, so a paragraph that holds an image is left alone. */
+:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) .theme-doc-markdown > :is(header, h2, h3, h4, p:not(:has(img)), ul, ol, blockquote, .theme-admonition) {
+  max-width: 48rem;
 }
 
 html.toc-hidden:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) [class*='docItemCol'] {
