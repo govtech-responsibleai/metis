@@ -29,9 +29,9 @@ install or deploy:
    [https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/](https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/)
    ([source code](https://github.com/govtech-responsibleai/agentic-eval-toyapp)). This is the
    application that you evaluate.
-3. **Langfuse** collects a trace of every conversation with the toy app, and you read the traces
-   there. You open it from a link in the toy app in [step 1](#step-1), and from a link in METIS in
-   [step 4](#step-4).
+3. **Langfuse** records every conversation with the toy app as a session, and you read the sessions
+   there. You open it from a link in the toy app in [step 1](#step-1), and from links in METIS in
+   [steps 4](#step-4) and [5](#step-5).
 
 These services are not open to the public. To log in to METIS, you need the join token given by
 the facilitators, who also give you the login for Langfuse.
@@ -140,8 +140,8 @@ To learn more, see the Langfuse
 [observation types](https://langfuse.com/docs/observability/features/observation-types).
 
 Langfuse shows the steps that led to the final answer, as well as the answer itself, and METIS
-grades both. You come back to Langfuse in [step 4](#step-4), to read the conversations that METIS
-runs.
+grades both. You come back to Langfuse in [steps 4](#step-4) and [5](#step-5), to read the
+conversations that METIS runs.
 
 **Checkpoint:** the demo's trace is open in Langfuse, and you can find a step of each of the five
 types in its tree.
