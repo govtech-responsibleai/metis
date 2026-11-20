@@ -57,7 +57,7 @@ This walkthrough teaches you to:
 | [Step 1](#step-1) | Explore the toy application | 10 min |
 | [Step 2](#step-2) | Log in to METIS | 5 min |
 | [Step 3](#step-3) | Build a specification in the Wizard | 15 min |
-| [Step 4](#step-4) | Start and watch the experiment | 20 min |
+| [Step 4](#step-4) | Run the experiment | 20 min |
 | [Step 5](#step-5) | Read the report | 10 min |
 | [Step 6](#step-6) | Provide feedback and share your use case | After the workshop |
 
@@ -278,11 +278,11 @@ Read how we set it up, and compare it with the specification that you built:
 **Checkpoint:** you have your own specification with a saved connection to the toy app, and you
 have the demo specification open.
 
-## Step 4: Start and watch the experiment (20 min) {#step-4}
+## Step 4: Run the experiment (20 min) {#step-4}
 
 <SystemDiagram walkthrough="beginner" step={4} />
 
-### 4a. Run the experiment {#step-4a}
+### 4a. Start the experiment {#step-4a}
 
 :::warning[Run the demo specification, not your own]
 Your own specification may have many test cases, and its experiment could run well past the
