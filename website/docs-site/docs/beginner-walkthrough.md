@@ -30,7 +30,7 @@ install or deploy:
    ([source code](https://github.com/govtech-responsibleai/agentic-eval-toyapp)). This is the
    application that you evaluate.
 3. **Langfuse** records every conversation with the toy app as a session, and you read the sessions
-   there. You open it from a link in the toy app in [step 1](#step-1), and from links in METIS in
+   there. You open it from a link in the toy app in [step 1c](#step-1c), and from links in METIS in
    [steps 4](#step-4) and [5](#step-5).
 
 These services are not open to the public. To log in to METIS, you need the join token given by
