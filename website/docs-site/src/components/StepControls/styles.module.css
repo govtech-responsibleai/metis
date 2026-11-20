@@ -1,20 +1,60 @@
-/* Bottom slot: block element at the end of each step's body */
-.bottomSlot {
+/* The arrow at the start of each step and sub-step heading. It points down while the section is
+   expanded, and right while it is collapsed. */
+.arrowSlot {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-right: 0.375rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--ifm-global-radius);
+  background: none;
+  color: var(--ifm-color-content-secondary);
+  cursor: pointer;
+}
+
+.arrow:hover {
+  background: var(--ifm-color-emphasis-200);
+  color: var(--ifm-font-color-base);
+}
+
+.arrow svg {
+  transition: transform 0.15s ease;
+}
+
+.arrow[aria-expanded='true'] svg {
+  transform: rotate(90deg);
+}
+
+/* The green tick after the heading of a done step. An inline block keeps the heading's strikethrough
+   off it. */
+.tickSlot {
+  display: none;
+}
+
+:global(h2[data-step-done]) .tickSlot {
+  display: inline-block;
+  margin-left: 0.5rem;
+}
+
+.tick {
+  color: var(--ifm-color-success);
+}
+
+/* The Done checkbox at the end of each step. */
+.doneSlot {
   display: block;
   margin: 1.5rem 0 0.5rem;
 }
 
-/* Heading slot: inline, shown only when the step is done (collapsed) */
-.headingSlot {
-  display: none;
-}
-
-:global(h2[data-step-done]) .headingSlot {
-  display: inline;
-}
-
-/* The Done button at the bottom of an open section */
-.bottomDone {
+.done {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
@@ -29,25 +69,15 @@
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.bottomDone:hover {
+.done:hover {
   background: var(--ifm-color-emphasis-100);
 }
 
-/* The Done checkbox next to the heading (visible only when collapsed) */
-.headingDone {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  margin-left: 0.75rem;
-  color: var(--ifm-color-success);
-  font-size: 0.8125rem;
-  font-weight: 400;
-  cursor: pointer;
-  vertical-align: middle;
-}
-
-/* Done heading: muted with strikethrough */
+/* A done step has a grey heading, and a collapsed done step has it struck through as well. */
 :global(h2[data-step-done]) {
   color: var(--ifm-color-content-secondary);
+}
+
+:global(h2[data-step-done][data-step-collapsed-heading]) {
   text-decoration: line-through;
 }

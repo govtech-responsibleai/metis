@@ -22,27 +22,27 @@ only during the workshop. The organisers host everything that it uses, so you ha
 install or deploy:
 
 1. **METIS** is hosted at
-   [https://demo1-web.metis.aip.gov.sg/](https://demo1-web.metis.aip.gov.sg/). You use it to
+   [https://go.gov.sg/metis-demo](https://go.gov.sg/metis-demo). You use it to
    describe the application, run the experiment, and read the report.
 2. **Northstar Policy & Report Assistant**, a toy application built to demonstrate METIS, is
    deployed at
    [https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/](https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/)
-   ([source code](https://github.com/govtech-responsibleai/agentic-eval-toyapp)). This is the
-   application that you evaluate.
-3. **Langfuse** collects a trace of every conversation with the toy app, and you read the traces
-   there. You open it from a link in the toy app in step 1, and from a link in METIS in step 4.
+   ([source code](https://github.com/govtech-responsibleai/agentic-eval-toyapp)).
+3. **Langfuse** records every conversation with the toy app as a session, and you read the sessions
+   there. You open it from a link in the toy app in [step 1c](#step-1c), and from links in METIS in
+   [steps 4](#step-4) and [5](#step-5).
 
 These services are not open to the public. To log in to METIS, you need the join token given by
 the facilitators, who also give you the login for Langfuse.
 
-The [workshop slides](https://view.ducks.ai.tech.gov.sg/p/metis/) go with this walkthrough, and you
+The [workshop slides](https://go.gov.sg/metis-slides) go with this walkthrough, and you
 can open them without logging in.
 :::
 
 :::tip[Comfortable with the terminal?]
-Take on the [Advanced (CLI) Walkthrough](advanced-walkthrough.md) instead. It challenges you to
-set up METIS on your own machine and evaluate an application of your own, with the web app and the
-command line.
+Take on the [Advanced (Web + CLI) Walkthrough](advanced-walkthrough.md) instead. It challenges
+you to set up METIS on your own machine and evaluate an application of your own, with the web app
+and the command line.
 :::
 
 This walkthrough teaches you to:
@@ -55,9 +55,9 @@ This walkthrough teaches you to:
 |---|---|---|
 | [Step 1](#step-1) | Explore the toy application | 10 min |
 | [Step 2](#step-2) | Log in to METIS | 5 min |
-| [Step 3](#step-3) | Build a specification in the Wizard | 20 min |
-| [Step 4](#step-4) | Start and watch the experiment | 10 min |
-| [Step 5](#step-5) | Read the report | 15 min |
+| [Step 3](#step-3) | Build a specification in the Wizard | 15 min |
+| [Step 4](#step-4) | Run the experiment | 20 min |
+| [Step 5](#step-5) | Read the report | 10 min |
 | [Step 6](#step-6) | Provide feedback and share your use case | After the workshop |
 
 ## Step 1: Explore the toy application (10 min) {#step-1}
@@ -66,11 +66,11 @@ This walkthrough teaches you to:
 
 The application that you evaluate is
 [Northstar Policy & Report Assistant](https://github.com/govtech-responsibleai/agentic-eval-toyapp/blob/main/README.md),
-a toy app built to demonstrate METIS. It is an assistant for the employees of a fictional company,
-Northstar Services. For each message it chooses one of four actions: answer directly, ask a
-clarifying question, hand over to the policy specialist, or hand over to the report specialist.
+an assistant for the employees of a fictional company, Northstar Services. For each message it
+chooses one of four actions: answer directly, ask a clarifying question, hand over to the policy
+specialist, or hand over to the report specialist.
 
-### 1a. Get to know the toy app
+### 1a. Get to know the toy app {#step-1a}
 
 Before you describe the app to METIS, learn what it does:
 
@@ -87,10 +87,9 @@ policies do not cover. Watch which specialist answers, and whether the app asks 
 
 ![The toy app, with the Your message chat box highlighted](./assets/toyapp-chat-box.png)
 
-### 1b. Inspect a demo session
+### 1b. Inspect a demo session {#step-1b}
 
-The demo sessions are conversations that were recorded earlier, and you can inspect any of them.
-Select **Demo**, and choose one.
+The demo sessions are conversations that were recorded earlier. Select **Demo**, and choose one.
 
 ![The Demo menu, listing the recorded demo sessions](./assets/toyapp-demo-menu.png)
 
@@ -101,19 +100,20 @@ keeps pressing.
 
 ![The toy app in the first demo session, where an employee asks to bring a dog to the office](./assets/toyapp-demo-dog-session.png)
 
-### 1c. Inspect the demo session in Langfuse
+### 1c. Inspect the demo session in Langfuse {#step-1c}
 
-The toy app records each conversation in Langfuse as a <Term>trace</Term>. Select **Open in
-Langfuse** to open the trace of the demo session that you just watched.
+The toy app records each conversation in Langfuse as a <Term>session</Term>, with one
+<Term>trace</Term> for each message that the employee sends. Select **Open in Langfuse** to open
+the demo's session.
 
 ![The toy app's session bar, with the Open in Langfuse button highlighted](./assets/toyapp-open-in-langfuse.png)
 
 :::note
-Langfuse asks you to log in. Use the Langfuse login that the workshop facilitators give you.
+Log in to Langfuse with the Langfuse login from the facilitators.
 :::
 
 The session opens with the employee's question and the app's reply. On the right, select the
-**agent-turn** trace, and then select its `coordinator-action` step to see which of the four
+first **agent-turn** trace, and then select its `coordinator-action` step to see which of the four
 actions the app chose.
 
 ![The demo session in Langfuse, with the agent-turn trace highlighted](./assets/toyapp-demo-dog-langfuse-session.png)
@@ -138,34 +138,35 @@ To learn more, see the Langfuse
 [observation types](https://langfuse.com/docs/observability/features/observation-types).
 
 Langfuse shows the steps that led to the final answer, as well as the answer itself, and METIS
-grades both. You come back to Langfuse in step 4, to read the conversations that METIS runs.
+grades both. You come back to Langfuse in [steps 4](#step-4) and [5](#step-5), to read the
+conversations that METIS runs.
 
 **Checkpoint:** the demo's trace is open in Langfuse, and you can find a step of each of the five
 types in its tree.
 
 ## Step 2: Log in to METIS (5 min) {#step-2}
 
-### 2a. Enter the join token
+### 2a. Enter the join token {#step-2a}
 
-Open [https://demo1-web.metis.aip.gov.sg/](https://demo1-web.metis.aip.gov.sg/).
+Open [https://go.gov.sg/metis-demo](https://go.gov.sg/metis-demo).
 
 ![The METIS login page](./assets/web-login.png)
 
 Enter the **join token** given by the facilitators. This generates a unique username and
 password for you.
 
-### 2b. Log in
+### 2b. Log in {#step-2b}
 
 **Copy** the generated username and password. **Paste** them into the login fields and select
 **Log in**.
 
 **Checkpoint:** you see the METIS opening screen with a text box and controls.
 
-## Step 3: Build a specification in the Wizard (20 min) {#step-3}
+## Step 3: Build a specification in the Wizard (15 min) {#step-3}
 
 <SystemDiagram walkthrough="beginner" step={3} />
 
-### 3a. Describe the toy app
+### 3a. Describe the toy app {#step-3a}
 
 The Wizard opens with a text box where you describe the application that you want to evaluate,
 and a few controls around it.
@@ -198,7 +199,7 @@ What it can't do: the two routes are independent, so no answer can draw on both 
 
 </details>
 
-### 3b. Follow the interview
+### 3b. Follow the interview {#step-3b}
 
 The screen splits into two panes:
 
@@ -210,14 +211,14 @@ The screen splits into two panes:
 | Interview step | What you do |
 |---|---|
 | 1. Understanding your target | Answer questions in the chat |
-| 2. Features / Behaviours | Tick the ones to measure, select **Continue** |
-| 3. Acceptance Criteria | Review, select **Accept Criteria** |
+| 2. Features / Expected Behaviours | Tick the ones to measure, select **Continue** |
+| 3. Acceptance criteria | Review, select **Accept Criteria** |
 | 4. Personas | Review and continue |
 | 5. Scenarios | Review and continue |
 | 6. Test Cases | Select which to include, continue |
 
-From your interview responses, the Wizard determines the features and expected behaviours of your
-target application. Feel free to tick, untick, or edit them, and then select **Continue**.
+The Wizard determines the features and expected behaviours of your target application. Feel free
+to tick, untick, or edit them, and then select **Continue**.
 
 ![Features and Expected Behaviours in the Profile](./assets/wizard-behaviours.png)
 
@@ -235,7 +236,7 @@ When the interview is done, the chat shows **Your specification is ready**.
 
 ![The specification ready panel](./assets/web-spec-ready.png)
 
-### 3c. Connect the target
+### 3c. Connect the target {#step-3c}
 
 To run the test cases, METIS needs to know how to reach the toy app. In the **Your specification is
 ready** panel, select **Connect target**.
@@ -254,13 +255,14 @@ Leave **HTTP API** selected, and fill in the form:
 - Leave **API key variable** and **More options** as they are.
 
 Select **Test connection**. When the form lists **The fields are valid** with a tick beside each
-check, select **Save connection**. If it says that some checks failed, check the URL, test again,
-and ask the facilitator if it still fails.
+check, select **Save connection**. If it also says "This server checks the fields only", ignore
+that line, because METIS reaches the toy app when it runs the experiment. If it says that some
+checks failed, check the URL, test again, and ask the facilitator if it still fails.
 
-### 3d. Explore the demo specification
+### 3d. Explore the demo specification {#step-3d}
 
-We have prepared a demo interview and specification for the toy app, which you run in step 4.
-It has only 3 test cases and 4 trials, so its experiment finishes in under 10 minutes. In the sidebar, select **(demo) Northstar Policy & Report Assistant**.
+We have prepared a small demo interview and specification for the toy app, which you run in
+[step 4](#step-4). In the sidebar, select **(demo) Northstar Policy & Report Assistant**.
 
 ![The demo target, with its finished interview on the left and its specification Profile on the right](./assets/web-demo-specification.png)
 
@@ -274,15 +276,15 @@ Read how we set it up, and compare it with the specification that you built:
 **Checkpoint:** you have your own specification with a saved connection to the toy app, and you
 have the demo specification open.
 
-## Step 4: Start and watch the experiment (10 min) {#step-4}
+## Step 4: Run the experiment (20 min) {#step-4}
 
 <SystemDiagram walkthrough="beginner" step={4} />
 
-### 4a. Run the experiment
+### 4a. Start the experiment {#step-4a}
 
 :::warning[Run the demo specification, not your own]
 Your own specification may have many test cases, and its experiment could run well past the
-workshop. The demo has 3 test cases and 4 trials, so it finishes in under 10 minutes.
+workshop. The demo has 3 test cases and 4 trials, so it finishes in about 15 minutes.
 :::
 
 In the sidebar, select **(demo) Northstar Policy & Report Assistant**, and then select **Start an
@@ -291,21 +293,22 @@ experiment** at the top right.
 ![The demo target, with the Start an experiment button highlighted](./assets/web-demo-start-experiment.png)
 
 In the dialog, check that **(demo) Northstar Policy & Report Assistant** is chosen and that it says
-**Server ready**. If it lists a failed check instead, ask the facilitator. Select **Start**.
+**Server ready**. If it lists a failed check, ask the facilitator. Select **Start**.
 
 ![The Start an experiment dialog, with the demo specification chosen and Server ready](./assets/web-demo-experiment-dialog.png)
 
-### 4b. Watch the progress
+### 4b. Watch the progress {#step-4b}
 
 ![The Trials tab showing live progress, with the open-link icon of a simulated trial highlighted](./assets/web-demo-trials-progress.png)
 
 Each trial is simulated first and then evaluated. Once a trial has been simulated, an open-link
 icon appears at the end of its row, which opens that trial's session in Langfuse. While you wait
-for the other trials, you can select it to inspect the traces. This is optional.
+for the other trials, you can select it to inspect the traces.
 
-Wait for all trials to finish.
+You do not need to wait for the whole run. Carry on to [4c](#step-4c), and come back to your own
+experiment when its trials finish.
 
-### 4c. Open the pre-recorded demo experiment
+### 4c. Open the pre-recorded demo experiment {#step-4c}
 
 We have also recorded a finished run of the demo specification, so that you can carry on even if
 your experiment is still running. Select **(demo) Northstar Policy & Report Assistant** in the
@@ -314,21 +317,22 @@ sidebar, select the **Experiments** tab, and then select the experiment whose ID
 
 ![The Experiments tab of the demo target, with the demo- experiment highlighted](./assets/web-demo-experiments-list.png)
 
-It opens on its **Trials** tab, where every trial is graded. As in step 4b, the open-link icon at
-the end of each row opens that trial's session in Langfuse.
+It opens on its **Trials** tab, where every trial is graded. As in [step 4b](#step-4b), the
+open-link icon at the end of each row opens that trial's session in Langfuse.
 
 ![The demo experiment's Trials tab, with every trial graded](./assets/web-demo-experiment-trials.png)
 
 **Checkpoint:** your experiment's trials are complete, or you have the `demo-` experiment open.
 
-## Step 5: Read the report (15 min) {#step-5}
+## Step 5: Read the report (10 min) {#step-5}
 
 <SystemDiagram walkthrough="beginner" step={5} />
 
-### 5a. Open the report
+### 5a. Open the report {#step-5a}
 
-Go back to METIS, and open the **Report** tab of the experiment that you ran. If your experiment
-did not finish, open the **Report** tab of the pre-recorded `demo-` experiment from step 4c instead.
+Go back to METIS, and open the **Report** tab of the experiment that you ran. If your experiment did
+not finish, open the **Report** tab of the pre-recorded `demo-` experiment from [step 4c](#step-4c)
+instead.
 
 ![The Report tab showing evaluation results](./assets/web-report-tab.png)
 
@@ -337,7 +341,7 @@ to its <Term>features</Term>, <Term>expected behaviours</Term>, and <Term>criter
 behaviour and select one of its criteria to see its <Term>grader</Term>, the judge model, and the
 pass mark.
 
-### 5b. Inspect a test case
+### 5b. Inspect a test case {#step-5b}
 
 Under **Results by test case**, each row is one test case, with its pass rate for each criterion.
 Select a test case, such as **TC-004**, to see its trials.
@@ -347,13 +351,14 @@ Select a test case, such as **TC-004**, to see its trials.
 The test case opens with its persona and scenario, and the pass rate of each criterion against its
 target.
 
-### 5c. Inspect a trial
+### 5c. Inspect a trial {#step-5c}
 
 Under **Trials**, select a trial to read its conversation turn by turn. Beside it, **What the
 graders returned** says why each criterion passed or failed in that trial.
 
 To see the steps that the toy app took in that conversation, select **Open in Langfuse**. It opens
-the trial's session in Langfuse, where you can find the same kinds of steps as in step 1c.
+the trial's session in Langfuse, where you can find the same kinds of steps as in
+[step 1c](#step-1c).
 
 ![A test case with its trials, and the Open in Langfuse button of Trial 1 highlighted](./assets/web-demo-report-trial.png)
 
@@ -374,6 +379,6 @@ If you enjoyed this walkthrough or found METIS useful, please star the
 [METIS repository](https://github.com/govtech-responsibleai/metis) on GitHub.
 
 :::tip[Ready for a challenge?]
-Try the [Advanced (CLI) Walkthrough](advanced-walkthrough.md). It takes you through the same steps
-with METIS on your own machine, against an application of your own.
+Try the [Advanced (Web + CLI) Walkthrough](advanced-walkthrough.md). It takes you through the
+same steps with METIS on your own machine, against an application of your own.
 :::

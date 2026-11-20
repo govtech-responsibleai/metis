@@ -11,7 +11,7 @@ const sidebars = {
       collapsed: false,
       items: [
         {type: 'doc', id: 'beginner-walkthrough', label: 'Beginner (Web)'},
-        {type: 'doc', id: 'advanced-walkthrough', label: 'Advanced (CLI)'},
+        {type: 'doc', id: 'advanced-walkthrough', label: 'Advanced (Web + CLI)'},
       ],
     },
     {

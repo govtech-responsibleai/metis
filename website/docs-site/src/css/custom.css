@@ -631,9 +631,15 @@ html.toc-hidden:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walk
   max-width: 100% !important;
 }
 
-/* StepControls marks the parts of a folded step, which are hidden until the reader unfolds it. */
-[data-step-folded] {
+/* StepControls marks the parts of a collapsed step or sub-step, which are hidden until the reader
+   expands it, and fades the parts of a done step. */
+[data-step-collapsed] {
   display: none !important;
+}
+
+[data-step-faded] {
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
 }
 
 /* With the contents hidden, a progress bar sits under the navbar. A step reached from it, or from
