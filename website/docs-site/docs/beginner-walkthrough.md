@@ -30,7 +30,8 @@ install or deploy:
    ([source code](https://github.com/govtech-responsibleai/agentic-eval-toyapp)). This is the
    application that you evaluate.
 3. **Langfuse** collects a trace of every conversation with the toy app, and you read the traces
-   there. You open it from a link in the toy app in step 1, and from a link in METIS in step 4.
+   there. You open it from a link in the toy app in [step 1](#step-1), and from a link in METIS in
+   [step 4](#step-4).
 
 These services are not open to the public. To log in to METIS, you need the join token given by
 the facilitators, who also give you the login for Langfuse.
@@ -70,7 +71,7 @@ a toy app built to demonstrate METIS. It is an assistant for the employees of a 
 Northstar Services. For each message it chooses one of four actions: answer directly, ask a
 clarifying question, hand over to the policy specialist, or hand over to the report specialist.
 
-### 1a. Get to know the toy app
+### 1a. Get to know the toy app {#step-1a}
 
 Before you describe the app to METIS, learn what it does:
 
@@ -87,7 +88,7 @@ policies do not cover. Watch which specialist answers, and whether the app asks 
 
 ![The toy app, with the Your message chat box highlighted](./assets/toyapp-chat-box.png)
 
-### 1b. Inspect a demo session
+### 1b. Inspect a demo session {#step-1b}
 
 The demo sessions are conversations that were recorded earlier, and you can inspect any of them.
 Select **Demo**, and choose one.
@@ -101,7 +102,7 @@ keeps pressing.
 
 ![The toy app in the first demo session, where an employee asks to bring a dog to the office](./assets/toyapp-demo-dog-session.png)
 
-### 1c. Inspect the demo session in Langfuse
+### 1c. Inspect the demo session in Langfuse {#step-1c}
 
 The toy app records each conversation in Langfuse as a <Term>trace</Term>. Select **Open in
 Langfuse** to open the trace of the demo session that you just watched.
@@ -138,14 +139,15 @@ To learn more, see the Langfuse
 [observation types](https://langfuse.com/docs/observability/features/observation-types).
 
 Langfuse shows the steps that led to the final answer, as well as the answer itself, and METIS
-grades both. You come back to Langfuse in step 4, to read the conversations that METIS runs.
+grades both. You come back to Langfuse in [step 4](#step-4), to read the conversations that METIS
+runs.
 
 **Checkpoint:** the demo's trace is open in Langfuse, and you can find a step of each of the five
 types in its tree.
 
 ## Step 2: Log in to METIS (5 min) {#step-2}
 
-### 2a. Enter the join token
+### 2a. Enter the join token {#step-2a}
 
 Open [https://demo1-web.metis.aip.gov.sg/](https://demo1-web.metis.aip.gov.sg/).
 
@@ -154,7 +156,7 @@ Open [https://demo1-web.metis.aip.gov.sg/](https://demo1-web.metis.aip.gov.sg/).
 Enter the **join token** given by the facilitators. This generates a unique username and
 password for you.
 
-### 2b. Log in
+### 2b. Log in {#step-2b}
 
 **Copy** the generated username and password. **Paste** them into the login fields and select
 **Log in**.
@@ -165,7 +167,7 @@ password for you.
 
 <SystemDiagram walkthrough="beginner" step={3} />
 
-### 3a. Describe the toy app
+### 3a. Describe the toy app {#step-3a}
 
 The Wizard opens with a text box where you describe the application that you want to evaluate,
 and a few controls around it.
@@ -198,7 +200,7 @@ What it can't do: the two routes are independent, so no answer can draw on both 
 
 </details>
 
-### 3b. Follow the interview
+### 3b. Follow the interview {#step-3b}
 
 The screen splits into two panes:
 
@@ -235,7 +237,7 @@ When the interview is done, the chat shows **Your specification is ready**.
 
 ![The specification ready panel](./assets/web-spec-ready.png)
 
-### 3c. Connect the target
+### 3c. Connect the target {#step-3c}
 
 To run the test cases, METIS needs to know how to reach the toy app. In the **Your specification is
 ready** panel, select **Connect target**.
@@ -257,10 +259,10 @@ Select **Test connection**. When the form lists **The fields are valid** with a 
 check, select **Save connection**. If it says that some checks failed, check the URL, test again,
 and ask the facilitator if it still fails.
 
-### 3d. Explore the demo specification
+### 3d. Explore the demo specification {#step-3d}
 
 We have prepared a small demo interview and specification for the toy app, which you run in
-step 4. In the sidebar, select **(demo) Northstar Policy & Report Assistant**.
+[step 4](#step-4). In the sidebar, select **(demo) Northstar Policy & Report Assistant**.
 
 ![The demo target, with its finished interview on the left and its specification Profile on the right](./assets/web-demo-specification.png)
 
@@ -278,7 +280,7 @@ have the demo specification open.
 
 <SystemDiagram walkthrough="beginner" step={4} />
 
-### 4a. Run the experiment
+### 4a. Run the experiment {#step-4a}
 
 :::warning[Run the demo specification, not your own]
 Your own specification may have many test cases, and its experiment could run well past the
@@ -295,7 +297,7 @@ In the dialog, check that **(demo) Northstar Policy & Report Assistant** is chos
 
 ![The Start an experiment dialog, with the demo specification chosen and Server ready](./assets/web-demo-experiment-dialog.png)
 
-### 4b. Watch the progress
+### 4b. Watch the progress {#step-4b}
 
 ![The Trials tab showing live progress, with the open-link icon of a simulated trial highlighted](./assets/web-demo-trials-progress.png)
 
@@ -303,10 +305,10 @@ Each trial is simulated first and then evaluated. Once a trial has been simulate
 icon appears at the end of its row, which opens that trial's session in Langfuse. While you wait
 for the other trials, you can select it to inspect the traces.
 
-You do not need to wait for the whole run. Carry on to 4c, and come back to your own experiment
-when its trials finish.
+You do not need to wait for the whole run. Carry on to [4c](#step-4c), and come back to your own
+experiment when its trials finish.
 
-### 4c. Open the pre-recorded demo experiment
+### 4c. Open the pre-recorded demo experiment {#step-4c}
 
 We have also recorded a finished run of the demo specification, so that you can carry on even if
 your experiment is still running. Select **(demo) Northstar Policy & Report Assistant** in the
@@ -315,8 +317,8 @@ sidebar, select the **Experiments** tab, and then select the experiment whose ID
 
 ![The Experiments tab of the demo target, with the demo- experiment highlighted](./assets/web-demo-experiments-list.png)
 
-It opens on its **Trials** tab, where every trial is graded. As in step 4b, the open-link icon at
-the end of each row opens that trial's session in Langfuse.
+It opens on its **Trials** tab, where every trial is graded. As in [step 4b](#step-4b), the
+open-link icon at the end of each row opens that trial's session in Langfuse.
 
 ![The demo experiment's Trials tab, with every trial graded](./assets/web-demo-experiment-trials.png)
 
@@ -326,10 +328,11 @@ the end of each row opens that trial's session in Langfuse.
 
 <SystemDiagram walkthrough="beginner" step={5} />
 
-### 5a. Open the report
+### 5a. Open the report {#step-5a}
 
-Go back to METIS, and open the **Report** tab of the experiment that you ran. If your experiment
-did not finish, open the **Report** tab of the pre-recorded `demo-` experiment from step 4c instead.
+Go back to METIS, and open the **Report** tab of the experiment that you ran. If your experiment did
+not finish, open the **Report** tab of the pre-recorded `demo-` experiment from [step 4c](#step-4c)
+instead.
 
 ![The Report tab showing evaluation results](./assets/web-report-tab.png)
 
@@ -338,7 +341,7 @@ to its <Term>features</Term>, <Term>expected behaviours</Term>, and <Term>criter
 behaviour and select one of its criteria to see its <Term>grader</Term>, the judge model, and the
 pass mark.
 
-### 5b. Inspect a test case
+### 5b. Inspect a test case {#step-5b}
 
 Under **Results by test case**, each row is one test case, with its pass rate for each criterion.
 Select a test case, such as **TC-004**, to see its trials.
@@ -348,13 +351,14 @@ Select a test case, such as **TC-004**, to see its trials.
 The test case opens with its persona and scenario, and the pass rate of each criterion against its
 target.
 
-### 5c. Inspect a trial
+### 5c. Inspect a trial {#step-5c}
 
 Under **Trials**, select a trial to read its conversation turn by turn. Beside it, **What the
 graders returned** says why each criterion passed or failed in that trial.
 
 To see the steps that the toy app took in that conversation, select **Open in Langfuse**. It opens
-the trial's session in Langfuse, where you can find the same kinds of steps as in step 1c.
+the trial's session in Langfuse, where you can find the same kinds of steps as in
+[step 1c](#step-1c).
 
 ![A test case with its trials, and the Open in Langfuse button of Trial 1 highlighted](./assets/web-demo-report-trial.png)
 
