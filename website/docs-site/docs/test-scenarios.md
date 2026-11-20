@@ -66,7 +66,9 @@ interview step by step.
 
 ## Next step
 
-Run the specification with the Engine:
+In the browser, select **Start an experiment** on your Target. See [Run your evaluations](run-evaluation.md).
+
+In the CLI, run the specification with the Engine:
 
 ```bash
 metis engine run --input-dir evaluations/specifications/20261117-160005-interview-x9abc
