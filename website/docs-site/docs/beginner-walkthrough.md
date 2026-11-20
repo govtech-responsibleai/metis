@@ -41,9 +41,9 @@ can open them without logging in.
 :::
 
 :::tip[Comfortable with the terminal?]
-Take on the [Advanced (CLI) Walkthrough](advanced-walkthrough.md) instead. It challenges you to
-set up METIS on your own machine and evaluate an application of your own, with the web app and the
-command line.
+Take on the [Advanced (Web + CLI) Walkthrough](advanced-walkthrough.md) instead. It challenges
+you to set up METIS on your own machine and evaluate an application of your own, with the web app
+and the command line.
 :::
 
 This walkthrough teaches you to:
@@ -381,6 +381,6 @@ If you enjoyed this walkthrough or found METIS useful, please star the
 [METIS repository](https://github.com/govtech-responsibleai/metis) on GitHub.
 
 :::tip[Ready for a challenge?]
-Try the [Advanced (CLI) Walkthrough](advanced-walkthrough.md). It takes you through the same steps
-with METIS on your own machine, against an application of your own.
+Try the [Advanced (Web + CLI) Walkthrough](advanced-walkthrough.md). It takes you through the
+same steps with METIS on your own machine, against an application of your own.
 :::

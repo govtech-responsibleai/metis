@@ -1,5 +1,5 @@
 ---
-title: Advanced (CLI) Walkthrough
+title: Advanced (Web + CLI) Walkthrough
 ---
 
 <TocToggle />
