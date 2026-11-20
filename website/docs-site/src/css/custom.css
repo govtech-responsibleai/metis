@@ -633,10 +633,16 @@ html.toc-hidden:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walk
   scroll-margin-top: calc(var(--ifm-navbar-height) + 4rem);
 }
 
-/* The bar is fixed, so the page leaves room for it above the content. */
+/* The bar is fixed, so the page leaves room for it above the content and above the sidebar links.
+   The sidebar links scroll inside their own column, so they move down with a margin, which keeps
+   them clear of the bar while they scroll. */
 @media (min-width: 997px) {
   html.toc-hidden:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) main {
     padding-top: 3.5rem;
+  }
+
+  html.toc-hidden:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) .theme-doc-sidebar-container nav.menu {
+    margin-top: 3.5rem;
   }
 }
 
