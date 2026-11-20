@@ -22,7 +22,7 @@ only during the workshop. The organisers host everything that it uses, so you ha
 install or deploy:
 
 1. **METIS** is hosted at
-   [https://demo1-web.metis.aip.gov.sg/](https://demo1-web.metis.aip.gov.sg/). You use it to
+   [https://go.gov.sg/metis-demo](https://go.gov.sg/metis-demo). You use it to
    describe the application, run the experiment, and read the report.
 2. **Northstar Policy & Report Assistant**, a toy application built to demonstrate METIS, is
    deployed at
@@ -36,7 +36,7 @@ install or deploy:
 These services are not open to the public. To log in to METIS, you need the join token given by
 the facilitators, who also give you the login for Langfuse.
 
-The [workshop slides](https://view.ducks.ai.tech.gov.sg/p/metis/) go with this walkthrough, and you
+The [workshop slides](https://go.gov.sg/metis-slides) go with this walkthrough, and you
 can open them without logging in.
 :::
 
@@ -150,7 +150,7 @@ types in its tree.
 
 ### 2a. Enter the join token {#step-2a}
 
-Open [https://demo1-web.metis.aip.gov.sg/](https://demo1-web.metis.aip.gov.sg/).
+Open [https://go.gov.sg/metis-demo](https://go.gov.sg/metis-demo).
 
 ![The METIS login page](./assets/web-login.png)
 
