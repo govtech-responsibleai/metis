@@ -27,8 +27,7 @@ install or deploy:
 2. **Northstar Policy & Report Assistant**, a toy application built to demonstrate METIS, is
    deployed at
    [https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/](https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/)
-   ([source code](https://github.com/govtech-responsibleai/agentic-eval-toyapp)). This is the
-   application that you evaluate.
+   ([source code](https://github.com/govtech-responsibleai/agentic-eval-toyapp)).
 3. **Langfuse** records every conversation with the toy app as a session, and you read the sessions
    there. You open it from a link in the toy app in [step 1c](#step-1c), and from links in METIS in
    [steps 4](#step-4) and [5](#step-5).
@@ -67,9 +66,9 @@ This walkthrough teaches you to:
 
 The application that you evaluate is
 [Northstar Policy & Report Assistant](https://github.com/govtech-responsibleai/agentic-eval-toyapp/blob/main/README.md),
-a toy app built to demonstrate METIS. It is an assistant for the employees of a fictional company,
-Northstar Services. For each message it chooses one of four actions: answer directly, ask a
-clarifying question, hand over to the policy specialist, or hand over to the report specialist.
+an assistant for the employees of a fictional company, Northstar Services. For each message it
+chooses one of four actions: answer directly, ask a clarifying question, hand over to the policy
+specialist, or hand over to the report specialist.
 
 ### 1a. Get to know the toy app {#step-1a}
 
@@ -90,8 +89,7 @@ policies do not cover. Watch which specialist answers, and whether the app asks 
 
 ### 1b. Inspect a demo session {#step-1b}
 
-The demo sessions are conversations that were recorded earlier, and you can inspect any of them.
-Select **Demo**, and choose one.
+The demo sessions are conversations that were recorded earlier. Select **Demo**, and choose one.
 
 ![The Demo menu, listing the recorded demo sessions](./assets/toyapp-demo-menu.png)
 
@@ -111,7 +109,7 @@ the demo's session.
 ![The toy app's session bar, with the Open in Langfuse button highlighted](./assets/toyapp-open-in-langfuse.png)
 
 :::note
-Langfuse asks you to log in. Use the Langfuse login that the workshop facilitators give you.
+Log in to Langfuse with the Langfuse login from the facilitators.
 :::
 
 The session opens with the employee's question and the app's reply. On the right, select the
@@ -219,8 +217,8 @@ The screen splits into two panes:
 | 5. Scenarios | Review and continue |
 | 6. Test Cases | Select which to include, continue |
 
-From your interview responses, the Wizard determines the features and expected behaviours of your
-target application. Feel free to tick, untick, or edit them, and then select **Continue**.
+The Wizard determines the features and expected behaviours of your target application. Feel free
+to tick, untick, or edit them, and then select **Continue**.
 
 ![Features and Expected Behaviours in the Profile](./assets/wizard-behaviours.png)
 
@@ -295,7 +293,7 @@ experiment** at the top right.
 ![The demo target, with the Start an experiment button highlighted](./assets/web-demo-start-experiment.png)
 
 In the dialog, check that **(demo) Northstar Policy & Report Assistant** is chosen and that it says
-**Server ready**. If it lists a failed check instead, ask the facilitator. Select **Start**.
+**Server ready**. If it lists a failed check, ask the facilitator. Select **Start**.
 
 ![The Start an experiment dialog, with the demo specification chosen and Server ready](./assets/web-demo-experiment-dialog.png)
 
