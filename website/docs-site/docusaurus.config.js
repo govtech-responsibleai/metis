@@ -25,7 +25,7 @@ const config = {
         configureWebpack() {
           return {
             module: {rules: [{resourceQuery: /raw/, type: 'asset/source'}]},
-            resolve: {alias: {'@examples': new URL('../../packages/engine/examples', import.meta.url).pathname}},
+            resolve: {alias: {'@examples': decodeURIComponent(new URL('../../packages/engine/examples', import.meta.url).pathname)}},
           };
         },
       };

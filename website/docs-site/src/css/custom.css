@@ -576,32 +576,49 @@ blockquote > :last-child {
   max-width: 54rem;
 }
 
-/* The workshop page shows files beside their notes, so it needs more width than a text page.
+/* The walkthrough pages show files beside their notes, so they need more width than a text page.
    Three wrappers limit the text: the container (1140px), the column (75% of the container, to
    leave room for the contents), and the text itself. All three are widened here. The page class
    is on <html>, so a rule that depends on the TocToggle button joins both classes without a
    space. The button hides the contents, and the column then takes the full container. */
-.docs-doc-id-stack-2026-workshop main > .container {
+:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) main > .container {
   max-width: 96rem !important;
 }
 
-.docs-doc-id-stack-2026-workshop .theme-doc-markdown {
+/* The contents column runs to the page gutter, so that it ends in line with the navbar rather than
+   leaving an empty strip on the right. The TocToggle button sits at its top. */
+@media (min-width: 997px) {
+  :is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) main > .container {
+    padding-right: 0 !important;
+  }
+}
+
+:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) .theme-doc-markdown {
   max-width: 70rem;
 }
 
 /* Hiding either side lets the text use the room: the cap comes off, and the container's own
    limit (96rem) is what stops it. Docusaurus marks a collapsed sidebar with a class on the
    container, whose hashed suffix can change, so the match is on the stable prefix. */
-html.toc-hidden.docs-doc-id-stack-2026-workshop .theme-doc-markdown,
-.docs-doc-id-stack-2026-workshop main > [class*='docItemWrapperEnhanced'] .theme-doc-markdown {
+html.toc-hidden:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) .theme-doc-markdown,
+:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) main > [class*='docItemWrapperEnhanced'] .theme-doc-markdown {
   max-width: none;
 }
 
-html.toc-hidden.docs-doc-id-stack-2026-workshop .theme-doc-toc-desktop {
+/* The contents sit in a column of their own, a quarter of the row wide. The whole column is hidden,
+   not only the list in it, so that the text can take its place. */
+html.toc-hidden:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) [class*='docItemCol'] + .col {
   display: none;
 }
 
-html.toc-hidden.docs-doc-id-stack-2026-workshop [class*='docItemCol'] {
+/* Prose keeps a comfortable line length however wide the text column grows, while screenshots,
+   code, tables, and diagrams use the full width. Markdown puts each image in a paragraph of its
+   own, so a paragraph that holds an image is left alone. */
+:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) .theme-doc-markdown > :is(header, h2, h3, h4, p:not(:has(img)), ul, ol, blockquote, .theme-admonition) {
+  max-width: 48rem;
+}
+
+html.toc-hidden:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) [class*='docItemCol'] {
   max-width: 100% !important;
 }
 
@@ -612,13 +629,13 @@ html.toc-hidden.docs-doc-id-stack-2026-workshop [class*='docItemCol'] {
 
 /* With the contents hidden, a progress bar sits under the navbar. A step reached from it, or from
    the table at the top, stops below the bar rather than behind it. */
-html.toc-hidden.docs-doc-id-stack-2026-workshop h2[id^='step-'] {
+html.toc-hidden:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) h2[id^='step-'] {
   scroll-margin-top: calc(var(--ifm-navbar-height) + 4rem);
 }
 
 /* The bar is fixed, so the page leaves room for it above the content. */
 @media (min-width: 997px) {
-  html.toc-hidden.docs-doc-id-stack-2026-workshop main {
+  html.toc-hidden:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) main {
     padding-top: 3.5rem;
   }
 }

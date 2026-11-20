@@ -1,38 +1,63 @@
 import {useId} from 'react';
 import styles from './styles.module.css';
 
-// What each step of the workshop walkthrough uses. Step 1 is the installation, which no part of
-// the picture stands for, so it has no entry. A part that the step does not use is dimmed.
-// Without a `step`, every part is lit, which gives the overview.
+// What each step of a walkthrough uses. A part that the step does not use is dimmed. The two
+// walkthroughs number their steps differently, so each has its own table, picked by the
+// `walkthrough` prop. Without a `step`, every part is lit, which gives the overview. A step with
+// no entry, such as installing METIS, dims every part.
 const IN_USE = {
-  2: ['browser', 'app'],
-  3: ['wizard', 'gateway', 'modelCalls'],
-  4: ['engine', 'app', 'langfuse', 'gateway', 'callApp', 'logTraces', 'modelCalls'],
-  5: ['browser', 'langfuse', 'openSession'],
-  6: ['engine', 'langfuse', 'gateway', 'readTraces', 'modelCalls'],
-  7: ['engine', 'browser'],
+  beginner: {
+    1: ['app', 'langfuse', 'logTraces'], // try a demo session and open its trace
+    3: ['metis'], // build the specification in the Wizard
+    4: ['metis', 'app', 'langfuse', 'callApp', 'logTraces', 'readTraces', 'openSession'], // simulate, grade, and open a trial's session
+    5: ['metis'], // read the report
+  },
+  advanced: {
+    1: ['app'], // look at the target application
+    3: ['metis'], // the Wizard drafts the specification
+    4: ['metis', 'app', 'langfuse', 'callApp', 'logTraces', 'openSession', 'readTraces'], // simulate, inspect, and grade
+    5: ['metis'], // read the report
+  },
 };
 
 const DESCRIPTION =
-  "The participant's laptop runs the METIS Wizard, the METIS engine and a browser. The engine plays " +
-  'simulated users against the toy app, which logs traces to Langfuse. The engine later reads ' +
-  'those traces back to grade them, and the browser opens them in Langfuse. A model gateway ' +
-  'serves the language model calls.';
+  'METIS drafts specifications, plays simulated users against the toy app, reads traces from ' +
+  'Langfuse to grade them, and generates a report. The toy app logs every conversation to ' +
+  'Langfuse as a trace.';
 
-// A picture of the system that the walkthrough uses. `step` is the walkthrough step (1 to 7) to
-// light up; leave it out to light up everything. Nothing in it is specific to one deployment:
-// there are no addresses, keys or logins, so it is safe to publish.
-export default function SystemDiagram({step}) {
+//  Layout (all three boxes are peers, no container):
+//
+//     METIS            Toy app
+//     (left)        (top-centre)
+//       |  \_____/     |
+//       |              | logs traces
+//       |<-- reads --->|
+//       |-- inspects ->| Langfuse
+//       |              (right)
+//
+export default function SystemDiagram({walkthrough, step}) {
   const id = useId();
   const arrow = `${id}-arrow`;
   const shadow = `${id}-shadow`;
-  const lit = step === undefined ? null : IN_USE[step] ?? [];
+  const lit = step === undefined ? null : IN_USE[walkthrough]?.[step] ?? [];
   const part = (name) => (lit === null || lit.includes(name) ? styles.on : styles.off);
+
+  // Box geometry
+  const metis = {x: 60, y: 180, w: 240, h: 90};
+  const app = {x: 410, y: 70, w: 220, h: 90};
+  const langfuse = {x: 690, y: 180, w: 210, h: 90};
+
+  // Y coords for the two METIS↔Langfuse horizontal arrows (inside both boxes' vertical span)
+  const readY = metis.y + 28;   // "reads traces" ← (upper)
+  const inspectY = metis.y + 62; // "inspects session" → (lower)
+
+  // Midpoint X between METIS right edge and Langfuse left edge (for label placement)
+  const midX = (metis.x + metis.w + langfuse.x) / 2;
 
   return (
     <figure className={styles.figure}>
       <svg
-        viewBox="0 80 960 490"
+        viewBox="0 40 960 260"
         role="img"
         aria-label={step === undefined ? 'System architecture' : `System architecture, step ${step}`}
         aria-description={DESCRIPTION}
@@ -53,74 +78,58 @@ export default function SystemDiagram({step}) {
           </filter>
         </defs>
 
-        <rect y="80" width="960" height="490" rx="16" fill="#ffffff" />
+        <rect y="40" width="960" height="260" rx="16" fill="#ffffff" />
 
-        {/* Participant's laptop */}
-        <rect x="40" y="110" width="300" height="340" rx="18" fill="#f1f5f9" stroke="#94a3b8" strokeWidth="1.5" />
-        <text x="64" y="138" fontSize="15" fontWeight="700" fill="#334155">
-          Participant's laptop
-        </text>
-
-        <g className={part('wizard')}>
-          <rect x="64" y="160" width="252" height="64" rx="12" fill="#ffffff" stroke="#3b82f6" strokeWidth="2" filter={`url(#${shadow})`} />
-          <text x="84" y="188" fontSize="15" fontWeight="700" fill="#1e293b">METIS Wizard</text>
-          <text x="84" y="208" fontSize="12.5" fill="#64748b">Drafts the specification</text>
-        </g>
-        <g className={part('engine')}>
-          <rect x="64" y="250" width="252" height="84" rx="12" fill="#ffffff" stroke="#3b82f6" strokeWidth="2" filter={`url(#${shadow})`} />
-          <text x="84" y="278" fontSize="15" fontWeight="700" fill="#1e293b">METIS engine</text>
-          <text x="84" y="299" fontSize="12.5" fill="#64748b">simulate · evaluate</text>
-          <text x="84" y="318" fontSize="12.5" fill="#64748b">insights report</text>
-        </g>
-        <g className={part('browser')}>
-          <rect x="64" y="360" width="252" height="64" rx="12" fill="#ffffff" stroke="#3b82f6" strokeWidth="2" filter={`url(#${shadow})`} />
-          <text x="84" y="398" fontSize="15" fontWeight="700" fill="#1e293b">Browser</text>
+        {/* METIS (left) */}
+        <g className={part('metis')}>
+          <rect x={metis.x} y={metis.y} width={metis.w} height={metis.h} rx="14" fill="#eff6ff" stroke="#3b82f6" strokeWidth="2" filter={`url(#${shadow})`} />
+          <text x={metis.x + metis.w / 2} y={metis.y + 38} fontSize="18" fontWeight="700" fill="#1e293b" textAnchor="middle">METIS</text>
+          <text x={metis.x + metis.w / 2} y={metis.y + 60} fontSize="13" fill="#64748b" textAnchor="middle">Engine, Wizard &amp; Insights</text>
         </g>
 
-        {/* Toy app */}
+        {/* Toy app (top-centre) */}
         <g className={part('app')}>
-          <rect x="440" y="110" width="200" height="100" rx="14" fill="#ecfdf5" stroke="#10b981" strokeWidth="2" filter={`url(#${shadow})`} />
-          <text x="540" y="146" fontSize="16" fontWeight="700" fill="#065f46" textAnchor="middle">Toy app</text>
-          <text x="540" y="167" fontSize="12.5" fill="#047857" textAnchor="middle">Employee assistant with</text>
-          <text x="540" y="185" fontSize="12.5" fill="#047857" textAnchor="middle">policy and report specialists</text>
+          <rect x={app.x} y={app.y} width={app.w} height={app.h} rx="14" fill="#ecfdf5" stroke="#10b981" strokeWidth="2" filter={`url(#${shadow})`} />
+          <text x={app.x + app.w / 2} y={app.y + 35} fontSize="16" fontWeight="700" fill="#065f46" textAnchor="middle">Toy app</text>
+          <text x={app.x + app.w / 2} y={app.y + 55} fontSize="12.5" fill="#047857" textAnchor="middle">Employee assistant with</text>
+          <text x={app.x + app.w / 2} y={app.y + 72} fontSize="12.5" fill="#047857" textAnchor="middle">policy and report specialists</text>
         </g>
 
-        {/* Langfuse */}
+        {/* Langfuse (right, same Y as METIS) */}
         <g className={part('langfuse')}>
-          <rect x="740" y="250" width="180" height="100" rx="14" fill="#fdf2f8" stroke="#ec4899" strokeWidth="2" filter={`url(#${shadow})`} />
-          <text x="830" y="294" fontSize="16" fontWeight="700" fill="#9d174d" textAnchor="middle">Langfuse</text>
-          <text x="830" y="316" fontSize="12.5" fill="#be185d" textAnchor="middle">Stores every conversation</text>
-          <text x="830" y="334" fontSize="12.5" fill="#be185d" textAnchor="middle">as a trace</text>
+          <rect x={langfuse.x} y={langfuse.y} width={langfuse.w} height={langfuse.h} rx="14" fill="#fdf2f8" stroke="#ec4899" strokeWidth="2" filter={`url(#${shadow})`} />
+          <text x={langfuse.x + langfuse.w / 2} y={langfuse.y + 38} fontSize="16" fontWeight="700" fill="#9d174d" textAnchor="middle">Langfuse</text>
+          <text x={langfuse.x + langfuse.w / 2} y={langfuse.y + 58} fontSize="12.5" fill="#be185d" textAnchor="middle">Stores every conversation</text>
+          <text x={langfuse.x + langfuse.w / 2} y={langfuse.y + 75} fontSize="12.5" fill="#be185d" textAnchor="middle">as a trace</text>
         </g>
 
-        {/* Model gateway */}
-        <g className={part('gateway')}>
-          <rect x="440" y="470" width="200" height="70" rx="14" fill="#fffbeb" stroke="#f59e0b" strokeWidth="2" filter={`url(#${shadow})`} />
-          <text x="540" y="502" fontSize="16" fontWeight="700" fill="#92400e" textAnchor="middle">Model gateway</text>
-          <text x="540" y="522" fontSize="12.5" fill="#b45309" textAnchor="middle">LLM access</text>
-        </g>
 
-        {/* Connections */}
+        {/* --- Connections --- */}
+
+        {/* METIS --interacts with app--> Toy app (up from METIS top to Toy app bottom) */}
         <g className={part('callApp')}>
-          <path d="M316,270 H540 V212" fill="none" stroke="#475569" strokeWidth="2" markerEnd={`url(#${arrow})`} />
-          <text x="558" y="262" fontSize="12.5" fill="#334155">interacts with app</text>
+          <path d={`M${metis.x + metis.w - 40},${metis.y} V${app.y + app.h / 2} H${app.x}`} fill="none" stroke="#475569" strokeWidth="2" markerEnd={`url(#${arrow})`} />
+          <text x={metis.x + metis.w - 28} y={app.y + app.h / 2 - 8} fontSize="12.5" fill="#334155">interacts with app</text>
         </g>
+
+        {/* Toy app --logs traces--> Langfuse (right then down) */}
         <g className={part('logTraces')}>
-          <path d="M640,160 H830 V248" fill="none" stroke="#475569" strokeWidth="2" markerEnd={`url(#${arrow})`} />
-          <text x="735" y="150" fontSize="12.5" fill="#334155" textAnchor="middle">logs traces</text>
+          <path d={`M${app.x + app.w},${app.y + app.h / 2} H${langfuse.x + langfuse.w / 2} V${langfuse.y}`} fill="none" stroke="#475569" strokeWidth="2" markerEnd={`url(#${arrow})`} />
+          <text x={app.x + app.w + 12} y={app.y + app.h / 2 - 8} fontSize="12.5" fill="#334155">logs traces</text>
         </g>
+
+        {/* Langfuse --reads traces--> METIS (straight horizontal, upper) */}
         <g className={part('readTraces')}>
-          <path d="M738,314 H318" fill="none" stroke="#475569" strokeWidth="2" markerEnd={`url(#${arrow})`} />
-          <text x="528" y="306" fontSize="12.5" fill="#334155" textAnchor="middle">reads traces</text>
+          <path d={`M${langfuse.x},${readY} H${metis.x + metis.w}`} fill="none" stroke="#475569" strokeWidth="2" markerEnd={`url(#${arrow})`} />
+          <text x={midX} y={readY - 8} fontSize="12.5" fill="#334155" textAnchor="middle">reads traces</text>
         </g>
+
+        {/* METIS --inspects session--> Langfuse (straight horizontal, lower) */}
         <g className={part('openSession')}>
-          <path d="M316,392 H830 V352" fill="none" stroke="#475569" strokeWidth="2" markerEnd={`url(#${arrow})`} />
-          <text x="573" y="384" fontSize="12.5" fill="#334155" textAnchor="middle">inspects a Langfuse session</text>
+          <path d={`M${metis.x + metis.w},${inspectY} H${langfuse.x}`} fill="none" stroke="#475569" strokeWidth="2" markerEnd={`url(#${arrow})`} />
+          <text x={midX} y={inspectY + 18} fontSize="12.5" fill="#334155" textAnchor="middle">inspects a Langfuse session</text>
         </g>
-        <g className={part('modelCalls')}>
-          <path d="M190,450 V505 H438" fill="none" stroke="#475569" strokeWidth="2" markerEnd={`url(#${arrow})`} />
-          <text x="206" y="496" fontSize="12.5" fill="#334155">model calls</text>
-        </g>
+
       </svg>
     </figure>
   );
