@@ -233,9 +233,11 @@ ID of its session in `target_session_id`. List them, and pick any one:
 grep -H target_session_id evaluations/experiments/*/outputs/trials/*/record.json
 ```
 
-In Langfuse, go to **Sessions**, and paste the session ID into the search. To read the session,
-follow [1c of the beginner walkthrough](beginner-walkthrough.md#step-1c),
-which explains sessions, traces, and the types of step that Langfuse records.
+Open Langfuse in your browser. On the workshop's Langfuse server, log in with the Langfuse login
+that the facilitators give you, which is not the same as the join token. Go to **Sessions**, and
+paste the session ID into the search. To read the session, follow
+[1c of the beginner walkthrough](beginner-walkthrough.md#step-1c), which explains sessions,
+traces, and the types of step that Langfuse records.
 
 ### 4c. Grade the conversations {#step-4c}
 
