@@ -518,12 +518,21 @@ blockquote > :last-child {
 }
 
 .table-of-contents__link {
+  margin-left: -0.5rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-sm);
   line-height: 1.4;
 }
 
-.table-of-contents__link:hover,
+.table-of-contents__link:hover {
+  color: hsl(var(--accent));
+}
+
+/* The section in view has the accent fill of the active page in the sidebar. The weight stays
+   the same, so the lines do not wrap again. */
 .table-of-contents__link--active {
   color: hsl(var(--accent));
+  background: hsl(var(--accent) / 0.08);
 }
 
 .pagination-nav__link {
@@ -622,9 +631,15 @@ html.toc-hidden:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walk
   max-width: 100% !important;
 }
 
-/* StepControls marks the parts of a folded step, which are hidden until the reader unfolds it. */
-[data-step-folded] {
+/* StepControls marks the parts of a collapsed step or sub-step, which are hidden until the reader
+   expands it, and fades the parts of a done step. */
+[data-step-collapsed] {
   display: none !important;
+}
+
+[data-step-faded] {
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
 }
 
 /* With the contents hidden, a progress bar sits under the navbar. A step reached from it, or from
@@ -633,10 +648,16 @@ html.toc-hidden:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walk
   scroll-margin-top: calc(var(--ifm-navbar-height) + 4rem);
 }
 
-/* The bar is fixed, so the page leaves room for it above the content. */
+/* The bar is fixed, so the page leaves room for it above the content and above the sidebar links.
+   The sidebar links scroll inside their own column, so they move down with a margin, which keeps
+   them clear of the bar while they scroll. */
 @media (min-width: 997px) {
   html.toc-hidden:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) main {
     padding-top: 3.5rem;
+  }
+
+  html.toc-hidden:is(.docs-doc-id-advanced-walkthrough, .docs-doc-id-beginner-walkthrough) .theme-doc-sidebar-container nav.menu {
+    margin-top: 3.5rem;
   }
 }
 

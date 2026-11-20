@@ -2,6 +2,9 @@
 title: Run your evaluations
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 An evaluation has two steps. **Simulate** drives your application with simulated users and
 records each conversation. **Evaluate** reads those conversations from Langfuse and runs the
 graders.
@@ -10,6 +13,25 @@ Before you start, finish the [pre-requisites](prerequisites.md) and
 [build your specification](wizard.md).
 
 ## Run an evaluation
+
+<Tabs groupId="wizard-interface">
+<TabItem value="browser" label="Browser" default>
+
+If you've built your specification via the web interface, [connect your target](target-connection.md) 
+before running the engine.
+
+1. Open your Target and select **Start an experiment** at the top right.
+2. In the dialog, check the specification and wait for **Server ready**. METIS checks if your environment
+is ready.
+3. Select **Start**. The experiment opens on its **Trials** tab.
+
+![The Trials tab of an experiment, with the progress ring and one row for each trial](./assets/web-demo-trials-progress.png)
+
+The Trials tab shows the progress and one row for each Trial, with a link to its session in Langfuse. It runs 
+all simulations before grading them. When complete, the **Report** is generated.
+
+</TabItem>
+<TabItem value="cli" label="CLI">
 
 ### Inputs
 
@@ -44,7 +66,12 @@ metis engine run --input-dir my-evaluation
 For the options of each step, see [Run the test suite](run-test-suite.md) and
 [Run the graders](run-graders.md).
 
+</TabItem>
+</Tabs>
+
 ### Outputs
+
+Both ways write the same experiment folder. With the web app, the folder is on the server.
 
 ```text
 evaluations/experiments/<your-experiment>/
