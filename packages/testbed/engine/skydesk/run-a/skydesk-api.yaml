@@ -1,0 +1,13 @@
+# SkyDesk's API, bound to METIS's generic HTTP runner.
+# Set SKYDESK_URL to the version under test, for example http://127.0.0.1:8100 for the
+# clean version (see `skydesk serve-variants`). SkyDesk has no authentication.
+schema_version: 1
+identity: {name: SkyDesk, version: "0.1.0"}
+transport: http
+spec_url: ${SKYDESK_URL}/openapi.json
+submissions:
+  - "POST /api/v1/chat"
+advice:
+  notes: >-
+    Send every user message with POST /api/v1/chat. Leave session_id out of the first
+    message only; send the session_id from that reply with every later message.

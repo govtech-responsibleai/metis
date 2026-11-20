@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, cast
 
 import typer
 from rich.progress import (
@@ -27,16 +29,19 @@ from metis.testbed.evaluation import (
     detect_target_version,
     run_evaluation,
 )
+from metis.testbed.touchstone import TouchstoneMap, export_verdicts
 from metis.wizard import InterviewerUnavailable
 from metis.wizard.adapters.llm.gateway import GatewayInterviewer
 
 if TYPE_CHECKING:
     from metis.testbed.contracts import EvaluationRecord
+    from metis.testbed.regrade import TraceLayout
 
 TESTBED_ROOT = Path(__file__).resolve().parents[3]
 REPOSITORY_ROOT = TESTBED_ROOT.parents[1]
 DEFAULT_CONFIG = TESTBED_ROOT / "wizard/cases/config.yaml"
 DEFAULT_RESULTS = TESTBED_ROOT / "results"
+DEFAULT_TOUCHSTONE_MAP = TESTBED_ROOT / "engine/skydesk/run-a/touchstone.yaml"
 
 app = typer.Typer(help="Run and compare shared METIS evaluations.")
 app.command("embed")(embed_folder)
@@ -212,6 +217,86 @@ def compare(
     )
     console.print(table)
     console.print(f"Compared {comparison.older_id} with {comparison.newer_id}.")
+
+
+@app.command("touchstone-verdicts")
+def touchstone_verdicts(
+    experiments: Annotated[
+        list[Path],
+        typer.Argument(
+            exists=True,
+            file_okay=False,
+            help="Execution folders (experiments/execute/<id>-<time>/).",
+        ),
+    ],
+    out: Annotated[
+        Path,
+        typer.Option(file_okay=False, help="Folder for one verdicts file per run."),
+    ],
+    mapping: Annotated[
+        Path,
+        typer.Option(
+            "--map",
+            exists=True,
+            dir_okay=False,
+            help="Suite check and scenario IDs for the Specification's IDs.",
+        ),
+    ] = DEFAULT_TOUCHSTONE_MAP,
+) -> None:
+    """Write METIS runs as Touchstone verdicts files, for a Touchstone app's answer key."""
+    loaded = TouchstoneMap.load_file(mapping)
+    out.mkdir(parents=True, exist_ok=True)
+    for experiment in experiments:
+        target = out / f"{experiment.name}.json"
+        target.write_text(
+            json.dumps(
+                export_verdicts(experiment, loaded), indent=1, ensure_ascii=False
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        console.print(f"Saved: {target}")
+
+
+@app.command()
+def regrade(
+    experiment: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            file_okay=False,
+            help="Execution folder whose sessions to grade.",
+        ),
+    ],
+    trace_layout: Annotated[
+        str, typer.Option("--layout", help="turn_root (as saved) or http_root.")
+    ],
+    out: Annotated[
+        Path, typer.Option(file_okay=False, help="Folder for the new results.")
+    ],
+    concurrency: Annotated[int, typer.Option(help="Sessions graded at once.")] = 8,
+) -> None:
+    """Grade a run's saved sessions again, offline, in a chosen trace layout."""
+    from metis.core.model_settings import load_env
+    from metis.testbed.regrade import regrade as regrade_run
+
+    if trace_layout not in ("turn_root", "http_root"):
+        console.print("[red]--layout must be turn_root or http_root.[/red]")
+        raise typer.Exit(code=2)
+    load_env()
+    try:
+        graded = asyncio.run(
+            regrade_run(
+                experiment.resolve(),
+                cast("TraceLayout", trace_layout),
+                out,
+                concurrency,
+            )
+        )
+    except ValueError as exc:
+        console.print(f"[red]Cannot grade the run:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+    console.print(f"Graded {graded} session(s) in the {trace_layout} layout into {out}")
 
 
 if __name__ == "__main__":

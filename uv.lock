@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.11"
 
 [manifest]
@@ -804,6 +804,7 @@ version = "1.0.0b3"
 source = { editable = "packages/testbed" }
 dependencies = [
     { name = "metis-core" },
+    { name = "metis-engine" },
     { name = "metis-wizard" },
     { name = "openai" },
     { name = "pyyaml" },
@@ -813,6 +814,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "metis-core", editable = "packages/core" },
+    { name = "metis-engine", editable = "packages/engine" },
     { name = "metis-wizard", editable = "packages/wizard" },
     { name = "openai", specifier = ">=1.40" },
     { name = "pyyaml", specifier = ">=6.0" },

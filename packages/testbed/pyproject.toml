@@ -9,6 +9,7 @@ description = "Shared evaluation data and review tools for METIS components"
 requires-python = ">=3.11"
 dependencies = [
     "metis-core",
+    "metis-engine",
     "metis-wizard",
     "openai>=1.40",
     "pyyaml>=6.0",
@@ -20,6 +21,7 @@ metis-testbed = "metis.testbed.cli:app"
 
 [tool.uv.sources]
 metis-core = { workspace = true }
+metis-engine = { workspace = true }
 metis-wizard = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
