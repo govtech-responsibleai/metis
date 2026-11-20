@@ -19,9 +19,11 @@ at the start of most steps, with the parts that the step uses highlighted.
 :::warning[Choose an application and a Langfuse server]
 You need an application to evaluate, and a Langfuse server where it logs its traces. Choose one:
 
-- **The workshop's toy app and Langfuse server.** During the workshop, you can evaluate the
-  [hosted toy app](https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/), which already logs its traces to the workshop's Langfuse server.
-  Step 0b shows you how to get the credentials.
+- **The workshop's toy app and Langfuse server.** If you attend a METIS workshop, you can evaluate
+  the [hosted toy app](https://demo1-agentic-eval-toyapp.metis.aip.gov.sg/), which logs its traces
+  to the workshop's hosted Langfuse server. The facilitators send you a join token before the
+  workshop, and step 0b shows you how to use it to get the Langfuse credentials and the toy app's
+  URL.
 - **Your own application and Langfuse server.** You need a running application with an API or a
   web UI, and a Langfuse instance where it logs its traces. See
   [Pre-requisites](prerequisites.md) to set them up.
@@ -52,6 +54,8 @@ This walkthrough teaches you to:
 ## Step 0: Install METIS and set up your environment {#step-0}
 
 Do this step before the workshop, so that the workshop time goes to evaluating your application.
+If you use the workshop's toy app, you need the join token that the facilitators send you before
+the workshop. If it has not arrived, ask the facilitators for it.
 
 ### 0a. Install METIS
 
@@ -63,13 +67,14 @@ cd metis
 make install
 ```
 
-### 0b. Get the workshop's Langfuse credentials (optional)
+### 0b. Get the workshop's Langfuse credentials and toy app URL (optional)
 
-Skip this step if you use your own Langfuse server. The workshop's Langfuse server works only with
-the hosted toy app, which is already set up to log its traces there.
+Skip this step if you use your own application and Langfuse server. The workshop's Langfuse server
+works only with the hosted toy app, which is already set up to log its traces there. This step gets
+you the Langfuse credentials and the toy app's URL.
 
-1. Log in to the [METIS web app](https://demo1-web.metis.aip.gov.sg/) with the join token from the
-   facilitators, as in [step 2 of the beginner walkthrough](beginner-walkthrough.md#step-2).
+1. Log in to the [METIS web app](https://demo1-web.metis.aip.gov.sg/) with the join token that the
+   facilitators sent you, as in [step 2 of the beginner walkthrough](beginner-walkthrough.md#step-2).
 2. Select your username at the bottom of the sidebar, and then select **CLI settings**.
 
    ![The account menu, with CLI settings highlighted](./assets/web-cli-settings-menu.png)
