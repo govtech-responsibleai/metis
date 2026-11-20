@@ -104,8 +104,9 @@ keeps pressing.
 
 ### 1c. Inspect the demo session in Langfuse {#step-1c}
 
-The toy app records each conversation in Langfuse as a <Term>trace</Term>. Select **Open in
-Langfuse** to open the trace of the demo session that you just watched.
+The toy app records each conversation in Langfuse as a <Term>session</Term>, with one
+<Term>trace</Term> for each message that the employee sends. Select **Open in Langfuse** to open
+the demo's session.
 
 ![The toy app's session bar, with the Open in Langfuse button highlighted](./assets/toyapp-open-in-langfuse.png)
 
@@ -114,7 +115,7 @@ Langfuse asks you to log in. Use the Langfuse login that the workshop facilitato
 :::
 
 The session opens with the employee's question and the app's reply. On the right, select the
-**agent-turn** trace, and then select its `coordinator-action` step to see which of the four
+first **agent-turn** trace, and then select its `coordinator-action` step to see which of the four
 actions the app chose.
 
 ![The demo session in Langfuse, with the agent-turn trace highlighted](./assets/toyapp-demo-dog-langfuse-session.png)
