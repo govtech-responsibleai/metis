@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   START_BLOCKED,
+  completesNow,
   interviewReady,
-  placeholderModel,
-  stateForDownload,
+  filledRunModels,
+  withRunModel,
   withRunModels,
 } from "./RunSettings";
 import type {
@@ -83,15 +84,29 @@ test("the run settings step writes model names only into the experiment defaults
   });
 });
 
-test("continuing with no change packages the same state as before the step", () => {
-  assert.equal(stateForDownload(state, null), state);
-  assert.deepEqual(
-    stateForDownload(state, { judge: "j" }).specification.defaults,
-    { judge_model: "j" },
-  );
+test("the fields start with the recorded models, else the models of the environment", () => {
+  const statuses: ModelStatus[] = [
+    { ...status("user_agent", true), model: "env-ua" },
+    { ...status("runner_agent", true), model: "env-ra" },
+    { ...status("judge", true), model: "env-judge" },
+  ];
+  assert.deepEqual(filledRunModels(specification, statuses), {
+    user_agent: "env-ua",
+    judge: "env-judge",
+  });
+  const bound = {
+    ...specification,
+    target_binding: {},
+    defaults: { judge_model: "spec-judge" },
+  } as unknown as Specification;
+  assert.deepEqual(filledRunModels(bound, statuses), {
+    user_agent: "env-ua",
+    runner_agent: "env-ra",
+    judge: "spec-judge",
+  });
 });
 
-test("the runner agent placeholder follows the user agent model, as the engine does", () => {
+test("the runner agent field follows the user agent field until the user changes it, as the engine does", () => {
   const statuses: ModelStatus[] = [
     { ...status("user_agent", true), model: "env-ua" },
     {
@@ -100,21 +115,39 @@ test("the runner agent placeholder follows the user agent model, as the engine d
       source: "user agent model",
     },
   ];
-  assert.equal(placeholderModel("runner_agent", statuses, {}), "env-ua");
+  const bound = {
+    ...specification,
+    target_binding: {},
+  } as unknown as Specification;
+  const filled = filledRunModels(bound, statuses);
+  assert.equal(filled.runner_agent, "env-ua");
+
+  const typed = withRunModel(filled, "user_agent", "typed-ua", statuses);
+  assert.equal(typed.runner_agent, "typed-ua");
+
+  const own = withRunModel(typed, "runner_agent", "own-ra", statuses);
   assert.equal(
-    placeholderModel("runner_agent", statuses, { user_agent: " typed-ua " }),
-    "typed-ua",
+    withRunModel(own, "user_agent", "other-ua", statuses).runner_agent,
+    "own-ra",
   );
+
   const ownModel: ModelStatus[] = [
     statuses[0],
     { ...status("runner_agent", true), model: "env-ra" },
   ];
+  const separate = filledRunModels(bound, ownModel);
   assert.equal(
-    placeholderModel("runner_agent", ownModel, { user_agent: "typed-ua" }),
+    withRunModel(separate, "user_agent", "typed-ua", ownModel).runner_agent,
     "env-ra",
   );
-  assert.equal(
-    placeholderModel("user_agent", statuses, { user_agent: "typed-ua" }),
-    "env-ua",
-  );
+});
+
+test("the run settings step opens on every path that completes the Interview", () => {
+  const inProgress = { id: "a", done: false };
+  const done = { id: "a", done: true };
+  assert.equal(completesNow(inProgress, done), true);
+  assert.equal(completesNow(null, done), false);
+  assert.equal(completesNow({ id: "b", done: false }, done), false);
+  assert.equal(completesNow(done, done), false);
+  assert.equal(completesNow(done, inProgress), false);
 });
