@@ -55,9 +55,9 @@ This walkthrough teaches you to:
 |---|---|---|
 | [Step 1](#step-1) | Explore the toy application | 10 min |
 | [Step 2](#step-2) | Log in to METIS | 5 min |
-| [Step 3](#step-3) | Build a specification in the Wizard | 20 min |
-| [Step 4](#step-4) | Start and watch the experiment | 10 min |
-| [Step 5](#step-5) | Read the report | 15 min |
+| [Step 3](#step-3) | Build a specification in the Wizard | 15 min |
+| [Step 4](#step-4) | Start and watch the experiment | 20 min |
+| [Step 5](#step-5) | Read the report | 10 min |
 | [Step 6](#step-6) | Provide feedback and share your use case | After the workshop |
 
 ## Step 1: Explore the toy application (10 min) {#step-1}
@@ -161,7 +161,7 @@ password for you.
 
 **Checkpoint:** you see the METIS opening screen with a text box and controls.
 
-## Step 3: Build a specification in the Wizard (20 min) {#step-3}
+## Step 3: Build a specification in the Wizard (15 min) {#step-3}
 
 <SystemDiagram walkthrough="beginner" step={3} />
 
@@ -259,8 +259,8 @@ and ask the facilitator if it still fails.
 
 ### 3d. Explore the demo specification
 
-We have prepared a demo interview and specification for the toy app, which you run in step 4.
-It has only 3 test cases and 4 trials, so its experiment finishes in under 10 minutes. In the sidebar, select **(demo) Northstar Policy & Report Assistant**.
+We have prepared a small demo interview and specification for the toy app, which you run in
+step 4. In the sidebar, select **(demo) Northstar Policy & Report Assistant**.
 
 ![The demo target, with its finished interview on the left and its specification Profile on the right](./assets/web-demo-specification.png)
 
@@ -274,7 +274,7 @@ Read how we set it up, and compare it with the specification that you built:
 **Checkpoint:** you have your own specification with a saved connection to the toy app, and you
 have the demo specification open.
 
-## Step 4: Start and watch the experiment (10 min) {#step-4}
+## Step 4: Start and watch the experiment (20 min) {#step-4}
 
 <SystemDiagram walkthrough="beginner" step={4} />
 
@@ -282,7 +282,7 @@ have the demo specification open.
 
 :::warning[Run the demo specification, not your own]
 Your own specification may have many test cases, and its experiment could run well past the
-workshop. The demo has 3 test cases and 4 trials, so it finishes in under 10 minutes.
+workshop. The demo has 3 test cases and 4 trials, so it finishes in about 15 minutes.
 :::
 
 In the sidebar, select **(demo) Northstar Policy & Report Assistant**, and then select **Start an
@@ -301,9 +301,10 @@ In the dialog, check that **(demo) Northstar Policy & Report Assistant** is chos
 
 Each trial is simulated first and then evaluated. Once a trial has been simulated, an open-link
 icon appears at the end of its row, which opens that trial's session in Langfuse. While you wait
-for the other trials, you can select it to inspect the traces. This is optional.
+for the other trials, you can select it to inspect the traces.
 
-Wait for all trials to finish.
+You do not need to wait for the whole run. Carry on to 4c, and come back to your own experiment
+when its trials finish.
 
 ### 4c. Open the pre-recorded demo experiment
 
@@ -321,7 +322,7 @@ the end of each row opens that trial's session in Langfuse.
 
 **Checkpoint:** your experiment's trials are complete, or you have the `demo-` experiment open.
 
-## Step 5: Read the report (15 min) {#step-5}
+## Step 5: Read the report (10 min) {#step-5}
 
 <SystemDiagram walkthrough="beginner" step={5} />
 

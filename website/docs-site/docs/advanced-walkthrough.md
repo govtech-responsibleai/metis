@@ -44,9 +44,9 @@ This walkthrough teaches you to:
 | [Step 0](#step-0) | Install METIS and set up your environment | Before the workshop |
 | [Step 1](#step-1) | Explore your target application | 10 min |
 | [Step 2](#step-2) | Start METIS | 5 min |
-| [Step 3](#step-3) | Build a specification in the Wizard | 20 min |
-| [Step 4](#step-4) | Run the experiment | 10 min |
-| [Step 5](#step-5) | Read the report | 15 min |
+| [Step 3](#step-3) | Build a specification in the Wizard | 15 min |
+| [Step 4](#step-4) | Run the experiment | 20 min |
+| [Step 5](#step-5) | Read the report | 10 min |
 | [Step 6](#step-6) | Provide feedback and share your use case | After the workshop |
 
 ## Step 0: Install METIS and set up your environment {#step-0}
@@ -148,7 +148,7 @@ Keep the terminal open, and open the address that the output shows, such as
 
 **Checkpoint:** the Wizard opening screen shows a text box and its controls.
 
-## Step 3: Build a specification in the Wizard (20 min) {#step-3}
+## Step 3: Build a specification in the Wizard (15 min) {#step-3}
 
 <SystemDiagram walkthrough="advanced" step={3} />
 
@@ -195,7 +195,7 @@ Ctrl-C in the terminal to stop the servers. The folder holds the inputs of step 
 `evaluations/specifications/`, and `specification.yaml` has a `target_binding:` line that points
 to the target connection.
 
-## Step 4: Run the experiment (10 min) {#step-4}
+## Step 4: Run the experiment (20 min) {#step-4}
 
 <SystemDiagram walkthrough="advanced" step={4} />
 
@@ -247,7 +247,7 @@ trace.
 **Checkpoint:** the output ends with "EVALUATION COMPLETE" and `0 failed`, and
 `evaluations/experiments/<your-experiment>/outputs/reports/results.json` exists.
 
-## Step 5: Read the report (15 min) {#step-5}
+## Step 5: Read the report (10 min) {#step-5}
 
 <SystemDiagram walkthrough="advanced" step={5} />
 
