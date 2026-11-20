@@ -213,8 +213,8 @@ The screen splits into two panes:
 | Interview step | What you do |
 |---|---|
 | 1. Understanding your target | Answer questions in the chat |
-| 2. Features / Behaviours | Tick the ones to measure, select **Continue** |
-| 3. Acceptance Criteria | Review, select **Accept Criteria** |
+| 2. Features / Expected Behaviours | Tick the ones to measure, select **Continue** |
+| 3. Acceptance criteria | Review, select **Accept Criteria** |
 | 4. Personas | Review and continue |
 | 5. Scenarios | Review and continue |
 | 6. Test Cases | Select which to include, continue |
@@ -257,8 +257,9 @@ Leave **HTTP API** selected, and fill in the form:
 - Leave **API key variable** and **More options** as they are.
 
 Select **Test connection**. When the form lists **The fields are valid** with a tick beside each
-check, select **Save connection**. If it says that some checks failed, check the URL, test again,
-and ask the facilitator if it still fails.
+check, select **Save connection**. If it also says "This server checks the fields only", ignore
+that line, because METIS reaches the toy app when it runs the experiment. If it says that some
+checks failed, check the URL, test again, and ask the facilitator if it still fails.
 
 ### 3d. Explore the demo specification {#step-3d}
 
