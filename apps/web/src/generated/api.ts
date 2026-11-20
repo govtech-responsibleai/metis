@@ -76,7 +76,7 @@ export interface paths {
          * @description Build one request-scoped engine-ready ZIP without retaining uploaded files.
          *
          *     Send `state` for an Interview or `specification` for a manual export. With `specification`,
-         *     an optional `connection` (a `TargetConnection` as JSON) adds `outputs/target-binding.yaml`
+         *     an optional `connection` (a `TargetConnection` as JSON) adds `target-binding.yaml`
          *     and names the generic runner, the same as an Interview with that connection. An Interview
          *     carries its connection in its state, so `connection` with `state` is rejected. A binding
          *     that fails the `/connection/check` validation gives 400 `validation_error`. The message
@@ -125,7 +125,8 @@ export interface paths {
          * @description Apply one typed response to the client's complete current Interview state.
          *
          *     Send the latest full state and its pending request id. Replace the saved state with the state
-         *     from each successful response.
+         *     from each successful response. `documents` adds new documents to the Interview with the
+         *     answer. They join `state.context.documents` under the limits of the start request.
          */
         post: operations["turn_api_v1_wizard_interview_turn_post"];
         delete?: never;
@@ -173,9 +174,10 @@ export interface paths {
          *     `localhost`, or `::1`). `METIS_API_CONNECTION_CHECK=1` or `0` overrides this. When the check
          *     is off, `live` is false and `status` is `unchecked`.
          *
-         *     The API never puts a value from its own environment into a URL that it requests. A URL that
-         *     names a `${NAME}` variable is not requested, and its probe tells the user to check it with
-         *     `metis wizard connect`.
+         *     The API puts a value from its own environment into a URL that it requests only for a
+         *     variable that `METIS_WORKSHOP_ENV` names, because each user account can already read those
+         *     values. A URL that names any other `${NAME}` variable is not requested, and its probe tells
+         *     the user to check it with `metis wizard connect`.
          */
         post: operations["check_target_connection_api_v1_wizard_connection_check_post"];
         delete?: never;
@@ -269,6 +271,571 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the Targets
+         * @description Return the Targets, newest first. A row that this version cannot read is a problem.
+         */
+        get: operations["list_targets_api_v1_targets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/targets/{target_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a Target
+         * @description Delete the Target, its Interview, its Specification, and its Experiment rows.
+         *
+         *     The Experiment folders under `evaluations/experiments/` stay on disk.
+         */
+        delete: operations["delete_target_api_v1_targets__target_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/targets/{target_id}/interview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the Interview of a Target
+         * @description Return the record with its file references. Read each file from the files route.
+         */
+        get: operations["read_interview_api_v1_targets__target_id__interview_get"];
+        /**
+         * Save the Interview of a Target
+         * @description Save the record and the files that the store does not have yet.
+         *
+         *     The first save creates the Target. The `created_at` of the record tells one Interview from
+         *     another. Send the record as a file part that contains its JSON. When another Interview
+         *     already uses the id, the save gives 409 `target_exists` and changes nothing. Send each new
+         *     file as a part in the `files` field, with its record name as the filename. A fixture and a
+         *     file of a waiting answer are both files of the record. A reference to a file that is neither
+         *     in this request nor in the store gives 400. The store deletes the files of the Target that
+         *     the record no longer refers to.
+         *
+         *     When the Interview is done, the save also writes the Specification and its input folder. A
+         *     Specification that does not compile gives 400 `compilation_failed` and changes nothing.
+         */
+        put: operations["put_interview_api_v1_targets__target_id__interview_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/targets/{target_id}/interview/files/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read one file of an Interview
+         * @description Return a file that the record refers to, as a download.
+         *
+         *     A client wrote the bytes and the type. The response is an attachment with `nosniff`, so a
+         *     browser that opens the address does not show the file as a page of this origin. A later save
+         *     can put other bytes under the same name, so a browser must not keep a copy.
+         */
+        get: operations["read_interview_file_api_v1_targets__target_id__interview_files__name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/targets/{target_id}/specification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the Specification of a Target
+         * @description Return the Specification and the input folder for `POST /api/v1/engine/simulate`.
+         *
+         *     A Target has a Specification after its Interview is done. Before that, the route gives 404.
+         */
+        get: operations["read_specification_api_v1_targets__target_id__specification_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/targets/{target_id}/experiments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the Experiments of a Target
+         * @description Return the Experiment rows of the Target, newest first.
+         */
+        get: operations["list_target_experiments_api_v1_targets__target_id__experiments_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read an Experiment
+         * @description Return the row of the Experiment.
+         */
+        get: operations["read_experiment_api_v1_experiments__experiment_id__get"];
+        /**
+         * Save an Experiment
+         * @description Save the last engine step that the web app started for the Experiment.
+         *
+         *     The Experiment folder must exist under `evaluations/experiments/`, else the route gives 400. The
+         *     first save keeps the start time.
+         */
+        put: operations["put_experiment_api_v1_experiments__experiment_id__put"];
+        post?: never;
+        /**
+         * Delete an Experiment
+         * @description Delete the row of the Experiment. The Experiment folder stays on disk.
+         */
+        delete: operations["delete_experiment_api_v1_experiments__experiment_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the report of an experiment
+         * @description Return report.json of the experiment. The report is built when it is missing or older
+         *     than results.json.
+         */
+        get: operations["experiment_report_api_v1_experiments__experiment_id__report_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/experiments/{experiment_id}/report.html": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the HTML report page of an experiment
+         * @description Return report.html of the experiment, the same page as `metis insights report` writes.
+         *     The report is built when it is missing or older than results.json.
+         */
+        get: operations["experiment_report_page_api_v1_experiments__experiment_id__report_html_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engine/simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a simulation of an input folder
+         * @description Create an experiment folder from the input folder, run every trial, then grade them.
+         *
+         *     The request checks the inputs as `metis engine simulate --input-dir` does, then creates
+         *     `evaluations/experiments/<specification id>-<YYYYmmdd-HHMMSS>/`. The trials run after the
+         *     response. When the simulation completes, the same job grades every trial, with the
+         *     default concurrency and Langfuse timeout of the server.
+         */
+        post: operations["start_simulation_api_v1_engine_simulate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engine/simulate/{experiment_id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run again the trials of an experiment that did not end
+         * @description Run again each trial whose record is missing, cannot be read, or was interrupted.
+         *
+         *     When it runs any trial again, the run deletes the evaluation outputs of the experiment,
+         *     so the report routes return results_missing until the evaluate after it. When the
+         *     simulation completes, the same job grades the trials with no evaluation.
+         */
+        post: operations["resume_simulation_api_v1_engine_simulate__experiment_id__resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engine/evaluate/{experiment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grade every trial of an experiment
+         * @description Delete the earlier evaluation of the experiment, then grade every trial.
+         *
+         *     A complete evaluation gives 409 evaluation_complete, unless the body has regrade: true.
+         */
+        post: operations["start_evaluation_api_v1_engine_evaluate__experiment_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engine/evaluate/{experiment_id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grade the trials of an experiment that have no evaluation
+         * @description Grade only the trials with no evaluation file. A complete evaluation gives 409
+         *     evaluation_complete.
+         */
+        post: operations["resume_evaluation_api_v1_engine_evaluate__experiment_id__resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engine/{experiment_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop the run of an experiment
+         * @description Set the stop flag of the run, and return at once.
+         *
+         *     A simulation ends each trial at its next turn, and an evaluation cancels its sessions
+         *     within a fraction of a second. The events log then ends with interrupted.
+         */
+        post: operations["stop_run_api_v1_engine__experiment_id__stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engine/{experiment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the status of an experiment
+         * @description Return the phase, the status, and the counts of the experiment.
+         */
+        get: operations["experiment_status_api_v1_engine__experiment_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engine/{experiment_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the events of an experiment after a seq
+         * @description Return the lines of logs/events.jsonl whose seq is more than `after`, in file order.
+         *
+         *     Each element is an event in the format of phase-event.schema.json, with no field that
+         *     has no value. A last line that the engine still writes, and a line that does not parse,
+         *     are skipped. An experiment with no events file returns [].
+         */
+        get: operations["experiment_events_api_v1_engine__experiment_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/doctor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check the environment before a run
+         * @description Run every check of `metis doctor` and return the results in display order.
+         *
+         *     The checks report variable and service names, never values.
+         */
+        get: operations["run_doctor_api_v1_doctor_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workshop/env": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the workshop variables for the METIS CLI
+         * @description Return each variable in `METIS_WORKSHOP_ENV` that has a value.
+         *
+         *     A name with no value or an empty value is not in the list. A server with no
+         *     `METIS_WORKSHOP_ENV` gets 404 `not_found`.
+         */
+        get: operations["read_workshop_env_api_v1_workshop_env_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the user accounts
+         * @description Return each user account with its id, username, creation time, and admin flag.
+         */
+        get: operations["list_users_api_v1_users_get"];
+        put?: never;
+        /**
+         * Make a user account
+         * @description Make a user account and return its username and password.
+         *
+         *     METIS makes both values. This response is the only one that has the password. Each request
+         *     makes one more user account. An admin makes a user account of each kind. The join token
+         *     makes a user account that is not an admin, and `{"admin": true}` with the join token gets
+         *     403 `admin_required`. The new user account gets its own demo Target.
+         */
+        post: operations["create_user_api_v1_users_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{username}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset the password of a user account
+         * @description Give a user account a new password, end its login sessions, and return the password.
+         *
+         *     METIS makes the password. This response is the only one that has it. An unknown username
+         *     gets 404 `not_found`.
+         */
+        post: operations["reset_password_api_v1_users__username__password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{username}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a user account
+         * @description Delete a user account, its login sessions, its Targets, and its project folder.
+         *
+         *     The checks are in this order. An unknown username gets 404 `not_found`. Each refusal gets
+         *     409 with its own code: `cannot_delete_self` for the account of the login session,
+         *     `environment_admin` for the admin that the server makes again at each start,
+         *     `local_account` for the account of the records of login off, and `run_in_progress` while
+         *     an engine run of the account is alive. The run check is last, because only it can pass at
+         *     a later try.
+         */
+        delete: operations["delete_user_api_v1_users__username__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a login session
+         * @description Check the credentials and give the browser the cookie of a new login session.
+         *
+         *     Wrong credentials get 401 `invalid_credentials`, with one message for an unknown username
+         *     and for a wrong password. A server with login off gets 404 `not_found`.
+         */
+        post: operations["login_api_v1_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * End the login session
+         * @description End the login session of the request and remove its cookie.
+         */
+        post: operations["logout_api_v1_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the current user account
+         * @description Tell if login is on, and name the user account of the login session.
+         *
+         *     With login on and no login session, the guard gives 401 `login_required`, as for each
+         *     other route. A client reads that as "show the login page".
+         */
+        get: operations["current_user_api_v1_auth_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -308,6 +875,63 @@ export interface components {
              * @description The environment variable holding the credential.
              */
             secret_env: string;
+        };
+        /** AxisRow */
+        AxisRow: {
+            /** Id */
+            id: string;
+            /** Rate */
+            rate?: number | null;
+            /**
+             * Pass
+             * @default 0
+             */
+            pass: number;
+            /**
+             * Fail
+             * @default 0
+             */
+            fail: number;
+            /**
+             * Ran
+             * @default 0
+             */
+            ran: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+            /**
+             * Sessions
+             * @default 0
+             */
+            sessions: number;
+            /**
+             * Behaviours
+             * @default 0
+             */
+            behaviours: number;
+            /**
+             * Graders
+             * @default 0
+             */
+            graders: number;
+            /**
+             * Partners
+             * @default 0
+             */
+            partners: number;
+            /**
+             * Partnertotal
+             * @default 0
+             */
+            partnerTotal: number;
         };
         /** Behaviour */
         Behaviour: {
@@ -369,6 +993,11 @@ export interface components {
              * @default false
              */
             blocking: boolean;
+            /**
+             * Inactive
+             * @default false
+             */
+            inactive: boolean;
         };
         /**
          * BehaviourCard
@@ -414,6 +1043,18 @@ export interface components {
              * @default false
              */
             blocking: boolean;
+            /**
+             * Inactive
+             * @default false
+             */
+            inactive: boolean;
+        };
+        /** BlankCause */
+        BlankCause: {
+            /** Cause */
+            cause: string;
+            /** Note */
+            note: string;
         };
         /** Body_extract_document_text_api_v1_wizard_documents_extract_post */
         Body_extract_document_text_api_v1_wizard_documents_extract_post: {
@@ -430,6 +1071,13 @@ export interface components {
             state?: string | null;
             /** Connection */
             connection?: string | null;
+        };
+        /** Body_put_interview_api_v1_targets__target_id__interview_put */
+        Body_put_interview_api_v1_targets__target_id__interview_put: {
+            /** Record */
+            record: string;
+            /** Files */
+            files?: string[] | null;
         };
         /**
          * CapabilityCategory
@@ -514,6 +1162,8 @@ export interface components {
             type: "details";
             /** Title */
             title: string;
+            /** Id */
+            id?: string | null;
             /** Components */
             components?: (components["schemas"]["CardText"] | components["schemas"]["CardOptionGroup"] | components["schemas"]["CardNumberField"] | components["schemas"]["CardUploadField"] | components["schemas"]["CardDivider"] | components["schemas"]["CardDetails-Input"])[];
             /**
@@ -538,6 +1188,8 @@ export interface components {
             type: "details";
             /** Title */
             title: string;
+            /** Id */
+            id?: string | null;
             /** Components */
             components?: (components["schemas"]["CardText"] | components["schemas"]["CardOptionGroup"] | components["schemas"]["CardNumberField"] | components["schemas"]["CardUploadField"] | components["schemas"]["CardDivider"] | components["schemas"]["CardDetails-Output"])[];
             /**
@@ -645,6 +1297,41 @@ export interface components {
             value?: string[];
             /** Available */
             available?: string[];
+        };
+        /** CaseResult */
+        CaseResult: {
+            /**
+             * Pass
+             * @default 0
+             */
+            pass: number;
+            /**
+             * Fail
+             * @default 0
+             */
+            fail: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+            /**
+             * Evaluated
+             * @default 0
+             */
+            evaluated: number;
+            /** Rate */
+            rate?: number | null;
+            /** Mean Score */
+            mean_score?: number | null;
+            /** Status */
+            status?: string | null;
+            confidence_interval?: components["schemas"]["WilsonConfidenceInterval"] | null;
         };
         /** ChatRequest */
         ChatRequest: {
@@ -879,6 +1566,17 @@ export interface components {
          * @enum {string}
          */
         ConnectionTransport: "http" | "browser";
+        /** ConversationTurn */
+        ConversationTurn: {
+            /** Turn */
+            turn: number;
+            /** User */
+            user: string;
+            /** Target */
+            target: string;
+            /** Errors */
+            errors?: string[];
+        };
         /** Criterion */
         Criterion: {
             /** Id */
@@ -894,12 +1592,63 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** CriterionBreakdownCell */
+        CriterionBreakdownCell: {
+            /** Rate */
+            rate: number | null;
+            /** N */
+            n: number;
+            /** Pass */
+            pass: number;
+            /** Fail */
+            fail: number;
+            /** Skip */
+            skip: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+        };
+        /**
+         * CurrentUser
+         * @description Whether login is on, and the user account of the request.
+         *
+         *     With login off, ``login`` is false and ``user`` is null. With login on, ``user`` is the user
+         *     account of the login session.
+         */
+        CurrentUser: {
+            /** Login */
+            login: boolean;
+            user: components["schemas"]["UserAccountBody"] | null;
+        };
         /**
          * Dimension
          * @description Measure subdimensions, in display order.
          * @enum {string}
          */
         Dimension: "task_and_output_quality" | "execution_and_decision_quality" | "resource_use" | "reliability_and_robustness" | "safety" | "security" | "interaction_quality";
+        /**
+         * DoctorCheck
+         * @description The result of one check.
+         */
+        DoctorCheck: {
+            /** Name */
+            name: string;
+            /**
+             * Status
+             * @description A warning or a skip does not stop a run. A failure does.
+             * @enum {string}
+             */
+            status: "pass" | "fail" | "warn" | "skip";
+            /** Detail */
+            detail: string;
+            /**
+             * Fix
+             * @description A one-line fix for a failure or a warning.
+             */
+            fix: string | null;
+        };
         /**
          * DocumentExtractionErrorCode
          * @description Stable causes returned when an uploaded Interview document cannot be read.
@@ -935,35 +1684,138 @@ export interface components {
             documents: components["schemas"]["ExtractedDocument"][];
         };
         /**
-         * Experiment
-         * @description The Test Cases and settings used to execute an evaluation.
+         * EngineRunAccepted
+         * @description The experiment of a run that started or that was asked to stop.
          */
-        "Experiment-Input": {
+        EngineRunAccepted: {
+            /** Experiment Id */
+            experiment_id: string;
+        };
+        /**
+         * EngineStatus
+         * @description The current state of an experiment, from the live run or from its events log.
+         */
+        EngineStatus: {
+            /** Experiment Id */
+            experiment_id: string;
             /**
-             * Id
+             * Phase
+             * @description The phase of the live run: of its newest phase line, or of its first step before it writes one. For a queued run, the phase of its first step. Else the phase of the last phase line.
+             */
+            phase: ("simulating" | "evaluating") | null;
+            /**
+             * Status
+             * @description queued while the run waits for a free slot. running or stopping while a run is alive. Else the status of the last phase line: completed, failed, or interrupted. unfinished when that line is started, because the run ended with no last line. not_started when the events log has no phase line.
+             * @enum {string}
+             */
+            status: "queued" | "running" | "stopping" | "completed" | "failed" | "interrupted" | "unfinished" | "not_started";
+            /**
+             * Queue Ahead
+             * @description The runs before this one in the queue, across all user accounts, so 0 means that it starts next. null in every status but queued.
+             */
+            queue_ahead: number | null;
+            /**
+             * Total
+             * @description Trials in the phase, from its started line. null until it is written.
+             */
+            total: number | null;
+            /**
+             * Done
+             * @description Trials that an earlier run finished, from the same started line.
+             */
+            done: number | null;
+            /**
+             * Reason
+             * @description The reason of a failed line, else null.
+             */
+            reason: string | null;
+            /**
+             * Last Seq
+             * @description The highest seq in logs/events.jsonl, 0 when there is none.
+             */
+            last_seq: number;
+        };
+        /**
+         * EvaluateRequest
+         * @description Delete the evaluation of an experiment and grade every trial.
+         */
+        EvaluateRequest: {
+            /**
+             * Concurrency
+             * @description Sessions at the same time. Default: a setting.
+             */
+            concurrency?: number | null;
+            /**
+             * Langfuse Timeout
+             * @description The longest wait in seconds for the traces of a session, as --langfuse-timeout. Default: a setting, 180 unless the server changes it.
+             */
+            langfuse_timeout?: number | null;
+            /**
+             * Regrade
+             * @description Grade again an experiment whose evaluation is complete. Without it, an evaluate of a complete evaluation gives 409 evaluation_complete and keeps the results.
+             * @default false
+             */
+            regrade: boolean;
+        };
+        /** EvidenceItem */
+        EvidenceItem: {
+            /**
+             * Task Id
              * @default
              */
-            id: string;
+            task_id: string;
             /**
-             * Runner Factory Ref
-             * @default metis.engine.simulation.runners.http.HttpRunnerFactory
+             * Trial Index
+             * @default 1
              */
-            runner_factory_ref: string;
-            /** Target Binding */
-            target_binding?: string | null;
-            defaults?: components["schemas"]["ExperimentDefaults"];
-            /** Personas */
-            personas?: components["schemas"]["Persona"][];
-            /** Scenarios */
-            scenarios?: components["schemas"]["Scenario"][];
-            /** Tasks */
-            tasks?: components["schemas"]["Task"][];
-            /** Fixture Content Descriptions */
-            fixture_content_descriptions?: {
-                [key: string]: string;
+            trial_index: number;
+            /**
+             * Criterion Id
+             * @default
+             */
+            criterion_id: string;
+            /**
+             * Grader Fqn
+             * @default
+             */
+            grader_fqn: string;
+            /** Grader Args */
+            grader_args?: {
+                [key: string]: unknown;
             };
+            /** Status */
+            status: string;
+            /** Message */
+            message: string;
+            /** Session */
+            session: string;
+            /** Run Score */
+            run_score?: number | null;
+            /** Run Threshold */
+            run_threshold?: number | null;
+            /**
+             * Run Outcome
+             * @enum {string}
+             */
+            run_outcome: "passed" | "failed" | "skipped" | "errored";
+            /** Result Number */
+            result_number: number;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "passed" | "failed" | "skipped" | "errored";
+            /** Score */
+            score?: number | null;
+            /** Measurements */
+            measurements?: {
+                [key: string]: number;
+            } | null;
+            /** Persona */
+            persona?: string | null;
+            /** Scenario */
+            scenario?: string | null;
         };
-        "Experiment-Output": unknown;
         /**
          * ExperimentDefaults
          * @description Experiment-wide defaults that individual criteria can override.
@@ -976,6 +1828,45 @@ export interface components {
             /** Runner Agent Model */
             runner_agent_model?: string | null;
         };
+        /**
+         * ExperimentList
+         * @description The Experiments of one Target, newest first.
+         */
+        ExperimentList: {
+            /** Experiments */
+            experiments: components["schemas"]["ExperimentRecord"][];
+        };
+        /**
+         * ExperimentRecord
+         * @description One Experiment of a Target. The phase and the progress come from the Experiment folder.
+         */
+        ExperimentRecord: {
+            /** Experiment Id */
+            experiment_id: string;
+            /** Target Id */
+            target_id: string;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            step: components["schemas"]["ExperimentStep"];
+        };
+        /**
+         * ExperimentSave
+         * @description The body of an Experiment save.
+         */
+        ExperimentSave: {
+            /** Target Id */
+            target_id: string;
+            step: components["schemas"]["ExperimentStep"];
+        };
+        /**
+         * ExperimentStep
+         * @description The last engine step that the web app started for an Experiment.
+         * @enum {string}
+         */
+        ExperimentStep: "simulate" | "evaluate";
         /**
          * ExtractedDocument
          * @description One extracted file returned to the caller that owns the original bytes.
@@ -996,6 +1887,18 @@ export interface components {
             description: string;
             /** Behaviours */
             behaviours?: components["schemas"]["Behaviour"][];
+        };
+        /**
+         * FileRef
+         * @description One file of an Interview record. The store keeps the bytes on disk.
+         */
+        FileRef: {
+            /** Name */
+            name: string;
+            /** Type */
+            type: string;
+            /** Size */
+            size: number;
         };
         /**
          * FormChoice
@@ -1127,6 +2030,64 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /** GraderPassRate */
+        GraderPassRate: {
+            /**
+             * Fail
+             * @default 0
+             */
+            fail: number;
+            /** Rate */
+            rate?: number | null;
+            /** Mean Score */
+            mean_score?: number | null;
+            /**
+             * Pass
+             * @default 0
+             */
+            pass: number;
+            /**
+             * Ran
+             * @default 0
+             */
+            ran: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+        };
+        /**
+         * GraderRecord
+         * @description One grader run on one session: the run facts plus every result it produced.
+         */
+        GraderRecord: {
+            /** Session Id */
+            session_id: string;
+            /** Scenario Id */
+            scenario_id: string;
+            /** Task Id */
+            task_id: string;
+            /** Trial Index */
+            trial_index: number;
+            /** Criterion Id */
+            criterion_id: string;
+            /** Grader Fqn */
+            grader_fqn: string;
+            /** Grader Args */
+            grader_args: {
+                [key: string]: unknown;
+            };
+            /** Aggregation */
+            aggregation?: string | null;
+            /** Results */
+            results: components["schemas"]["RecordedResult"][];
+        };
         /**
          * GraderSetting
          * @description One key that a Criterion can set under ``grader_args``.
@@ -1206,7 +2167,12 @@ export interface components {
          * @description Procedures that a grader can use to assess one scope item.
          * @enum {string}
          */
-        GraderType: "deterministic" | "statistical_metric" | "learned_discriminative_model" | "embedding_similarity" | "llm" | "hybrid" | "human";
+        GraderType: "deterministic" | "statistical_metric" | "learned_discriminative_model" | "embedding_similarity" | "llm" | "decision_model" | "hybrid" | "human";
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
         /**
          * InterviewConfig
          * @description Package-owned values that a wizard door needs to render its opening screen.
@@ -1306,7 +2272,7 @@ export interface components {
         };
         /**
          * InterviewDocument
-         * @description One opening file, with extracted text when a reader supplied it.
+         * @description One file that the user gave to the Interview, with extracted text when a reader supplied it.
          */
         InterviewDocument: {
             /** Name */
@@ -1363,6 +2329,36 @@ export interface components {
             role: "user" | "assistant";
             /** Text */
             text: string;
+        };
+        /**
+         * InterviewRecord
+         * @description The web record of one Interview. Its id is the Target id.
+         *
+         *     The store validates `state` as an `InterviewState`. It keeps the transcript as opaque JSON
+         *     and reads from it only the file references in `outbound.files`. These are the files of an
+         *     answer that the wizard has not accepted yet. The store keeps all the files of the record in
+         *     one folder, by name. Each file of the record has its own name. Two names that differ only
+         *     by case are the same name.
+         */
+        InterviewRecord: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            stage: components["schemas"]["InterviewStep"];
+            /** Created At */
+            created_at: number;
+            /** Updated At */
+            updated_at: number;
+            /** Submission Revision */
+            submission_revision?: number | null;
+            state: components["schemas"]["InterviewState-Output"];
+            /** Transcript */
+            transcript: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
+            /** Fixtures */
+            fixtures: components["schemas"]["FileRef"][];
         };
         /**
          * InterviewStartRequest
@@ -1478,6 +2474,9 @@ export interface components {
         /**
          * InterviewTurnRequest
          * @description Answer the one pending request with its typed response.
+         *
+         *     `documents` are files that the user adds with this answer. They join the documents in
+         *     `state.context.documents`, and the full set must stay inside the same limits as at start.
          */
         InterviewTurnRequest: {
             state: components["schemas"]["InterviewState-Input"];
@@ -1485,7 +2484,10 @@ export interface components {
             request_id: string;
             /** Response */
             response: components["schemas"]["ChatResponse"] | components["schemas"]["ChoiceResponse"] | components["schemas"]["FormResponse"];
+            /** Documents */
+            documents?: components["schemas"]["InterviewDocument"][];
         };
+        JsonValue: unknown;
         /**
          * JudgmentForm
          * @description Result forms that a grader can produce for one scope item.
@@ -1522,6 +2524,16 @@ export interface components {
              * @description The environment variables holding the secrets the note types.
              */
             secrets?: string[];
+        };
+        /**
+         * LoginRequest
+         * @description The credentials of one user account.
+         */
+        LoginRequest: {
+            /** Username */
+            username: string;
+            /** Password */
+            password: string;
         };
         /**
          * Measure
@@ -1571,6 +2583,36 @@ export interface components {
             affects_scores: boolean;
             /** Missing Vars */
             missing_vars: string[];
+        };
+        /**
+         * NewUserAccountBody
+         * @description A user account with its new password. No later response gives the password again.
+         */
+        NewUserAccountBody: {
+            /** Id */
+            id: string;
+            /** Username */
+            username: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Admin */
+            admin: boolean;
+            /** Password */
+            password: string;
+        };
+        /**
+         * NewUserRequest
+         * @description The kind of user account to make. Only an admin can make an admin.
+         */
+        NewUserRequest: {
+            /**
+             * Admin
+             * @default false
+             */
+            admin: boolean;
         };
         /**
          * Option
@@ -1686,11 +2728,513 @@ export interface components {
             question: string;
         };
         /**
+         * PhaseEvent
+         * @description One line of ``logs/events.jsonl``. Validate a line with ``PhaseEvent.parse_line``.
+         */
+        PhaseEvent: {
+            /**
+             * Seq
+             * @description Line number of the event in the file, from 1.
+             */
+            seq: number;
+            /**
+             * At
+             * Format: date-time
+             * @description UTC time at which the engine wrote the event.
+             */
+            at: string;
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "simulating" | "evaluating";
+            /**
+             * Trial
+             * @description The trial's folder name under outputs/trials/, or null for the phase.
+             */
+            trial: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "started" | "running" | "retrying" | "completed" | "failed" | "interrupted" | "skipped";
+            /**
+             * Total
+             * @description Trials in the phase, done ones included.
+             */
+            total?: number | null;
+            /**
+             * Done
+             * @description Trials that an earlier command already finished in this phase.
+             */
+            done?: number | null;
+            /**
+             * Attempt
+             * @description The attempt of the trial, from 1. On retrying, the one that failed.
+             */
+            attempt?: number | null;
+            /**
+             * Turn
+             * @description Turns of the attempt that are done.
+             */
+            turn?: number | null;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Session Url
+             * @description The page of the trial's session in the target's Langfuse.
+             */
+            session_url?: string | null;
+        } & ({
+            /** @constant */
+            status?: "started";
+            trial?: null;
+        } | {
+            /** @constant */
+            status?: "completed";
+            trial?: null;
+        } | {
+            /** @constant */
+            status?: "failed";
+            trial?: null;
+        } | {
+            /** @constant */
+            status?: "interrupted";
+            trial?: null;
+        } | {
+            /** @constant */
+            status?: "skipped";
+            trial?: null;
+        } | {
+            /** @constant */
+            status?: "started";
+            trial?: string;
+            /** @constant */
+            phase?: "simulating";
+        } | {
+            /** @constant */
+            status?: "running";
+            trial?: string;
+            /** @constant */
+            phase?: "simulating";
+        } | {
+            /** @constant */
+            status?: "retrying";
+            trial?: string;
+            /** @constant */
+            phase?: "simulating";
+        } | {
+            /** @constant */
+            status?: "completed";
+            trial?: string;
+            /** @constant */
+            phase?: "simulating";
+        } | {
+            /** @constant */
+            status?: "failed";
+            trial?: string;
+            /** @constant */
+            phase?: "simulating";
+        } | {
+            /** @constant */
+            status?: "interrupted";
+            trial?: string;
+            /** @constant */
+            phase?: "simulating";
+        } | {
+            /** @constant */
+            status?: "started";
+            trial?: string;
+            /** @constant */
+            phase?: "evaluating";
+        } | {
+            /** @constant */
+            status?: "completed";
+            trial?: string;
+            /** @constant */
+            phase?: "evaluating";
+        } | {
+            /** @constant */
+            status?: "failed";
+            trial?: string;
+            /** @constant */
+            phase?: "evaluating";
+        });
+        /** Plan */
+        Plan: {
+            /** Personas */
+            personas: string[];
+            /** Tasks */
+            tasks: components["schemas"]["PlanTask"][];
+        };
+        /** PlanTask */
+        PlanTask: {
+            /** Scenario */
+            scenario: string;
+            /** Id */
+            id: string;
+            /** Personas */
+            personas: string[];
+            /** Trials */
+            trials: number;
+            /** Trialsplanned */
+            trialsPlanned: number;
+            /** Trialsrun */
+            trialsRun: number;
+            /** Personasrun */
+            personasRun: string[];
+            /** Gradersasked */
+            gradersAsked: number;
+            /** Gradersscored */
+            gradersScored: number;
+        };
+        /**
+         * RecordedResult
+         * @description One ``GraderResult`` after the orchestrator has applied the threshold.
+         */
+        RecordedResult: {
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "passed" | "failed" | "skipped" | "errored";
+            /** Score */
+            score?: number | null;
+            /** Reason */
+            reason: string;
+            /** Scope */
+            scope?: string | null;
+            /** Measurements */
+            measurements?: {
+                [key: string]: number;
+            } | null;
+        };
+        /**
          * ReferenceType
          * @description Reference categories that a grader can use.
          * @enum {string}
          */
         ReferenceType: "referenceless" | "rubric_based" | "expected_output" | "expected_trajectory_action" | "policy_rule" | "environment_state" | "pairwise_candidate" | "historical_baseline" | "human_preference";
+        /**
+         * Report
+         * @description Top-level model for report.json.
+         *
+         *     This is the contract downstream consumers depend on.
+         */
+        Report: {
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            /** Target */
+            target: string;
+            /** Run */
+            run: string;
+            /** Date */
+            date: string;
+            /** Sessions */
+            sessions: number;
+            /** Results */
+            results: number;
+            /** Latency */
+            latency?: number | null;
+            /** Timings */
+            timings?: {
+                [key: string]: unknown;
+            };
+            trials: components["schemas"]["TrialsSummary"];
+            scores: components["schemas"]["Scores"];
+            plan: components["schemas"]["Plan"];
+            /** Personas */
+            personas: string[];
+            /** Scenarios */
+            scenarios: string[];
+            /** Passratetarget */
+            passRateTarget: number;
+            /** Names */
+            names: {
+                [key: string]: {
+                    [key: string]: string;
+                };
+            };
+            /** Describe */
+            describe: {
+                [key: string]: {
+                    [key: string]: string;
+                };
+            };
+            /** Axes */
+            axes: {
+                [key: string]: components["schemas"]["AxisRow"][];
+            };
+            /** Behaviourtotal */
+            behaviourTotal: number;
+            /** Personasrun */
+            personasRun: string[];
+            /** Scenariosrun */
+            scenariosRun: string[];
+            /** Features */
+            features: components["schemas"]["ReportFeature"][];
+            /** Behaviours */
+            behaviours: {
+                [key: string]: components["schemas"]["ReportBehaviour"];
+            };
+            /** Criteria */
+            criteria: {
+                [key: string]: components["schemas"]["ReportCriterion"];
+            };
+            resultTable: components["schemas"]["ResultTable"];
+            /** Unmapped */
+            unmapped: components["schemas"]["UnmappedGrader"][];
+            /** Unresolved */
+            unresolved: string[];
+        };
+        /** ReportBehaviour */
+        ReportBehaviour: {
+            /**
+             * Pass
+             * @default 0
+             */
+            pass: number;
+            /**
+             * Fail
+             * @default 0
+             */
+            fail: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+            /** Label */
+            label: string;
+            /** Statement */
+            statement: string;
+            /** Detail */
+            detail: string;
+            /** Priority */
+            priority: boolean;
+            /** Criteria */
+            criteria: string[];
+            /** Rate */
+            rate?: number | null;
+            /** Mean Score */
+            mean_score?: number | null;
+            /** Status */
+            status?: string | null;
+        };
+        /** ReportCriterion */
+        ReportCriterion: {
+            /** Name */
+            name: string;
+            /** Grader Args */
+            grader_args?: {
+                [key: string]: unknown;
+            };
+            /** Description */
+            description: string;
+            /** Grader Name */
+            grader_name: string;
+            /** Grader Fqn */
+            grader_fqn?: string | null;
+            /** Judge Models */
+            judge_models?: string[];
+            /**
+             * Pass
+             * @default 0
+             */
+            pass: number;
+            /**
+             * Fail
+             * @default 0
+             */
+            fail: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+            /** Rate */
+            rate?: number | null;
+            /** Mean Score */
+            mean_score?: number | null;
+            /** Status */
+            status?: string | null;
+            blank?: components["schemas"]["BlankCause"] | null;
+            /** P */
+            P?: (components["schemas"]["CriterionBreakdownCell"] | null)[];
+            /** S */
+            S?: (components["schemas"]["CriterionBreakdownCell"] | null)[];
+            /** Evidence */
+            evidence?: components["schemas"]["EvidenceItem"][];
+        };
+        /** ReportFeature */
+        ReportFeature: {
+            /**
+             * Pass
+             * @default 0
+             */
+            pass: number;
+            /**
+             * Fail
+             * @default 0
+             */
+            fail: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Behaviours */
+            behaviours: string[];
+            /** Rate */
+            rate?: number | null;
+            /** Mean Score */
+            mean_score?: number | null;
+            /** Status */
+            status?: string | null;
+        };
+        /** ResultTable */
+        ResultTable: {
+            /** Features */
+            features: components["schemas"]["ResultTableFeature"][];
+            /** Rows */
+            rows: components["schemas"]["ResultTableRow"][];
+        };
+        /** ResultTableColumn */
+        ResultTableColumn: {
+            /** Grader Fqn */
+            grader_fqn?: string | null;
+            /** Criterion */
+            criterion: string;
+            /** Grader Name */
+            grader_name: string;
+        };
+        /** ResultTableFeature */
+        ResultTableFeature: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Columns */
+            columns: components["schemas"]["ResultTableColumn"][];
+        };
+        /**
+         * ResultTableRow
+         * @description One test case: the grader runs of all its trials, pooled per criterion.
+         */
+        ResultTableRow: {
+            /** Task Id */
+            task_id: string;
+            /** Persona */
+            persona: string;
+            /** Scenario */
+            scenario: string;
+            /** Results */
+            results?: {
+                [key: string]: components["schemas"]["CaseResult"];
+            };
+            /** Trials */
+            trials?: components["schemas"]["ResultTableTrial"][];
+        };
+        /** ResultTableTrial */
+        ResultTableTrial: {
+            /**
+             * Task Id
+             * @default
+             */
+            task_id: string;
+            /**
+             * Trial Index
+             * @default 1
+             */
+            trial_index: number;
+            /** Id */
+            id: string;
+            /** Session */
+            session: string;
+            /** Sessionurl */
+            sessionUrl?: string | null;
+            /** Persona */
+            persona: string;
+            /** Scenario */
+            scenario: string;
+            /** Stopreason */
+            stopReason: string;
+            /** Message */
+            message: string;
+            /** Failuresource */
+            failureSource: string;
+            /** Simulated Turns Completed */
+            simulated_turns_completed: number;
+            /** Duration */
+            duration?: number | null;
+            /**
+             * Attempt
+             * @default 1
+             */
+            attempt: number;
+            /** Conversation */
+            conversation?: components["schemas"]["ConversationTurn"][];
+            /** Conversationproblem */
+            conversationProblem?: string | null;
+            /** Category */
+            category: string;
+            /** Features */
+            features?: string[];
+            /** Results */
+            results?: {
+                [key: string]: components["schemas"]["TrialResult"];
+            };
+        };
+        /**
+         * ResumeEvaluationRequest
+         * @description Grade the trials of an experiment that have no evaluation file.
+         */
+        ResumeEvaluationRequest: {
+            /**
+             * Concurrency
+             * @description Sessions at the same time. Default: a setting.
+             */
+            concurrency?: number | null;
+            /**
+             * Langfuse Timeout
+             * @description The longest wait in seconds for the traces of a session, as --langfuse-timeout. Default: a setting, 180 unless the server changes it.
+             */
+            langfuse_timeout?: number | null;
+        };
+        /**
+         * ResumeSimulationRequest
+         * @description Run again the trials of an experiment that did not end.
+         */
+        ResumeSimulationRequest: {
+            /**
+             * Concurrency
+             * @description Trials at the same time. Default: a setting.
+             */
+            concurrency?: number | null;
+        };
         /**
          * ReviewSection
          * @description A heading on a review screen, with the actions that belong to it.
@@ -1770,6 +3314,11 @@ export interface components {
              * @default false
              */
             blocking: boolean;
+            /**
+             * Inactive
+             * @default false
+             */
+            inactive: boolean;
             /** Trials */
             trials: number;
         };
@@ -1816,6 +3365,11 @@ export interface components {
              * @default false
              */
             blocking: boolean;
+            /**
+             * Inactive
+             * @default false
+             */
+            inactive: boolean;
             /** Trials */
             trials: number;
         };
@@ -1828,6 +3382,11 @@ export interface components {
          * @enum {string}
          */
         Scope: "model_decision_generation" | "model_reasoning" | "artifact" | "tool_selection" | "tool_arguments" | "tool_execution" | "environment_action" | "trace" | "subsession" | "session";
+        /** Scores */
+        Scores: {
+            graderPassRate: components["schemas"]["GraderPassRate"];
+            trialSuccess: components["schemas"]["TrialSuccess"];
+        };
         /**
          * SecretHeader
          * @description A header the engine adds, from an environment variable, to matching requests.
@@ -1868,9 +3427,22 @@ export interface components {
             retryable: boolean;
         };
         /**
-         * Specification
-         * @description The flat YAML and API representation of a Specification.
+         * SimulateRequest
+         * @description Start a simulation of an input folder, as ``metis engine simulate --input-dir``.
          */
+        SimulateRequest: {
+            /**
+             * Input Dir
+             * @description The input folder, relative to the project folder. For example evaluations/specifications/<target id>.
+             */
+            input_dir: string;
+            /**
+             * Concurrency
+             * @description Trials at the same time. Default: a setting.
+             */
+            concurrency?: number | null;
+        };
+        /** Specification */
         Specification: {
             /**
              * Schema Version
@@ -1904,6 +3476,25 @@ export interface components {
             fixture_content_descriptions?: {
                 [key: string]: string;
             };
+        };
+        /**
+         * SpecificationRecord
+         * @description The Specification of a Target, and the input folder that the store writes for it.
+         */
+        SpecificationRecord: {
+            /** Target Id */
+            target_id: string;
+            /** Specification Yaml */
+            specification_yaml: string;
+            /** Sha256 */
+            sha256: string;
+            /** Input Dir */
+            input_dir: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** Target */
         Target: {
@@ -1998,13 +3589,39 @@ export interface components {
             version?: string | null;
         };
         /**
-         * TargetProfile
-         * @description The target context and requirements that an evaluation measures.
+         * TargetList
+         * @description The Targets that the store can read, newest first, and the rows that it cannot read.
          */
-        TargetProfile: {
-            target: components["schemas"]["Target"];
-            /** Features */
-            features?: components["schemas"]["Feature"][];
+        TargetList: {
+            /** Targets */
+            targets: components["schemas"]["TargetSummary"][];
+            /** Problems */
+            problems: components["schemas"]["TargetProblem"][];
+        };
+        /**
+         * TargetProblem
+         * @description A stored Interview that the store cannot read with the current version.
+         */
+        TargetProblem: {
+            /** Id */
+            id: string;
+            /** Message */
+            message: string;
+        };
+        /**
+         * TargetSummary
+         * @description One row of the Target list.
+         */
+        TargetSummary: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /**
          * Task
@@ -2046,6 +3663,189 @@ export interface components {
             /** User Agent Model */
             user_agent_model?: string | null;
         };
+        /** Trial */
+        Trial: {
+            /**
+             * Task Id
+             * @default
+             */
+            task_id: string;
+            /**
+             * Trial Index
+             * @default 1
+             */
+            trial_index: number;
+            /** Id */
+            id: string;
+            /** Session */
+            session: string;
+            /** Sessionurl */
+            sessionUrl?: string | null;
+            /** Persona */
+            persona: string;
+            /** Scenario */
+            scenario: string;
+            /** Stopreason */
+            stopReason: string;
+            /** Message */
+            message: string;
+            /** Failuresource */
+            failureSource: string;
+            /** Simulated Turns Completed */
+            simulated_turns_completed: number;
+            /** Duration */
+            duration?: number | null;
+            /**
+             * Attempt
+             * @default 1
+             */
+            attempt: number;
+            /** Conversation */
+            conversation?: components["schemas"]["ConversationTurn"][];
+            /** Conversationproblem */
+            conversationProblem?: string | null;
+            /** Category */
+            category: string;
+            /** Features */
+            features?: string[];
+        };
+        /** TrialResult */
+        TrialResult: {
+            /**
+             * Pass
+             * @default 0
+             */
+            pass: number;
+            /**
+             * Fail
+             * @default 0
+             */
+            fail: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+            /**
+             * Evaluated
+             * @default 0
+             */
+            evaluated: number;
+            /** Rate */
+            rate?: number | null;
+            /** Mean Score */
+            mean_score?: number | null;
+            /** Status */
+            status?: string | null;
+        };
+        /** TrialSuccess */
+        TrialSuccess: {
+            /** Rate */
+            rate?: number | null;
+            /**
+             * Successful
+             * @default 0
+             */
+            successful: number;
+            /**
+             * Attempted
+             * @default 0
+             */
+            attempted: number;
+            /** Status */
+            status?: string | null;
+        };
+        /** TrialsSummary */
+        TrialsSummary: {
+            /** Attempted */
+            attempted: number;
+            /** Successful */
+            successful: number;
+            /** Rate */
+            rate?: number | null;
+            /** Items */
+            items?: components["schemas"]["Trial"][];
+        };
+        /** UnmappedGrader */
+        UnmappedGrader: {
+            /** Grader Fqn */
+            grader_fqn: string;
+            /** Records */
+            records?: components["schemas"]["GraderRecord"][];
+            /** Criterion Id */
+            criterion_id: string;
+            /** Grader Name */
+            grader_name: string;
+            /**
+             * Pass
+             * @default 0
+             */
+            pass: number;
+            /**
+             * Fail
+             * @default 0
+             */
+            fail: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+            /**
+             * Why
+             * @default
+             */
+            why: string;
+        };
+        /**
+         * UserAccountBody
+         * @description One user account. It never holds a password or a password hash. ``admin`` is true for an
+         *     admin.
+         */
+        UserAccountBody: {
+            /** Id */
+            id: string;
+            /** Username */
+            username: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Admin */
+            admin: boolean;
+        };
+        /**
+         * UserAccountList
+         * @description The user accounts of the server, oldest first.
+         */
+        UserAccountList: {
+            /** Users */
+            users: components["schemas"]["UserAccountBody"][];
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
+        };
         /**
          * Warning
          * @description Something the user is told.
@@ -2076,6 +3876,24 @@ export interface components {
          * @enum {string}
          */
         WarningSource: "document" | "runtime";
+        /** WilsonConfidenceInterval */
+        WilsonConfidenceInterval: {
+            /**
+             * Method
+             * @default wilson
+             * @constant
+             */
+            method: "wilson";
+            /**
+             * Confidence Level
+             * @default 0.95
+             */
+            confidence_level: number;
+            /** Lower */
+            lower: number;
+            /** Upper */
+            upper: number;
+        };
         /**
          * WizardRequestState
          * @description Live, or already answered.
@@ -2089,6 +3907,24 @@ export interface components {
          * @enum {string}
          */
         WizardRequestState: "pending" | "resolved";
+        /**
+         * WorkshopEnv
+         * @description The workshop variables, in the order of `METIS_WORKSHOP_ENV`.
+         */
+        WorkshopEnv: {
+            /** Variables */
+            variables: components["schemas"]["WorkshopVariable"][];
+        };
+        /**
+         * WorkshopVariable
+         * @description One variable for the `.env` file of a participant.
+         */
+        WorkshopVariable: {
+            /** Name */
+            name: string;
+            /** Value */
+            value: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -2611,6 +4447,1593 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModelStatus"][];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    list_targets_api_v1_targets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TargetList"];
+                };
+            };
+        };
+    };
+    delete_target_api_v1_targets__target_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    read_interview_api_v1_targets__target_id__interview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewRecord"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    put_interview_api_v1_targets__target_id__interview_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_put_interview_api_v1_targets__target_id__interview_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    read_interview_file_api_v1_targets__target_id__interview_files__name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    read_specification_api_v1_targets__target_id__specification_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecificationRecord"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    list_target_experiments_api_v1_targets__target_id__experiments_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentList"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    read_experiment_api_v1_experiments__experiment_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentRecord"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    put_experiment_api_v1_experiments__experiment_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExperimentSave"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExperimentRecord"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    delete_experiment_api_v1_experiments__experiment_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    experiment_report_api_v1_experiments__experiment_id__report_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    experiment_report_page_api_v1_experiments__experiment_id__report_html_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description report.html of the experiment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": unknown;
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    start_simulation_api_v1_engine_simulate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimulateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineRunAccepted"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    resume_simulation_api_v1_engine_simulate__experiment_id__resume_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ResumeSimulationRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineRunAccepted"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    start_evaluation_api_v1_engine_evaluate__experiment_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["EvaluateRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineRunAccepted"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    resume_evaluation_api_v1_engine_evaluate__experiment_id__resume_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ResumeEvaluationRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineRunAccepted"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    stop_run_api_v1_engine__experiment_id__stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineRunAccepted"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    experiment_status_api_v1_engine__experiment_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineStatus"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    experiment_events_api_v1_engine__experiment_id__events_get: {
+        parameters: {
+            query?: {
+                /** @description Return the events whose seq is more than this. */
+                after?: number;
+            };
+            header?: never;
+            path: {
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhaseEvent"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    run_doctor_api_v1_doctor_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DoctorCheck"][];
+                };
+            };
+        };
+    };
+    read_workshop_env_api_v1_workshop_env_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkshopEnv"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    list_users_api_v1_users_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAccountList"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    create_user_api_v1_users_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["NewUserRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewUserAccountBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    reset_password_api_v1_users__username__password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                username: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewUserAccountBody"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    delete_user_api_v1_users__username__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                username: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    login_api_v1_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurrentUser"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    logout_api_v1_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+        };
+    };
+    current_user_api_v1_auth_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurrentUser"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
                 };
             };
             /** @description Internal Server Error */

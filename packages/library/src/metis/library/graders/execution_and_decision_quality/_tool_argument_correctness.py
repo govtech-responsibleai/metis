@@ -71,7 +71,7 @@ class ToolArgumentCorrectnessGrader(Grader[ToolArgumentCorrectnessArgs]):
 
     Evaluates syntactic validity and semantic appropriateness of tool arguments.
     Tool selection is assessed separately. A session with no recorded tool calls is
-    errored. The judge checks the arguments against the tool list (the ``available_tools``
+    skipped. The judge checks the arguments against the tool list (the ``available_tools``
     setting, or the tools the session offered).
     """
 
@@ -171,9 +171,9 @@ class ToolArgumentCorrectnessGrader(Grader[ToolArgumentCorrectnessArgs]):
         if isinstance(selected, Problem):
             return GradingOutput.errored(selected.detail)
         if not any(turn.tool_calls for turn in turns(input.traces)):
-            return GradingOutput.errored(
-                "The session has no recorded tool calls, so tool argument correctness "
-                "cannot be assessed."
+            return GradingOutput.skipped(
+                "The session has no recorded tool calls, so there are no tool arguments "
+                "to judge."
             )
         return GradingOutput(
             results=[

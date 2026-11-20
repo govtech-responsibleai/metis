@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   bindingFromDraft,
+  draftFromConnection,
   emptyConnectionDraft,
   errorsByField,
   startConnection,
@@ -164,4 +165,32 @@ test("the test result warns about a submission and offers the suggested ones", (
     warning: null,
     suggestion: [],
   });
+});
+
+test("a saved connection opens as a draft that gives the same binding", () => {
+  for (const draft of [
+    { ...http, startUrl: "", submissions: "POST /chat\nPOST /reply" },
+    {
+      ...emptyConnectionDraft(),
+      mode: "run" as const,
+      transport: "browser" as const,
+      name: "Policy assistant",
+      startUrl: "${APP_URL}/login",
+      loginNote: "Type {{secret:APP_USER}}.",
+      loginSecrets: "APP_USER\nAPP_PASSWORD",
+      notes: "Ask about leave.",
+    },
+  ]) {
+    const binding = bindingFromDraft(draft) as ConnectionCheckResult["binding"];
+    assert.ok(binding);
+    const saved = {
+      transport: draft.transport,
+      binding,
+      status: "checked" as const,
+    };
+    assert.deepEqual(draftFromConnection(saved), {
+      ...draft,
+      name: draft.name.trim(),
+    });
+  }
 });

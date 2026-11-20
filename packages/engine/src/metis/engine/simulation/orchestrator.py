@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from metis.core import Artifact
+    from metis.core.phase_events import PhaseEventLog
     from metis.engine.tui import SimulationState, TUIContext
 
     from .runner import Runner
@@ -87,7 +88,9 @@ class Orchestrator:
         trial_index: int = 1,  # 1-based
         state: SimulationState | None = None,
         tui_ctx: TUIContext | None = None,
-        shutdown_event: threading.Event | None = None,
+        stop: threading.Event | None = None,
+        events: PhaseEventLog | None = None,
+        attempt: int = 1,
     ) -> None:
         self._runner = runner
         self._agent = agent
@@ -96,7 +99,10 @@ class Orchestrator:
         self._trial_index = trial_index
         self._state = state
         self._tui_ctx = tui_ctx
-        self._shutdown_event = shutdown_event
+        self._stop = stop
+        self._events = events
+        self._trial = run_dir.name
+        self._attempt = attempt
         self._ledger = ArtifactLedger(experiment_root, run_dir, fixture_artifacts)
         runner.use_ledger(self._ledger)
 
@@ -130,7 +136,10 @@ class Orchestrator:
             logger.info("[sim] STOP: %s after %d turn(s)", stop_reason, self._turns)
             return self.partial_record(stop_reason)
         finally:
-            await self._runner.teardown()
+            try:
+                await self._runner.teardown()
+            finally:
+                await self._agent.close()
 
     def _check_fixtures(self, stop_reason: str) -> str:
         """Check 1: a fixture the scenario names that was never sent fails the trial."""
@@ -163,7 +172,7 @@ class Orchestrator:
         consecutive_failures = 0
         empty_actions = 0
         while True:
-            if self._shutdown_event and self._shutdown_event.is_set():
+            if self._stop and self._stop.is_set():
                 return "interrupted"
             if self._turns >= self._config.max_turns:
                 return "max_turns"
@@ -214,6 +223,14 @@ class Orchestrator:
             else:
                 empty_actions = 0
                 self._turns += 1
+                if self._events:
+                    self._events.emit(
+                        "simulating",
+                        "running",
+                        trial=self._trial,
+                        attempt=self._attempt,
+                        turn=self._turns,
+                    )
             self._note_promises(observation, turn)
             self._agent.remember(output, observation)
             logger.info(

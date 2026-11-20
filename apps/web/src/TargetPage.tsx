@@ -1,0 +1,112 @@
+// The tab row of a Target page, with the "Start an experiment" button on its right. Experiments and the
+// button stay off until the Interview is done, because only then does the Target have its
+// Specification.
+
+import { Play } from "lucide-react";
+import { Link } from "wouter";
+import { useExperimentList, type ListLoad } from "./ExperimentList";
+import { ExperimentTable } from "./ExperimentTable";
+import { paths, type TargetTab } from "./routes";
+import { store } from "./transport/api";
+import { Button, cn } from "./ui";
+
+export const LOCKED = "Finish the Interview first";
+
+const TAB =
+  "-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-150";
+
+export function TargetTabs({
+  targetId,
+  tab,
+  done,
+  onStartExperiment,
+}: {
+  // Null for a new Target, which has no saved Interview yet.
+  targetId: string | null;
+  tab: TargetTab;
+  done: boolean;
+  onStartExperiment: () => void;
+}) {
+  const tabs: Array<{ id: TargetTab; label: string; href: string | null }> = [
+    {
+      id: "specification",
+      label: "Specification",
+      href: targetId
+        ? paths.target(targetId, "specification")
+        : paths.newTarget(),
+    },
+    {
+      id: "experiments",
+      label: "Experiments",
+      href: targetId && done ? paths.target(targetId, "experiments") : null,
+    },
+  ];
+  return (
+    <div className="flex shrink-0 items-end justify-between gap-4 border-b border-border px-6 pt-4">
+      <div role="tablist" aria-label="Target" className="flex gap-1">
+        {tabs.map(({ id, label, href }) =>
+          href === null ? (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={false}
+              disabled
+              title={LOCKED}
+              className={cn(
+                TAB,
+                "cursor-not-allowed border-transparent text-muted-foreground opacity-45",
+              )}
+            >
+              {label}
+            </button>
+          ) : (
+            <Link
+              key={id}
+              href={href}
+              role="tab"
+              aria-selected={tab === id}
+              className={cn(
+                TAB,
+                tab === id
+                  ? "border-accent text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {label}
+            </Link>
+          ),
+        )}
+      </div>
+      <div className="mb-2">
+        <Button
+          variant="primary"
+          disabled={!done}
+          title={done ? undefined : LOCKED}
+          onClick={onStartExperiment}
+        >
+          <Play size={14} strokeWidth={2} aria-hidden />
+          Start an experiment
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function ExperimentsTab({ targetId }: { targetId: string }) {
+  const load = useExperimentList(`target:${targetId}`, async () =>
+    (await store.experiments(targetId)).experiments.map((record) => ({
+      record,
+    })),
+  );
+  return <ExperimentsTabView load={load} />;
+}
+
+export function ExperimentsTabView({ load }: { load: ListLoad }) {
+  return (
+    // The left padding puts the content in line with the text of the first tab label.
+    <div className="quiet-scrollbar min-h-0 flex-1 overflow-y-auto py-6 pl-9 pr-6">
+      <ExperimentTable load={load} />
+    </div>
+  );
+}

@@ -1,0 +1,105 @@
+---
+title: Run the test suite
+---
+
+`metis engine simulate` runs your test cases against your application. For each trial, a
+simulated user talks to the application through the runner, and METIS records the result.
+It does not grade anything. METIS must first be able to reach your application. See
+[Expose an API or web UI](expose-an-api-or-web-ui.md).
+
+## Start a run
+
+```bash
+metis engine simulate --input-dir my-evaluation
+```
+
+`--input-dir` is the folder with `specification.yaml`, the target connection that
+`target_binding:` names, and `fixtures/`. See [Run your evaluations](run-evaluation.md).
+
+When it finishes, the command prints the output folder, the `evaluate` command for it, and the
+`--resume` command. Copy them from the output instead of typing the timestamp.
+
+## Run trials in parallel
+
+```bash
+metis engine simulate --input-dir my-evaluation --concurrency 4
+```
+
+`--concurrency` (short `-c`) sets how many trials run at once. The default is `1`, and the lowest
+value is `1`. Raise it only as far as your application can handle, and check any rate limits in
+your target connection.
+
+`metis engine run` takes the same option and uses the one number twice: it runs that many trials
+at once, and then
+[grades that many trials at once](run-graders.md#grade-several-trials-at-once). If your
+application and your model provider can handle different numbers, run `simulate` and `evaluate`
+yourself and give each its own `--concurrency`.
+
+## Resume a stopped run
+
+If a run stops before all trials finish, continue the same output folder:
+
+```bash
+metis engine simulate --resume --experiment-dir evaluations/experiments/<your-experiment>
+```
+
+Give both flags together. Resume reads the specification from the frozen `specification/` folder in that
+output folder, not from your source folder. It runs again only the trials that did not end: a trial
+that was interrupted, or one whose record is missing or unreadable. A trial that failed with a
+system error has ended, so it stays failed. To run failed trials again, start a new experiment with
+`--input-dir`; it runs every trial again, not only the failed ones. Do not combine `--resume` with
+`--input-dir`.
+
+If the resume re-runs at least one trial, it deletes the earlier evaluation
+(`outputs/evaluation/`, `outputs/traces/` and `results.json`), because the old grades no longer
+match. It does this once the runner is built, so a setup error leaves them in place. If there is
+nothing to re-run, it keeps them.
+
+## Simulate and evaluate together
+
+`metis engine run` does both steps, and also takes `--resume --experiment-dir`:
+
+```bash
+metis engine run --input-dir my-evaluation
+metis engine run --resume --experiment-dir evaluations/experiments/<your-experiment>
+```
+
+`run --resume` resumes the simulation as above, then the grading as in
+[Resume a stopped evaluation](run-graders.md#resume-a-stopped-evaluation). A run that stopped
+during grading keeps the trials it already graded.
+
+## Other options
+
+| Option | Meaning |
+|---|---|
+| `--no-tui` | Print plain log lines instead of the progress screen |
+| `--verbose`, `-v` | Show more log detail. Repeat it for more |
+| `--quiet` | Show errors only |
+| `--log-format` | `text` (default) or `json` for the log files |
+| `--log-dir` | Write the logs to another folder |
+
+## Outputs
+
+```text
+evaluations/experiments/<your-experiment>/
+├── specification/
+│   ├── specification.yaml
+│   └── fixtures/
+├── outputs/
+│   └── trials/
+│       └── <trial>/
+│           ├── record.json
+│           ├── evidence/
+│           └── artifacts/
+└── logs/
+    ├── events.jsonl   # One progress event per line
+    └── simulate.log
+```
+
+`logs/events.jsonl` records the progress of the experiment as it happens, one JSON event per
+line, so another program can follow it. The schema of each line is
+`packages/core/schemas/phase-event.schema.json`.
+
+## Next step
+
+[Run the graders](run-graders.md).

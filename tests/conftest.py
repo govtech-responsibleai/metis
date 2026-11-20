@@ -54,6 +54,8 @@ def export_clock(monkeypatch):
             export_layout, "datetime", SimpleNamespace(now=lambda: value)
         )
 
+    # The random part of a new id, so an export of the time above has a known name.
+    monkeypatch.setattr(export_layout, "random_part", lambda: "k7mwp")
     set_time(datetime(2026, 10, 16, 22, 30, 45))
     return set_time
 

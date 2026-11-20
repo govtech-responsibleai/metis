@@ -766,7 +766,8 @@ def _lines_of(
                 nested.append(part)
             else:
                 inner.extend(text_of(part, quiet))
-        details.append(Details(group.title, tuple(inner), group.expanded, depth))
+        title = f"{group.title}  ({group.id})" if group.id else group.title
+        details.append(Details(title, tuple(inner), group.expanded, depth))
         for part in nested:
             walk(part, depth + 1, quiet)
 

@@ -37,7 +37,7 @@ class ReasoningValidityGrader(Grader[ReasoningValidityArgs]):
 
     Evaluates the recorded argument only; does not claim access to hidden reasoning.
     Does not infer a reasoning defect merely from an unsuccessful plan. A session with
-    no recorded reasoning is errored, with the judge's reason.
+    no recorded reasoning is skipped, with the judge's reason.
     """
 
     args_model = ReasoningValidityArgs

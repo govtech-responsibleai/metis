@@ -1,13 +1,19 @@
 # Published schemas
 
 `specification.schema.json` describes `specification.yaml` for editors and external
-validators. It is generated from `SpecificationDocument` in
+validators. It is generated from `Specification` in
 [`metis.core.specification`](../src/metis/core/specification.py). Do not edit the JSON file.
 
 `target-binding.schema.json` describes a target binding, the YAML file a user writes to
 bind an app to the generic HTTP or browser runner. It is generated from `TargetBinding` in
 [`metis.core.target_binding`](../src/metis/core/target_binding.py). Editors pick it up
 from a `# yaml-language-server: $schema=...` line at the top of the file.
+
+`phase-event.schema.json` describes one line of `logs/events.jsonl`, the progress log that the
+engine appends to while it simulates and evaluates an experiment. It is generated from
+`PhaseEvent` in [`metis.core.phase_events`](../src/metis/core/phase_events.py). The `phase`,
+`trial` and `status` fields decide which extra fields a line has. Programs that follow the
+progress, such as a browser client, validate each line against it.
 
 New shared file models belong in core. Publish a JSON Schema only when an editor or
 external consumer needs one. Store published schemas here. Private runtime and API

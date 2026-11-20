@@ -45,11 +45,12 @@ _MODEL_VARS = (
 def model_settings(monkeypatch: pytest.MonkeyPatch, tmp_path_factory) -> None:
     """Give each test a fake shared key and an empty `.env`.
 
-    No test reads a developer's real `.env` or keys. A test that checks a missing key
-    deletes ``OPENAI_API_KEY`` itself. No test makes a real model call.
+    No test reads a developer's real `.env`, keys or quiet window. A test that checks a
+    missing key deletes ``OPENAI_API_KEY`` itself. No test makes a real model call.
     """
     for name in _MODEL_VARS:
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("LANGFUSE_METIS_QUIET_SECONDS", raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     env_file = tmp_path_factory.mktemp("env") / ".env"
     env_file.write_text("", encoding="utf-8")

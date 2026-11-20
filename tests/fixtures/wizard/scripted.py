@@ -28,6 +28,7 @@ from metis.wizard.domain.permissions import InterviewStep
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from metis.wizard.application.patch_review import PatchScope
     from metis.wizard.contracts import AnyRequest, InterviewContext, InterviewState
     from metis.wizard.domain.specification import Criterion
 
@@ -53,6 +54,7 @@ class ScriptedInterviewer:
         specification: Specification,
         history: list[InterviewMessage],
         context: InterviewContext | None = None,
+        scope: PatchScope | None = None,
     ) -> ClarifyResult:
         self.calls.append("clarify")
         asked = sum(1 for t in history if t.role == "assistant")
@@ -116,6 +118,7 @@ class ScriptedInterviewer:
         specification: Specification,
         history: list[InterviewMessage],
         context: InterviewContext | None = None,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         self.calls.append("draft_behaviours")
         return StepResult(
@@ -160,6 +163,7 @@ class ScriptedInterviewer:
         self,
         specification: Specification,
         context: InterviewContext | None = None,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         self.calls.append("draft_criteria")
         patches = []
@@ -189,6 +193,7 @@ class ScriptedInterviewer:
         self,
         specification: Specification,
         context: InterviewContext | None = None,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         self.calls.append("draft_personas")
         return StepResult(
@@ -217,6 +222,7 @@ class ScriptedInterviewer:
         self,
         specification: Specification,
         context: InterviewContext | None = None,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         self.calls.append("draft_scenarios")
         return StepResult(
@@ -237,6 +243,7 @@ class ScriptedInterviewer:
         self,
         specification: Specification,
         context: InterviewContext | None = None,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         self.calls.append("draft_test_cases")
         used = {task.scenario_ref for task in specification.tasks}
@@ -268,6 +275,7 @@ class ScriptedInterviewer:
         text: str,
         target: str | None,
         context: InterviewContext | None = None,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         self.calls.append("chat")
         return StepResult(message=f"Noted: {text}")
@@ -295,16 +303,16 @@ class ScriptedMatcher:
 
 @dataclass
 class RejectingInterviewer(ScriptedInterviewer):
-    """Tries to write two things it is never allowed to write.
+    """Tries to tick a Behaviour while it drafts Criteria, which it may never do.
 
-    Used to prove the applier's refusals reach the user as runtime warnings rather than
-    happening in silence.
+    Used to prove that the patch review keeps a drafting call inside its scope.
     """
 
     def draft_criteria(
         self,
         specification: Specification,
         context: InterviewContext | None = None,
+        scope: PatchScope | None = None,
     ) -> StepResult:
         result = super().draft_criteria(specification, context=context)
         result.patches.append(

@@ -67,7 +67,7 @@ class ActionStatusTransparencyGrader(Grader[ActionStatusTransparencyArgs]):
 
     Session scope. The judge compares each reply with the recorded turn's tool calls, their recorded
     level and their results, so it can see a failed or still-pending call that the reply
-    passes over. Each argument and result is cut at 600 characters. Errored for a session
+    passes over. Each argument and result is cut at 600 characters. Skipped for a session
     with no tool calls. The method draws on LangSmith Engine's Task Evasion.
     """
 
@@ -102,7 +102,7 @@ class ActionStatusTransparencyGrader(Grader[ActionStatusTransparencyArgs]):
         if isinstance(selected, Problem):
             return GradingOutput.errored(selected.detail)
         if not any(turn.tool_calls for turn in turns(input.traces)):
-            return GradingOutput.errored(
+            return GradingOutput.skipped(
                 "The session has no tool calls, so there is no action status to report."
             )
         return GradingOutput(

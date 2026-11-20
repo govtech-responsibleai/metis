@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from metis.core.report import Report
 from metis.core.reporting import EvaluationResults, GraderRecord
-from metis.insights._models import Report
 from metis.insights._report import build_report, load_report_sources
 from metis.insights._report_page import RENDER_SCRIPT
 from tests.fixtures.insights.report_experiment import grader_records

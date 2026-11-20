@@ -10,13 +10,14 @@ import asyncio
 import json
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, Literal, NamedTuple
+from urllib.parse import urlsplit
 
 import structlog
 
 from metis.core import execution_layout
-from metis.core.console import console
 from metis.core.logging import get_logger
+from metis.core.phase_events import INTERRUPTED_REASON
 from metis.core.trials import TrialConfig, TrialFailure, TrialOutcome, TrialRecord
 from metis.engine.tracing import traced, trial_session_id
 
@@ -31,6 +32,10 @@ from .trial import create_trial, resolve_fixture_descriptions
 if TYPE_CHECKING:
     import threading
 
+    from rich.console import Console
+
+    from metis.core.langfuse_links import TargetProject
+    from metis.core.phase_events import PhaseEventLog
     from metis.engine.logging import LogRouter, OrchestrationLogger
     from metis.engine.tui import SimulationState, TUIContext
 
@@ -116,11 +121,17 @@ def execute_experiment(
     orchestration_logger: OrchestrationLogger | None = None,
     log_router: LogRouter | None = None,
     tui_ctx: TUIContext | None = None,
-    shutdown_event: threading.Event | None = None,
+    stop: threading.Event | None = None,
+    events: PhaseEventLog | None = None,
+    target_project: TargetProject | None = None,
+    console: Console,
 ) -> None:
     """Run a full experiment (all scenario x persona pairs).
 
-    Sync entry point — delegates to the async orchestrator via asyncio.run().
+    Sync entry point — delegates to the async orchestrator via asyncio.run(). With
+    ``events``, each trial writes its start, turns, retries and end to the event log.
+    Progress lines and the summary go to ``console``. With ``target_project``, each saved
+    record links to its target session in that Langfuse project.
     """
     asyncio.run(
         _execute_experiment_async(
@@ -137,7 +148,10 @@ def execute_experiment(
             orchestration_logger=orchestration_logger,
             log_router=log_router,
             tui_ctx=tui_ctx,
-            shutdown_event=shutdown_event,
+            stop=stop,
+            events=events,
+            target_project=target_project,
+            console=console,
         )
     )
 
@@ -156,9 +170,16 @@ async def _execute_experiment_async(
     orchestration_logger: OrchestrationLogger | None = None,
     log_router: LogRouter | None = None,
     tui_ctx: TUIContext | None = None,
-    shutdown_event: threading.Event | None = None,
+    stop: threading.Event | None = None,
+    events: PhaseEventLog | None = None,
+    *,
+    target_project: TargetProject | None = None,
+    console: Console | None = None,
 ) -> None:
-    """Async experiment orchestrator with concurrent runner contexts."""
+    """Async experiment orchestrator with concurrent runner contexts.
+
+    Without the TUI, it writes the summary to ``console``. With no ``console``, it writes none.
+    """
     total_trials = len(trial_plan)
 
     logger.info("=" * 60)
@@ -190,7 +211,7 @@ async def _execute_experiment_async(
     # builds; those builds never re-summarize.
     all_fixture_names = [name for task in specification.tasks for name in task.fixtures]
     experiment_root = output_dir if output_dir is not None else Path("results")
-    defaults = specification.experiment.defaults
+    defaults = specification.defaults
     resolved_fixture_descriptions = await resolve_fixture_descriptions(
         all_fixture_names,
         fixtures_dir,
@@ -224,7 +245,10 @@ async def _execute_experiment_async(
                         orchestration_logger=orchestration_logger,
                         log_router=log_router,
                         tui_ctx=tui_ctx,
-                        shutdown_event=shutdown_event,
+                        stop=stop,
+                        events=events,
+                        target_project=target_project,
+                        console=console,
                     )
                 )
 
@@ -241,6 +265,8 @@ async def _execute_experiment_async(
         await runner_factory.close()
 
     # Print summary (only in non-TUI mode; TUI mode prints via CLI after exiting)
+    if console is None:
+        return
     if not tui_ctx:
         console.print("\n\n========== SIMULATION SUMMARY ==========\n")
         for r in all_records:
@@ -274,12 +300,18 @@ async def _worker(
     orchestration_logger: OrchestrationLogger | None = None,
     log_router: LogRouter | None = None,
     tui_ctx: TUIContext | None = None,
-    shutdown_event: threading.Event | None = None,
+    stop: threading.Event | None = None,
     default_user_agent_model: str | None = None,
     runner_agent_model: str | None = None,
     experiment_id: str | None = None,
+    events: PhaseEventLog | None = None,
+    target_project: TargetProject | None = None,
+    console: Console | None = None,
 ) -> list[TrialRecord]:
     """One concurrent worker: creates a fresh runner per trial for isolation.
+
+    Without the TUI, each trial writes a start line and an end line to ``console``. With no
+    ``console``, the worker writes none.
 
     Each trial's ``TrialConfig`` records the models that produce it: the user agent model
     (Task, then experiment default, then environment, then ``DEFAULT_MODEL``) and, for a
@@ -287,6 +319,9 @@ async def _worker(
 
     Each attempt is one trace in the METIS-internal Langfuse. Its session is the trial's
     (``tracing.trial_session_id``), which the trial's grading traces share.
+
+    With ``target_project``, each record gets ``target_session_langfuse_url``: the page of its
+    target session in the target's Langfuse project.
     """
     structlog.contextvars.clear_contextvars()
     structlog.contextvars.bind_contextvars(worker=f"w{worker_id}")
@@ -301,7 +336,7 @@ async def _worker(
         records: list[TrialRecord] = []
         for scenario, persona, trial_index in worker_trials:
             task_id = scenario.task_id or scenario.id
-            if shutdown_event and shutdown_event.is_set():
+            if stop and stop.is_set():
                 logger.info(
                     "[experiment] Worker w%d stopping (shutdown requested)", worker_id
                 )
@@ -363,7 +398,7 @@ async def _worker(
             async with console_lock:
                 if tui_ctx:
                     tui_ctx.refresh()
-                else:
+                elif console is not None:
                     console.print(f"  [w{worker_id}] {scenario.id} × {persona.id} ...")
 
             run_start = time.time()
@@ -372,15 +407,16 @@ async def _worker(
             # budget and an empty prior_failures, so attempt_number means
             # "attempts in this process", never a lifetime total.
             #
-            # The earlier process's history is dropped rather than merged, for a
-            # different reason in each of the two resume cases. An interrupted
-            # run never wrote a record.json, so its attempts are genuinely
-            # unrecoverable. A system_error run did write one, and
-            # _classify_resume_trials in cli.py reads it to decide the trial needs
-            # redoing at all — so that record's attempt_number and prior_failures
-            # are in hand at that moment, and are deliberately discarded when the
-            # redone run overwrites the file. Carrying them forward is deferred,
-            # not impossible.
+            # A resume redoes only a trial that did not end: its record is
+            # missing or unreadable, or its stop reason is interrupted. A trial
+            # stopped by Ctrl-C does write a record.json with stop reason
+            # interrupted, and _classify_resume_trials in metis.engine.run reads
+            # it to decide that the trial needs redoing. The earlier process's history
+            # is dropped rather than merged: that record's attempt_number and
+            # prior_failures are discarded when the redone run writes over the
+            # file. Carrying them forward is deferred, not impossible. A
+            # system_error trial ended after its retry limit, so a resume never
+            # runs it again.
             #
             # Consequence worth knowing: a run that spent attempts, was
             # interrupted, then succeeded after a --resume reports attempt 1, so
@@ -428,6 +464,10 @@ async def _worker(
                     run_dir, fixtures_dir, experiment_root
                 )
                 trial: Trial | None = None  # reset each attempt
+                if events:
+                    events.emit(
+                        "simulating", "started", trial=folder_name, attempt=attempt
+                    )
 
                 # Descriptions were resolved once per experiment before fan-out;
                 # this only mints a fresh Artifact per attempt (clean at_simulated_turn/id)
@@ -466,7 +506,9 @@ async def _worker(
                         trial_index=trial_index,
                         state=state,
                         tui_ctx=tui_ctx,
-                        shutdown_event=shutdown_event,
+                        stop=stop,
+                        events=events,
+                        attempt=attempt,
                     )
                     record = await traced(
                         trial.execute,
@@ -540,6 +582,7 @@ async def _worker(
                                 prior_failures=prior_failures,
                             )
                     else:
+                        _emit_retry(events, folder_name, failure)
                         await asyncio.sleep(trial_retry_delay_seconds)
                         run_start = time.time()
 
@@ -601,6 +644,7 @@ async def _worker(
                         record.prior_failures = prior_failures
                         break
 
+                    _emit_retry(events, folder_name, prior_failures[-1])
                     await asyncio.sleep(trial_retry_delay_seconds)
                     run_start = time.time()
 
@@ -644,13 +688,27 @@ async def _worker(
                 if tui_ctx:
                     tui_ctx.refresh()
 
+            if target_project is not None and record.target_session_id:
+                record.target_session_langfuse_url = target_project.session_url(
+                    record.target_session_id
+                )
+
             # Save trial record to disk
             _save_trial_record(record, run_dir)
             logger.info(
                 "[experiment] Saved record: %s", run_dir / execution_layout.TRIAL_RECORD
             )
+            if events:
+                events.emit(
+                    "simulating",
+                    trial_end_status(record),
+                    trial=folder_name,
+                    attempt=record.attempt_number,
+                    reason=trial_end_reason(record),
+                    session_url=trial_end_session_url(record),
+                )
 
-            if not tui_ctx:
+            if not tui_ctx and console is not None:
                 async with console_lock:
                     console.print(
                         f"  [w{worker_id}] {scenario.id} × {persona.id} — "
@@ -690,6 +748,75 @@ def _distribute_trials(
     for i, trial in enumerate(trials):
         slices[i % concurrency].append(trial)
     return slices
+
+
+def trial_end_status(
+    record: TrialRecord,
+) -> Literal["completed", "failed", "interrupted"]:
+    """How a trial ended, from its record.
+
+    A trial is ``failed`` when it stopped with ``system_error``, and ``interrupted`` when
+    the user stopped the run. Any other stop reason, such as ``max_turns``, is a trial
+    that ran to its end, so it is ``completed``.
+    """
+    stop_reason = record.outcome.stop_reason
+    if stop_reason == "system_error":
+        return "failed"
+    if stop_reason == "interrupted":
+        return "interrupted"
+    return "completed"
+
+
+def trial_end_reason(record: TrialRecord) -> str | None:
+    """Why a trial did not complete: the record's failure message, else the last failed
+    attempt's error. ``None`` for a completed trial."""
+    status = trial_end_status(record)
+    if status == "interrupted":
+        return INTERRUPTED_REASON
+    if status == "completed":
+        return None
+    return record.outcome.failure_message or (
+        record.prior_failures[-1].error_message if record.prior_failures else None
+    )
+
+
+def trial_end_session_url(record: TrialRecord) -> str | None:
+    """The Langfuse URL for the end event of a trial, or ``None``.
+
+    Only a completed trial gets one: its record's ``target_session_langfuse_url``, when that
+    is a well-formed ``http`` or ``https`` URL without a user or a password. A ``LANGFUSE_BASE_URL``
+    such as ``https://user:pass@host`` gives such a URL, which must not reach the events
+    log, so it is left out with a warning. The record keeps its URL either way.
+    """
+    url = record.target_session_langfuse_url
+    if url is None or trial_end_status(record) != "completed":
+        return None
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return None
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        return None
+    if parts.username is not None or parts.password is not None:
+        logger.warning(
+            "[experiment] The Langfuse URL has a user or a password, "
+            "so the end event of the trial has no session_url"
+        )
+        return None
+    return url
+
+
+def _emit_retry(
+    events: PhaseEventLog | None, trial: str, failure: TrialFailure
+) -> None:
+    if events:
+        events.emit(
+            "simulating",
+            "retrying",
+            trial=trial,
+            attempt=failure.attempt_number,
+            reason=f"{failure.failure_type}: {failure.error_message}",
+        )
 
 
 def _save_trial_record(record: TrialRecord, run_dir: Path) -> None:

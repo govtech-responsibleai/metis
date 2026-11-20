@@ -39,16 +39,17 @@ def test_package_returns_a_portable_zip_with_specification_and_fixtures(
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/zip"
     assert response.headers["access-control-expose-headers"] == "Content-Disposition"
-    assert "20261016-223045-manual.zip" in response.headers["content-disposition"]
+    assert "20261016-223045-manual-k7mwp.zip" in response.headers["content-disposition"]
     with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
         assert set(archive.namelist()) == {
-            "20261016-223045-manual/inputs/",
-            "20261016-223045-manual/outputs/specification.yaml",
-            "20261016-223045-manual/outputs/fixtures/",
-            "20261016-223045-manual/outputs/fixtures/policy.pdf",
+            "specifications/20261016-223045-manual-k7mwp/specification.yaml",
+            "specifications/20261016-223045-manual-k7mwp/fixtures/",
+            "specifications/20261016-223045-manual-k7mwp/fixtures/policy.pdf",
         }
         assert (
-            archive.read("20261016-223045-manual/outputs/fixtures/policy.pdf")
+            archive.read(
+                "specifications/20261016-223045-manual-k7mwp/fixtures/policy.pdf"
+            )
             == b"policy bytes"
         )
 
@@ -74,12 +75,14 @@ def test_package_includes_unreferenced_fixture_bytes_without_server_state(
     assert first.status_code == second.status_code == 200
     with zipfile.ZipFile(io.BytesIO(first.content)) as archive:
         assert (
-            archive.read("20261016-223045-manual/outputs/fixtures/notes.txt")
+            archive.read(
+                "specifications/20261016-223045-manual-k7mwp/fixtures/notes.txt"
+            )
             == b"notes"
         )
     with zipfile.ZipFile(io.BytesIO(second.content)) as archive:
         assert (
-            "20261016-223045-manual/outputs/fixtures/notes.txt"
+            "specifications/20261016-223045-manual-k7mwp/fixtures/notes.txt"
             not in archive.namelist()
         )
 
@@ -207,28 +210,33 @@ def test_interview_export_preserves_the_state_used_to_compile(
     )
     assert response.status_code == 200
     assert response.headers["content-disposition"] == (
-        'attachment; filename="20261016-223045-interview.zip"'
+        'attachment; filename="20261016-223045-interview-k7mwp.zip"'
     )
     with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
         assert set(archive.namelist()) == {
-            "20261016-223045-interview/inputs/",
-            "20261016-223045-interview/inputs/interview_state.json",
-            "20261016-223045-interview/outputs/specification.yaml",
-            "20261016-223045-interview/outputs/fixtures/",
-            "20261016-223045-interview/outputs/fixtures/policy.pdf",
+            "interviews/20261016-223045-interview-k7mwp/interview_state.json",
+            "specifications/20261016-223045-interview-k7mwp/specification.yaml",
+            "specifications/20261016-223045-interview-k7mwp/fixtures/",
+            "specifications/20261016-223045-interview-k7mwp/fixtures/policy.pdf",
         }
         saved = InterviewState.model_validate_json(
-            archive.read("20261016-223045-interview/inputs/interview_state.json")
+            archive.read(
+                "interviews/20261016-223045-interview-k7mwp/interview_state.json"
+            )
         )
         assert saved == state
         compiled = compile_specification(saved.specification)
         assert yaml.safe_load(
-            archive.read("20261016-223045-interview/outputs/specification.yaml")
+            archive.read(
+                "specifications/20261016-223045-interview-k7mwp/specification.yaml"
+            )
         ) == compiled.specification.model_dump(mode="json")
         for task in compiled.specification.tasks:
             for name in task.fixtures:
                 assert (
-                    archive.read(f"20261016-223045-interview/outputs/fixtures/{name}")
+                    archive.read(
+                        f"specifications/20261016-223045-interview-k7mwp/fixtures/{name}"
+                    )
                     == b"policy bytes"
                 )
 
@@ -267,22 +275,18 @@ def test_an_interview_export_writes_the_binding_only_in_run_mode(
     )
 
     assert response.status_code == 200
-    root = "20261016-223045-interview"
+    root = "specifications/20261016-223045-interview-k7mwp"
     with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
         names = set(archive.namelist())
-        specification = yaml.safe_load(
-            archive.read(f"{root}/outputs/specification.yaml")
-        )
+        specification = yaml.safe_load(archive.read(f"{root}/specification.yaml"))
         if transport is None:
-            assert f"{root}/outputs/target-binding.yaml" not in names
+            assert f"{root}/target-binding.yaml" not in names
             assert "target_binding" not in specification
             assert specification["runner_factory_ref"] == (
                 "metis.engine.simulation.runners.http.HttpRunnerFactory"
             )
         else:
-            binding = yaml.safe_load(
-                archive.read(f"{root}/outputs/target-binding.yaml")
-            )
+            binding = yaml.safe_load(archive.read(f"{root}/target-binding.yaml"))
             assert binding["transport"] == transport.value
             assert specification["target_binding"] == "target-binding.yaml"
             assert specification["runner_factory_ref"].startswith(
@@ -306,13 +310,11 @@ def test_a_manual_export_with_a_connection_names_the_binding_and_the_generic_run
     )
 
     assert response.status_code == 200
-    root = "20261016-223045-manual"
+    root = "specifications/20261016-223045-manual-k7mwp"
     with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
-        binding = yaml.safe_load(archive.read(f"{root}/outputs/target-binding.yaml"))
-        specification = yaml.safe_load(
-            archive.read(f"{root}/outputs/specification.yaml")
-        )
-        assert f"{root}/inputs/interview_state.json" not in archive.namelist()
+        binding = yaml.safe_load(archive.read(f"{root}/target-binding.yaml"))
+        specification = yaml.safe_load(archive.read(f"{root}/specification.yaml"))
+        assert not any(name.startswith("interviews/") for name in archive.namelist())
     assert binding["transport"] == transport.value
     assert specification["target_binding"] == "target-binding.yaml"
     assert specification["runner_factory_ref"].startswith(

@@ -323,6 +323,7 @@ class GraderType(StrEnum):
     LEARNED_DISCRIMINATIVE_MODEL = "learned_discriminative_model"
     EMBEDDING_SIMILARITY = "embedding_similarity"
     LLM = "llm"
+    DECISION_MODEL = "decision_model"  # A probability per question; no written reason.
     HYBRID = "hybrid"
 
     # Out of scope in V1.

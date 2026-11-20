@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 
-def test_grader_catalogue_marks_only_the_criterion_judge_as_description_driven(
+def test_grader_catalogue_marks_the_criterion_graders_as_description_driven(
     client: TestClient,
 ) -> None:
     response = client.get("/api/v1/graders")
@@ -12,7 +12,10 @@ def test_grader_catalogue_marks_only_the_criterion_judge_as_description_driven(
     driven = [
         row["fqn"] for row in response.json() if row["uses_criterion_description"]
     ]
-    assert driven == ["metis.library.graders.CriterionJudgeGrader"]
+    assert driven == [
+        "metis.library.graders.CriterionDecisionGrader",
+        "metis.library.graders.CriterionJudgeGrader",
+    ]
     assert "metis.library.graders.ErrorRecoveryGrader" in [
         row["fqn"] for row in response.json()
     ]
@@ -58,7 +61,7 @@ def test_grader_catalogue_rows_carry_the_taxonomy_dimension_and_settings(
         "name": "threshold",
         "kind": "number",
         "required": False,
-        "default": 0.5,
+        "default": 0.8,
         "choices": [],
         "base": True,
         "description": None,

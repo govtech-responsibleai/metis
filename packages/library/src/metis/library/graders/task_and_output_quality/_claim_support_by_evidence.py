@@ -53,7 +53,7 @@ class ClaimSupportByEvidenceGrader(Grader[ClaimSupportByEvidenceArgs]):
     the user gave the target. Support by evidence is independent of whether the claims are
     true in the world and of whether the evidence source is suitable. Output with no factual
     claims to check, or a session with no evidence (only the reply, and no source file), is
-    left to the judge, which returns not applicable, so the result is errored with its reason.
+    left to the judge, which returns not applicable, so the result is skipped with its reason.
     """
 
     args_model = ClaimSupportByEvidenceArgs

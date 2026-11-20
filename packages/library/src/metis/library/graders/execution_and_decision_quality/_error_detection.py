@@ -35,7 +35,7 @@ class ErrorDetectionGrader(Grader[ErrorDetectionArgs]):
     """Assess whether the agent observably identifies failed or erroneous actions.
 
     Requires a visible flag, statement, or corrective behaviour. Does not infer
-    unobserved internal recognition. A session with no observable error is errored,
+    unobserved internal recognition. A session with no observable error is skipped,
     with the judge's reason.
     """
 

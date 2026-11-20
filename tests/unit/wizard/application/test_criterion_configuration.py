@@ -145,7 +145,7 @@ def test_guided_edit_commits_one_complete_criterion_or_keeps_the_previous_state(
     snapshot = state.model_dump(mode="json")
 
     class Editor(ScriptedInterviewer):
-        def chat(self, specification, step, text, target, context=None):
+        def chat(self, specification, step, text, target, context=None, scope=None):
             return StepResult(
                 message="",
                 patches=[

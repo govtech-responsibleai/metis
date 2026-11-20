@@ -8,6 +8,7 @@ import type {
 import { emptyRecord } from "../storage/repository.ts";
 import {
   activeReview,
+  addedDocuments,
   applyEnd,
   applyTurn,
   groupTranscript,
@@ -87,6 +88,12 @@ test("transcript projects start and one answered turn without changing API state
   );
   assert.equal(toPresentation(next).requests.length, 3);
   assert.equal(record.state.pending?.request_id, "req-1");
+});
+
+test("the opening entry keeps the names of the opening documents", () => {
+  const [opening] = startTranscript("A target", state, ["policy.pdf"]);
+
+  assert.deepEqual(addedDocuments(opening), ["policy.pdf"]);
 });
 
 test("choice toggles update the current transcript screen in place", () => {

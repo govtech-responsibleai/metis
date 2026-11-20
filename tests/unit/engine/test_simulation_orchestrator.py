@@ -116,6 +116,7 @@ class ScriptedAgent:
         self.held: list[list[str]] = []
         self.promised: list[list[str]] = []
         self.remembered: list[Observation] = []
+        self.closed = False
 
     async def decide(
         self, turn: int, held: list[Artifact], promised: list[Promise]
@@ -130,6 +131,9 @@ class ScriptedAgent:
 
     def remember(self, output: UserAgentOutput, observation: Observation) -> None:
         self.remembered.append(observation)
+
+    async def close(self) -> None:
+        self.closed = True
 
 
 def _go(action: str = "Say ⟦hi⟧") -> UserAgentOutput:
@@ -150,7 +154,7 @@ def _build(
     timeout_minutes: int = 15,
     state: Any = None,
     tui_ctx: Any = None,
-    shutdown_event: threading.Event | None = None,
+    stop: threading.Event | None = None,
 ) -> Orchestrator:
     fixtures = fixtures or []
     fixtures_dir = tmp_path / "fixtures"
@@ -178,7 +182,7 @@ def _build(
         trial_index=1,
         state=state,
         tui_ctx=tui_ctx,
-        shutdown_event=shutdown_event,
+        stop=stop,
     )
 
 
@@ -298,11 +302,11 @@ async def test_timeout_stops_before_the_first_turn(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_set_shutdown_event_ends_the_trial_cleanly(tmp_path: Path) -> None:
+async def test_set_stop_ends_the_trial_cleanly(tmp_path: Path) -> None:
     event = threading.Event()
     event.set()
     runner = FakeRunner([])
-    orch = _build(tmp_path, runner, ScriptedAgent([_go()]), shutdown_event=event)
+    orch = _build(tmp_path, runner, ScriptedAgent([_go()]), stop=event)
 
     record = await orch.execute()
 
@@ -316,7 +320,7 @@ async def test_shutdown_during_a_turn_keeps_that_turn_and_skips_the_closing_call
 ) -> None:
     event = threading.Event()
     runner = FakeRunner([Step(_observation(), set_event=event)])
-    orch = _build(tmp_path, runner, ScriptedAgent([_go()]), shutdown_event=event)
+    orch = _build(tmp_path, runner, ScriptedAgent([_go()]), stop=event)
 
     record = await orch.execute()
 
@@ -603,7 +607,7 @@ async def test_no_fixture_check_on_an_interrupted_or_zero_turn_trial(
         FakeRunner([Step(_observation(), set_event=event)]),
         ScriptedAgent([_go(), _go()]),
         fixtures=["q3_sales.csv"],
-        shutdown_event=event,
+        stop=event,
     )
     empty = _build(
         tmp_path / "b",
@@ -725,3 +729,29 @@ async def test_the_turn_line_shows_an_action_that_sent_nothing(tmp_path: Path) -
     assert first["sent_nothing"] is True
     assert first["reply"] is None
     assert "quoted no message" in first["notice"]
+
+
+@pytest.mark.asyncio
+async def test_the_user_agent_is_closed_when_the_trial_ends(tmp_path: Path) -> None:
+    agent = ScriptedAgent([_go(), _done()])
+    orch = _build(tmp_path, FakeRunner([Step(_observation())]), agent)
+
+    await orch.execute()
+
+    assert agent.closed
+
+
+@pytest.mark.asyncio
+async def test_the_user_agent_is_closed_when_the_runner_fails(tmp_path: Path) -> None:
+    class BrokenRunner(FakeRunner):
+        async def teardown(self) -> None:
+            raise RuntimeError("teardown failed")
+
+    agent = ScriptedAgent([_go()])
+    runner = BrokenRunner([Step(raises=TrialRecoverableError("target down"))])
+    orch = _build(tmp_path, runner, agent)
+
+    with pytest.raises(RuntimeError, match="teardown failed"):
+        await orch.execute()
+
+    assert agent.closed

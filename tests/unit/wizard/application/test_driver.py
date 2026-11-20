@@ -6,10 +6,11 @@ from dataclasses import dataclass
 import pytest
 
 from metis.wizard.adapters.llm.gateway import ModelOutputError
-from metis.wizard.application import InterviewMessage
+from metis.wizard.application import InterviewMessage, prompts
 from metis.wizard.application.config import clarify_turn_cap, opening_question
 from metis.wizard.application.driver import DriverState as ApplicationDriverState
 from metis.wizard.application.driver import StepDriver
+from metis.wizard.application.patch_review import PatchScope
 from metis.wizard.application.readiness import scenario_readiness
 from metis.wizard.contracts import (
     ChatRequest,
@@ -26,7 +27,7 @@ from metis.wizard.contracts import (
     Target,
     WarningSource,
 )
-from metis.wizard.domain.permissions import InterviewStep
+from metis.wizard.domain.permissions import InterviewStep, PatchReason
 from metis.wizard.domain.specification import Behaviour, collect_specification_ids
 from tests.fixtures.wizard.context import interview_context
 from tests.fixtures.wizard.scripted import ScriptedInterviewer
@@ -64,7 +65,7 @@ def empty_state(step=InterviewStep.CLARIFY, history=None) -> ApplicationDriverSt
 class NeverDone(ScriptedInterviewer):
     """A model that always says it needs one more question."""
 
-    def clarify(self, specification, history, context=None):
+    def clarify(self, specification, history, context=None, scope=None):
         self.calls.append("clarify")
         from metis.wizard.contracts import ClarifyResult
 
@@ -133,7 +134,7 @@ def test_clarify_commits_target_but_not_behaviours() -> None:
 def test_a_thin_answer_writes_no_target_fields() -> None:
     @dataclass
     class ThinInterviewer(ScriptedInterviewer):
-        def clarify(self, specification, history, context=None):
+        def clarify(self, specification, history, context=None, scope=None):
             from metis.wizard.contracts import ClarifyResult
 
             return ClarifyResult(message="Tell me a little more.", done=False)
@@ -152,7 +153,7 @@ def test_a_thin_answer_writes_no_target_fields() -> None:
 def test_clarify_rejects_a_non_target_patch() -> None:
     @dataclass
     class WritesABehaviour(NeverDone):
-        def clarify(self, specification, history, context=None):
+        def clarify(self, specification, history, context=None, scope=None):
             from metis.wizard.contracts import ClarifyResult
 
             return ClarifyResult(
@@ -201,6 +202,7 @@ def test_model_drafts_cannot_change_interview_context() -> None:
                 },
             ],
         ),
+        PatchScope(),
     )
 
     assert state.context.perspective is Perspective.SECURITY
@@ -223,6 +225,7 @@ def test_a_later_target_edit_does_not_move_the_step() -> None:
                 }
             ],
         ),
+        PatchScope(),
     )
 
     assert state.specification.target.description == "A corrected description"
@@ -278,10 +281,33 @@ def test_criteria_cards_carry_no_grader_annotation() -> None:
     )
 
 
-def test_criteria_keep_feature_groups_and_expandable_grader_controls() -> None:
+def test_criteria_review_puts_measured_behaviours_first_with_closed_criteria() -> None:
+    from metis.wizard.application import screens
     from metis.wizard.contracts.conversation import CardDetails, CardText, options_of
 
+    specification = research_assistant()
+    # F-1 has EB-1 (not measured here) and EB-2 (measured). F-2 has EB-3 (not measured).
+    specification.behaviour("EB-1").measured = False  # type: ignore[union-attr]
+    specification.behaviour("EB-2").measured = True  # type: ignore[union-attr]
+    specification.behaviour("EB-3").measured = False  # type: ignore[union-attr]
+    request = screens.criteria_screen(specification, "Review.")
+
+    # Measured Behaviours come first in a Feature, and a Feature with none comes last.
+    assert [card.id for card in request.cards] == ["EB-2", "EB-1", "EB-3"]
+    headings = [s.id for s in request.sections if s.parent is not None]
+    assert headings == ["F-1", "F-2"]
+    # A Behaviour that is not measured keeps its Criteria on view, with no actions.
+    dormant = next(card for card in request.cards if card.id == "EB-1")
+    assert dormant.options == [] and dormant.inactive
+    assert not next(card for card in request.cards if card.id == "EB-2").inactive
+    # Each Criterion row carries its id, with or without actions.
+    rows = [c for c in dormant.components if isinstance(c, CardDetails)]
+    assert [row.id for row in rows] == ["AC-1-1", "AC-1-2"]
+    offered = options_of(request)
+    assert not {"edit:EB-1", "add:EB-1", "edit:AC-1-1"} & set(offered)
+
     request = _compose_at(InterviewStep.CRITERIA)
+    specification = research_assistant()
     card = next(card for card in request.cards if card.id == "EB-1")
     assert card.section_id == "F-1"
     criteria = [
@@ -289,14 +315,18 @@ def test_criteria_keep_feature_groups_and_expandable_grader_controls() -> None:
     ]
     assert len(criteria) == 2
     first, grader, _actions = criteria[0].components
-    assert criteria[0].expanded
+    assert not criteria[0].expanded
     assert isinstance(first, CardText)
-    assert first.text == research_assistant().criterion("AC-1-1").description
+    assert first.text == specification.criterion("AC-1-1").description
     assert isinstance(grader, CardDetails)
     assert not grader.expanded and grader.muted
     assert any(getattr(item, "label", None) == "Grader" for item in grader.components)
     offered = options_of(request)
     assert {"edit:AC-1-1", "remove:AC-1-1", "add:EB-1"} <= set(offered)
+    # Continue names what it accepts.
+    assert next(o for o in request.options if o.id.action == "continue").label == (
+        "Accept Criteria"
+    )
     # The Criteria review has no checkboxes: a selected Behaviour supplies all its Criteria.
     assert all(card.selected is None for card in request.cards)
 
@@ -960,7 +990,7 @@ def test_missing_criteria_are_drafted_only_for_measured_gaps() -> None:
     only measured gaps are writable output."""
 
     class ScopeBreakingInterviewer(ScriptedInterviewer):
-        def draft_criteria(self, specification, context=None):
+        def draft_criteria(self, specification, context=None, scope=None):
             result = super().draft_criteria(specification, context=context)
             result.patches.append(
                 Patch(
@@ -988,11 +1018,12 @@ def test_missing_criteria_are_drafted_only_for_measured_gaps() -> None:
     assert specification.behaviour("EB-1").criteria  # type: ignore[union-attr]
     assert len(specification.behaviour("EB-3").criteria) == 1  # type: ignore[union-attr]
     assert len(specification.behaviour("EB-2").criteria) == dormant_count  # type: ignore[union-attr]
-    assert driver.pending_warnings
+    # A drafting call that strays outside its scope is not worth a warning or a sentence.
+    assert not driver.pending_warnings
 
     # At Personas, a Behaviour added from the chat gets its Criteria in the same turn.
     class AddsBehaviour(ScriptedInterviewer):
-        def chat(self, specification, step, text, target, context=None):
+        def chat(self, specification, step, text, target, context=None, scope=None):
             return StepResult(
                 message="Added.",
                 patches=[
@@ -1025,10 +1056,10 @@ def test_missing_criteria_are_drafted_only_for_measured_gaps() -> None:
 class BrokenInterviewer(ScriptedInterviewer):
     """Every attempt already failed inside the client."""
 
-    def draft_personas(self, specification, context=None):
+    def draft_personas(self, specification, context=None, scope=None):
         raise ModelOutputError("three attempts, all malformed")
 
-    def chat(self, specification, step, text, target, context=None):
+    def chat(self, specification, step, text, target, context=None, scope=None):
         raise ModelOutputError("three attempts, all malformed")
 
 
@@ -1105,10 +1136,10 @@ def test_only_the_users_own_chat_can_select_behaviours_and_set_trials() -> None:
     ]
 
     class Decides(ScriptedInterviewer):
-        def chat(self, specification, step, text, target, context=None):
+        def chat(self, specification, step, text, target, context=None, scope=None):
             return StepResult(message="Done.", patches=list(decisions))
 
-        def draft_personas(self, specification, context=None):
+        def draft_personas(self, specification, context=None, scope=None):
             return StepResult(message="Drafted.", patches=list(decisions))
 
     specification = research_assistant()
@@ -1139,7 +1170,7 @@ def test_model_output_is_scoped_and_a_removal_takes_its_test_cases() -> None:
     A chat REMOVE of a Persona also removes the Test Cases that used it, and says so."""
 
     class Overreaches(ScriptedInterviewer):
-        def draft_scenarios(self, specification, context=None):
+        def draft_scenarios(self, specification, context=None, scope=None):
             result = super().draft_scenarios(specification, context=context)
             result.patches.append(
                 Patch(
@@ -1150,7 +1181,7 @@ def test_model_output_is_scoped_and_a_removal_takes_its_test_cases() -> None:
             )
             return result
 
-        def chat(self, specification, step, text, target, context=None):
+        def chat(self, specification, step, text, target, context=None, scope=None):
             return StepResult(
                 message="Removed.",
                 patches=[
@@ -1189,7 +1220,7 @@ class RewordingInterviewer(ScriptedInterviewer):
     """A chat that rewords one criterion, the way the model is told to when the user asks
     for a different grader — it never touches grader_fqn itself."""
 
-    def chat(self, specification, step, text, target, context=None):
+    def chat(self, specification, step, text, target, context=None, scope=None):
         self.calls.append("chat")
         from metis.wizard.contracts import Patch, PatchOp
 
@@ -1603,7 +1634,7 @@ def test_only_selected_test_cases_run_count_and_export() -> None:
 
     # A Test Case that a model removal deletes leaves the selection as well.
     class RemovesScenario(ScriptedInterviewer):
-        def chat(self, specification, step, text, target, context=None):
+        def chat(self, specification, step, text, target, context=None, scope=None):
             return StepResult(
                 message="Removed.",
                 patches=[Patch(op=PatchOp.REMOVE, path="scenarios[S-2]")],
@@ -1623,12 +1654,12 @@ def test_scenario_continue_matches_each_new_scenario_with_the_personas_the_model
     Scenario that has no Test Case yet, and the Test Case review shows the result.
 
     Each Test Case is selected, uses the default Trial count, and covers the measured
-    Behaviours that the model picked. An unmeasured pick is left out with a warning, and a
-    Test Case left with none covers all measured Behaviours. The model cannot add a second
-    Test Case for a pair or a Test Case for a Scenario that already has one."""
+    Behaviours that the model picked. A Test Case with no pick covers all measured Behaviours.
+    The patch review refuses a Test Case that names an unmeasured Behaviour or repeats a pair,
+    and the review says so. A Scenario that already has a Test Case gets no new one."""
 
     class Picks(ScriptedInterviewer):
-        def draft_test_cases(self, specification, context=None):
+        def draft_test_cases(self, specification, context=None, scope=None):
             self.calls.append("draft_test_cases")
 
             def task(scenario, persona, behaviours):
@@ -1645,12 +1676,14 @@ def test_scenario_continue_matches_each_new_scenario_with_the_personas_the_model
             return StepResult(
                 message="Two test cases.",
                 patches=[
-                    # EB-2 is not measured, so it is left out with a warning.
-                    task("S-2", "impatient-executive", ["EB-1", "EB-2"]),
+                    task("S-2", "impatient-executive", ["EB-1"]),
+                    # The same pair again.
                     task("S-2", "impatient-executive", ["EB-3"]),
-                    task("S-3", "cooperative-delegator", ["EB-2"]),
+                    # EB-2 is not measured.
+                    task("S-2", "cooperative-delegator", ["EB-2"]),
+                    task("S-3", "cooperative-delegator", []),
                     # S-1 already has a Test Case.
-                    task("S-1", "impatient-executive", ["EB-1"]),
+                    task("S-1", "cooperative-delegator", ["EB-1"]),
                 ],
             )
 
@@ -1689,7 +1722,7 @@ def test_scenario_continue_matches_each_new_scenario_with_the_personas_the_model
     ]
     assert [t.id for t in specification.tasks if t.scenario_ref == "S-1"] == before
     assert all(card.selected for card in screen.cards if isinstance(card, ScenarioCard))
-    assert any("EB-2" in w.text for w in screen.warnings)
+    assert screen.prompt.endswith(prompts.not_changed({PatchReason.BROKEN_REFERENCE}))
 
     # Back and Continue again does not match a Scenario that already has a Test Case.
     driver.handle(state, screen, ChoiceResponse(selected=["back"]))
@@ -1698,7 +1731,8 @@ def test_scenario_continue_matches_each_new_scenario_with_the_personas_the_model
 
 
 def test_duplicate_pairs_block_continue_and_model_patches() -> None:
-    from metis.wizard.domain.applier import PatchValueError, validate_model_patches
+    from metis.wizard.application.patch_review import PatchScope, review_patches
+    from metis.wizard.domain.permissions import PatchReason
 
     specification = research_assistant()
     specification.tasks[1].persona_ref = specification.tasks[0].persona_ref
@@ -1706,17 +1740,20 @@ def test_duplicate_pairs_block_continue_and_model_patches() -> None:
     assert not next(o for o in request.options if o.id.action == "continue").enabled
     assert any("same Persona and Scenario" in w.text for w in request.warnings)
 
-    with pytest.raises(PatchValueError):
-        validate_model_patches(
-            research_assistant(),
-            [
-                Patch(
-                    op=PatchOp.SET,
-                    path="tasks[TC-002].persona_ref",
-                    value="cooperative-delegator",
-                )
-            ],
-        )
+    review = review_patches(
+        research_assistant(),
+        [
+            Patch(
+                op=PatchOp.SET,
+                path="tasks[TC-002].persona_ref",
+                value="cooperative-delegator",
+            )
+        ],
+        PatchScope(user_message=True),
+    )
+    assert [problem.reason for problem in review.problems] == [
+        PatchReason.DUPLICATE_TEST_CASE
+    ]
 
 
 def test_criterion_edit_form_changes_the_selected_requirement() -> None:
@@ -1771,3 +1808,424 @@ def test_fallback_parameter_edits_validate_before_replacing_settings() -> None:
         FormResponse(values={"args.threshold": "0.6", "args.model": "chosen-judge"}),
     )
     assert criterion.grader_args == {"threshold": 0.6, "model": "chosen-judge"}
+
+
+# ── one review and one reply rule for every model result ───────────────────
+
+_AC11 = "features[F-1].behaviours[EB-1].criteria[AC-1-1]"
+_AC31 = "features[F-2].behaviours[EB-3].criteria[AC-3-1]"
+
+
+def _model_reply(message: str, *patches: tuple[str, object]) -> str:
+    """One raw model reply with SET patches, as the provider returns it."""
+    return json.dumps(
+        {
+            "message": message,
+            "patches": [
+                {"op": "set", "path": path, "value": value} for path, value in patches
+            ],
+        }
+    )
+
+
+def _chat_through_the_gateway(
+    replies: list[str], target: str | None = None, *, step=InterviewStep.CRITERIA
+):
+    """Run one chat turn on scripted raw replies, through the real retry loop."""
+    from tests.fixtures.wizard.gateway import scripted_gateway
+
+    gateway, completions = scripted_gateway(replies)
+    specification = research_assistant()
+    state = driver_state(
+        specification=specification,
+        step=step,
+        issued_ids=collect_specification_ids(specification),
+        step_messages={step: "An older reply."},
+    )
+    driver = StepDriver(interviewer=gateway)
+    driver.handle(
+        state,
+        ChatRequest(prompt="q", multiline=True, target=target),
+        ChatResponse(text="Change it"),
+    )
+    return driver, state, completions
+
+
+@pytest.mark.parametrize(
+    ("replies", "target", "opening", "reasons"),
+    [
+        (
+            [_model_reply("Renamed it.", (f"{_AC11}.name", "Cites"))],
+            None,
+            "model",
+            set(),
+        ),
+        (
+            [
+                _model_reply(
+                    "Changed the grader.", (f"{_AC11}.grader_fqn", "x.Grader")
+                ),
+                _model_reply("Renamed it.", (f"{_AC11}.name", "Cites")),
+            ],
+            None,
+            "model",
+            {PatchReason.GRADER},
+        ),
+        (
+            [_model_reply("Changed the grader.", (f"{_AC11}.grader_fqn", "x.Grader"))],
+            None,
+            "nothing_applied",
+            {PatchReason.GRADER},
+        ),
+        (
+            [_model_reply("Moved it.", ("tasks[TC-001].persona_ref", "nobody"))],
+            None,
+            "nothing_applied",
+            {PatchReason.BROKEN_REFERENCE},
+        ),
+        (
+            [_model_reply("Renamed it.", ("features[F-1].behaviours[EB-9].name", "x"))],
+            None,
+            "nothing_applied",
+            {PatchReason.UNKNOWN_ADDRESS},
+        ),
+        (
+            [
+                _model_reply(
+                    "Renamed both.",
+                    (f"{_AC11}.name", "Cites"),
+                    (f"{_AC31}.name", "Elsewhere"),
+                )
+            ],
+            "EB-1",
+            "part_applied",
+            {PatchReason.OUTSIDE_SCOPE},
+        ),
+        ([_model_reply("", (f"{_AC11}.name", "Cites"))], None, "default", set()),
+    ],
+    ids=[
+        "all pass",
+        "protected then clean",
+        "protected every attempt",
+        "invalid value",
+        "unknown item",
+        "outside the card",
+        "empty message",
+    ],
+)
+def test_the_reply_is_the_models_own_only_when_no_attempt_had_a_problem(
+    replies, target, opening, reasons
+) -> None:
+    driver, state, _ = _chat_through_the_gateway(replies, target)
+
+    shown = driver.compose(state).prompt
+    last = json.loads(replies[-1])["message"]
+    default = driver.compose(
+        driver_state(specification=research_assistant(), step=InterviewStep.CRITERIA)
+    ).prompt
+    start = {"model": last, "default": default}.get(opening) or prompts.reply(opening)
+
+    if reasons:
+        assert shown == f"{start} {prompts.not_changed(reasons)}"
+    else:
+        assert shown == start
+    assert "An older reply." not in shown
+    assert not driver.pending_warnings
+
+
+def test_the_gateway_and_the_driver_get_the_same_review(monkeypatch) -> None:
+    """The gateway decides on a retry with the same function and scope as the real apply."""
+    from metis.wizard.adapters.llm import gateway as gateway_module
+    from metis.wizard.application import driver as driver_module
+    from metis.wizard.application import patch_review
+
+    seen: dict[str, list] = {"gateway": [], "driver": []}
+
+    def spy(name):
+        def review(specification, patches, scope):
+            result = patch_review.review_patches(specification, patches, scope)
+            seen[name].append((scope, result.problems, result.candidate))
+            return result
+
+        return review
+
+    monkeypatch.setattr(gateway_module, "review_patches", spy("gateway"))
+    monkeypatch.setattr(driver_module, "review_patches", spy("driver"))
+    reply = _model_reply(
+        "Renamed both.",
+        (f"{_AC11}.name", "Cites"),
+        (f"{_AC11}.grader_fqn", "x.Grader"),
+        (f"{_AC31}.name", "Elsewhere"),
+    )
+
+    _, state, _ = _chat_through_the_gateway([reply], "EB-1")
+
+    assert len(seen["gateway"]) == 3  # every attempt had problems
+    assert seen["driver"] == [seen["gateway"][-1]]
+    assert state.specification == seen["driver"][0][2]
+
+
+@pytest.mark.parametrize(
+    ("step", "patch", "follow_up"),
+    [
+        # A new measured Behaviour gets its Criteria drafted in the same turn.
+        (
+            InterviewStep.PERSONAS,
+            Patch(
+                op=PatchOp.ADD,
+                path="features[F-1].behaviours",
+                value={"name": "Polite", "description": "Answers politely."},
+            ),
+            "draft_criteria",
+        ),
+        # A reworded Behaviour has its related content adjusted in the same turn.
+        (
+            InterviewStep.BEHAVIOURS,
+            Patch(
+                op=PatchOp.SET,
+                path="features[F-1].behaviours[EB-1].description",
+                value="Cites a source for each claim",
+            ),
+            "chat",
+        ),
+    ],
+)
+def test_a_follow_up_call_never_replaces_the_reply(step, patch, follow_up) -> None:
+    class FollowsUp(ScriptedInterviewer):
+        def chat(self, specification, step, text, target, context=None, scope=None):
+            self.calls.append("chat")
+            if text == "Change it":
+                return StepResult(message="Done as you asked.", patches=[patch])
+            return StepResult(message="A follow-up reply.")
+
+        def draft_criteria(self, specification, context=None, scope=None):
+            result = super().draft_criteria(specification, context=context)
+            return result.model_copy(update={"message": "A follow-up reply."})
+
+    interviewer = FollowsUp()
+    driver = StepDriver(interviewer=interviewer)
+    specification = research_assistant()
+    state = driver_state(
+        specification=specification,
+        step=step,
+        issued_ids=collect_specification_ids(specification),
+    )
+
+    driver.handle(
+        state, ChatRequest(prompt="q", multiline=True), ChatResponse(text="Change it")
+    )
+
+    assert interviewer.calls.count(follow_up) == 1 + (follow_up == "chat")
+    assert driver.compose(state).prompt == "Done as you asked."
+
+
+def test_the_chat_sets_every_threshold_the_user_asks_for() -> None:
+    """Issue 68: "set every threshold to 0.85" changes every Criterion, and the reply is the
+    model's own, with no warning."""
+    specification = research_assistant()
+    criteria = [
+        (feature.id, behaviour.id, criterion.id)
+        for feature in specification.features
+        for behaviour in feature.behaviours
+        for criterion in behaviour.criteria
+    ]
+    reply = _model_reply(
+        "Every threshold is now 0.85.",
+        *(
+            (f"features[{f}].behaviours[{b}].criteria[{c}].grader_args.threshold", 0.85)
+            for f, b, c in criteria
+        ),
+    )
+
+    driver, state, completions = _chat_through_the_gateway([reply])
+
+    assert len(completions.calls) == 1
+    assert {
+        c.grader_args["threshold"]
+        for b in state.specification.behaviours()
+        for c in b.criteria
+    } == {0.85}
+    assert driver.compose(state).prompt == "Every threshold is now 0.85."
+    assert not driver.pending_warnings
+
+
+def test_a_grader_setting_that_the_grader_rejects_is_named_in_the_reply() -> None:
+    reply = _model_reply(
+        "Set the thresholds.",
+        (f"{_AC11}.grader_args.threshold", 1.5),
+        (f"{_AC31}.grader_args.threshold", 0.85),
+    )
+
+    driver, state, _ = _chat_through_the_gateway([reply])
+
+    shown = driver.compose(state).prompt
+    criterion = state.specification.criterion("AC-1-1")
+    assert state.specification.criterion("AC-3-1").grader_args["threshold"] == 0.85  # type: ignore[union-attr]
+    assert "threshold" not in criterion.grader_args  # type: ignore[union-attr]
+    assert shown.startswith(f"{prompts.reply('part_applied')} Not changed: ")
+    assert prompts.patch_reason(PatchReason.INVALID_SETTING) in shown
+    assert f"{criterion.name}, threshold:" in shown  # type: ignore[union-attr]
+    assert "grader_args" not in shown
+
+
+@dataclass
+class _ResettingConfigure(RewordingInterviewer):
+    """A configure call that returns the grader's settings without the user's pass mark."""
+
+    path: str = _AC1
+
+    def chat(self, specification, step, text, target, context=None, scope=None):
+        return StepResult(
+            message="Reworded it.",
+            patches=[
+                Patch(op=PatchOp.SET, path=self.path, value="It stays in budget.")
+            ],
+        )
+
+    def configure_criterion(
+        self, criterion, previous, specification, request, context=None
+    ):
+        from metis.wizard.contracts.output import CriterionConfiguration
+
+        args = {k: v for k, v in criterion.grader_args.items() if k != "threshold"}
+        return CriterionConfiguration(
+            description=criterion.description, grader_args=args
+        )
+
+
+@pytest.mark.parametrize(
+    ("criterion_id", "fqn", "kept"),
+    [
+        # The matcher gives the trace budget grader. AC-3-1 already has it.
+        ("AC-3-1", "metis.library.graders.demo.DemoTraceBudgetGrader", True),
+        # AC-1-1 has another grader, so the reword gives it a new one.
+        ("AC-1-1", "tests.unit.engine.graders_for_tests.FixedScoreGrader", False),
+    ],
+    ids=["same grader", "new grader"],
+)
+def test_a_reword_keeps_the_settings_unless_the_grader_changes(
+    criterion_id, fqn, kept
+) -> None:
+    specification = research_assistant()
+    criterion = specification.criterion(criterion_id)
+    assert criterion is not None and criterion.grader_fqn == fqn
+    criterion.grader_args = {"threshold": 0.9, "scope": "session"}
+    path = next(
+        f"features[{f.id}].behaviours[{b.id}].criteria[{criterion_id}].description"
+        for f in specification.features
+        for b in f.behaviours
+        if specification.criterion(criterion_id) in b.criteria
+    )
+    driver = StepDriver(
+        interviewer=_ResettingConfigure(path=path), matcher=RecordingMatcher()
+    )
+    state = driver_state(
+        specification=specification,
+        step=InterviewStep.CRITERIA,
+        issued_ids=collect_specification_ids(specification),
+    )
+
+    driver.handle(
+        state, ChatRequest(prompt="q", multiline=True), ChatResponse(text="Reword it")
+    )
+
+    shown = driver.compose(state).prompt
+    if kept:
+        assert criterion.grader_args == {"threshold": 0.9, "scope": "session"}
+        assert shown == "Reworded it."
+    else:
+        assert criterion.grader_args.get("threshold", 0.5) == 0.5
+        assert shown == f"Reworded it. {prompts.settings_reset(criterion.name)}"
+
+
+def test_the_gateway_reviews_new_ids_as_the_driver_applies_them() -> None:
+    """A deleted Persona's id is not given again, and the model hears so before the apply."""
+    from tests.fixtures.wizard.gateway import scripted_gateway
+
+    reply = json.dumps(
+        {
+            "message": "Added the Sceptic and a Test Case for it.",
+            "patches": [
+                {
+                    "op": "add",
+                    "path": "personas",
+                    "value": {
+                        "name": "Sceptic",
+                        "description": "Doubts every answer and asks for sources.",
+                    },
+                },
+                {
+                    "op": "add",
+                    "path": "tasks",
+                    "value": {
+                        "persona_ref": "sceptic",
+                        "scenario_ref": "S-2",
+                        "behaviour_refs": ["EB-1"],
+                    },
+                },
+            ],
+        }
+    )
+    gateway, completions = scripted_gateway([reply])
+    specification = research_assistant()
+    state = driver_state(
+        specification=specification,
+        step=InterviewStep.TEST_CASES,
+        issued_ids=collect_specification_ids(specification) | {"sceptic"},
+    )
+
+    StepDriver(interviewer=gateway).handle(
+        state, ChatRequest(prompt="q", multiline=True), ChatResponse(text="Add it")
+    )
+
+    assert len(completions.calls) == 3  # the model was asked to correct its reply
+    assert "sceptic-2" in [persona.id for persona in state.specification.personas]
+    assert all(task.persona_ref != "sceptic" for task in state.specification.tasks)
+
+
+@dataclass
+class _SettingAndRewording(RewordingInterviewer):
+    """A chat that sets a grader setting and rewords the same Criterion, and a configure call
+    that returns the grader's default for that setting."""
+
+    def chat(self, specification, step, text, target, context=None, scope=None):
+        return StepResult(
+            message="Set the budget and reworded it.",
+            patches=[
+                Patch(op=PatchOp.SET, path=f"{_AC31}.grader_args.max_traces", value=3),
+                Patch(
+                    op=PatchOp.SET,
+                    path=f"{_AC31}.description",
+                    value="The session uses a small number of traces.",
+                ),
+            ],
+        )
+
+    def configure_criterion(
+        self, criterion, previous, specification, request, context=None
+    ):
+        from metis.wizard.contracts.output import CriterionConfiguration
+
+        return CriterionConfiguration(
+            description=criterion.description, grader_args={"max_traces": 10}
+        )
+
+
+def test_a_reword_keeps_a_setting_that_the_same_message_set() -> None:
+    specification = research_assistant()
+    driver = StepDriver(interviewer=_SettingAndRewording(), matcher=RecordingMatcher())
+    state = driver_state(
+        specification=specification,
+        step=InterviewStep.CRITERIA,
+        issued_ids=collect_specification_ids(specification),
+    )
+
+    driver.handle(
+        state,
+        ChatRequest(prompt="q", multiline=True),
+        ChatResponse(text="Allow 3 traces, and reword it"),
+    )
+
+    criterion = state.specification.criterion("AC-3-1")
+    assert criterion.grader_args["max_traces"] == 3  # type: ignore[union-attr]
+    assert driver.compose(state).prompt == "Set the budget and reworded it."

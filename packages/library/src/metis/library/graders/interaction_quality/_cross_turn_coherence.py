@@ -48,7 +48,7 @@ class CrossTurnCoherenceGrader(Grader[CrossTurnCoherenceArgs]):
     Session scope, because coherence is a relation between recorded turns. The judge reads only the
     user messages and the replies, so tool traffic cannot hide a break in the conversation.
     It judges flow and references, not whether recalled facts are accurate, which is Use of
-    prior information. Errored for a session with fewer than two recorded turns.
+    prior information. Skipped for a session with fewer than two recorded turns.
     """
 
     args_model = CrossTurnCoherenceArgs
@@ -69,7 +69,7 @@ class CrossTurnCoherenceGrader(Grader[CrossTurnCoherenceArgs]):
         if isinstance(selected, Problem):
             return GradingOutput.errored(selected.detail)
         if len(turns(input.traces)) < 2:
-            return GradingOutput.errored(
+            return GradingOutput.skipped(
                 "Coherence across turns needs at least two turns."
             )
         return GradingOutput(

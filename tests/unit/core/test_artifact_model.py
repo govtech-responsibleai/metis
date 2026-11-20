@@ -56,7 +56,7 @@ def test_unfetched_and_unavailable_allow_no_path() -> None:
     Artifact(name="report.csv", state="unavailable")
 
 
-def test_media_type_guessed_from_name() -> None:
+def test_media_type_comes_from_the_name_extension() -> None:
     art = Artifact(name="report.csv", path="report.csv", state="received")
     assert art.media_type == "text/csv"
 
@@ -67,15 +67,15 @@ def test_media_type_falls_back_to_path() -> None:
 
 
 def test_media_type_none_when_unresolvable() -> None:
-    # Both name and path lack a recognizable extension, so the guess fails
+    # Both name and path lack a known extension, so there is no type
     # even though the artifact was genuinely received.
     art = Artifact(name="report", path="report", state="received")
     assert art.media_type is None
 
 
 def test_media_type_none_when_state_is_not_received() -> None:
-    # "report.csv" has a perfectly guessable extension; the gate on `state`
-    # is what returns None here, not a failed guess.
+    # "report.csv" has a known extension, so the gate on `state`
+    # is what returns None here.
     art = Artifact(name="report.csv", state="unavailable")
     assert art.media_type is None
 

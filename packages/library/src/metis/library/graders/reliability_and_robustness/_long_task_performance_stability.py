@@ -34,7 +34,7 @@ class LongTaskPerformanceStabilityArgs(JudgeArgs, TaskArgs):
         ge=2,
         strict=True,
         description=(
-            "Sessions with fewer recorded turns are errored, because a short session "
+            "Sessions with fewer recorded turns are skipped, because a short session "
             "cannot show a drop."
         ),
     )
@@ -49,7 +49,7 @@ class LongTaskPerformanceStabilityGrader(Grader[LongTaskPerformanceStabilityArgs
     is stable, and other graders judge its quality. State Tracking judges one action that
     tracks state.
 
-    A session with fewer than ``min_turns`` recorded turns is errored without a judge call.
+    A session with fewer than ``min_turns`` recorded turns is skipped without a judge call.
     """
 
     args_model = LongTaskPerformanceStabilityArgs
@@ -93,7 +93,7 @@ class LongTaskPerformanceStabilityGrader(Grader[LongTaskPerformanceStabilityArgs
             return GradingOutput.errored(selected.detail)
         count = len(turns(input.traces))
         if count < self.args.min_turns:
-            return GradingOutput.errored(
+            return GradingOutput.skipped(
                 f"The session has {count} recorded turn(s). A drop in performance needs "
                 f"at least {self.args.min_turns}."
             )

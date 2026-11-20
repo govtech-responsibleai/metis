@@ -1,10 +1,10 @@
 // The house style, in as few primitives as the three panes need. Every rule the style
-// checklist enforces lives here once — near-black primary (never teal), borders not shadows,
+// checklist enforces lives here once — near-black primary (never the accent), borders not shadows,
 // the two radius tiers from the token file — `rounded-md` for small controls, `rounded-lg` for
 // surfaces — sentence case left to the package's own strings.
 
 import { ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { createPortal } from "react-dom";
 
@@ -49,6 +49,18 @@ const VARIANTS: Record<Variant, string> = {
     "bg-transparent text-foreground border border-border hover:bg-muted active:bg-border",
 };
 
+// The look of a Button, for a link that must look like one.
+export function buttonClass(variant: Variant = "secondary", active = false) {
+  return cn(
+    "inline-flex items-center justify-center gap-2 rounded-md px-3 py-1.5",
+    "text-sm font-medium transition-colors duration-150",
+    "disabled:cursor-not-allowed disabled:opacity-45",
+    active
+      ? "border border-accent bg-accent/12 text-foreground"
+      : VARIANTS[variant],
+  );
+}
+
 export function Button({
   variant = "secondary",
   active = false,
@@ -57,18 +69,7 @@ export function Button({
   ...rest
 }: ButtonProps) {
   return (
-    <button
-      className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-md px-3 py-1.5",
-        "text-sm font-medium transition-colors duration-150",
-        "disabled:cursor-not-allowed disabled:opacity-45",
-        active
-          ? "border border-accent bg-accent/12 text-foreground"
-          : VARIANTS[variant],
-        className,
-      )}
-      {...rest}
-    >
+    <button className={cn(buttonClass(variant, active), className)} {...rest}>
       {children}
     </button>
   );
@@ -95,8 +96,24 @@ export function Tooltip({
 }) {
   const id = useId();
   const triggerRef = useRef<HTMLDivElement | null>(null);
+  const tipRef = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState({ left: 0, top: 0 });
+  // How far the tooltip moves from the centre of its trigger to stay inside the window. The arrow
+  // moves back by the same distance, so it still points at the trigger.
+  const [shift, setShift] = useState(0);
+
+  useLayoutEffect(() => {
+    const width = tipRef.current?.offsetWidth;
+    if (!visible || width === undefined) return;
+    const margin = 8;
+    const half = width / 2;
+    const left = Math.min(
+      Math.max(position.left, half + margin),
+      window.innerWidth - half - margin,
+    );
+    setShift(left - position.left);
+  }, [visible, position.left, label]);
 
   const showBelowTrigger = () => {
     const bounds = triggerRef.current?.getBoundingClientRect();
@@ -129,9 +146,10 @@ export function Tooltip({
         typeof document !== "undefined" &&
         createPortal(
           <div
+            ref={tipRef}
             id={id}
             role="tooltip"
-            style={{ left: position.left, top: position.top }}
+            style={{ left: position.left + shift, top: position.top }}
             className={cn(
               "pointer-events-none fixed z-[100] w-max max-w-72 -translate-x-1/2",
               "rounded-[8px] border border-border bg-foreground px-3 py-2",
@@ -140,6 +158,7 @@ export function Tooltip({
           >
             <span
               aria-hidden
+              style={{ marginLeft: -shift }}
               className="absolute left-1/2 -top-1.5 h-3 w-3 -translate-x-1/2 rotate-45 border-l border-t border-border bg-foreground"
             />
             <span className="relative">{label}</span>
@@ -203,7 +222,7 @@ export function Chevron({
 // Neutral is the default and covers almost every chip, because most of them mark *what a thing
 // refers to* — a behaviour, a persona, a file — and a reference is not a state. The accent tone is
 // for the few that report one: a count that has become non-zero, something live. It is drawn as
-// teal text and a teal edge rather than a teal fill, so a row of chips still reads as one family
+// accent text and an accent edge rather than an accent fill, so a row of chips still reads as one family
 // and the coloured one stands out by tone instead of by mass.
 //
 // This does not wrap `Mono`. Both would set a text colour, and two competing `text-*` utilities
@@ -230,6 +249,39 @@ export function Chip({
       )}
     >
       {children}
+    </span>
+  );
+}
+
+// The initials of a username: the first letter of each of its first two hyphen parts, so
+// "curious-otter" gives "CO" and "admin" gives "A".
+export function initials(username: string): string {
+  return username
+    .split("-")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+// A round mark with the initials of a user account. It is decoration, because the username is
+// always next to it or in the label of its control.
+export function Avatar({
+  username,
+  size = "md",
+}: {
+  username: string;
+  size?: "sm" | "md";
+}) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "inline-flex shrink-0 select-none items-center justify-center rounded-full bg-border font-semibold text-muted-foreground",
+        size === "sm" ? "h-6 w-6 text-[10px]" : "h-7 w-7 text-[11px]",
+      )}
+    >
+      {initials(username)}
     </span>
   );
 }
@@ -453,26 +505,31 @@ export function DisclosureButton({
   );
 }
 
-// A modal question before a destructive action. The text is the package's own, and it names
-// what else the action removes. Cancel has the focus at first, so Enter alone does not delete.
-// The page behind is inert while it is open, Tab stays inside it, Escape closes it from anywhere,
-// and the focus goes back to the control that opened it.
-export function ConfirmDialog({
-  text,
-  confirmLabel,
-  onConfirm,
+// A surface that floats above the page and holds the focus. The page behind is inert while it
+// is open, Tab stays inside it, Escape closes it from anywhere, and the focus goes back to the
+// control that opened it. The control with `autoFocus` has the focus at first. With `side`, the
+// surface is a drawer with the full height of the window at its right edge.
+export function Modal({
+  role = "dialog",
+  side = false,
+  labelledBy,
+  describedBy,
+  className,
   onCancel,
+  children,
 }: {
-  text: string;
-  confirmLabel: string;
-  onConfirm: () => void;
+  role?: "dialog" | "alertdialog";
+  side?: boolean;
+  labelledBy: string;
+  describedBy?: string;
+  className?: string;
   onCancel: () => void;
+  children: ReactNode;
 }) {
-  const id = useId();
   const dialog = useRef<HTMLDivElement | null>(null);
   const cancel = useRef(onCancel);
   cancel.current = onCancel;
-  // Read during the first render, before Cancel takes the focus.
+  // Read during the first render, before a control of the dialog takes the focus.
   const [trigger] = useState(() =>
     typeof document === "undefined"
       ? null
@@ -501,24 +558,29 @@ export function ConfirmDialog({
   if (typeof document === "undefined") return null;
   return createPortal(
     <div
-      className="fixed inset-0 z-[90] flex items-center justify-center bg-foreground/20 p-4"
+      className={cn(
+        "fixed inset-0 z-[90] flex bg-foreground/20",
+        side ? "justify-end" : "items-center justify-center p-4",
+      )}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onCancel();
       }}
     >
       <div
         ref={dialog}
-        role="alertdialog"
+        role={role}
         aria-modal="true"
-        aria-labelledby={`${id}-title`}
-        aria-describedby={id}
+        aria-labelledby={labelledBy}
+        aria-describedby={describedBy}
         onKeyDown={(event) => {
           if (event.key !== "Tab") return;
-          const buttons = [
-            ...(dialog.current?.querySelectorAll("button") ?? []),
+          const controls = [
+            ...(dialog.current?.querySelectorAll(
+              "button:not(:disabled), input:not(:disabled), a[href]",
+            ) ?? []),
           ] as HTMLElement[];
-          const first = buttons[0];
-          const last = buttons.at(-1);
+          const first = controls[0];
+          const last = controls.at(-1);
           if (event.shiftKey && document.activeElement === first) {
             event.preventDefault();
             last?.focus();
@@ -527,24 +589,55 @@ export function ConfirmDialog({
             first?.focus();
           }
         }}
-        className="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-border bg-card p-5 text-card-foreground shadow-lg"
+        className={cn(
+          "flex flex-col border-border bg-card text-card-foreground shadow-lg",
+          side ? "h-full border-l" : "w-full rounded-lg border",
+          className,
+        )}
       >
-        <h2 id={`${id}-title`} className="sr-only">
-          {confirmLabel}
-        </h2>
-        <p id={id} className="text-sm">
-          {text}
-        </p>
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" autoFocus onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button type="button" variant="primary" onClick={onConfirm}>
-            {confirmLabel}
-          </Button>
-        </div>
+        {children}
       </div>
     </div>,
     document.body,
+  );
+}
+
+// A modal question before a destructive action. The text is the package's own, and it names
+// what else the action removes. Cancel has the focus at first, so Enter alone does not delete.
+export function ConfirmDialog({
+  text,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+}: {
+  text: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const id = useId();
+  return (
+    <Modal
+      role="alertdialog"
+      labelledBy={`${id}-title`}
+      describedBy={id}
+      className="max-w-sm gap-4 p-5"
+      onCancel={onCancel}
+    >
+      <h2 id={`${id}-title`} className="sr-only">
+        {confirmLabel}
+      </h2>
+      <p id={id} className="text-sm">
+        {text}
+      </p>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" autoFocus onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="button" variant="primary" onClick={onConfirm}>
+          {confirmLabel}
+        </Button>
+      </div>
+    </Modal>
   );
 }

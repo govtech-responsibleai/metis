@@ -13,11 +13,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConnectionForm, ModePicker } from "./ConnectionStep";
 import { startConnection, type ConnectionDraft } from "./connection";
-import { downloadArchive } from "./download";
-import {
-  ACCEPTED_FIXTURE_EXTENSIONS,
-  validateFixtureSelection,
-} from "./fixture-policy";
+import { saveFile } from "./download";
+import { ACCEPTED_FIXTURE_EXTENSIONS, admitFiles } from "./fixture-policy";
 import { Field, NumberInput, SelectInput, TextArea, TextInput } from "./fields";
 import {
   emptyManualExperiment,
@@ -433,20 +430,17 @@ export function ManualForm({
   };
 
   const uploadFiles = (index: number, files: File[]) => {
-    const names = validateFixtureSelection(files, library);
-    const added = files.map((file, position) => ({
-      name: names[position] ?? file.name,
+    const added = admitFiles(files, library).map((file) => ({
+      name: file.name,
       size: file.size,
       blob: file,
     }));
+    const names = added.map((file) => file.name);
     const tasks = experiment.tasks.map((task, position) =>
       position === index
         ? {
             ...task,
-            fixtures: [
-              ...task.fixtures,
-              ...names.filter((name) => !task.fixtures.includes(name)),
-            ],
+            fixtures: [...task.fixtures, ...names],
           }
         : task,
     );
@@ -499,7 +493,7 @@ export function ManualForm({
         connectionRef.current?.focus();
         return;
       }
-      downloadArchive(archive);
+      saveFile(archive);
     } catch (cause) {
       setError(
         cause instanceof TransportError
@@ -580,7 +574,7 @@ export function ManualForm({
               className="aria-disabled:cursor-not-allowed aria-disabled:opacity-45"
               title={
                 ready
-                  ? "Extract the download into experiments/design/."
+                  ? "Extract the download into evaluations/."
                   : "Complete the marked fields first."
               }
               onClick={() => void download()}
@@ -1302,7 +1296,7 @@ function TaxonomyChips({ grader }: { grader: GraderSpec }) {
         <span
           key={chip.key}
           title={chip.label}
-          className={cn("tag rounded px-1.5 py-px text-[11px]", chip.tone)}
+          className={cn("tag rounded px-1.5 py-px text-xs", chip.tone)}
         >
           <span className="sr-only">{chip.label}: </span>
           {taxonomyLabel(chip.value)}

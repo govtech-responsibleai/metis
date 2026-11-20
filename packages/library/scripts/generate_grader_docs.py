@@ -1,9 +1,9 @@
 """Generate and check the grader pages and the grader data that the docs site reads.
 
-Each grader page, ``website/docs/library/<slug>.mdx``, shows the grader's taxonomy tags, the
-first paragraph of its class docstring, the open-source prompt that it adapts, and the source
+Each grader page, ``website/docs-site/docs/library/<slug>.mdx``, shows the grader's taxonomy tags,
+the first paragraph of its class docstring, the open-source prompt that it adapts, and the source
 of its arguments and its ``criteria()`` prompt. The grader table and the sidebar render from
-``website/src/data/graders.json``. The "Adapted from" links come from the grader catalogue,
+``website/docs-site/src/data/graders.json``. The "Adapted from" links come from the grader catalogue,
 ``metis/library/graders/README.md``. Run this script after any change to a grader or to its
 catalogue row.
 """
@@ -28,13 +28,14 @@ from metis.library.grader import Grader, GraderArgs, JudgeArgs
 from metis.library.taxonomy import Measure
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-DATA = REPO_ROOT / "website" / "src" / "data" / "graders.json"
-PAGES = REPO_ROOT / "website" / "docs" / "library"
+DATA = REPO_ROOT / "website" / "docs-site" / "src" / "data" / "graders.json"
+PAGES = REPO_ROOT / "website" / "docs-site" / "docs" / "library"
 CATALOGUE = Path(catalogue.__file__).parent / "README.md"
 
 _GROUPS = {
     "task_and_output_quality": "Task and Output Quality",
     "execution_and_decision_quality": "Execution and Decision Quality",
+    "resource_use": "Resource Use",
     "reliability_and_robustness": "Reliability and Robustness",
     "interaction_quality": "Interaction Quality",
 }
@@ -111,6 +112,8 @@ def _fields_only(cls: type) -> str:
 
 def _prompt(grader: type[Grader[Any]]) -> str:
     """The grader's class header, its ``criteria()`` method, and the helpers that it calls."""
+    if not hasattr(grader, "criteria"):
+        return ""
     source = inspect.getsource(grader)
     node = ast.parse(textwrap.dedent(source)).body[0]
     assert isinstance(node, ast.ClassDef)

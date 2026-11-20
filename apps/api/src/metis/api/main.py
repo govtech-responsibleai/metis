@@ -1,12 +1,24 @@
 """The app composition root.
 
-`main.py` creates the FastAPI app, keeps `/health`, includes the wizard router, and installs the
-handlers that give every failure one stable JSON shape. It holds no user state: each request
-carries the whole client-held interview state in its body.
+`main.py` creates the FastAPI app, keeps `/health`, includes the wizard, store, experiment,
+report, engine, doctor, workshop, user, and auth routers, and installs the handlers that give every
+failure one stable JSON shape. When login is on, `login_guard` lets a request reach an `/api`
+route only with a login session. The wizard routes keep no state: each request carries the whole
+Interview state in its body. The store routes keep the Targets, Interviews, Specifications, and
+Experiments in the `Store` that the app composes at startup. The report routes read the
+experiment folders. The engine routes run up to the run limit of jobs at a time, each on a
+thread in this process, and queue the rest. The store and the experiment folders are in the
+project folder that `create_app` gets, or the default project folder that `find_project_root`
+finds.
+
+When the web folder of the API package has a built web app, the app also serves that web app on
+every path that no API route takes. See `metis.api.web`. Without a built web app, the app serves
+the API only.
 """
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
@@ -15,10 +27,28 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from metis.api import __version__, core_version
+from metis.api.accounts import Accounts
+from metis.api.demo import add_demo_target_to_new_local_user
+from metis.api.engine_runs import EngineFunctions, EngineRuns
+from metis.api.errors import RouteError
+from metis.api.routes.accounts import (
+    AccountError,
+    account_error_response,
+    auth_router,
+    login_guard,
+    users_router,
+)
+from metis.api.routes.doctor import router as doctor_router
+from metis.api.routes.engine import router as engine_router
+from metis.api.routes.experiments import router as experiments_router
 from metis.api.routes.graders import router as graders_router
 from metis.api.routes.models import router as models_router
+from metis.api.routes.reports import router as reports_router
+from metis.api.routes.targets import router as targets_router
 from metis.api.routes.wizard import ServiceError
 from metis.api.routes.wizard import router as wizard_router
+from metis.api.routes.workshop import WorkshopVariable
+from metis.api.routes.workshop import router as workshop_router
 from metis.api.settings import (
     InterviewHandler,
     Settings,
@@ -26,11 +56,15 @@ from metis.api.settings import (
     WizardDependencies,
     build_dependencies,
 )
+from metis.api.store import Store, StoreError
+from metis.api.web import serve_web
 from metis.core.logging import get_logger
+from metis.core.project_layout import find_project_root
 from metis.wizard import InterviewerUnavailable
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
+    from pathlib import Path
 
 
 logger = get_logger(__name__)
@@ -44,7 +78,69 @@ _OPENAPI_TAGS = [
             "that state with the matching request id and response. End can return another "
             "pending screen. Compile or package the Specification after outcome is done."
         ),
-    }
+    },
+    {
+        "name": "targets",
+        "description": (
+            "Keep the Interview of each Target, its files, and its Specification in the store. "
+            "A save of a done Interview writes the Specification and its input folder."
+        ),
+    },
+    {
+        "name": "experiments",
+        "description": (
+            "Keep one row for each Experiment folder under evaluations/experiments/. "
+            "A delete removes the row. The Experiment folder stays on disk."
+        ),
+    },
+    {
+        "name": "engine",
+        "description": (
+            "Start, resume, evaluate, stop, and follow the run of an experiment folder. The "
+            "API runs up to METIS_API_ENGINE_MAX_RUNS runs at a time in its own process, and "
+            "queues the rest, first in first out. A simulate start also grades the trials "
+            "when the simulation completes. A start returns 202 at once. Poll the status "
+            "route for the state, which is queued while the run waits, and the events route "
+            "for each trial."
+        ),
+    },
+    {
+        "name": "doctor",
+        "description": "Check the environment of the API before a run.",
+    },
+    {
+        "name": "users",
+        "description": (
+            "Make, list, and delete user accounts, and reset their passwords. The login "
+            "session of an admin, or the admin token in an Authorization: Bearer header, "
+            "opens each user route. The join token in that header can only make a user "
+            "account that is not an admin."
+        ),
+    },
+    {
+        "name": "auth",
+        "description": (
+            "Start and end a login session, and read the current user account. When login "
+            "is on, each other route under /api returns 401 login_required without the "
+            "cookie of a login session."
+        ),
+    },
+    {
+        "name": "workshop",
+        "description": (
+            "Read the variables that the operator gives to each participant, as the lines of "
+            "a .env file for the METIS CLI. METIS_WORKSHOP_ENV names them. A server without "
+            "it returns 404 not_found."
+        ),
+    },
+    {
+        "name": "reports",
+        "description": (
+            "Read the report of an experiment folder in the project folder, as JSON or "
+            "as the HTML report page. An experiment with no results.json returns 409 "
+            "results_missing."
+        ),
+    },
 ]
 
 
@@ -55,9 +151,28 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     Missing model settings do not stop the start. The app keeps the error, `GET /api/v1/models`
     reports the missing roles, and each Interview route returns 503 `model_unavailable`. The
     connection check, compile, and package routes call no model, so they work without keys.
+
+    The app builds the store from the settings when the caller did not give one. The user
+    accounts use the database of the store. With login off, a store that the app builds and
+    that has no local user account yet gets the demo Target.
+
+    Login settings that disagree stop the start. See ``login_from_env``. When the environment
+    names an admin, the app makes that admin or sets its password before the first request.
+    The app reads the values of the workshop variables one time, from the environment that
+    includes the project `.env`.
+
+    Before it accepts a request, the app sets up the process for the engine one time. At
+    shutdown it empties the engine queue, stops the engine runs, and waits for them, for at
+    most the stop time limit in all.
     """
+    owned: Store | None = None
+    settings = Settings.from_env(project_dir=app.state.project_dir)
+    runs: EngineRuns = app.state.engine_runs
+    app.state.engine_settings = settings.engine
+    runs.open(settings.engine.max_runs)
+    # Before the store, so a setup that fails leaves nothing to close.
+    runs.functions.setup_process()
     if getattr(app.state, "wizard_dependencies", None) is None:
-        settings = Settings.from_env()
         app.state.model_settings = settings
         app.state.connection_check = settings.connection_check
         try:
@@ -65,26 +180,70 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         except SettingsError as exc:
             app.state.settings_error = str(exc)
             logger.warning("api_model_settings_missing")
-    yield
+    if getattr(app.state, "store", None) is None:
+        owned = Store(settings.database_url, settings.project_dir)
+        app.state.store = owned
+        if not settings.login.login:
+            add_demo_target_to_new_local_user(owned)
+    app.state.login = settings.login.login
+    app.state.join_token = settings.login.join_token
+    app.state.admin_token = settings.login.admin_token
+    app.state.secure_cookie = settings.secure_cookie
+    workshop_env = settings.login.workshop_env
+    app.state.workshop_env = (
+        None
+        if workshop_env is None
+        else tuple(
+            WorkshopVariable(name=name, value=settings.env[name])
+            for name in workshop_env
+            if settings.env.get(name, "").strip()
+        )
+    )
+    accounts = Accounts(app.state.store.engine, server_dir=app.state.store.project_dir)
+    app.state.accounts = accounts
+    admin = settings.login.admin
+    app.state.environment_admin = admin.username if admin is not None else None
+    if admin is not None:
+        await asyncio.to_thread(accounts.ensure_admin, admin.username, admin.password)
+    try:
+        yield
+    finally:
+        # In a worker thread, so the wait for the run does not block the event loop.
+        await asyncio.to_thread(runs.shutdown, settings.engine.stop_timeout)
+        if owned is not None:
+            owned.close()
+            app.state.store = None
 
 
 def create_app(
     interview_handler: InterviewHandler | None = None,
     *,
     connection_check: bool = False,
+    store: Store | None = None,
+    project_dir: Path | None = None,
+    engine_functions: EngineFunctions | None = None,
 ) -> FastAPI:
-    """Assemble the API for production or with an injected handler for offline tests."""
+    """Assemble the API for production, or with an injected handler and store for tests.
+
+    ``project_dir`` is the project folder of the store that the app builds at startup.
+    The report routes and the engine routes use the experiment folders in the same project
+    folder. ``engine_functions`` are the engine library calls, which the tests replace.
+    """
     app = FastAPI(
         title="METIS API",
         version=__version__,
         lifespan=_lifespan,
         openapi_tags=_OPENAPI_TAGS,
     )
+    app.state.project_dir = (project_dir or find_project_root()).resolve()
     if interview_handler is not None:
         app.state.wizard_dependencies = WizardDependencies(
             interview_handler=interview_handler
         )
         app.state.connection_check = connection_check
+    if store is not None:
+        app.state.store = store
+    app.state.engine_runs = EngineRuns(engine_functions or EngineFunctions())
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -93,6 +252,34 @@ def create_app(
     app.include_router(wizard_router)
     app.include_router(graders_router)
     app.include_router(models_router)
+    app.include_router(targets_router)
+    app.include_router(experiments_router)
+    app.include_router(reports_router)
+    app.include_router(engine_router)
+    app.include_router(doctor_router)
+    app.include_router(workshop_router)
+
+    @app.exception_handler(RouteError)
+    def _on_route_error(_request: Request, exc: RouteError) -> JSONResponse:
+        error = ServiceError(
+            code=exc.code, message=exc.message, retryable=exc.retryable
+        )
+        return JSONResponse(error.model_dump(), status_code=exc.status)
+
+    app.include_router(users_router)
+    app.include_router(auth_router)
+    app.middleware("http")(login_guard)
+
+    @app.exception_handler(AccountError)
+    def _on_account_error(_request: Request, exc: AccountError) -> JSONResponse:
+        return account_error_response(exc)
+
+    serve_web(app)
+
+    @app.exception_handler(StoreError)
+    def _on_store_error(_request: Request, exc: StoreError) -> JSONResponse:
+        error = ServiceError(code=exc.code, message=exc.message, retryable=False)
+        return JSONResponse(error.model_dump(), status_code=exc.status)
 
     @app.exception_handler(RequestValidationError)
     def _on_validation_error(

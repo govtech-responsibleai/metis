@@ -57,7 +57,7 @@ class RobustnessToContextDegradationGrader(Grader[RobustnessToContextDegradation
     the correct reply asks, says that it does not know, or abstains. Use of Prior Information
     judges recall in general. This grader judges whether performance holds when the context is
     degraded. A recorded turn or session whose context is not degraded in a way that bears on the
-    reply is errored, with the judge's reason.
+    reply is skipped, with the judge's reason.
     """
 
     args_model = RobustnessToContextDegradationArgs

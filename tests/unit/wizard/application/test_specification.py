@@ -54,20 +54,21 @@ def test_specification_has_engine_input_shape_and_opaque_bytes(tmp_path: Path) -
 
     with zipfile.ZipFile(target) as archive:
         assert archive.namelist() == [
-            "20261016-223045-manual/inputs/",
-            "20261016-223045-manual/outputs/specification.yaml",
-            "20261016-223045-manual/outputs/fixtures/",
-            "20261016-223045-manual/outputs/fixtures/data.csv",
-            "20261016-223045-manual/outputs/fixtures/policy.html",
+            "specifications/20261016-223045-manual-k7mwp/specification.yaml",
+            "specifications/20261016-223045-manual-k7mwp/fixtures/",
+            "specifications/20261016-223045-manual-k7mwp/fixtures/data.csv",
+            "specifications/20261016-223045-manual-k7mwp/fixtures/policy.html",
         ]
         assert (
-            archive.read("20261016-223045-manual/outputs/fixtures/policy.html")
+            archive.read(
+                "specifications/20261016-223045-manual-k7mwp/fixtures/policy.html"
+            )
             == b"<script>alert(1)</script>"
         )
         assert (
             "features:"
             in archive.read(
-                "20261016-223045-manual/outputs/specification.yaml"
+                "specifications/20261016-223045-manual-k7mwp/specification.yaml"
             ).decode()
         )
 
@@ -80,9 +81,8 @@ def test_specification_keeps_an_explicit_empty_fixtures_directory(
 
     with zipfile.ZipFile(target) as archive:
         assert archive.namelist() == [
-            "20261016-223045-manual/inputs/",
-            "20261016-223045-manual/outputs/specification.yaml",
-            "20261016-223045-manual/outputs/fixtures/",
+            "specifications/20261016-223045-manual-k7mwp/specification.yaml",
+            "specifications/20261016-223045-manual-k7mwp/fixtures/",
         ]
 
 
@@ -101,13 +101,14 @@ def test_specification_can_include_a_portable_specification(tmp_path: Path) -> N
 
     with zipfile.ZipFile(target) as archive:
         assert archive.namelist() == [
-            "20261016-223045-manual/inputs/",
-            "20261016-223045-manual/outputs/specification.yaml",
-            "20261016-223045-manual/outputs/fixtures/",
+            "specifications/20261016-223045-manual-k7mwp/specification.yaml",
+            "specifications/20261016-223045-manual-k7mwp/fixtures/",
         ]
         saved = Specification.model_validate(
             yaml.safe_load(
-                archive.read("20261016-223045-manual/outputs/specification.yaml")
+                archive.read(
+                    "specifications/20261016-223045-manual-k7mwp/specification.yaml"
+                )
             )
         )
 
@@ -134,19 +135,22 @@ def test_in_memory_packager_contains_specification_and_fixtures() -> None:
 
     with zipfile.ZipFile(io.BytesIO(archive_bytes.content)) as archive:
         assert set(archive.namelist()) == {
-            "20261016-223045-manual/inputs/",
-            "20261016-223045-manual/outputs/specification.yaml",
-            "20261016-223045-manual/outputs/fixtures/",
-            "20261016-223045-manual/outputs/fixtures/policy.pdf",
+            "specifications/20261016-223045-manual-k7mwp/specification.yaml",
+            "specifications/20261016-223045-manual-k7mwp/fixtures/",
+            "specifications/20261016-223045-manual-k7mwp/fixtures/policy.pdf",
         }
         assert (
-            archive.read("20261016-223045-manual/outputs/fixtures/policy.pdf")
+            archive.read(
+                "specifications/20261016-223045-manual-k7mwp/fixtures/policy.pdf"
+            )
             == b"policy bytes"
         )
         assert (
             Specification.model_validate(
                 yaml.safe_load(
-                    archive.read("20261016-223045-manual/outputs/specification.yaml")
+                    archive.read(
+                        "specifications/20261016-223045-manual-k7mwp/specification.yaml"
+                    )
                 )
             )
             == specification
@@ -166,7 +170,9 @@ def test_in_memory_packager_includes_unreferenced_fixtures() -> None:
 
     with zipfile.ZipFile(io.BytesIO(archive_bytes.content)) as archive:
         assert (
-            archive.read("20261016-223045-manual/outputs/fixtures/notes.txt")
+            archive.read(
+                "specifications/20261016-223045-manual-k7mwp/fixtures/notes.txt"
+            )
             == b"unreferenced notes"
         )
 
@@ -182,9 +188,8 @@ def test_in_memory_packager_keeps_an_empty_fixture_directory() -> None:
 
     with zipfile.ZipFile(io.BytesIO(archive_bytes.content)) as archive:
         assert archive.namelist() == [
-            "20261016-223045-manual/inputs/",
-            "20261016-223045-manual/outputs/specification.yaml",
-            "20261016-223045-manual/outputs/fixtures/",
+            "specifications/20261016-223045-manual-k7mwp/specification.yaml",
+            "specifications/20261016-223045-manual-k7mwp/fixtures/",
         ]
 
 

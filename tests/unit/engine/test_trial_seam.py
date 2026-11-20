@@ -75,7 +75,7 @@ def _trial_kwargs(
         "trial_index": 1,
         "state": None,
         "tui_ctx": None,
-        "shutdown_event": None,
+        "stop": None,
     }
 
 
@@ -140,7 +140,9 @@ def test_create_trial_builds_the_user_agent_and_the_orchestrator(
         "trial_index",
         "state",
         "tui_ctx",
-        "shutdown_event",
+        "stop",
+        "events",
+        "attempt",
     }
     assert built["orch"]["agent"] == "agent"
     assert built["orch"]["runner"] == "runner"
@@ -214,7 +216,7 @@ async def test_experiment_resolves_descriptions_once_before_workers_start(
         scenarios=[scenario],
         tasks=[],
         fixture_content_descriptions={},
-        experiment=SimpleNamespace(defaults=ExperimentDefaults()),
+        defaults=ExperimentDefaults(),
     )
     plan = [TrialPlanItem(scenario, persona, i) for i in (1, 2, 3)]
 

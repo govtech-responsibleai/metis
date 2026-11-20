@@ -59,7 +59,7 @@ class FactualAccuracyGrader(Grader[FactualAccuracyArgs]):
 
     Compares claims against the supplied ground truth only. Does not substitute the
     judge's own knowledge. Partial reference coverage is noted in the reason. Evidence with
-    no claim that the ground truth addresses is errored, with the judge's reason.
+    no claim that the ground truth addresses is skipped, with the judge's reason.
     """
 
     args_model = FactualAccuracyArgs

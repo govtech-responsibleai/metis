@@ -10,9 +10,10 @@ The check has two tiers. Neither imports the engine.
   document; for a browser it loads `start_url`. The CLI runs it on the user's computer and
   expands each `${NAME}` in a URL from the user's environment. The API runs it by default only
   when it listens on this computer (`127.0.0.1`, `localhost`, or `::1`), and
-  `METIS_API_CONNECTION_CHECK` overrides that. The API never expands a variable into a URL that
-  it requests: a client could otherwise send a URL that carries a server secret to a host that
-  the client controls. A URL that names a variable is reported as not checked.
+  `METIS_API_CONNECTION_CHECK` overrides that. The API expands into a URL only the variables
+  that `METIS_WORKSHOP_ENV` names, which each user account can already read. It expands no
+  other variable: a client could otherwise send a URL that carries a server secret to a host
+  that the client controls. A URL that names another variable is reported as not checked.
 
 No message repeats a value. A message names a field, a variable, a URL as written, or a status
 code. It never holds an expanded URL, a variable's value, or a response body.
@@ -108,17 +109,18 @@ def check_connection(
     data: Mapping[str, Any],
     *,
     live: bool,
-    expand_variables: bool = True,
     environ: Mapping[str, str] | None = None,
+    url_environ: Mapping[str, str] | None = None,
     client_factory: Callable[[bool], httpx.Client] | None = None,
 ) -> ConnectionCheckResult:
     """Validate the binding, and with `live`, check the environment and reach the target.
 
-    :param expand_variables: Put each `${NAME}` value from `environ` into a URL before the
-        request. The CLI expands, because the environment is the user's own. The API does not,
-        because the environment is the server's and the URL comes from a client. With `False`,
-        a URL that names a variable is not requested.
     :param environ: The environment to read variables from. The default is `os.environ`.
+    :param url_environ: The variables that the check may put into a URL, with their values.
+        The default is all of `environ`: the CLI uses it, because the environment is the
+        user's own. The API gives only its workshop variables, because the other variables
+        are the server's and the URL comes from a client. A URL that names a variable that
+        is not in `url_environ` is not requested.
     :param client_factory: Builds the HTTP client from `tls_verify`. Tests supply a client on
         `httpx.MockTransport`.
     """
@@ -127,8 +129,8 @@ def check_connection(
         return result
     probes, document = live_probes(
         result.binding,
-        expand_variables=expand_variables,
         environ=os.environ if environ is None else environ,
+        url_environ=url_environ,
         client_factory=client_factory or _default_client,
     )
     status = (
@@ -148,22 +150,25 @@ def live_probes(
     *,
     environ: Mapping[str, str],
     client_factory: Callable[[bool], httpx.Client],
-    expand_variables: bool = True,
+    url_environ: Mapping[str, str] | None = None,
 ) -> tuple[list[ConnectionProbe], dict[str, Any] | None]:
     """Report each named variable as set or not set, then try to reach the target.
 
+    :param url_environ: The variables that a URL may use. See `check_connection`.
     :returns: The probes, and the OpenAPI document when the check read one.
     """
     probes = _variable_probes(binding, environ)
-    # `None` keeps every `${NAME}` value out of the URLs that the check requests
-    url_environ = environ if expand_variables else None
     if binding.transport == "http":
         fetched, document = _fetch_openapi(
-            binding.spec_url or "", binding.tls_verify, url_environ, client_factory
+            binding.spec_url or "",
+            binding.tls_verify,
+            environ,
+            url_environ,
+            client_factory,
         )
         return probes + fetched, document
     probes.append(
-        _load_start_page(binding.start_url or "", url_environ, client_factory)
+        _load_start_page(binding.start_url or "", environ, url_environ, client_factory)
     )
     return probes, None
 
@@ -213,31 +218,30 @@ def _variable_probes(
 
 
 def _expand(
-    written: str, environ: Mapping[str, str] | None
+    written: str, environ: Mapping[str, str], url_environ: Mapping[str, str] | None
 ) -> tuple[str | None, str | None]:
     """The URL with `${NAME}` expanded, or why the check does not request it.
 
-    With `environ` as `None`, a URL that names a variable is not requested, so no variable's
-    value goes into a request.
+    A URL that names a variable outside `url_environ` is not requested, so that variable's
+    value goes into no request. With `url_environ` as `None`, a URL may use all of `environ`.
     """
-    names = _ENV_REFERENCE.findall(written)
-    if environ is None:
-        if names:
+    values = environ if url_environ is None else url_environ
+    for name in _ENV_REFERENCE.findall(written):
+        if name not in values and url_environ is not None:
             return None, (
-                f"the URL names {names[0]}, so the API does not request it. "
+                f"the URL names {name}, so the API does not request it. "
                 "Run `metis wizard connect` to check it with your environment"
             )
-        return written, None
-    for name in names:
-        if not environ.get(name):
+        if not values.get(name):
             return None, f"{name} is not set"
-    return _ENV_REFERENCE.sub(lambda match: environ[match.group(1)], written), None
+    return _ENV_REFERENCE.sub(lambda match: values[match.group(1)], written), None
 
 
 def _fetch_openapi(
     written: str,
     tls_verify: bool,
-    environ: Mapping[str, str] | None,
+    environ: Mapping[str, str],
+    url_environ: Mapping[str, str] | None,
     client_factory: Callable[[bool], httpx.Client],
 ) -> tuple[list[ConnectionProbe], dict[str, Any] | None]:
     """Fetch the OpenAPI document, then check that its server answers.
@@ -246,7 +250,7 @@ def _fetch_openapi(
     so it cannot change the target's data. Only the engine sends real calls.
     """
     probe = "spec_url"
-    url, reason = _expand(written, environ)
+    url, reason = _expand(written, environ, url_environ)
     if url is None:
         return [
             ConnectionProbe(name=probe, ok=False, message=f"not fetched: {reason}")
@@ -356,11 +360,12 @@ def _server_answers(client: httpx.Client, server: str) -> ConnectionProbe:
 
 def _load_start_page(
     written: str,
-    environ: Mapping[str, str] | None,
+    environ: Mapping[str, str],
+    url_environ: Mapping[str, str] | None,
     client_factory: Callable[[bool], httpx.Client],
 ) -> ConnectionProbe:
     probe = "start_url"
-    url, reason = _expand(written, environ)
+    url, reason = _expand(written, environ, url_environ)
     if url is None:
         return ConnectionProbe(name=probe, ok=False, message=f"not loaded: {reason}")
     if urlsplit(url).scheme.lower() not in ("http", "https"):

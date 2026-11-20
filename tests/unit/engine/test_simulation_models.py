@@ -93,7 +93,7 @@ def test_a_command_stops_before_any_client_and_names_only_its_own_roles(
 ) -> None:
     monkeypatch.delenv("OPENAI_API_KEY")
     built = _no_clients(monkeypatch)
-    monkeypatch.setattr(cli, "_find_project_root", lambda: tmp_path / "project")
+    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path / "project")
 
     simulate = runner.invoke(
         app,
@@ -126,7 +126,7 @@ def test_a_run_names_each_model_and_its_source(monkeypatch: pytest.MonkeyPatch) 
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("DEFAULT_MODEL", "team-model")
     specification = Specification.model_validate(yaml.safe_load(MINIMAL_EXPERIMENT))
-    specification.experiment.defaults.judge_model = "spec-judge"
+    specification.defaults.judge_model = "spec-judge"
     roles = [ModelRole.USER_AGENT, ModelRole.JUDGE]
 
     assert cli._models_line(specification, roles) == (

@@ -5,6 +5,9 @@ calls the wizard's public facade, and maps the typed result onto an HTTP status 
 behaviour of its own. Every stage, Specification, prompt, matching and compilation rule lives in
 metis-wizard.
 
+These routes keep no state and do not use the store. Each request carries the whole Interview
+state, and the client saves the returned state through the store routes in `targets.py`.
+
 Document extraction stands outside the Interview lifecycle. It reads the uploaded file streams,
 returns their text, and retains neither the files nor any state, so the caller holds the result.
 
@@ -352,7 +355,7 @@ def package(
     """Build one request-scoped engine-ready ZIP without retaining uploaded files.
 
     Send `state` for an Interview or `specification` for a manual export. With `specification`,
-    an optional `connection` (a `TargetConnection` as JSON) adds `outputs/target-binding.yaml`
+    an optional `connection` (a `TargetConnection` as JSON) adds `target-binding.yaml`
     and names the generic runner, the same as an Interview with that connection. An Interview
     carries its connection in its state, so `connection` with `state` is rejected. A binding
     that fails the `/connection/check` validation gives 400 `validation_error`. The message
@@ -491,7 +494,8 @@ def turn(
     """Apply one typed response to the client's complete current Interview state.
 
     Send the latest full state and its pending request id. Replace the saved state with the state
-    from each successful response.
+    from each successful response. `documents` adds new documents to the Interview with the
+    answer. They join `state.context.documents` under the limits of the start request.
     """
     result = dependencies.interview_handler(body)
     return _result_response(result)
@@ -538,13 +542,16 @@ def check_target_connection(
     `localhost`, or `::1`). `METIS_API_CONNECTION_CHECK=1` or `0` overrides this. When the check
     is off, `live` is false and `status` is `unchecked`.
 
-    The API never puts a value from its own environment into a URL that it requests. A URL that
-    names a `${NAME}` variable is not requested, and its probe tells the user to check it with
-    `metis wizard connect`.
+    The API puts a value from its own environment into a URL that it requests only for a
+    variable that `METIS_WORKSHOP_ENV` names, because each user account can already read those
+    values. A URL that names any other `${NAME}` variable is not requested, and its probe tells
+    the user to check it with `metis wizard connect`.
     """
     # The check calls no model, so it reads its switch from the app and works without keys.
     live: bool = getattr(request.app.state, "connection_check", False)
-    return check_connection(body.binding, live=live, expand_variables=False)
+    workshop_env = getattr(request.app.state, "workshop_env", None) or ()
+    url_environ = {variable.name: variable.value for variable in workshop_env}
+    return check_connection(body.binding, live=live, url_environ=url_environ)
 
 
 @router.post(

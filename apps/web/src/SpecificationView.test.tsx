@@ -38,10 +38,7 @@ function render(
       specification={value}
       interviewStep={state.interviewStep}
       busy={state.busy}
-      showGraders={false}
-      onShowGradersChange={() => undefined}
       graderByFqn={new Map()}
-      gradersLoading={false}
       gradersError={false}
     />,
   );
@@ -184,7 +181,7 @@ test("the document keeps node names and descriptions in their presentation roles
   assert.doesNotMatch(markup, />analyst<\/span>/);
 });
 
-test("hides grader identifiers and shows only the human summary when enabled", () => {
+test("Grader details name the grader and describe it when the grader list has it", () => {
   const value = specification();
   value.features = [
     {
@@ -210,13 +207,11 @@ test("hides grader identifiers and shows only the human summary when enabled", (
       ],
     },
   ];
-  const hidden = render(value);
-  assert.doesNotMatch(hidden, /Answer quality grader/);
+  const unlisted = render(value);
+  assert.match(unlisted, /metis\.graders\.answer_quality/);
   const visible = renderToStaticMarkup(
     <SpecificationView
       specification={value}
-      showGraders
-      onShowGradersChange={() => undefined}
       graderByFqn={
         new Map([
           [
@@ -230,12 +225,42 @@ test("hides grader identifiers and shows only the human summary when enabled", (
           ],
         ])
       }
-      gradersLoading={false}
       gradersError={false}
     />,
   );
   assert.match(visible, /Answer quality grader/);
+  assert.match(visible, /Checks supported answers\./);
   assert.doesNotMatch(visible, /metis\.graders\.answer_quality/);
+});
+
+test("a message shows the documents that the user added with it", () => {
+  const request = {
+    type: "chat" as const,
+    prompt: "Who uses it?",
+    state: "resolved" as const,
+    request_id: "req-1",
+    stage: "clarify" as const,
+    multiline: true,
+    answer: "Policy staff. The handbook is attached.",
+  };
+  const markup = renderToStaticMarkup(
+    <Transcript
+      requests={[request]}
+      entries={[
+        {
+          kind: "interaction",
+          request_id: "req-1",
+          request,
+          status: "answered",
+          documents: ["handbook.pdf"],
+        },
+      ]}
+      busy={false}
+      onRespond={() => undefined}
+    />,
+  );
+  assert.match(markup, /Added documents/);
+  assert.match(markup, /handbook\.pdf/);
 });
 
 test("the generic form renderer transports names, descriptions, and opaque targets", () => {
@@ -341,7 +366,7 @@ test("wizard upload fields render a working local file control", () => {
   assert.doesNotMatch(markup, /File attachments are not available/);
 });
 
-test("the docked composer fills the conversation column", () => {
+test("the docked composer uses the side gutters of the transcript", () => {
   const markup = renderToStaticMarkup(
     <Composer
       request={{
@@ -361,16 +386,13 @@ test("the docked composer fills the conversation column", () => {
     />,
   );
 
-  assert.match(markup, /class="w-full pb-6 pt-2"/);
+  assert.match(markup, /class="w-full px-6 pb-6 pt-2"/);
 });
 
 test("the Specification output action follows Interview completion", () => {
   const shared = {
     specification: specification(),
-    showGraders: false,
-    onShowGradersChange: () => undefined,
     graderByFqn: new Map(),
-    gradersLoading: false,
     gradersError: false,
     onFinish: () => undefined,
     onDownload: () => undefined,
@@ -382,6 +404,36 @@ test("the Specification output action follows Interview completion", () => {
   assert.doesNotMatch(pending, />Download specification</);
   assert.match(complete, />Download specification</);
   assert.doesNotMatch(complete, /Skip interview/);
+});
+
+test("a done Interview leaves its download to the pane toolbar", () => {
+  const shared = {
+    specification: specification(),
+    graderByFqn: new Map(),
+    gradersError: false,
+    footDownload: false,
+    toolbar: <button type="button">Toolbar</button>,
+  };
+  const pending = renderToStaticMarkup(<SpecificationView {...shared} />);
+  const complete = renderToStaticMarkup(<SpecificationView {...shared} done />);
+
+  assert.match(pending, /Skip interview and download specification/);
+  assert.doesNotMatch(complete, /Download specification/);
+  assert.match(complete, /<h1[^>]*>Profile<\/h1><button type="button">Toolbar/);
+});
+
+test("a done Interview shows every step of the progress as complete", () => {
+  const shared = {
+    specification: specification(),
+    graderByFqn: new Map(),
+    gradersError: false,
+    position: { title: "Understanding your target", step: 1, steps: 6 },
+  };
+  const pending = renderToStaticMarkup(<SpecificationView {...shared} />);
+  const complete = renderToStaticMarkup(<SpecificationView {...shared} done />);
+
+  assert.match(pending, /aria-label="Understanding your target, step 1 of 6"/);
+  assert.match(complete, /aria-label="Complete, step 6 of 6"/);
 });
 
 test("a completed Interview reports that its specification is ready", () => {

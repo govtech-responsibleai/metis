@@ -74,12 +74,13 @@ def _start(
     )
 
 
-def _turn(state, response, *, request_id=None, interviewer=None):
+def _turn(state, response, *, request_id=None, interviewer=None, documents=None):
     return handle_interview(
         InterviewTurnRequest(
             state=state,
             request_id=request_id or state.pending.request_id,
             response=response,
+            documents=documents or [],
         ),
         interviewer=interviewer or ScriptedInterviewer(),
         matcher=None,
@@ -127,7 +128,7 @@ def test_start_records_a_perspective_and_reuses_it_on_the_next_turn() -> None:
             super().__init__()
             self.seen: list[Perspective] = []
 
-        def clarify(self, specification, history, context=None):
+        def clarify(self, specification, history, context=None, scope=None):
             assert context is not None
             self.seen.append(context.perspective)
             return super().clarify(specification, history, context)
@@ -296,10 +297,10 @@ def test_model_failure_preserves_state_and_diagnostics(error, code, retryable) -
     answer fills the history to its limit (a full Clarify, then review feedback)."""
 
     class FailingInterviewer(ScriptedInterviewer):
-        def clarify(self, specification, history, context=None):
+        def clarify(self, specification, history, context=None, scope=None):
             raise error
 
-        def chat(self, specification, step, text, target, context=None):
+        def chat(self, specification, step, text, target, context=None, scope=None):
             raise error
 
     opening = _start()
@@ -345,7 +346,7 @@ def test_end_finishes_a_completable_interview() -> None:
 
 def test_missing_target_details_can_be_completed_before_review() -> None:
     class IncompleteInterviewer(ScriptedInterviewer):
-        def clarify(self, specification, history, context=None):
+        def clarify(self, specification, history, context=None, scope=None):
             return ClarifyResult(
                 done=True,
                 message="",
@@ -387,7 +388,7 @@ def test_documents_survive_turns_and_require_file_review() -> None:
     ]
 
     class FixtureInterviewer(ScriptedInterviewer):
-        def clarify(self, specification, history, context=None):
+        def clarify(self, specification, history, context=None, scope=None):
             assert context is not None and context.documents == documents
             return super().clarify(specification, history, context)
 
@@ -436,6 +437,82 @@ def test_documents_survive_turns_and_require_file_review() -> None:
     assert done.outcome == "done" and done.state.confirmed
 
 
+def test_documents_added_on_a_turn_join_the_context_and_reach_the_model() -> None:
+    """A later document joins the opening ones. The model reads it and gets a sign of which
+    one is new, and the Specification changes only as the model answers the user."""
+    opening = InterviewDocument(name="policy.pdf", text="POLICY_SENTINEL")
+    during_clarify = InterviewDocument(name="notes.md", text="NOTES_SENTINEL")
+    during_review = InterviewDocument(name="sample.csv")
+    seen: dict[str, object] = {}
+
+    class RecordingInterviewer(ScriptedInterviewer):
+        def clarify(self, specification, history, context=None, scope=None):
+            seen["clarify"] = (history[-1].text, list(context.documents))
+            return super().clarify(specification, history, context)
+
+        def chat(self, specification, step, text, target, context=None, scope=None):
+            seen["chat"] = (text, list(context.documents))
+            return StepResult(message="Noted.")
+
+    interviewer = RecordingInterviewer()
+    started = _start(interviewer=interviewer, documents=[opening])
+    assert isinstance(started, InterviewSuccess)
+
+    answered = _turn(
+        started.state,
+        ChatResponse(text="It answers policy questions."),
+        interviewer=interviewer,
+        documents=[during_clarify],
+    )
+    assert isinstance(answered, InterviewSuccess)
+    assert answered.state.context.documents == [opening, during_clarify]
+    said, documents = seen["clarify"]
+    assert said.startswith("It answers policy questions.")
+    assert "notes.md" in said and "policy.pdf" not in said
+    assert documents == [opening, during_clarify]
+    # The caller's state is a value: the turn does not change it.
+    assert started.state.context.documents == [opening]
+
+    pending = behaviours_screen(research_assistant(), "Review.")
+    pending.request_id = "review"
+    pending.stage = InterviewStep.BEHAVIOURS
+    review = InterviewState(
+        specification=research_assistant(),
+        context=answered.state.context,
+        pending=pending,
+    )
+    interviewer.calls.clear()
+    silent = _turn(
+        review,
+        ChoiceResponse(selected=[]),
+        interviewer=interviewer,
+        documents=[during_review],
+    )
+    assert isinstance(silent, InterviewSuccess)
+    assert silent.state.context.document_names == [
+        "policy.pdf",
+        "notes.md",
+        "sample.csv",
+    ]
+    # A document alone asks for nothing: no model call, and the same Specification.
+    assert interviewer.calls == []
+    assert silent.state.specification == review.specification
+    assert "sample.csv" in silent.state.history[-1].text
+
+    asked = _turn(
+        review,
+        ChoiceResponse(feedback="Use the sample."),
+        interviewer=interviewer,
+        documents=[during_review],
+    )
+    assert isinstance(asked, InterviewSuccess)
+    said, documents = seen["chat"]
+    assert said.startswith("Use the sample.") and "sample.csv" in said
+    assert documents == [opening, during_clarify, during_review]
+    assert [turn.role for turn in asked.state.history[-1:]] == ["user"]
+    assert asked.state.history[-1].text == said
+
+
 def test_final_continue_completes_a_ready_specification() -> None:
     specification = research_assistant()
     pending = task_review_screen(specification, "Review test cases")
@@ -475,7 +552,7 @@ def test_end_on_a_held_gate_preserves_state() -> None:
 
 def test_failed_end_preserves_pending_state_for_a_later_turn() -> None:
     class DraftUnavailable(ScriptedInterviewer):
-        def draft_behaviours(self, specification, history, context=None):
+        def draft_behaviours(self, specification, history, context=None, scope=None):
             raise InterviewerOutputError("three attempts, all failed")
 
     state = InterviewState(
@@ -604,7 +681,7 @@ def test_compile_specification_raises_on_a_specification_that_will_not_build() -
 
 def test_end_completes_missing_target_fields_from_evidence() -> None:
     class TargetCompletionInterviewer(ScriptedInterviewer):
-        def chat(self, specification, step, text, target, context=None):
+        def chat(self, specification, step, text, target, context=None, scope=None):
             assert specification.target.description
             return StepResult(
                 message="",
@@ -762,7 +839,7 @@ def test_a_scope_change_on_a_later_review_keeps_the_interview_moving(
     forward, and the completed Interview derives DONE."""
 
     class Measures(ScriptedInterviewer):
-        def chat(self, specification, step, text, target, context=None):
+        def chat(self, specification, step, text, target, context=None, scope=None):
             return StepResult(
                 message="Measured.",
                 patches=[
@@ -996,7 +1073,7 @@ def test_a_review_form_cancels_or_goes_back_without_mutation(step, opener) -> No
 )
 def test_review_feedback_is_exclusive_and_applies_in_one_turn(selected, values) -> None:
     class FeedbackInterviewer(ScriptedInterviewer):
-        def chat(self, specification, step, text, target, context=None):
+        def chat(self, specification, step, text, target, context=None, scope=None):
             return StepResult(
                 message="Updated.",
                 patches=[Patch(op=PatchOp.SET, path="target.name", value=text)],

@@ -13,7 +13,7 @@ from metis.wizard import (
 )
 
 
-def test_the_route_table_is_exactly_health_catalogues_interview_lifecycle_compile_and_package(
+def test_the_route_table_is_exactly_the_documented_routes(
     client: TestClient,
 ) -> None:
     paths = client.get("/openapi.json").json()["paths"]
@@ -22,6 +22,13 @@ def test_the_route_table_is_exactly_health_catalogues_interview_lifecycle_compil
         "/health",
         "/api/v1/graders",
         "/api/v1/models",
+        "/api/v1/targets",
+        "/api/v1/targets/{target_id}",
+        "/api/v1/targets/{target_id}/interview",
+        "/api/v1/targets/{target_id}/interview/files/{name}",
+        "/api/v1/targets/{target_id}/specification",
+        "/api/v1/targets/{target_id}/experiments",
+        "/api/v1/experiments/{experiment_id}",
         "/api/v1/wizard/config",
         "/api/v1/wizard/connection",
         "/api/v1/wizard/connection/check",
@@ -31,6 +38,23 @@ def test_the_route_table_is_exactly_health_catalogues_interview_lifecycle_compil
         "/api/v1/wizard/interview/turn",
         "/api/v1/wizard/interview/end",
         "/api/v1/wizard/compile",
+        "/api/v1/experiments/{experiment_id}/report",
+        "/api/v1/experiments/{experiment_id}/report.html",
+        "/api/v1/engine/simulate",
+        "/api/v1/engine/simulate/{experiment_id}/resume",
+        "/api/v1/engine/evaluate/{experiment_id}",
+        "/api/v1/engine/evaluate/{experiment_id}/resume",
+        "/api/v1/engine/{experiment_id}/stop",
+        "/api/v1/engine/{experiment_id}",
+        "/api/v1/engine/{experiment_id}/events",
+        "/api/v1/doctor",
+        "/api/v1/workshop/env",
+        "/api/v1/users",
+        "/api/v1/users/{username}",
+        "/api/v1/users/{username}/password",
+        "/api/v1/auth/login",
+        "/api/v1/auth/logout",
+        "/api/v1/auth/me",
     }
 
 
@@ -165,3 +189,33 @@ def test_state_schema_bounds_history_and_requires_non_null_pending_metadata(
         assert request["properties"]["stage"] == {
             "$ref": "#/components/schemas/InterviewStep"
         }
+
+
+def test_the_engine_status_has_queued_and_its_place(client: TestClient) -> None:
+    schema = client.get("/openapi.json").json()["components"]["schemas"]["EngineStatus"]
+
+    assert "queued" in schema["properties"]["status"]["enum"]
+    assert "queue_ahead" in schema["required"]
+    assert {"type": "integer"} in schema["properties"]["queue_ahead"]["anyOf"]
+
+
+def test_only_the_engine_start_routes_document_503(client: TestClient) -> None:
+    # 503 is engine_stopping, for a start while the server shuts down. A busy engine
+    # queues the start, so no route gives 503 for that.
+    paths = client.get("/openapi.json").json()["paths"]
+
+    engine = {
+        (path, method): operation
+        for path, operations in paths.items()
+        if path.startswith("/api/v1/engine/")
+        for method, operation in operations.items()
+    }
+
+    assert sorted(
+        path for (path, _), op in engine.items() if "503" in op["responses"]
+    ) == [
+        "/api/v1/engine/evaluate/{experiment_id}",
+        "/api/v1/engine/evaluate/{experiment_id}/resume",
+        "/api/v1/engine/simulate",
+        "/api/v1/engine/simulate/{experiment_id}/resume",
+    ]

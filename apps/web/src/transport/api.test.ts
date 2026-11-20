@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { synthesizeManualSpecification } from "../manual.ts";
-import { api, TransportError, type InterviewState } from "./api.ts";
+import {
+  api,
+  auth,
+  dispositionFilename,
+  onLoginRequired,
+  store,
+  TransportError,
+  users,
+  workshopEnv,
+  type InterviewState,
+  type Report,
+} from "./api.ts";
 
 const originalFetch = globalThis.fetch;
 
@@ -56,7 +67,7 @@ test("uses the stateless wizard routes and JSON request shapes", async () => {
         headers: {
           "content-type": "application/zip",
           "Content-Disposition":
-            'attachment; filename="20261016-223045-interview.zip"',
+            'attachment; filename="20261016-223045-interview-k7mwp.zip"',
         },
       });
     }
@@ -212,7 +223,7 @@ test("packages a synthesized manual Specification and its fixtures as multipart"
       headers: {
         "content-type": "application/zip",
         "Content-Disposition":
-          'attachment; filename="20261016-223045-manual.zip"',
+          'attachment; filename="20261016-223045-manual-k7mwp.zip"',
       },
     });
   };
@@ -279,6 +290,171 @@ test("package failures preserve the API error shape", async () => {
   );
 });
 
+const REPORT_NAME =
+  "inline; filename=\"run_1-report.html\"; filename*=UTF-8''run%201-report.html";
+
+test("report reads report.json of the experiment", async () => {
+  const report = { target: "Bank bot" } as Report;
+  let path = "";
+  globalThis.fetch = async (input) => {
+    path = String(input);
+    return new Response(JSON.stringify(report), {
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  assert.deepEqual(await api.report("run 1/a"), report);
+  assert.equal(path, "/api/v1/experiments/run%201%2Fa/report");
+});
+
+test("reportPage gives report.html with the name from the header", async () => {
+  let path = "";
+  globalThis.fetch = async (input) => {
+    path = String(input);
+    return new Response("<html></html>", {
+      headers: {
+        "content-type": "text/html",
+        "Content-Disposition": REPORT_NAME,
+      },
+    });
+  };
+
+  const page = await api.reportPage("run 1");
+
+  assert.equal(path, "/api/v1/experiments/run%201/report.html");
+  assert.equal(page.filename, "run 1-report.html");
+  assert.equal(await page.blob.text(), "<html></html>");
+});
+
+test("simulate posts the input folder", async () => {
+  let path = "";
+  let init: RequestInit | undefined;
+  globalThis.fetch = async (input, options) => {
+    path = String(input);
+    init = options;
+    return new Response(JSON.stringify({ experiment_id: "spec-1" }), {
+      status: 202,
+    });
+  };
+
+  assert.deepEqual(await api.simulate("evaluations/specifications/t1"), {
+    experiment_id: "spec-1",
+  });
+  assert.equal(path, "/api/v1/engine/simulate");
+  assert.equal(init?.method, "POST");
+  assert.equal(init?.body, '{"input_dir":"evaluations/specifications/t1"}');
+});
+
+test("a refused start keeps the code, the message and the retry flag of the API", async () => {
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        type: "failure",
+        code: "model_unavailable",
+        message: "Set the model key.",
+        retryable: true,
+      }),
+      { status: 503 },
+    );
+
+  await assert.rejects(
+    api.simulate("evaluations/specifications/t1"),
+    (cause) =>
+      cause instanceof TransportError &&
+      cause.status === 503 &&
+      cause.code === "model_unavailable" &&
+      cause.message === "Set the model key." &&
+      cause.retryable,
+  );
+});
+
+test("the engine reads go to the routes of the experiment", async () => {
+  const paths: string[] = [];
+  globalThis.fetch = async (input) => {
+    paths.push(String(input));
+    return new Response("[]");
+  };
+
+  await store.experiments("t/1");
+  await store.specification("t/1");
+  await api.engineStatus("e 1");
+  await api.engineEvents("e 1");
+  await api.engineEvents("e 1", 7);
+  await api.doctor();
+
+  assert.deepEqual(paths, [
+    "/api/v1/targets/t%2F1/experiments",
+    "/api/v1/targets/t%2F1/specification",
+    "/api/v1/engine/e%201",
+    "/api/v1/engine/e%201/events",
+    "/api/v1/engine/e%201/events?after=7",
+    "/api/v1/doctor",
+  ]);
+});
+
+test("the run actions and the row saves go to their routes", async () => {
+  const calls: string[] = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push(
+      `${init?.method ?? "GET"} ${String(input)} ${String(init?.body ?? "")}`.trim(),
+    );
+    return new Response("{}", { status: 202 });
+  };
+
+  await api.stop("e1");
+  await api.resumeSimulation("e1");
+  await api.evaluate("e1");
+  await api.resumeEvaluation("e1");
+  await store.experiment("e1");
+  await store.putExperiment("e1", { target_id: "t1", step: "evaluate" });
+  await store.deleteExperiment("e1");
+
+  assert.deepEqual(calls, [
+    "POST /api/v1/engine/e1/stop",
+    "POST /api/v1/engine/simulate/e1/resume",
+    "POST /api/v1/engine/evaluate/e1",
+    "POST /api/v1/engine/evaluate/e1/resume",
+    "GET /api/v1/experiments/e1",
+    'PUT /api/v1/experiments/e1 {"target_id":"t1","step":"evaluate"}',
+    "DELETE /api/v1/experiments/e1",
+  ]);
+});
+
+test("the exact file name comes before the ASCII fallback", () => {
+  assert.equal(dispositionFilename(REPORT_NAME), "run 1-report.html");
+  assert.equal(
+    dispositionFilename('attachment; filename="a \\"b\\".zip"'),
+    'a "b".zip',
+  );
+  assert.equal(
+    dispositionFilename(
+      "inline; filename=\"a.html\"; filename*=UTF-8''%E0%A4%A",
+    ),
+    "a.html",
+  );
+  assert.equal(dispositionFilename("inline"), null);
+  assert.equal(dispositionFilename(null), null);
+});
+
+test("a file with no safe name is refused", async () => {
+  for (const disposition of [
+    null,
+    'inline; filename="report.txt"',
+    'inline; filename=".html"',
+    "inline; filename*=UTF-8''..%2Freport.html",
+  ]) {
+    globalThis.fetch = async () =>
+      new Response("<html></html>", {
+        headers: disposition ? { "Content-Disposition": disposition } : {},
+      });
+    await assert.rejects(
+      api.reportPage("e1"),
+      /no valid file name/,
+      String(disposition),
+    );
+  }
+});
+
 for (const status of [400, 422, 500, 503]) {
   test(`turn failures preserve HTTP ${status} and retry metadata`, async () => {
     globalThis.fetch = async () =>
@@ -318,5 +494,195 @@ test("typed failures in a successful HTTP response are still surfaced", async ()
       cause instanceof TransportError &&
       cause.code === "invalid_response" &&
       !cause.retryable,
+  );
+});
+
+function failure(status: number, code: string, message: string): Response {
+  return new Response(
+    JSON.stringify({ type: "failure", code, message, retryable: false }),
+    { status, headers: { "content-type": "application/json" } },
+  );
+}
+
+test("a request without a login session tells the login gate", async () => {
+  let asked = 0;
+  const stop = onLoginRequired(() => {
+    asked += 1;
+  });
+  globalThis.fetch = async () =>
+    failure(401, "login_required", "Log in to use this METIS server.");
+
+  await assert.rejects(store.targets(), (error: unknown) => {
+    assert.ok(error instanceof TransportError);
+    assert.equal(error.status, 401);
+    assert.equal(error.code, "login_required");
+    return true;
+  });
+  assert.equal(asked, 1);
+
+  stop();
+  await assert.rejects(store.targets());
+  assert.equal(asked, 1);
+});
+
+test("wrong credentials do not tell the login gate", async () => {
+  let asked = 0;
+  const stop = onLoginRequired(() => {
+    asked += 1;
+  });
+  globalThis.fetch = async () =>
+    failure(
+      401,
+      "invalid_credentials",
+      "The username or the password is not correct.",
+    );
+
+  await assert.rejects(auth.login("curious-otter", "wrong"), {
+    message: "The username or the password is not correct.",
+  });
+  assert.equal(asked, 0);
+  stop();
+});
+
+test("login sends the credentials as JSON and logout sends a POST", async () => {
+  const calls: Array<{ path: string; method?: string; body: unknown }> = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push({
+      path: String(input),
+      method: init?.method,
+      body:
+        init?.body === undefined ? undefined : JSON.parse(String(init.body)),
+    });
+    return new Response(
+      init?.body === undefined
+        ? null
+        : JSON.stringify({ login: true, user: { username: "curious-otter" } }),
+      { status: init?.body === undefined ? 204 : 200 },
+    );
+  };
+
+  const current = await auth.login("curious-otter", "k7mwp-3xr9t");
+  await auth.logout();
+
+  assert.equal(current.user?.username, "curious-otter");
+  assert.deepEqual(calls, [
+    {
+      path: "/api/v1/auth/login",
+      method: "POST",
+      body: { username: "curious-otter", password: "k7mwp-3xr9t" },
+    },
+    { path: "/api/v1/auth/logout", method: "POST", body: undefined },
+  ]);
+});
+
+test("a join sends the join token as a bearer token", async () => {
+  let asked = 0;
+  const stop = onLoginRequired(() => {
+    asked += 1;
+  });
+  const calls: Array<{ path: string; method?: string; auth: string | null }> =
+    [];
+  globalThis.fetch = async (input, init) => {
+    calls.push({
+      path: String(input),
+      method: init?.method,
+      auth: new Headers(init?.headers).get("Authorization"),
+    });
+    return calls.length === 1
+      ? new Response(
+          JSON.stringify({
+            id: "u1",
+            username: "brave-otter",
+            created_at: "2026-11-17T00:00:00Z",
+            admin: false,
+            password: "k3m7p-x9q2r",
+          }),
+          { status: 201 },
+        )
+      : failure(401, "invalid_admin_token", "The request needs the token.");
+  };
+
+  const account = await users.join("workshop-token");
+  await assert.rejects(users.join("wrong"), { status: 401 });
+
+  assert.equal(account.password, "k3m7p-x9q2r");
+  assert.deepEqual(calls, [
+    { path: "/api/v1/users", method: "POST", auth: "Bearer workshop-token" },
+    { path: "/api/v1/users", method: "POST", auth: "Bearer wrong" },
+  ]);
+  assert.equal(asked, 0);
+  stop();
+});
+
+test("the admin calls use the login session and no token", async () => {
+  const calls: Array<{
+    path: string;
+    method?: string;
+    auth: string | null;
+    body: unknown;
+  }> = [];
+  const account = {
+    id: "u1",
+    username: "brave-otter",
+    created_at: "2026-11-17T00:00:00Z",
+    admin: true,
+  };
+  globalThis.fetch = async (input, init) => {
+    calls.push({
+      path: String(input),
+      method: init?.method,
+      auth: new Headers(init?.headers).get("Authorization"),
+      body:
+        init?.body === undefined ? undefined : JSON.parse(String(init.body)),
+    });
+    return new Response(
+      JSON.stringify(
+        init?.method === "POST"
+          ? { ...account, password: "k3m7p-x9q2r" }
+          : { users: [account] },
+      ),
+      { status: init?.method === "POST" ? 201 : 200 },
+    );
+  };
+
+  assert.deepEqual(await users.list(), { users: [account] });
+  assert.equal((await users.create(true)).password, "k3m7p-x9q2r");
+  assert.equal(
+    (await users.resetPassword("brave otter")).password,
+    "k3m7p-x9q2r",
+  );
+
+  assert.deepEqual(calls, [
+    { path: "/api/v1/users", method: undefined, auth: null, body: undefined },
+    {
+      path: "/api/v1/users",
+      method: "POST",
+      auth: null,
+      body: { admin: true },
+    },
+    {
+      path: "/api/v1/users/brave%20otter/password",
+      method: "POST",
+      auth: null,
+      body: undefined,
+    },
+  ]);
+});
+
+test("workshopEnv gives the variables, null when the server gives none, and other failures as they are", async () => {
+  const variables = [{ name: "LANGFUSE_PUBLIC_KEY", value: "pk-lf-1" }];
+  globalThis.fetch = async (input) => {
+    assert.equal(input, "/api/v1/workshop/env");
+    return Response.json({ variables });
+  };
+  assert.deepEqual(await workshopEnv(), variables);
+
+  globalThis.fetch = async () => failure(404, "not_found", "No variables.");
+  assert.equal(await workshopEnv(), null);
+
+  globalThis.fetch = async () => failure(500, "internal_error", "Broken.");
+  await assert.rejects(
+    workshopEnv(),
+    (cause: unknown) => cause instanceof TransportError && cause.status === 500,
   );
 });

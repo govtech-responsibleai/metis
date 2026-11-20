@@ -56,11 +56,20 @@ RELIABILITY_AND_ROBUSTNESS = {
     "RobustnessToContextDegradationGrader",
     "RobustnessToToolFailuresGrader",
 }
+RESOURCE_USE = {
+    "ElapsedTimeGrader",
+    "ExecutionStepCountGrader",
+    "ModelCallCountGrader",
+    "MonetaryCostGrader",
+    "TokenUsageGrader",
+    "ToolCallCountGrader",
+}
 EXPECTED = (
-    {"CriterionJudgeGrader"}
+    {"CriterionJudgeGrader", "CriterionDecisionGrader"}
     | EXECUTION_AND_DECISION_QUALITY
     | INTERACTION_QUALITY
     | RELIABILITY_AND_ROBUSTNESS
+    | RESOURCE_USE
     | TASK_AND_OUTPUT_QUALITY
 )
 

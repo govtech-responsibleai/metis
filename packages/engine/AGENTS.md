@@ -6,13 +6,51 @@ See root [AGENTS.md](../../AGENTS.md) for monorepo-wide instructions.
 
 Evaluation runtime — simulation harness, trace extraction, and grader execution. Report generation lives in `metis-insights`.
 
+## Library functions
+
+`metis.engine.run` runs an experiment from Python, with no CLI. `metis engine simulate`,
+`evaluate`, and `run` call these functions, and so does the API.
+
+| Function | Does |
+|---|---|
+| `prepare_experiment(input_dir, *, project_dir, console)` | Checks the inputs, creates the experiment folder, copies the inputs in, and returns the folder. It calls no model. |
+| `simulate(experiment_dir, *, concurrency, stop, console)` | Runs every trial in a folder that `prepare_experiment` made. |
+| `resume_simulation(experiment_dir, *, concurrency, stop, console)` | Runs again only the trials that did not end. |
+| `evaluate(experiment_dir, *, trace_wait, concurrency, stop, console)` | Deletes the earlier evaluation outputs and grades every trial. |
+| `resume_evaluation(experiment_dir, *, trace_wait, concurrency, stop, console)` | Grades only the trials that have no evaluation file. |
+
+The functions never exit and never set a signal handler. Each raises an error from
+`metis.engine.run.errors`: a `RunError` (exit code 1 in the CLI) or `RunStopped` (exit code
+130). An unexpected error is raised as itself. `stop` is a `threading.Event`. When it is set,
+a simulation ends each trial at its next turn, and an evaluation cancels its sessions within a
+fraction of a second. The functions write their text only to `console`, which is a Rich
+`Console`.
+
+The caller sets up the process before it calls a function. It loads `.env`, calls
+`metis.engine.tracing.tracing_key()`, and sets up process logging. The log router of a
+simulation sits after the caller's log level filter, so the caller's log level also decides
+what reaches the per-trial log files.
+
+A process can run more than one function at a time, each on its own thread, as the API
+does. Each simulation keeps its `LogRouter` in a context variable for the time of the run
+(`metis.engine.logging.router`). The first run installs one structlog processor that sends
+each event to the router of its context, and the last run puts back the configuration from
+before. An event with no run in its context goes to the renderer of the process. The asyncio
+tasks of a run inherit the variable. Do not start a thread inside a run: a new thread does not
+inherit the context, and its events would reach the process renderer. Only the CLI uses the
+TUI, which silences the stderr handlers of the process, and the CLI runs one function at a
+time. An evaluation reads the target's Langfuse through a client of its own
+(`get_langfuse_client`), and closes it before its event loop closes, so no run uses a
+connection of another run's loop. The METIS-internal tracing client is registered one time,
+with the same keys for every run.
+
 ## Runner Contract
 
 `docs/runner-contract.md` is normative for every `Runner` implementation. When changing a runner, `Observation`, or the orchestrator's handling of either, read it first and keep it in sync.
 
 ## Schema Sync
 
-`metis-core` publishes the one `specification.yaml` schema, from `SpecificationDocument` in
+`metis-core` publishes the one `specification.yaml` schema, from `Specification` in
 `packages/core/src/metis/core/specification.py`. The engine has no schema files of its own. After
 you change a shared model, run:
 
@@ -39,7 +77,7 @@ A breaking change to a nested model bumps the version of the root model that con
 1. Increment `_SPECIFICATION_VERSION` in `metis.core.specification` or `_TRIAL_RECORD_VERSION` in `metis.core.trials`
 2. Update the `Literal[N]` annotation on the model field to match
 3. Run `make -C packages/core generate-schema` if `Specification` changed
-4. Update `examples/http-agentic_eval_toyapp-1/specification.yaml` if affected
+4. Update `packages/engine/examples/http-agentic_eval_toyapp-1/specification.yaml` if affected
 5. Note the schema version change in the commit message
 
 See `packages/core/schemas/README.md` for the version policy.
@@ -49,15 +87,18 @@ See `packages/core/schemas/README.md` for the version policy.
 `LANGFUSE_*` names the Langfuse of the system under test. The extractor reads target traces
 from it. The engine traces its own model calls to the METIS-internal Langfuse
 (`METIS_INTERNAL_LANGFUSE_*`, see `src/metis/engine/tracing.py`). Every engine model client is
-the `langfuse.openai` drop-in. A drop-in call that names no Langfuse key goes to whichever
-client is registered, and in `evaluate` that is the target's. So every engine model call must
-name `tracing_key()`:
+the `langfuse.openai` drop-in. A drop-in call that names no Langfuse key does not reliably reach
+the internal project. With no client registered, the SDK builds one from `LANGFUSE_*`, which is
+the target's project. With one client registered it uses that one, and with more than one it
+sends nothing. The extractor's `get_langfuse_client` registers no client, but other code in the
+process can. So every engine model call must name `tracing_key()`:
 
 - A simulation call goes through `parse_completion` or `create_completion`, which pass the key.
 - Code that calls a client it does not own, such as a library grader, runs inside
   `tracing.traced`, which sets the key for every call nested inside.
 
-`tests/unit/engine/test_internal_tracing.py` checks both paths with a target client registered.
+`tests/unit/engine/test_internal_tracing.py` checks both paths with a target client registered,
+as other code in the process may register one.
 
 ## Pyright Configuration
 
@@ -69,7 +110,11 @@ so re-enabling it is a safe follow-up.
 
 - Unit tests do not touch the network. Build `Trace` / `GradingInput` objects directly for
   grader and orchestrator tests.
-- To test the Langfuse fetch, call `fetch_session` with a fake client whose `get_many` answers
+- To test the Langfuse fetch, await `fetch_session` with a fake client whose async
+  `async_api.observations_v_2.get_many` answers
   by filter column (see `tests/unit/engine/test_extractor_fetch.py`), so a fetch that reuses the
   session-filtered rows as a trace's observations (issue #435) fails. Do not hit the live
   Langfuse API.
+- `fetch_session` waits until Langfuse has stored nothing new for the quiet window. Pass it the
+  `clock`, `sleep` and `utc_now` of a `FakeClock` (in the same file), so a test never waits in
+  real time.

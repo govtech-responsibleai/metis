@@ -223,9 +223,9 @@ def test_right_opens_details_and_left_closes_them() -> None:
     assert "▸ Grader: FixedScoreGrader" in drawn()
     state.right()
     assert "▾ Grader: FixedScoreGrader" in drawn()
-    assert "threshold: 0.5" in drawn()
+    assert "threshold: 0.8" in drawn()
     state.left()
-    assert "threshold: 0.5" not in drawn()
+    assert "threshold: 0.8" not in drawn()
 
 
 @pytest.mark.parametrize(
@@ -244,7 +244,7 @@ def test_right_opens_details_and_left_closes_them() -> None:
         (
             "criteria",
             0,
-            "Esc back | ↑↓ move | → details | Enter Continue | Tab feedback",
+            "Esc back | ↑↓ move | → details | Enter Accept Criteria | Tab feedback",
         ),
     ],
     ids=["item-with-tick", "table-row", "item-with-details"],

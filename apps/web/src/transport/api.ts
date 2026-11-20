@@ -47,7 +47,30 @@ type ConnectionCheckOperation =
 type ConnectionOperation =
   operations["update_target_connection_api_v1_wizard_connection_post"];
 type PackageWireRequest = Schema["Body_package_api_v1_wizard_package_post"];
+type TargetsOperation = operations["list_targets_api_v1_targets_get"];
+type CurrentUserOperation = operations["current_user_api_v1_auth_me_get"];
+type InterviewReadOperation =
+  operations["read_interview_api_v1_targets__target_id__interview_get"];
+type InterviewWireRecord = JsonResponse<InterviewReadOperation>;
+type ReportOperation =
+  operations["experiment_report_api_v1_experiments__experiment_id__report_get"];
+type ExperimentsOperation =
+  operations["list_target_experiments_api_v1_targets__target_id__experiments_get"];
+type SpecificationOperation =
+  operations["read_specification_api_v1_targets__target_id__specification_get"];
+type SimulateOperation =
+  operations["start_simulation_api_v1_engine_simulate_post"];
+type EngineStatusOperation =
+  operations["experiment_status_api_v1_engine__experiment_id__get"];
+type EngineEventsOperation =
+  operations["experiment_events_api_v1_engine__experiment_id__events_get"];
+type DoctorOperation = operations["run_doctor_api_v1_doctor_get"];
 
+export type CurrentUser = JsonResponse<CurrentUserOperation>;
+export type UserAccount = Schema["UserAccountBody"];
+export type NewUserAccount = Schema["NewUserAccountBody"];
+export type UserAccountList = Schema["UserAccountList"];
+export type WorkshopVariable = Schema["WorkshopVariable"];
 export type InterviewStep = Schema["InterviewStep"];
 export type Perspective = Schema["Perspective"];
 export type InterviewDocument = Schema["InterviewDocument"];
@@ -93,7 +116,7 @@ export type CardComponent =
   | CardDetails;
 export type Card = Defaulted<
   Omit<Schema["BehaviourCard-Input"], "components" | "options" | "columns">,
-  "show_id"
+  "show_id" | "inactive"
 > & {
   components: CardComponent[];
   options: Option[];
@@ -101,7 +124,7 @@ export type Card = Defaulted<
 };
 export type ScenarioCard = Defaulted<
   Omit<Schema["ScenarioCard-Input"], "components" | "options" | "columns">,
-  "show_id"
+  "show_id" | "inactive"
 > & {
   components: CardComponent[];
   options: Option[];
@@ -344,6 +367,8 @@ export interface InitialDescriptionEntry {
   kind: "initial_description";
   id: string;
   description: string;
+  // The names of the documents that the user added with the opening message.
+  documents?: string[];
 }
 export interface InteractionEntry {
   kind: "interaction";
@@ -351,10 +376,14 @@ export interface InteractionEntry {
   request: WizardRequest;
   response?: UserResponse;
   status: "pending" | "sending" | "failed" | "answered" | "ended_unanswered";
+  // The names of the documents that the user added to the Interview with this answer.
+  documents?: string[];
   outbound?: {
-    files: LocalFixture[];
+    files: LoadedFixture[];
     removedFixtures: string[];
     attempt: number;
+    // The documents that go to the Interview with this answer. `files` holds their bytes.
+    documents?: InterviewDocument[];
   };
   failure?: {
     message: string;
@@ -363,8 +392,8 @@ export interface InteractionEntry {
   };
 }
 export type TranscriptEntry = InitialDescriptionEntry | InteractionEntry;
-export interface LocalInterviewRecord {
-  storage_version: 6;
+// An Interview record with the bytes of its files, as the app holds an open Interview.
+export interface LoadedInterviewRecord {
   submission_revision?: number;
   id: string;
   created_at: number;
@@ -373,9 +402,9 @@ export interface LocalInterviewRecord {
   stage: InterviewStep;
   state: InterviewState;
   transcript: TranscriptEntry[];
-  fixtures: LocalFixture[];
+  fixtures: LoadedFixture[];
 }
-export interface LocalFixture {
+export interface LoadedFixture {
   name: string;
   type: string;
   size: number;
@@ -386,6 +415,34 @@ export interface InterviewSummary {
   title: string;
   updated: number;
 }
+export type FileRef = Schema["FileRef"];
+export type StorageProblem = Schema["TargetProblem"];
+export type TargetList = JsonResponse<TargetsOperation>;
+// report.json as the route gives it. Only `src/report.ts` reads it.
+export type Report = JsonResponse<ReportOperation>;
+export type ExperimentRecord = Schema["ExperimentRecord"];
+export type ExperimentList = JsonResponse<ExperimentsOperation>;
+export type ExperimentSave = Schema["ExperimentSave"];
+export type SpecificationRecord = JsonResponse<SpecificationOperation>;
+export type EngineRunAccepted = JsonResponse<SimulateOperation, 202>;
+export type EngineStatus = JsonResponse<EngineStatusOperation>;
+export type PhaseEvent = JsonResponse<EngineEventsOperation>[number];
+export type DoctorCheck = JsonResponse<DoctorOperation>[number];
+// The record as the store keeps it: each file is a reference to bytes in the store.
+export type StoredInterviewRecord = Omit<
+  LoadedInterviewRecord,
+  "fixtures" | "transcript"
+> & {
+  fixtures: FileRef[];
+  transcript: Array<
+    | InitialDescriptionEntry
+    | (Omit<InteractionEntry, "outbound"> & {
+        outbound?: Omit<NonNullable<InteractionEntry["outbound"]>, "files"> & {
+          files: FileRef[];
+        };
+      })
+  >;
+};
 export interface PresentationView {
   id: string;
   stage: InterviewStep;
@@ -418,8 +475,31 @@ export class TransportError extends Error {
   }
 }
 
+// A path from the OpenAPI document with its `{name}` parameters filled in.
+type RoutedPath = string & { readonly routed: unique symbol };
+function route<P extends keyof ApiPaths>(
+  template: P,
+  params: Record<string, string>,
+): RoutedPath {
+  return template.replace(/\{(\w+)\}/gu, (_, name: string) => {
+    const value = params[name];
+    if (value === undefined) throw new Error(`Missing path parameter ${name}.`);
+    return encodeURIComponent(value);
+  }) as RoutedPath;
+}
+
+// The API returns 401 `login_required` when login is on and the request has no login session.
+// The login gate listens here, so each request of the app can bring the login page back.
+const loginRequiredListeners = new Set<() => void>();
+export function onLoginRequired(listener: () => void): () => void {
+  loginRequiredListeners.add(listener);
+  return () => {
+    loginRequiredListeners.delete(listener);
+  };
+}
+
 async function responseFor(
-  path: keyof ApiPaths,
+  path: keyof ApiPaths | RoutedPath,
   init?: RequestInit,
 ): Promise<Response> {
   let response: Response;
@@ -432,12 +512,15 @@ async function responseFor(
     });
   }
   if (!response.ok) {
-    let detail: Partial<InterviewFailure> = {};
+    // Each failure of the API has this shape. The codes differ by route.
+    let detail: { message?: string; code?: string; retryable?: boolean } = {};
     try {
-      detail = (await response.json()) as Partial<InterviewFailure>;
+      detail = (await response.json()) as typeof detail;
     } catch {
       /* status is enough */
     }
+    if (response.status === 401 && detail.code === "login_required")
+      for (const listener of loginRequiredListeners) listener();
     throw new TransportError(
       detail.message ?? `The METIS API returned HTTP ${response.status}.`,
       {
@@ -450,21 +533,59 @@ async function responseFor(
   return response;
 }
 
-async function call<T>(path: keyof ApiPaths, init?: RequestInit): Promise<T> {
+async function call<T>(
+  path: keyof ApiPaths | RoutedPath,
+  init?: RequestInit,
+): Promise<T> {
   return (await responseFor(path, init).then((response) =>
     response.json(),
   )) as T;
 }
 
-async function callBlob(
-  path: keyof ApiPaths,
+// A file from the API with the name that the server gave it.
+export interface NamedFile {
+  blob: Blob;
+  filename: string;
+}
+
+// The file name of a `Content-Disposition` header (RFC 6266), or null when it has none.
+// `filename*` holds the exact name, so it comes before the ASCII fallback in `filename`.
+export function dispositionFilename(header: string | null): string | null {
+  if (!header) return null;
+  const exact = header.match(/filename\*\s*=\s*UTF-8''([^;\s]+)/iu)?.[1];
+  if (exact !== undefined) {
+    try {
+      return decodeURIComponent(exact);
+    } catch {
+      /* the fallback is enough */
+    }
+  }
+  const fallback = header.match(/filename\s*=\s*"((?:[^"\\]|\\.)*)"/iu)?.[1];
+  return fallback === undefined ? null : fallback.replace(/\\(.)/gu, "$1");
+}
+
+type FileExtension = ".zip" | ".html";
+
+// The name goes to the `download` attribute of a link, so it must be a plain file name.
+function safeFilename(filename: string, extension: FileExtension): boolean {
+  return (
+    filename.length > extension.length &&
+    filename.endsWith(extension) &&
+    !/[/\\\p{Cc}]/u.test(filename)
+  );
+}
+
+async function callFile(
+  path: keyof ApiPaths | RoutedPath,
+  extension: FileExtension,
   init?: RequestInit,
-): Promise<{ blob: Blob; filename: string }> {
+): Promise<NamedFile> {
   const response = await responseFor(path, init);
-  const filename = response.headers
-    .get("Content-Disposition")
-    ?.match(/^attachment; filename="([a-z0-9-]+\.zip)"$/)?.[1];
-  if (!filename) throw new Error("The export response has no valid filename.");
+  const filename = dispositionFilename(
+    response.headers.get("Content-Disposition"),
+  );
+  if (!filename || !safeFilename(filename, extension))
+    throw new Error("The response has no valid file name.");
   return { blob: await response.blob(), filename };
 }
 
@@ -514,8 +635,14 @@ export const api = {
     state: InterviewState,
     request_id: string,
     response: UserResponse,
+    documents: readonly InterviewDocument[] = [],
   ) => {
-    const body: TurnRequest = { state: wireState(state), request_id, response };
+    const body: TurnRequest = {
+      state: wireState(state),
+      request_id,
+      response,
+      ...(documents.length > 0 ? { documents: [...documents] } : {}),
+    };
     return result(
       await call<TurnResponse>("/api/v1/wizard/interview/turn", {
         ...JSON_POST,
@@ -582,16 +709,208 @@ export const api = {
         form.append("connection", JSON.stringify(source.connection));
     }
     for (const file of files) form.append("files", file.blob, file.name);
-    return callBlob("/api/v1/wizard/package", {
+    return callFile("/api/v1/wizard/package", ".zip", {
       method: "POST",
       body: form,
     });
   },
+  // report.json of the experiment. The API builds the report when it is missing or old.
+  report: (experimentId: string) =>
+    call<Report>(
+      route("/api/v1/experiments/{experiment_id}/report", {
+        experiment_id: experimentId,
+      }),
+    ),
+  // report.html of the experiment, the same page as `metis insights report` writes.
+  reportPage: (experimentId: string) =>
+    callFile(
+      route("/api/v1/experiments/{experiment_id}/report.html", {
+        experiment_id: experimentId,
+      }),
+      ".html",
+    ),
+  doctor: () => call<DoctorCheck[]>("/api/v1/doctor"),
+  // `inputDir` is relative to the project folder, as the Specification route gives it.
+  simulate: (inputDir: string) =>
+    call<EngineRunAccepted>("/api/v1/engine/simulate", {
+      ...JSON_POST,
+      body: JSON.stringify({ input_dir: inputDir }),
+    }),
+  engineStatus: (experimentId: string) =>
+    call<EngineStatus>(
+      route("/api/v1/engine/{experiment_id}", { experiment_id: experimentId }),
+    ),
+  // The events after `after`, or every event when it is 0.
+  engineEvents: (experimentId: string, after = 0) => {
+    const path = route("/api/v1/engine/{experiment_id}/events", {
+      experiment_id: experimentId,
+    });
+    return call<PhaseEvent[]>(
+      (after > 0 ? `${path}?after=${after}` : path) as RoutedPath,
+    );
+  },
+  resumeSimulation: (experimentId: string) =>
+    engineAction(
+      route("/api/v1/engine/simulate/{experiment_id}/resume", {
+        experiment_id: experimentId,
+      }),
+    ),
+  evaluate: (experimentId: string) =>
+    engineAction(
+      route("/api/v1/engine/evaluate/{experiment_id}", {
+        experiment_id: experimentId,
+      }),
+    ),
+  resumeEvaluation: (experimentId: string) =>
+    engineAction(
+      route("/api/v1/engine/evaluate/{experiment_id}/resume", {
+        experiment_id: experimentId,
+      }),
+    ),
+  stop: (experimentId: string) =>
+    engineAction(
+      route("/api/v1/engine/{experiment_id}/stop", {
+        experiment_id: experimentId,
+      }),
+    ),
 };
 
-export function toSummary(record: LocalInterviewRecord): InterviewSummary {
-  return { id: record.id, title: record.title, updated: record.updated_at };
+// Each engine start and the stop take no body and answer 202 at once.
+async function engineAction(path: RoutedPath): Promise<void> {
+  await responseFor(path, { method: "POST" });
 }
+
+// The store routes keep each Target: its Interview record, the record files, and the
+// Specification. A file is a reference in the record, and its bytes are a separate request.
+// The login session of the browser. The API keeps it in an HTTP-only cookie.
+export const auth = {
+  me: () => call<CurrentUser>("/api/v1/auth/me"),
+  login: (username: string, password: string) =>
+    call<CurrentUser>("/api/v1/auth/login", {
+      ...JSON_POST,
+      body: JSON.stringify({ username, password }),
+    }),
+  logout: async (): Promise<void> => {
+    await responseFor("/api/v1/auth/logout", { method: "POST" });
+  },
+};
+
+// `join` sends the join token of the server, and the caller keeps the token in memory only. The
+// other user routes use the login session of an admin.
+export const users = {
+  join: (joinToken: string) =>
+    call<NewUserAccount>("/api/v1/users", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${joinToken}` },
+    }),
+  list: () => call<UserAccountList>("/api/v1/users"),
+  create: (admin: boolean) =>
+    call<NewUserAccount>("/api/v1/users", {
+      ...JSON_POST,
+      body: JSON.stringify({ admin }),
+    }),
+  resetPassword: (username: string) =>
+    call<NewUserAccount>(
+      route("/api/v1/users/{username}/password", { username }),
+      { method: "POST" },
+    ),
+  delete: async (username: string) => {
+    await responseFor(route("/api/v1/users/{username}", { username }), {
+      method: "DELETE",
+    });
+  },
+};
+
+// The `.env` lines that the operator gives to participants, or null when the server gives none.
+export async function workshopEnv(): Promise<WorkshopVariable[] | null> {
+  try {
+    const env = await call<Schema["WorkshopEnv"]>("/api/v1/workshop/env");
+    return env.variables;
+  } catch (error) {
+    if (error instanceof TransportError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export const store = {
+  targets: () => call<TargetList>("/api/v1/targets"),
+  interview: async (id: string): Promise<StoredInterviewRecord> => {
+    const record = await call<InterviewWireRecord>(
+      route("/api/v1/targets/{target_id}/interview", { target_id: id }),
+    );
+    return {
+      ...(record as unknown as StoredInterviewRecord),
+      state: normalizeState(record.state as Schema["InterviewState-Input"]),
+    };
+  },
+  interviewFile: async (id: string, name: string) =>
+    (
+      await responseFor(
+        route("/api/v1/targets/{target_id}/interview/files/{name}", {
+          target_id: id,
+          name,
+        }),
+      )
+    ).blob(),
+  // Send the record as a file part, because a text field has a size limit of 1 MB.
+  // Send each new file in the `files` field, with its record name as the filename.
+  putInterview: async (
+    id: string,
+    record: StoredInterviewRecord,
+    uploads: readonly LoadedFixture[],
+  ) => {
+    const form = new FormData();
+    form.append(
+      "record",
+      new Blob([JSON.stringify(record)], { type: "application/json" }),
+      "record.json",
+    );
+    for (const fixture of uploads)
+      form.append("files", fixture.blob, fixture.name);
+    await responseFor(
+      route("/api/v1/targets/{target_id}/interview", { target_id: id }),
+      { method: "PUT", body: form },
+    );
+  },
+  experiments: (targetId: string) =>
+    call<ExperimentList>(
+      route("/api/v1/targets/{target_id}/experiments", { target_id: targetId }),
+    ),
+  specification: (targetId: string) =>
+    call<SpecificationRecord>(
+      route("/api/v1/targets/{target_id}/specification", {
+        target_id: targetId,
+      }),
+    ),
+  experiment: (experimentId: string) =>
+    call<ExperimentRecord>(
+      route("/api/v1/experiments/{experiment_id}", {
+        experiment_id: experimentId,
+      }),
+    ),
+  putExperiment: (experimentId: string, body: ExperimentSave) =>
+    call<ExperimentRecord>(
+      route("/api/v1/experiments/{experiment_id}", {
+        experiment_id: experimentId,
+      }),
+      { ...JSON_POST, method: "PUT", body: JSON.stringify(body) },
+    ),
+  // Deletes the row only. The Experiment folder stays on disk.
+  deleteExperiment: async (experimentId: string) => {
+    await responseFor(
+      route("/api/v1/experiments/{experiment_id}", {
+        experiment_id: experimentId,
+      }),
+      { method: "DELETE" },
+    );
+  },
+  deleteTarget: async (id: string) => {
+    await responseFor(route("/api/v1/targets/{target_id}", { target_id: id }), {
+      method: "DELETE",
+    });
+  },
+};
+
 export function titleFor(specification: Specification): string {
   return specification.target.name.trim() || "Untitled Interview";
 }

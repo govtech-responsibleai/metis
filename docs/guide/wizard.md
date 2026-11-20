@@ -8,8 +8,8 @@ The METIS Engine runs that specification.
 | Interface | Best for | Who saves Interview state? | Finished output |
 |---|---|---|---|
 | [CLI](wizard/cli.md) | A person working in a terminal | The CLI saves a local JSON file | Files in an output directory |
-| [Web](wizard/web.md) | A person who wants a guided browser flow | The browser saves data in IndexedDB | `YYYYMMDD-HHMMSS-interview.zip` download |
-| [API](wizard/api.md) | A service or custom client | Your client saves the returned JSON state | YAML strings or `YYYYMMDD-HHMMSS-interview.zip` |
+| [Web](wizard/web.md) | A person who wants a guided browser flow | The API saves data in its store | `YYYYMMDD-HHMMSS-interview-<random>.zip` download |
+| [API](wizard/api.md) | A service or custom client | Your client saves the returned JSON state | YAML strings or `YYYYMMDD-HHMMSS-interview-<random>.zip` |
 
 - The CLI runs the Wizard logic on your computer. It does not need the API server.
 - The web client uses the Wizard API.
@@ -29,13 +29,10 @@ Example evaluation details for a research assistant:
 | Scenario | Ask how a new leave policy applies to a part-time employee. |
 | Grader | A check that compares the answer with its cited sources. |
 
-The Interview produces one Specification with these related concepts:
-
-| Concept | Contents |
-|---|---|
-| Profile | The target and its users, Features, Behaviours, Criteria, and their grader settings |
-| Specification | The Profile and the configuration needed to conduct an Experiment |
-| Experiment | A collection of Runs used to evaluate one or more targets across a set of Test Cases |
+The Interview produces one Specification: the specification document `specification.yaml`, the
+fixtures its Tasks select, and the target binding when there is one. Each Experiment runs a frozen
+copy of it. The [glossary](../../GLOSSARY.md) defines Profile, Specification, Experiment, and the
+other terms.
 
 The interface guides give the exact files or archive that each interface produces.
 
@@ -103,7 +100,7 @@ Run mode needs valid fields. If the fields are not valid, fix them, or choose Bu
 the fields are valid but the target does not answer, you can still continue. `review.md` then says
 that the binding was not tested.
 
-A download with a binding has `outputs/target-binding.yaml` next to `outputs/specification.yaml`.
+A download with a binding has `target-binding.yaml` next to `specification.yaml`.
 The Specification names the generic runner in `runner_factory_ref` and the file in `target_binding`.
 The binding file starts with a comment that lists the variables to set.
 
@@ -148,14 +145,32 @@ file. It does not guess submissions during a run.
 
 ## Run the evaluation
 
-The CLI writes files to `experiments/design/YYYYMMDD-HHMMSS-interview/` by default. The timestamp uses the machine's local date and 24-hour time, including seconds.
-Extract browser or API downloads into `experiments/design/`.
-Each ZIP contains its dated experiment folder. For an Interview created on 2026-10-16 at 22:30:45, run the specification with the
-Engine:
+METIS writes everything in one `evaluations/` folder in the project folder, with one folder for
+each step:
+
+```text
+<project>/evaluations/
+├── metis.db                  the database of the API server; the CLI does not use it
+├── interviews/<id>/          interview_state.json, documents/
+├── specifications/<id>/      specification.yaml, fixtures/, target-binding.yaml, review.md
+└── experiments/<specification-id>-YYYYMMDD-HHMMSS/
+```
+
+The CLI writes `interviews/<id>/` and `specifications/<id>/`. The `<id>` has the form
+`YYYYMMDD-HHMMSS-interview-<random>`, for example `20261117-143000-interview-k7mwp`. The timestamp
+uses the machine's local date and 24-hour time, including seconds. The random part is five
+characters. The API store uses the same layout, with the Target id as the `<id>`. A download from
+the browser or the API is named `<id>.zip`. Extract it into `evaluations/`. Then give the
+Specification folder to `--input-dir`:
 
 ```bash
-metis engine run --input-dir experiments/design/20261016-223045-interview/outputs/
+metis engine run --input-dir evaluations/specifications/20261117-143000-interview-k7mwp
 ```
+
+The engine names the Experiment folder after the `id` in `specification.yaml` and the time that
+the Experiment started, for example `evaluations/experiments/toy-app-eval-20261117-150212/`. It
+does not use the `<id>` of the Specification folder. Two Interviews for a Target with the same
+name thus give Experiment folders whose names start the same way.
 
 See the [Engine guide](engine.md) for the evaluation run and the [Report guide](report.md) for the
 results.
@@ -168,6 +183,40 @@ Behaviour from the pass rates of its Criteria. Read each Criterion description, 
 Ask the Wizard to revise the assessment and settings together, or select
 the pencil (**Edit <Criterion name>**) to change them directly. Keep directly edited fields consistent.
 The Wizard validates the fields and grader arguments before it saves the edit.
+
+## What the chat can change
+
+The chat changes the Specification only through the changes that the Wizard accepts. When you ask,
+the chat can:
+
+- Add, remove, and reword Features, Behaviours, Criteria, Personas, Scenarios, and Test Cases.
+- Select the Behaviours to measure, and set the Trials of a Test Case, from 1 to 20.
+- Set the grader settings of a Criterion: the pass mark `threshold`, a number from 0 to 1, the
+  `scope`, the judgment form, the aggregation, and the settings of the grader itself. For
+  example, type "Set every threshold to 0.85." Each grader accepts only the values that it
+  supports, and most graders support one judgment form and one aggregation.
+
+The chat cannot change these items:
+
+- Which grader a Criterion has. Tell the chat the condition that you want to check. The Wizard
+  rewords the Criterion and then selects the grader again.
+- The judge model, provider, and input limit of a grader.
+- The files of a Test Case. Use the Test Case form.
+
+A chat on one card changes only that item.
+
+When a reword keeps the grader of a Criterion, its `threshold` and `scope` keep their values. When
+a reword gives the Criterion a different grader, its settings go back to the defaults of the new
+grader, and the reply tells you.
+
+### When a change is not made
+
+The reply states only the changes that the Wizard made. When the Wizard cannot make a change, it
+first asks the model again and gives the reason. If some changes still cannot be made, the reply
+starts with "I made some of the changes." or "No changes were made." Then one sentence that
+starts with "Not changed:" gives the reason for each change that was not made. For a grader
+setting that the grader does not accept, the sentence names the Criterion and the setting. No
+separate warning repeats the reasons.
 
 ## Edit fallback grading instructions
 

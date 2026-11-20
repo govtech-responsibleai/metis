@@ -202,7 +202,7 @@ def test_tool_arguments_need_recorded_tool_calls() -> None:
         _no_tool_calls(),
         VERDICT,
     )
-    assert result.status == "errored"
+    assert result.status == "skipped"
     assert "no recorded tool calls" in result.reason
     assert requests == []
 
@@ -261,7 +261,7 @@ def test_coordination_needs_a_recorded_agent() -> None:
     [result], requests = _grade(
         _grader("CoordinationQualityGrader"), _session(agent=None), VERDICT
     )
-    assert result.status == "errored"
+    assert result.status == "skipped"
     assert "delegation" in result.reason
     assert requests == []
 
@@ -418,6 +418,16 @@ def test_multi_rule_graders_judge_each_rule_and_pass_only_if_all_pass(
     assert "First rule." in requests[0]["input"][0]["content"]
     assert "Second rule." in requests[1]["input"][0]["content"]
     assert "Second rule." not in requests[0]["input"][0]["content"]
+
+
+def test_a_constraint_is_decided_when_the_evidence_is_partial() -> None:
+    _, [request] = _grade(_grader("TaskConstraintAdherenceGrader"), _session(), VERDICT)
+    system = request["input"][0]["content"]
+    assert "say so in your reason and still decide" in system
+    assert (
+        "does not apply only when the evidence contains nothing that the constraint "
+        "restricts" in system
+    )
 
 
 @pytest.mark.parametrize(

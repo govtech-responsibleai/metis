@@ -1,4 +1,4 @@
-.PHONY: install-docs run-docs build-docs check-docs generate-grader-docs install-landing run-landing build-landing run-site build-site help install install-wizard install-engine install-api install-web install-extras install-extras-playwright run run-api run-web lint lint-fix format format-check fix typecheck check check-env ci test test-unit format-check-web typecheck-web test-web build-web check-api-web check-web clean release-branch
+.PHONY: check-pnpm install-docs run-docs build-docs check-docs generate-grader-docs install-landing run-landing build-landing run-site build-site help install install-wizard install-engine install-api install-web install-extras install-extras-playwright run run-api run-web lint lint-fix format format-check fix typecheck check check-env ci test test-unit format-check-web typecheck-web test-web build-web check-api-web check-web docker-build docker-run clean release-branch
 
 help:
 	@printf "Available targets:\n"
@@ -9,8 +9,8 @@ help:
 	@printf "  make install-engine              Install metis-engine + Playwright browser\n"
 	@printf "  make install-api                 Install metis-api only\n"
 	@printf "  make install-web                 Install apps/web dependencies from its lockfile\n"
-	@printf "  make install-docs                Install website dependencies from its lockfile\n"
-	@printf "  make install-landing             Install landing-page dependencies from its lockfile\n"
+	@printf "  make install-docs                Install website/docs-site dependencies from its lockfile\n"
+	@printf "  make install-landing             Install website/landing-page dependencies from its lockfile\n"
 	@printf "  make install-extras              Install all optional extras (Playwright, docs, landing page)\n"
 	@printf "  make install-extras-playwright   Install Playwright Python package + Chromium binary\n"
 	@printf "\n"
@@ -21,6 +21,10 @@ help:
 	@printf "  make run-site             Start the landing page and the docs together\n"
 	@printf "  make run-docs             Start the docs on port 3000 only\n"
 	@printf "  make run-landing          Start the landing page on port 8443 only\n"
+	@printf "\n"
+	@printf "Container:\n"
+	@printf "  make docker-build         Build IMAGE_TAG (default metis:<commit>); PLATFORM=linux/amd64 for a server\n"
+	@printf "  make docker-run           Run IMAGE_TAG on port 8000 with ENV_FILE (.env); CA_BUNDLE=... behind a TLS proxy\n"
 	@printf "\n"
 	@printf "Code quality:\n"
 	@printf "  make lint              Run Ruff lint checks\n"
@@ -63,37 +67,45 @@ install-web:
 	npm --prefix apps/web ci
 
 install-docs:
-	npm --prefix website ci --omit=optional
+	npm --prefix website/docs-site ci --omit=optional
 
 run-docs:
-	npm --prefix website start
+	npm --prefix website/docs-site start
 
 build-docs:
-	npm --prefix website run build
+	npm --prefix website/docs-site run build
 
 check-docs: build-docs
-	npm --prefix website test
+	npm --prefix website/docs-site test
 
-install-landing:
-	pnpm --dir landing-page install --frozen-lockfile
+# The landing page uses pnpm, which Node does not bring with it, so fail early with the fix.
+check-pnpm:
+	@command -v pnpm >/dev/null 2>&1 || { \
+		printf "pnpm is not installed, and the landing page needs it.\n" >&2; \
+		printf "Install it with 'corepack enable pnpm' or 'brew install pnpm', then rerun make.\n" >&2; \
+		exit 1; \
+	}
 
-run-landing:
-	pnpm --dir landing-page dev
+install-landing: check-pnpm
+	pnpm --dir website/landing-page install --frozen-lockfile
 
-build-landing:
-	pnpm --dir landing-page build
+run-landing: check-pnpm
+	pnpm --dir website/landing-page dev
+
+build-landing: check-pnpm
+	pnpm --dir website/landing-page build
 
 # Both site servers, as build-site builds both. They run on separate ports, so the published
 # layout of /metis/ and /metis/docs/ is only visible in build-site output.
-# The landing page waits until the docs answer, so the landing-page address is the last line at startup.
+# The landing page waits until the docs answer, so its address is the last line at startup.
 run-site:
 	@uv run python metis_dev.py site
 
 # GitHub Pages serves the landing page at /metis/ and the docs at /metis/docs/.
 build-site: build-landing build-docs
 	rm -rf _site
-	cp -R landing-page/dist _site
-	cp -R website/build _site/docs
+	cp -R website/landing-page/dist _site
+	cp -R website/docs-site/build _site/docs
 
 generate-grader-docs:
 	uv run python packages/library/scripts/generate_grader_docs.py
@@ -141,6 +153,35 @@ check-api-web:
 	npm --prefix apps/web run check:api
 
 check-web: format-check-web typecheck-web test-web check-api-web
+
+# The image that docker-build makes and docker-run starts. The default names the commit.
+IMAGE_TAG ?= metis:$(shell git rev-parse --short HEAD 2>/dev/null || echo local)
+# The platform to build for. When it is empty, the build is for this machine. Most servers need
+# linux/amd64.
+PLATFORM ?=
+# The env file that the container reads.
+ENV_FILE ?= .env
+# A CA bundle for a proxy that intercepts TLS. docker-run mounts it, so the image never holds it.
+CA_BUNDLE ?=
+
+docker-build:
+	docker build $(if $(PLATFORM),--platform $(PLATFORM)) -t "$(IMAGE_TAG)" .
+
+# The same container as docker-compose.yml, without Compose. Docker reads ENV_FILE on this machine,
+# so the file needs no mount. Docker keeps quotes as part of a value, so a quoted value stops the
+# run. HOST and PORT come after the file, so a PORT for a local API there does not move the
+# container off port 8000.
+docker-run:
+	@test -f "$(ENV_FILE)" || { echo "$(ENV_FILE) not found. Copy .env.example to .env."; exit 1; }
+	@! grep -nE "^[A-Za-z_][A-Za-z0-9_]*=[\"']" "$(ENV_FILE)" | cut -d= -f1 | grep . \
+		|| { echo "Remove the quotes around these values in $(ENV_FILE). Docker keeps them."; exit 1; }
+	@test -z "$(CA_BUNDLE)" || test -f "$(CA_BUNDLE)" || { echo "$(CA_BUNDLE) not found."; exit 1; }
+	docker run --rm -it --name metis -p 8000:8000 -v metis-data:/data \
+		--env-file "$(ENV_FILE)" -e HOST=0.0.0.0 -e PORT=8000 \
+		$(if $(CA_BUNDLE),-v "$(realpath $(CA_BUNDLE)):/run/metis-ca.pem:ro" \
+			-e SSL_CERT_FILE=/run/metis-ca.pem -e REQUESTS_CA_BUNDLE=/run/metis-ca.pem \
+			-e CURL_CA_BUNDLE=/run/metis-ca.pem) \
+		"$(IMAGE_TAG)"
 
 lint:
 	uv run ruff check .

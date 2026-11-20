@@ -18,3 +18,5 @@ Shared catalog of metrics, skills, and reusable components consumed by both the 
   `SCOPE_DEFINITIONS[self.scope].select(...)`, renders each selected piece with the scope's
   `render`, and calls `metis.library.judge.judge` for each one. The definitions live in `metis.library.scope`, `metis.library.judgment_form`, and
   `metis.library.aggregation`. Add a definition there when a grader needs a new value.
+  A decision-model grader, such as `CriterionDecisionGrader`, selects and renders the same
+  way, but it sends each piece to its provider's decision endpoint and does not call `judge`.

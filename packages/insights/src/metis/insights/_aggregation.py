@@ -5,7 +5,7 @@ from math import fsum, isfinite, sqrt
 from statistics import NormalDist
 from typing import TYPE_CHECKING, Literal
 
-from metis.insights._models import WilsonConfidenceInterval
+from metis.core.report import WilsonConfidenceInterval
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

@@ -87,6 +87,10 @@ class Observation(BaseModel):
     """Langfuse's ``statusMessage``, usually the error text when ``level`` is ``"ERROR"``."""
     start_time: datetime | None = None
     end_time: datetime | None = None
+    """``None`` while the observation is still open."""
+    updated_at: datetime | None = None
+    """When Langfuse last changed the stored row. The engine grades a session only when the
+    newest of these times is old enough."""
     input: Any = None
     """A JSON object or array string is parsed; see ``_maybe_json``."""
     output: Any = None

@@ -2,7 +2,7 @@
 // box when the user chooses "Build Spec and connect target". The manual form shows it as a card
 // in run mode. The Done pane shows it again to add a connection later.
 // Secret fields take environment-variable names only.
-import { ChevronRight } from "lucide-react";
+import { Check, ChevronRight, TriangleAlert, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import type { ConnectionCheckResult } from "./transport/api";
 import {
@@ -309,17 +309,27 @@ export function ConnectionStatusLine({
   const failed = (result.probes ?? []).some((probe) => !probe.ok);
   return (
     <ul role="status" className="flex flex-col gap-1 text-sm">
-      <li className="text-foreground">✓ The fields are valid.</li>
+      <li className="flex items-center gap-1.5 text-foreground">
+        <Check size={14} className="shrink-0 text-success" aria-hidden />
+        The fields are valid.
+      </li>
       {(result.probes ?? [])
         .filter((probe) => probe.ok)
         .map((probe) => (
-          <li key={probe.name} className="text-foreground">
-            ✓ <code>{probe.name}</code>: {probe.message}
+          <li
+            key={probe.name}
+            className="flex items-center gap-1.5 text-foreground"
+          >
+            <Check size={14} className="shrink-0 text-success" aria-hidden />
+            <span>
+              <code>{probe.name}</code>: {probe.message}
+            </span>
           </li>
         ))}
       {failed && (
-        <li className="text-destructive">
-          ✗ Some checks failed. Fix the marked fields and test again.
+        <li className="flex items-center gap-1.5 text-destructive">
+          <X size={14} className="shrink-0" aria-hidden />
+          Some checks failed. Fix the marked fields and test again.
         </li>
       )}
       {!result.live && (
@@ -428,11 +438,18 @@ function Field({
         {error ? (
           <span className="text-xs text-destructive">{error}</span>
         ) : warning ? (
-          <span className="text-xs text-foreground">⚠ {warning}</span>
+          <span className="flex items-center gap-1 text-xs text-foreground">
+            <TriangleAlert
+              size={12}
+              className="shrink-0 text-warning"
+              aria-hidden
+            />
+            {warning}
+          </span>
         ) : (
           // A hint is a quiet aside, so it is small and sits at the right edge.
           hint && (
-            <span className="self-end text-[11px] text-muted-foreground/70">
+            <span className="self-end text-xs text-muted-foreground/70">
               {hint}
             </span>
           )

@@ -31,11 +31,11 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
-import mimetypes
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Literal
 
 from metis.core import Artifact
+from metis.core.artifacts import media_type
 
 from .transport_log import ArtifactRef
 
@@ -92,8 +92,7 @@ def file_facts(path: Path, name: str) -> str:
 
 
 def _line(path: Path, name: str, content: str) -> str:
-    media_type = mimetypes.guess_type(name)[0] or "application/octet-stream"
-    line = f"{name} ({media_type}, {path.stat().st_size} bytes)"
+    line = f"{name} ({media_type(name)}, {path.stat().st_size} bytes)"
     return f"{line}: {content}" if content else line
 
 

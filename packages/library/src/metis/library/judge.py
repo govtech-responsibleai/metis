@@ -188,7 +188,7 @@ async def judge(
     is what a render function returned: text, or a file that the judge reads itself. A grader
     whose criteria name more context sends it too: ``context_text`` goes before the evidence,
     and each of ``context_files`` is attached after it. A ``Problem`` is errored without a
-    judge call, and so is a reply that the criterion does not apply.
+    judge call. A reply that the criterion does not apply is skipped with the judge's reason.
     """
     if isinstance(evidence, Problem):
         return _errored(evidence.detail, label)
@@ -218,7 +218,7 @@ async def judge(
         return _errored(reply, label)
     verdict = reply.model_dump()
     if verdict["status"] == "not_applicable":
-        return _errored(verdict["reason"], label)
+        return GraderResult(status="skipped", reason=verdict["reason"], scope=label)
     return GraderResult(**verdict, scope=label)
 
 

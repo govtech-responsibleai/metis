@@ -52,7 +52,7 @@ name: Cite sources
 description: For a question that needs evidence, each factual claim has a source citation.
 grader_fqn: metis.library.graders.CriterionJudgeGrader
 grader_args:
-  threshold: 0.5
+  threshold: 0.8
 ```
 
 The description must contain text. At run time, the engine gives the complete description
@@ -61,7 +61,7 @@ The judge has no separate argument for an expected count or other assessment req
 Do not set `criterion` under `grader_args` yourself. The engine reports it as a setup error
 before the run starts.
 
-An experiment copies its specification into `inputs/specification.yaml`, and evaluation reads
+An experiment copies its specification into `specification/specification.yaml`, and evaluation reads
 that copy. To evaluate an existing experiment with new instructions, edit the description in
 that copy, then run evaluation again. To compare the old and new assessments, keep a copy of
 the previous result file first.
@@ -70,7 +70,7 @@ the previous result file first.
 
 | Setting | Default | Description |
 |---|---|---|
-| `threshold` | `0.5` | A score passes when it is at least this value. Keep `0.5` for the binary score. A threshold of `0` also passes a score of `0`. |
+| `threshold` | `0.8` | A score passes when it is at least this value. The score is `0` or `1`, so any threshold above `0` gives the same result. A threshold of `0` also passes a score of `0`. |
 | `model` | See the next paragraph. | The judge model for this criterion. |
 | `max_input_tokens` | `128000` | The largest estimated request that the judge sends. |
 
@@ -92,15 +92,16 @@ The judge returns one result for the whole session, with the scope `"session"`:
 
 - A score of `1` means that the recorded evidence satisfies the criterion.
 - A score of `0` means that the recorded evidence does not satisfy the criterion.
+- A skipped result means that the criterion does not apply to the session. For example, the
+  event that the criterion looks for did not happen. The reason says why.
 - An errored result means that the session cannot be judged. The reason says why. The cases
   are these:
   - The session has no turns. The judge is not called.
-  - The event that the criterion looks for did not happen.
   - The request was above the input limit.
   - The provider failed.
   - The reply was not valid.
 
-Errored results do not count as failures.
+Skipped and errored results do not count as failures.
 
 ## Evidence that the judge reads
 
@@ -121,7 +122,7 @@ The offline tests do not call a provider. To confirm that your gateway accepts t
 request, use a completed experiment with available traces:
 
 1. Set `JUDGE_API_KEY`, `JUDGE_BASE_URL`, and `JUDGE_MODEL` for your gateway.
-2. Edit the criterion description in the experiment's `inputs/specification.yaml`.
+2. Edit the criterion description in the experiment's `specification/specification.yaml`.
 3. Run the evaluation:
 
    ```bash

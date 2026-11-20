@@ -80,6 +80,8 @@ See the user guides for usage instructions:
 - [`docs/guide/insights.md`](docs/guide/insights.md) — `metis insights report`, which builds the report from evaluation results
 - [`docs/guide/models.md`](docs/guide/models.md) — the model and gateway of each LLM role, and the
   one `.env` file that every command reads
+- [`docs/guide/docker.md`](docs/guide/docker.md): one container image that serves the web app and
+  the API on one address, for a shared server
 
 ## Development
 
@@ -134,7 +136,7 @@ For the full specification see [docs/architecture.md](docs/architecture.md).
 
 ## Status
 
-**Beta.** METIS `1.0.0b1` is the state of `main` at tag `v1.0.0b1`, plus any later
+**Beta.** METIS `1.0.0b3` is the state of `main` at tag `v1.0.0b3`, plus any later
 documentation fixes, and is not a stable release. v1 is not finished.
 
 - **No compatibility between betas.** Anything can change from one beta to the next, including

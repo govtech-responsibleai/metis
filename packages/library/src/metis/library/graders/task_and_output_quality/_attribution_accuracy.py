@@ -40,7 +40,7 @@ class AttributionAccuracyArgs(JudgeArgs, TraceArgs, ArtifactArgs):
 
     ``citation_required`` controls behaviour when no citations are found:
     - True (default): missing citations is a scored failure (score 0).
-    - False: with no citations the criterion does not apply, and the result is errored.
+    - False: with no citations the criterion does not apply, and the result is skipped.
     """
 
     turn: Literal["each", "last"] = "last"
@@ -60,9 +60,9 @@ class AttributionAccuracyGrader(Grader[AttributionAccuracyArgs]):
     The sources are the content the user gave the agent or the agent retrieved, and the
     files the user gave the target. Claims can be supported but incorrectly cited. When
     ``citation_required=True`` (default), missing citations is a scored failure. When False,
-    evidence with no citations is errored, with the judge's reason. Correct source naming is
+    evidence with no citations is skipped, with the judge's reason. Correct source naming is
     distinct from claim support. A session with no sources (only the reply, and no source
-    file) is left to the judge, which returns not applicable, so the result is errored with
+    file) is left to the judge, which returns not applicable, so the result is skipped with
     its reason.
     """
 

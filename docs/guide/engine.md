@@ -106,24 +106,28 @@ To run the phases separately, use `simulate` first. It prints the exact `evaluat
 
 ```bash
 metis engine simulate --input-dir packages/engine/examples/http-agentic_eval_toyapp-1/
-metis engine evaluate --experiment-dir experiments/execute/toyapp-http-simple-20260820-143000/
+metis engine evaluate --experiment-dir evaluations/experiments/toyapp-http-simple-20260820-143000/
 ```
 
-`experiments/execute/toyapp-http-simple-20260820-143000/` is the output directory that `simulate` created. The name is only a sample: `simulate` makes the real name from the experiment `id` and the start time of the run, so use the path that `simulate` printed.
+`evaluations/experiments/toyapp-http-simple-20260820-143000/` is the output directory that `simulate` created. The name is only a sample: `simulate` makes the real name from the experiment `id` and the start time of the run, so use the path that `simulate` printed.
 
-If `evaluate` reports missing traces, upgrade the target's Langfuse SDK first, then raise `--langfuse-timeout` (default 90 seconds). Traces from older SDKs can arrive several minutes late.
+`evaluate` grades a trial only when Langfuse has stored nothing new for it for 30 seconds (the quiet window) and no trace is empty. METIS cannot know when a conversation has ended, so it reads the newest `updatedAt` that Langfuse stores for the trial and waits until that time is 30 seconds old. Old traces are graded on the first check. Set `LANGFUSE_METIS_QUIET_SECONDS` in `.env` to change the 30 seconds, for example when your target sends its traces late. The timeout, `--langfuse-timeout` (default 90 seconds), is the longest time that `evaluate` waits for each trial. If the traces are not ready when the timeout ends, the trial fails with `no traces in Langfuse` or `traces still changing in Langfuse` and gets no grades. The timeout must be at least as long as the quiet window, because a trial that has just finished needs the full quiet window before it can be graded. `logs/evaluate.log` has a `TRACE WAIT` line for each trial with the number of checks and the seconds waited. Data that Langfuse stores later than the quiet window is not graded.
+
+The Langfuse SDK sends an observation when it ends, so an observation that never ends, for example after a crash, usually does not reach Langfuse. If Langfuse does store an observation with no end time, `evaluate` grades the trial and prints a warning that names it, and the log gets an `OPEN OBSERVATIONS` line.
+
+If `evaluate` reports missing traces, upgrade the target's Langfuse SDK first, then raise `--langfuse-timeout`. Traces from older SDKs can arrive several minutes late, which is longer than the default timeout, so a trial can fail even though its traces would have been complete a little later.
 
 The website explains each step in full: [Run your evaluations](https://govtech-responsibleai.github.io/metis/docs/run-evaluation), [Run the test suite](https://govtech-responsibleai.github.io/metis/docs/run-test-suite) and [Run the graders](https://govtech-responsibleai.github.io/metis/docs/run-graders).
 
 If simulation stops before all runs finish, continue the output directory that you name. `simulate` prints this exact command, so you never retype a timestamp:
 
 ```bash
-metis engine simulate --resume --experiment-dir experiments/execute/toyapp-http-simple-20260820-143000/
+metis engine simulate --resume --experiment-dir evaluations/experiments/toyapp-http-simple-20260820-143000/
 # or run the remaining simulation and then evaluate everything:
-metis engine run --resume --experiment-dir experiments/execute/toyapp-http-simple-20260820-143000/
+metis engine run --resume --experiment-dir evaluations/experiments/toyapp-http-simple-20260820-143000/
 ```
 
-Resume reads the experiment and the fixtures from the frozen `inputs/` snapshot in the named directory, not from the source directory. It retries only missing, invalid, or `system_error` records, and appends to the experiment-level simulation log. Extra run folders are ignored. A valid record is complete even if an artifact file is missing. Passing `--resume` with `--input-dir` is an error: the message lists the outputs that exist for the experiment `id` and names the correct flag.
+Resume reads the experiment and the fixtures from the frozen `specification/` snapshot in the named directory, not from the source directory. It runs again only the trials that did not end: a record that is missing, unreadable, or not valid, or a record with stop reason `interrupted`. A trial that ended is not run again, whatever its result, so a `system_error` trial stays failed. Some system errors are retried up to the trial's retry limit, and others, such as a failed user-agent LLM call or `fixture_never_uploaded`, end the trial on the first try; resume runs neither again. To run failed trials again, start a new experiment with `simulate --input-dir`, which runs every trial again, not only the failed ones. Resume appends to the experiment-level simulation log. Extra trial folders are ignored. A valid record is complete even if an artifact file is missing. Passing `--resume` with `--input-dir` is an error: the message lists the outputs that exist for the experiment `id` and names the correct flag.
 
 ### What You'll See
 
@@ -148,11 +152,11 @@ The combined `run` command closes the Simulation TUI before it starts the evalua
 
 ### Where Results Land
 
-Each execution produces output in `experiments/execute/<id>-<timestamp>/`. The `outputs/reports/` directory is created by `evaluate` or `run`, which write `results.json`; `metis insights report` adds `report.json` and `report.html`. Simulation-only runs stop after `outputs/trials/` and `logs/`:
+Each execution produces output in `evaluations/experiments/<id>-<timestamp>/`, under the project folder. The project folder is the working directory or the nearest folder above it that has a `pyproject.toml`. To choose it yourself, see [Simulation options](#simulation-options). The `outputs/reports/` directory is created by `evaluate` or `run`, which write `results.json`; `metis insights report` adds `report.json` and `report.html`. Simulation-only runs stop after `outputs/trials/` and `logs/`:
 
 ```text
-experiments/execute/toyapp-http-simple-20260730-143022/
-├── inputs/
+evaluations/experiments/toyapp-http-simple-20260730-143022/
+├── specification/             # A frozen copy of the --input-dir folder
 │   ├── specification.yaml
 │   └── fixtures/
 ├── outputs/
@@ -171,6 +175,7 @@ experiments/execute/toyapp-http-simple-20260730-143022/
 │       ├── report.json            # Insights
 │       └── report.html            # Insights
 └── logs/
+    ├── events.jsonl               # One progress event per line, for simulate and evaluate
     ├── simulate.log
     ├── simulate-TC-001_cooperative-delegator-01.log
     ├── llm_calls.jsonl            # LLM requests made once per experiment
@@ -179,7 +184,51 @@ experiments/execute/toyapp-http-simple-20260730-143022/
 
 `results.json` holds one GraderRecord per grader per session, each with one result per grading scope. `metis insights report` reads these records and shows the settings used for each assessment.
 
-The insights [Report model](../../packages/insights/src/metis/insights/_models.py) defines `report.json`. Python readers can validate report data with `Report.model_validate()`.
+The core [Report model](../../packages/core/src/metis/core/report.py) defines `report.json`. Python readers can validate report data with `metis.core.report.Report.model_validate()`.
+
+`logs/events.jsonl` records the progress of the experiment as it happens, so another program
+can follow it. Each line is one `PhaseEvent` from `metis.core.phase_events`, and
+`packages/core/schemas/phase-event.schema.json` describes every line. Every line has the same
+five fields:
+
+| Field | Value |
+|---|---|
+| `seq` | The line number, from 1. A resumed command or a later `evaluate` appends to the same file and continues the count. |
+| `at` | The UTC time of the event. |
+| `phase` | `simulating` or `evaluating`. |
+| `trial` | The trial's folder name under `outputs/trials/`, or `null` for a line about the whole phase. |
+| `status` | `started`, `running`, `retrying`, `completed`, `failed`, `interrupted` or `skipped`. |
+
+Some lines also have extra fields:
+
+| Field | On which lines |
+|---|---|
+| `total` | The phase `started` line. It is the number of trials in the phase. |
+| `done` | The phase `started` line. It is the number of trials that an earlier command already finished. |
+| `attempt` | Each trial line in simulation. A trial that fails tries again, up to its retry limit. The `retrying` line gives the attempt that failed, and the next attempt writes its own `started` line. A resumed command counts the attempts of a trial from 1 again. |
+| `turn` | Each `running` line, after each turn of the conversation. |
+| `reason` | Some `retrying`, `failed` and `interrupted` lines. It is what went wrong. |
+
+```json
+{"seq":1,"at":"2026-11-10T06:40:00Z","phase":"simulating","trial":null,"status":"started","total":6,"done":0}
+{"seq":2,"at":"2026-11-10T06:40:01Z","phase":"simulating","trial":"TC-008-direct-employee-questioner-1","status":"started","attempt":1}
+{"seq":3,"at":"2026-11-10T06:40:09Z","phase":"simulating","trial":"TC-008-direct-employee-questioner-1","status":"running","attempt":1,"turn":1}
+```
+
+Each phase starts with a phase line `started`, and ends with a phase line `completed`,
+`failed` or `interrupted`. A simulation that stops before it counts its trials writes only
+its end line. A failed phase also gives the `reason` that the command printed to
+the console, when it has one. When `metis engine run` stops in simulation, it also writes a
+`skipped` line for evaluation. Thus the last phase line in the file tells how the command
+ended. A command that the operating system kills, for example with `SIGKILL` or a power loss,
+cannot write its last phase line. Thus a file with no end line after its last phase `started`
+line does not show that the command still works. Use another sign to find a live command, such
+as the process that started it, or new lines in the file.
+
+An event holds IDs, counts, statuses and short reasons. It never holds a key, a prompt or a
+model reply. The scores are in `results.json`, and the details of each trial are in its
+`record.json`. The file stays in the experiment folder's `logs/` when `--log-dir` moves the
+other logs.
 
 Use `logs/evaluate.log` to review extraction, each criterion's grader and resolved arguments (including the judge model), every recorded result with its outcome, score and reason, soft failures, hard failures, and final record counts for the latest evaluation attempt.
 
@@ -216,9 +265,10 @@ id: my-evaluation
 runner_factory_ref: metis.engine.simulation.runners.http.HttpRunnerFactory
 target_binding: toyapp-api.yaml
 target:
-  name: Employee Policy Assistant
+  name: Northstar Policy & Report Assistant
   users: Employees of a fictional company.
-  description: Answers employee policy questions from a fixed document collection.
+  description: Answers employee policy questions from a fixed document collection, and
+    analyses reports that employees upload. Each message goes to one of the two jobs only.
 ```
 
 | Field | Required | Description |
@@ -389,7 +439,7 @@ criteria:
 
 `grader_args` is validated before anything runs: an unknown key, a wrong type or a
 `threshold` outside 0–1 stops the run and names the Criterion. Use `grader_args: {}` to take
-every default. Every grader accepts `threshold` (default 0.5): a scored result passes when its
+every default. Every grader accepts `threshold` (default 0.8): a scored result passes when its
 score is at least the threshold.
 
 For a model-based grader, set the judge model once for the experiment and override it per
@@ -435,29 +485,41 @@ The flags below are optional and apply to both modes:
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--concurrency N` / `-c N` | `1` | Max parallel simulation workers |
+| `--concurrency N` / `-c N` | `1` | Max concurrent trials. Must be at least 1 |
 | `-v` / `-vv` | WARNING | Increase verbosity: `-v` for INFO, `-vv` for DEBUG |
 | `--quiet` | `false` | Suppress all output below ERROR |
 | `--no-tui` | `false` | Disable TUI dashboard (force linear log output) |
 | `--log-format` | `text` | Log file format: `text` or `json` |
 | `--log-dir` | co-located with results | Override the log output directory |
+| `--project-dir` | nearest folder with a `pyproject.toml` | Existing project folder that holds `evaluations/experiments/`. New experiments go under it, from any working directory. `~` expands to the home folder. A resume without `--experiment-dir` lists the experiments in this folder. A resume with `--experiment-dir` continues in that experiment folder, and a warning shows when the experiment folder is not in this folder |
 
 ### Evaluation options
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--experiment-dir` | (required) | One output directory that `simulate` created, for example `experiments/execute/toyapp-http-simple-20260820-143000/`. It must hold an `inputs/` snapshot |
-| `--langfuse-timeout` | `90` | Seconds to wait for Langfuse traces to appear |
+| `--experiment-dir` | (required) | One output directory that `simulate` created, for example `evaluations/experiments/toyapp-http-simple-20260820-143000/`. It must hold a `specification/` snapshot |
+| `--langfuse-timeout` | `90` | Seconds to wait for each trial's Langfuse traces to be ready |
+| `--concurrency N` / `-c N` | `1` | Max concurrent sessions. Must be at least 1 |
 | `-v` / `-vv` | WARNING | Increase evaluation logging verbosity |
 | `--quiet` | `false` | Suppress all output below ERROR |
 
-The `run` command accepts the union of the simulation and evaluation options. Its `--no-tui` option controls only the Simulation TUI. Evaluation always uses normal progress output.
+Two runs of one Specification that start in the same second get the same folder name. The second run stops with an error and does not change the folder of the first run. Start it again.
+
+The `run` command accepts the union of the simulation and evaluation options. Its `--no-tui` option controls only the Simulation TUI. Evaluation always uses normal progress output. Its `--concurrency` applies to both halves: N trials are simulated at once, and then N sessions are graded at once.
 
 ### Concurrency
 
-The `--concurrency N` flag runs N simulation workers in parallel. The default is `1`, which runs trials sequentially. Increase based on your target's capacity.
+The `--concurrency N` flag sets how many things are in flight at once. It means coroutines on one event loop, not threads or processes. The default is `1`, which runs one at a time. A value below 1 is rejected before any work starts.
 
-Runs are distributed round-robin across workers. Each worker processes its slice sequentially — one run at a time — while all workers run concurrently via `asyncio.gather`. How isolation and resource sharing work depends on the runner.
+- **`evaluate`** fetches and grades up to N sessions at once. A new session starts as soon as any session finishes. `results.json` lists grades in record order, whatever order the sessions finish in. Inside each session the criteria still run together, and the judge client's 50-connection pool caps the model calls from all sessions, so a large N queues on the pool instead of flooding the provider.
+- **`simulate`** runs up to N trials at once, as described below.
+- **`run`** does both: it simulates up to N trials at once, then grades up to N sessions at once. The two phases do not overlap. Simulation is limited by what your application can handle, and grading by Langfuse and the judge provider, so if one number suits only one phase, run `simulate` and `evaluate` yourself with a different value each.
+
+With N above 1, `evaluate` drops the `#` session banner and shows `Evaluation — K running` in its progress bar, where K counts the sessions holding a slot. Each warning names its record (`RECORD i/total persona x scenario`), and the per-session phases appear in `logs/evaluate.log`. Ctrl-C cancels every session, waits for them to stop, and writes no `results.json`.
+
+#### Simulation
+
+Increase N based on your target's capacity. Runs are distributed round-robin across workers. Each worker processes its slice sequentially — one run at a time — while all workers run concurrently via `asyncio.gather`. How isolation and resource sharing work depends on the runner.
 
 #### Browser runner
 
@@ -572,7 +634,9 @@ and makes calls through `llm.client`, a shared `AsyncOpenAI`.
 
 | Symptom | Likely Cause | Fix |
 |---------|--------------|-----|
-| "No traces found" or extraction times out | Langfuse timeout too short, bad credentials, or target not instrumented | Increase `--langfuse-timeout`, verify Langfuse keys in `.env`, confirm your target writes traces to Langfuse |
+| "no traces in Langfuse" | Langfuse timeout too short, bad credentials, or target not instrumented | Increase `--langfuse-timeout`, verify Langfuse keys in `.env`, confirm your target writes traces to Langfuse |
+| "traces still changing in Langfuse" | Langfuse kept storing new data for the trial until the timeout, or the clock of the computer that runs METIS is behind the Langfuse server | Increase `--langfuse-timeout`, upgrade the target's Langfuse SDK, and check the computer's clock |
+| "observation(s) never ended" warning | The target started an observation and never ended it, for example after a crash | Check that your target ends every observation it starts. The trial is still graded |
 | "Fixture not found" error | Path is absolute or has a typo | Use the filename only (relative to `fixtures/`), verify the file exists in the fixtures directory |
 | "could not be imported" | FQN typo or module not installed | Check the import path for typos, ensure the package containing the grader is installed in your venv |
 | Simulation hangs indefinitely | Target unresponsive or page never finishes loading | Use `HEADED=true` to see the browser, increase the Task's `response_wait_ms` |
@@ -681,7 +745,7 @@ class RunnerFactory(Protocol):
         """Release shared resources."""
 ```
 
-The engine also expects a `retry_defaults` property that returns `(trial_max_retries, trial_retry_delay_seconds)`. It builds your factory with `factory_cls()`, or, when the class has a `from_specification(specification, inputs_dir)` classmethod, with the specification and the experiment's `inputs/` folder. `HttpRunnerFactory` and `BrowserRunnerFactory` use the second form to load their target binding.
+The engine also expects a `retry_defaults` property that returns `(trial_max_retries, trial_retry_delay_seconds)`. It builds your factory with `factory_cls()`, or, when the class has a `from_specification(specification, specification_dir)` classmethod, with the specification and the experiment's `specification/` folder. `HttpRunnerFactory` and `BrowserRunnerFactory` use the second form to load their target binding.
 
 #### A Minimal Runner
 
@@ -822,14 +886,22 @@ The engine performs these checks at experiment load time:
 3. Get `class_name` from the module — raises `ImportError` if the attribute doesn't exist
 4. Verify the class has callable `start`, `create`, and `close` methods — raises `TypeError` if any are missing
 
-At simulation time (`packages/engine/src/metis/engine/cli.py:557-563`):
+At simulation time (`_simulate_in` in `packages/engine/src/metis/engine/run/_simulation.py`):
 
 ```python
-factory_cls = resolve_runner_factory(experiment.runner_factory_ref)
-runner_factory = factory_cls()
+factory_cls = resolve_runner_factory(specification.runner_factory_ref)
+from_specification = getattr(factory_cls, "from_specification", None)
+runner_factory = (
+    from_specification(
+        specification, experiment_dir / execution_layout.SPECIFICATION_DIR
+    )
+    if from_specification is not None
+    else factory_cls()
+)
 ```
 
-The engine calls your factory's constructor with no arguments. All configuration (credentials, URLs, feature flags) should come from environment variables read inside `__init__`.
+A factory with a `from_specification` class method is built from the Specification and the
+experiment's `specification/` folder. Any other factory is built with no arguments. All configuration (credentials, URLs, feature flags) should come from environment variables read inside `__init__`.
 
 #### Removing Playwright Dependencies
 
@@ -870,7 +942,7 @@ the Profile and Experiment configuration.
 Tasks select measured Behaviours from the Profile. Reports combine the planned Tasks and
 recorded results to show whether the target meets those Criteria.
 
-The engine freezes the document under the output directory's `inputs/` directory.
+The engine freezes the document under the output directory's `specification/` directory.
 Reporting reads this copy and joins scores by Criterion ID. The report retains
 the grader configuration used for each Criterion.
 
@@ -1028,7 +1100,7 @@ If your target does not instrument with Langfuse, you can still use METIS for si
 metis engine simulate --input-dir my-experiment/
 ```
 
-This produces trial records in `experiments/execute/<id>-<timestamp>/outputs/trials/`. You get:
+This produces trial records in `evaluations/experiments/<id>-<timestamp>/outputs/trials/`. You get:
 - Outcome data (stop reason, turn count, duration)
 - Collected artifacts
 - The trial's `logs/`, which record each turn's message and response as plain text
@@ -1054,7 +1126,8 @@ The [website](https://govtech-responsibleai.github.io/metis/docs/set-up-observab
 The engine then fetches traces using:
 - `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_BASE_URL` from your `.env`
 - The session ID from the run record
-- A configurable timeout (`--langfuse-timeout`, default 90s) for traces to appear
+- A configurable timeout (`--langfuse-timeout`, default 90s) for traces to be ready
+- A quiet window (`LANGFUSE_METIS_QUIET_SECONDS`, default 30s): the time that Langfuse must store nothing new for a trial
 
 ### Writing Your Own Experiment
 

@@ -13,6 +13,9 @@ build/
 *.egg-info/
 _site/
 
+# The web build that the Docker image puts in the API package
+apps/api/src/metis/api/web_dist/
+
 # JavaScript
 node_modules/
 *.tsbuildinfo
@@ -43,13 +46,18 @@ docs/superpowers/
 # OpenSpec (personal tooling — not team-adopted yet)
 openspec/
 
-# Agent tooling (personal for now — not team-adopted). Feature branches may
-# override to track specific shared artifacts (e.g. .claude/skills/...).
+# Agent tooling is personal, except the shared skills in .agents/skills/ listed below.
+# To use a shared skill in Claude Code, copy it to .claude/skills/ (see CONTRIBUTING.md).
 .claude/
 .codex/
+.agents/skills/*
+!.agents/skills/metis-frontend-style/
 
-# Simulation output (generated at runtime)
-/experiments/
+# Interviews, Specifications, Experiments, and the API store database (generated at runtime)
+/evaluations/
+
+# The project folder of each user account, on a server with login on (generated at runtime)
+/users/
 
 # Wizard session output (generated at runtime)
 /evaluation/

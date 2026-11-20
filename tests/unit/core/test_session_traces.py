@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from urllib.parse import unquote
 
 import pytest
 
@@ -82,3 +83,21 @@ def test_trace_file_name_cannot_escape_the_directory(session_id: str) -> None:
 def test_trace_file_name_encodes_separators() -> None:
     assert execution_layout.trace_file_name("a/b") == "a%2Fb.json"
     assert execution_layout.trace_file_name("sess-1") == "sess-1.json"
+
+
+@pytest.mark.parametrize("trial", ["a/b", "../x", "..", "a\\b", "%2F", "a b", "é"])
+def test_evaluation_file_name_cannot_escape_the_directory(trial: str) -> None:
+    name = execution_layout.evaluation_file_name(trial)
+
+    assert "/" not in name
+    assert "\\" not in name
+    assert Path(name).parent == Path()
+    assert name.endswith(".json")
+
+
+@pytest.mark.parametrize("trial", ["a/b", "../x", "..", "a\\b", "%2F", "a b", "é"])
+def test_evaluation_file_name_round_trips(trial: str) -> None:
+    assert (
+        unquote(execution_layout.evaluation_file_name(trial).removesuffix(".json"))
+        == trial
+    )

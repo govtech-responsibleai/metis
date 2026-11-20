@@ -166,7 +166,7 @@ class Specification(CoreSpecification):
     @classmethod
     def _require_header(cls, data: Any) -> Any:
         # drafts take defaults for these keys; a file the engine runs must state them.
-        if isinstance(data, dict) and not {"profile", "experiment"} & data.keys():
+        if isinstance(data, dict):
             missing = [
                 key
                 for key in ("schema_version", "id", "runner_factory_ref")

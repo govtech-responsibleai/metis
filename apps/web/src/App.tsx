@@ -8,10 +8,9 @@ import {
   useSyncExternalStore,
   type CSSProperties,
 } from "react";
-import { PanelLeft, PanelRight, Puzzle, X } from "lucide-react";
+import { Puzzle } from "lucide-react";
 import type {
-  InterviewSummary,
-  LocalInterviewRecord,
+  LoadedInterviewRecord,
   CapabilityConfidence,
   CapabilityEvidence,
   InterviewDocument,
@@ -21,7 +20,7 @@ import type {
   ConnectionCheckResult,
   TargetConnection,
 } from "./transport/api";
-import { api, TransportError, toSummary } from "./transport/api";
+import { api, TransportError } from "./transport/api";
 import {
   ActiveReview,
   Composer,
@@ -29,29 +28,50 @@ import {
   reviewParts,
   ReviewSectionActions,
   Transcript,
+  UploadContext,
+  acceptsChat,
+  type AdmitUploads,
 } from "./Conversation";
 import { ConnectionForm, ModePicker } from "./ConnectionStep";
 import {
   bindingFromDraft,
+  draftFromConnection,
   emptyConnectionDraft,
   startConnection,
   type ConnectionDraft,
 } from "./connection";
-import { AddDocuments, DocumentTray } from "./DocumentTray";
+import { AddButton, AddOptions, DocumentList } from "./Documents";
 import { Done } from "./Done";
 import {
   START_BLOCKED,
+  completesNow,
   interviewReady,
   RunSettings,
-  runModels,
+  filledRunModels,
   runRoles,
-  stateForDownload,
+  withRunModel,
+  withRunModels,
+  type Completion,
   type RunModels,
 } from "./RunSettings";
-import { SpecificationView, stepPosition } from "./SpecificationView";
-import { InterviewRail } from "./InterviewRail";
+import {
+  ProfileHeading,
+  SpecificationView,
+  stepPosition,
+} from "./SpecificationView";
+import { ProfileToolbar, YamlView, type ProfileMode } from "./ProfileToolbar";
+import { CollapsedRail, TargetRail } from "./TargetRail";
+import { AdminRoute } from "./AdminPage";
+import { ExperimentsTab, TargetTabs } from "./TargetPage";
+import { ExperimentDialog } from "./ExperimentDialog";
+import { exportedSpecification } from "./export";
+import {
+  AllExperimentsPage,
+  ComparePage,
+  ExperimentPage,
+} from "./ExperimentPages";
 import { PaneDivider, useChatWidth } from "./pane-divider";
-import { Button, cn } from "./ui";
+import { Button, buttonClass, cn } from "./ui";
 import {
   CapabilityConfidencePicker,
   CapabilityPicker,
@@ -62,18 +82,36 @@ import {
   UnderBoxSurface,
 } from "./OpeningControls";
 import {
-  InterviewRepository,
   emptyRecord,
   addFixtures,
   fixturesForSpecification,
-  type LocalStorageProblem,
+  interviewId,
+  putNew,
+  recordFiles,
+  type StorageProblem,
 } from "./storage/repository";
 import {
-  normalizeFixtureName,
-  validateFixtureSelection,
+  deleteTarget,
+  interviewRepository,
+  listTargets,
+  readTarget,
+  type TargetSummary,
+} from "./targets";
+import { Link, useLocation } from "wouter";
+import { paths, placeOf, targetOf, targetRedirect } from "./routes";
+import {
+  admitFiles,
+  readmitSavedFile,
+  type AdmittedFile,
 } from "./fixture-policy";
+import {
+  documentsForRequest,
+  documentTextLength,
+  useDocumentIntake,
+  type DocumentReads,
+} from "./document-intake";
 import { specificationHasCriteria } from "./graders";
-import { downloadArchive } from "./download";
+import { saveFile } from "./download";
 import { ManualAuthoringEntry, ManualForm } from "./ManualForm";
 import {
   activeReview,
@@ -81,17 +119,11 @@ import {
   startTranscript,
   toPresentation,
 } from "./wizard/transcript";
-
-import { TabNavigation, type TabEntry } from "./wizard/navigation";
 import { InterviewOperations, pendingEntry } from "./wizard/operations";
 
-const repository = new InterviewRepository();
 type WizardConfig = Awaited<ReturnType<typeof api.config>>;
-export type OpeningControl = "perspective" | "capabilities";
-type OpeningDocumentRead =
-  | { status: "reading" | "not_read" | "kept" }
-  | { status: "read"; text: string }
-  | { status: "failed"; message: string };
+const NO_FILES: readonly never[] = [];
+export type OpeningControl = "add" | "perspective" | "capabilities";
 export type WizardConfigState =
   | { status: "loading" }
   | { status: "ready"; config: WizardConfig }
@@ -104,26 +136,6 @@ const emptyCapabilityEvidence = (): CapabilityEvidenceDraft => ({
   known_capability_ids: [],
   confidence: null,
 });
-
-function fileExtension(name: string): string {
-  return name.split(".").at(-1)?.toLowerCase() ?? "";
-}
-
-function unicodeLength(value: string): number {
-  return Array.from(value).length;
-}
-
-async function extractOpeningDocuments(
-  file: File,
-  maxFileBytes: number,
-): Promise<string> {
-  if (file.size > maxFileBytes)
-    throw new Error(`${file.name} is larger than the text-reading limit.`);
-  const result = await api.extractDocuments([file]);
-  const document = result.documents.find((item) => item.name === file.name);
-  if (!document) throw new Error(`No text was returned for ${file.name}.`);
-  return document.text;
-}
 
 // Capabilities are optional. An untouched picker sends no evidence, so the Interview treats
 // capabilities as unspecified. A selection with no confidence may be incomplete, which is what
@@ -148,30 +160,44 @@ export function conversationScrollRevision(
   return `${interviewId ?? "opening"}:${requestCount}:${done ? "complete" : "active"}:${submission}`;
 }
 
+// The path to open when the first save of a new Interview finishes. A user who left that opening
+// stays where they went.
+export function openedPath(
+  currentPath: string,
+  currentOpening: number,
+  origin: number,
+  id: string,
+): string | null {
+  return placeOf(currentPath).page === "new-target" && currentOpening === origin
+    ? paths.target(id, "specification")
+    : null;
+}
+
 export function App() {
-  const [interviews, setInterviews] = useState<InterviewSummary[]>([]);
+  const [location, navigate] = useLocation();
+  const place = placeOf(location);
+  const targetId = targetOf(place);
+  const locationRef = useRef(location);
+  locationRef.current = location;
+  const targetRef = useRef(targetId);
+  targetRef.current = targetId;
+  const [targets, setTargets] = useState<TargetSummary[]>([]);
   const [storageProblems, setStorageProblems] = useState<
-    readonly LocalStorageProblem[]
+    readonly StorageProblem[]
   >([]);
-  const [record, setRecord] = useState<LocalInterviewRecord | null>(null);
-  const [destination, setDestination] = useState<TabEntry | null>(null);
-  const destinationRef = useRef<TabEntry | null>(null);
-  const navigation = useRef<TabNavigation | null>(null);
+  const [record, setRecord] = useState<LoadedInterviewRecord | null>(null);
   const refreshListRef = useRef<() => Promise<void>>(async () => {});
   const [operations] = useState(
     () =>
-      new InterviewOperations(repository, (next) => {
-        const current = destinationRef.current?.destination;
-        if (current?.kind === "interview" && current.id === next.id)
-          setRecord(next);
+      new InterviewOperations(interviewRepository, (next) => {
+        if (targetRef.current === next.id) setRecord(next);
         void refreshListRef.current().catch(() => {});
       }),
   );
   useSyncExternalStore(operations.subscribe, operations.snapshot);
-  const operationKey =
-    destination?.destination.kind === "interview"
-      ? destination.destination.id
-      : `opening:${destination?.entry ?? "loading"}`;
+  // An opening is one visit to the opening screen. "New target" starts the next one.
+  const [opening, setOpening] = useState(0);
+  const operationKey = targetId ?? `opening:${opening}`;
   const busy = operations.active.has(operationKey);
   const feedback = operations.feedback.get(operationKey);
   const error = feedback?.message ?? null;
@@ -198,13 +224,29 @@ export function App() {
   // The default Perspective stays marked until the user first opens the Perspective control.
   const [perspectiveSeen, setPerspectiveSeen] = useState(false);
   const [openingDescription, setOpeningDescription] = useState("");
-  const [openingDocuments, setOpeningDocuments] = useState<File[]>([]);
-  // An extraction response belongs only to the opening session that requested it.
   const openingGeneration = useRef(0);
-  const [documentTrayOpen, setDocumentTrayOpen] = useState(false);
-  const [openingDocumentReads, setOpeningDocumentReads] = useState<
-    Record<string, OpeningDocumentRead>
-  >({});
+  const documentLimits =
+    wizardConfig.status === "ready"
+      ? (wizardConfig.config.document_limits ?? undefined)
+      : undefined;
+  // The documents of the opening message, and the documents of the next message of the open
+  // Interview. Each waits in its own input until the user sends that message.
+  const openingIntake = useDocumentIntake(documentLimits, NO_FILES, setError);
+  const recordFileList = useMemo(
+    () => (record ? recordFiles(record) : NO_FILES),
+    [record],
+  );
+  const turnIntake = useDocumentIntake(
+    documentLimits,
+    recordFileList,
+    setError,
+  );
+  const [turnAddOpen, setTurnAddOpen] = useState(false);
+  const resetTurnIntake = turnIntake.reset;
+  useEffect(() => {
+    resetTurnIntake();
+    setTurnAddOpen(false);
+  }, [targetId, resetTurnIntake]);
   const [capabilityEvidence, setCapabilityEvidence] =
     useState<CapabilityEvidenceDraft>(emptyCapabilityEvidence);
   // The opening owns the connection in run mode. "add" is the Done pane's Connect target.
@@ -215,7 +257,6 @@ export function App() {
     useState<ConnectionCheckResult | null>(null);
 
   const [loadingRecord, setLoadingRecord] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const [railOpen, setRailOpen] = useState(true);
   const [chatWidth, setChatWidth] = useChatWidth();
   const panesRef = useRef<HTMLDivElement>(null);
@@ -231,7 +272,6 @@ export function App() {
     return () => narrow.removeEventListener("change", closePanels);
   }, []);
   const [manualOpen, setManualOpen] = useState(false);
-  const [showGraders, setShowGraders] = useState(false);
   const [graderCatalogue, setGraderCatalogue] = useState<Awaited<
     ReturnType<typeof api.graders>
   > | null>(null);
@@ -243,12 +283,27 @@ export function App() {
   > | null>(null);
   const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([]);
   const [runModelDrafts, setRunModelDrafts] = useState<RunModels | null>(null);
-  // The Interview whose finish waits on the run settings step. The download starts when the
+  // The completed Interview that waits on the run settings step. The download starts when the
   // user continues from that step.
   const [runSettingsFor, setRunSettingsFor] = useState<string | null>(null);
 
-  const view = useMemo(() => record && toPresentation(record), [record]);
+  const loadedView = useMemo(() => record && toPresentation(record), [record]);
+  // Only the record of the Target in the URL shows. For one render after a change of Target,
+  // the record of the Target before is still loaded.
+  const view = loadedView?.id === targetId ? loadedView : null;
+  const redirect = view ? targetRedirect(place, view.done) : null;
+  useEffect(() => {
+    if (redirect) navigate(redirect, { replace: true });
+  }, [redirect, navigate]);
   const review = view && !view.done ? activeReview(view.requests) : null;
+  // The run settings step comes before the Done panel, so the first ZIP holds the chosen
+  // models. The check runs during render, so the Done panel never shows first.
+  const [completion, setCompletion] = useState<Completion | null>(null);
+  if (view && (completion?.id !== view.id || completion.done !== view.done)) {
+    const next = { id: view.id, done: view.done };
+    if (completesNow(completion, next)) setRunSettingsFor(view.id);
+    setCompletion(next);
+  }
   const conversationScrollRef = useRef<HTMLDivElement | null>(null);
   const conversationRevision = conversationScrollRevision(
     view?.id ?? null,
@@ -300,9 +355,11 @@ export function App() {
     ? specificationHasCriteria(view.specification)
     : false;
 
+  const [profileMode, setProfileMode] = useState<ProfileMode>("document");
+  const [experimentDialogOpen, setExperimentDialogOpen] = useState(false);
   useEffect(() => {
-    setShowGraders(false);
     setRunModelDrafts(null);
+    setProfileMode("document");
   }, [record?.id]);
 
   useEffect(() => {
@@ -338,53 +395,44 @@ export function App() {
   }, [loadWizardConfig]);
 
   const refreshList = useCallback(async () => {
-    const rows = await repository.list();
-    setInterviews(rows.map(toSummary));
-    setStorageProblems([...repository.problems]);
+    const listed = await listTargets();
+    setTargets(listed.targets);
+    setStorageProblems(listed.problems);
   }, []);
 
   refreshListRef.current = refreshList;
   useEffect(() => {
-    let disposed = false;
-    const nav = new TabNavigation(window, (entry) => {
-      if (disposed) return;
-      destinationRef.current = entry;
-      setDestination(entry);
-      setManualOpen(false);
-      setConnectionStep(null);
-      setRecord(null);
-      setLoadingRecord(entry.destination.kind === "interview");
-      void (async () => {
-        try {
-          if (entry.destination.kind === "interview") {
-            const stored = await repository.read(entry.destination.id);
-            const next = stored
-              ? await operations.recover(
-                  operations.latest.get(stored.id) ?? stored,
-                )
-              : null;
-            if (!disposed && destinationRef.current?.entry === entry.entry)
-              setRecord(next);
-          }
-        } catch (cause) {
-          if (entry.destination.kind === "interview")
-            operations.report(entry.destination.id, errorMessage(cause));
-        } finally {
-          if (!disposed && destinationRef.current?.entry === entry.entry) {
-            setLoaded(true);
-            setLoadingRecord(false);
-          }
-        }
-      })();
-    });
-    navigation.current = nav;
     void refreshList().catch(() => {});
-    void nav.initialize();
+  }, [refreshList]);
+
+  // The record follows the Target of the URL. A change of tab inside one Target keeps it.
+  useEffect(() => {
+    setManualOpen(false);
+    setConnectionStep(null);
+    setExperimentDialogOpen(false);
+    setRecord(null);
+    setLoadingRecord(targetId !== null);
+    if (targetId === null) return;
+    let current = true;
+    void (async () => {
+      try {
+        const target = await readTarget(targetId);
+        const next = target
+          ? await operations.recover(
+              operations.latest.get(target.id) ?? target.interview,
+            )
+          : null;
+        if (current) setRecord(next);
+      } catch (cause) {
+        operations.report(targetId, errorMessage(cause));
+      } finally {
+        if (current) setLoadingRecord(false);
+      }
+    })();
     return () => {
-      disposed = true;
-      nav.dispose();
+      current = false;
     };
-  }, [operations, refreshList]);
+  }, [targetId, operations]);
   useEffect(() => {
     if (!hasCriteria || graderRequest.current) return;
     setGraderState("loading");
@@ -399,118 +447,20 @@ export function App() {
     );
   }, [hasCriteria]);
 
-  const open = useCallback((id: string) => {
-    navigation.current?.go({ kind: "interview", id });
-  }, []);
+  const resetOpeningIntake = openingIntake.reset;
   const startNew = useCallback(() => {
     openingGeneration.current += 1;
-    navigation.current?.go({ kind: "new" });
+    setOpening(openingGeneration.current);
+    setManualOpen(false);
     setOpeningControl(null);
     setPerspectiveSeen(false);
     setOpeningDescription("");
-    setOpeningDocuments([]);
-    setDocumentTrayOpen(false);
-    setOpeningDocumentReads({});
+    resetOpeningIntake();
     setCapabilityEvidence(emptyCapabilityEvidence());
     setConnectionStep(null);
     setConnectionDraft(emptyConnectionDraft());
     setConnectionResult(null);
   }, []);
-
-  const addOpeningDocuments = useCallback(
-    (files: readonly File[]) => {
-      try {
-        if (
-          wizardConfig.status !== "ready" ||
-          !wizardConfig.config.document_limits
-        )
-          throw new Error("Document limits are not available yet.");
-        const limits = wizardConfig.config.document_limits;
-        const names = validateFixtureSelection(files, openingDocuments, limits);
-        const normalized = files.map((file, index) => {
-          const name = names[index] ?? normalizeFixtureName(file.name);
-          return name === file.name
-            ? file
-            : new File([file], name, {
-                type: file.type,
-                lastModified: file.lastModified,
-              });
-        });
-        const reads: Record<string, OpeningDocumentRead> = {};
-        for (const file of normalized) {
-          const canRead = limits.extraction_extensions?.includes(
-            fileExtension(file.name),
-          );
-          reads[file.name] = !canRead
-            ? { status: "not_read" }
-            : file.size > limits.max_extraction_file_bytes
-              ? {
-                  status: "failed",
-                  message: "This file is larger than the text-reading limit.",
-                }
-              : { status: "reading" };
-        }
-        setOpeningDocuments((current) => [...current, ...normalized]);
-        setOpeningDocumentReads((current) => ({ ...current, ...reads }));
-        setError(null);
-        for (const file of normalized) {
-          if (reads[file.name]?.status !== "reading") continue;
-          const generation = openingGeneration.current;
-          void extractOpeningDocuments(
-            file,
-            limits.max_extraction_file_bytes,
-          ).then(
-            (text) => {
-              if (generation !== openingGeneration.current) return;
-              setOpeningDocumentReads((current) => ({
-                ...current,
-                [file.name]: { status: "read", text },
-              }));
-            },
-            (cause: unknown) => {
-              if (generation !== openingGeneration.current) return;
-              setOpeningDocumentReads((current) => ({
-                ...current,
-                [file.name]: {
-                  status: "failed",
-                  message: errorMessage(cause),
-                },
-              }));
-            },
-          );
-        }
-      } catch (cause) {
-        setError(errorMessage(cause));
-      }
-    },
-    [openingDocuments, wizardConfig, setError],
-  );
-
-  const removeOpeningDocument = useCallback(
-    (name: string) => {
-      setOpeningDocuments((current) =>
-        current.filter((file) => file.name !== name),
-      );
-      setOpeningDocumentReads((current) => {
-        const next = { ...current };
-        delete next[name];
-        return next;
-      });
-      setError(null);
-    },
-    [setError],
-  );
-
-  const keepOpeningDocumentWithoutReading = useCallback(
-    (name: string) => {
-      setOpeningDocumentReads((current) => ({
-        ...current,
-        [name]: { status: "kept" },
-      }));
-      setError(null);
-    },
-    [setError],
-  );
 
   const beginWithMessage = useCallback(
     async (
@@ -520,51 +470,21 @@ export function App() {
       connection: TargetConnection | null = null,
     ) => {
       if (busy) return;
-      const origin = destinationRef.current?.entry;
-      const localId = crypto.randomUUID();
+      const origin = openingGeneration.current;
+      const sent = new Date();
       await operations.run(operationKey, async () => {
-        const limits =
-          wizardConfig.status === "ready"
-            ? wizardConfig.config.document_limits
-            : undefined;
-        if (openingDocuments.length > 0 && !limits)
-          throw new Error("Document limits are not available yet.");
-        if (limits) validateFixtureSelection(openingDocuments, [], limits);
-        const unresolved = openingDocuments.filter((file) => {
-          const status = openingDocumentReads[file.name]?.status;
-          return status === "reading" || status === "failed";
-        });
-        if (unresolved.length > 0) {
+        const ready = documentsForRequest(
+          openingIntake.documents,
+          openingIntake.reads,
+          documentLimits,
+        );
+        if ("blocked" in ready) {
           setConnectionStep(null);
           setOpeningControl(null);
-          setDocumentTrayOpen(true);
-          setError(
-            "Wait for files to finish reading. For a file that could not be read, choose Keep without reading or remove it.",
-          );
+          setError(ready.blocked);
           return;
         }
-        const totalText = openingDocuments.reduce((total, file) => {
-          const read = openingDocumentReads[file.name];
-          return (
-            total + (read?.status === "read" ? unicodeLength(read.text) : 0)
-          );
-        }, 0);
-        if (limits && totalText > limits.max_text_characters_total) {
-          setConnectionStep(null);
-          setOpeningControl(null);
-          setDocumentTrayOpen(true);
-          setError(
-            `Document text is above ${limits.max_text_characters_total.toLocaleString()} characters. Remove a file or keep it without reading.`,
-          );
-          return;
-        }
-        const documents: InterviewDocument[] = openingDocuments.map((file) => {
-          const read = openingDocumentReads[file.name];
-          return {
-            name: file.name,
-            ...(read?.status === "read" ? { text: read.text } : {}),
-          };
-        });
+        const documents = ready.documents;
         const result = await api.start(
           description,
           evidence,
@@ -573,62 +493,75 @@ export function App() {
           connection,
         );
         const started = emptyRecord(
-          localId,
+          interviewId(sent),
           result.state,
           result.stage,
-          startTranscript(description, result.state),
+          startTranscript(
+            description,
+            result.state,
+            documents.map((document) => document.name),
+          ),
         );
-        const next = addFixtures(started, openingDocuments);
+        const record = addFixtures(started, openingIntake.documents);
+        const opened = async (saved: LoadedInterviewRecord) => {
+          const path = openedPath(
+            locationRef.current,
+            openingGeneration.current,
+            origin,
+            saved.id,
+          );
+          if (path) navigate(path, { replace: true });
+          await refreshList();
+        };
+        let saved: LoadedInterviewRecord;
         try {
-          await repository.put(next);
+          saved = await putNew(interviewRepository, record);
         } catch (cause) {
           operations.report(
             operationKey,
             `The new Interview was not saved. ${errorMessage(cause)}`,
             () =>
               operations.run(operationKey, async () => {
-                await repository.put(next);
-                if (origin) navigation.current?.started(origin, next.id);
-                await refreshList();
+                await opened(await putNew(interviewRepository, record));
               }),
           );
           return;
         }
-        if (origin) navigation.current?.started(origin, next.id);
-        await refreshList();
+        await opened(saved);
       });
     },
     [
       busy,
+      navigate,
       operations,
       operationKey,
-      openingDocuments,
-      openingDocumentReads,
+      openingIntake.documents,
+      openingIntake.reads,
+      documentLimits,
       refreshList,
       setError,
-      wizardConfig,
     ],
   );
 
   const packageAndDownload = useCallback(
-    async (localRecord: LocalInterviewRecord) => {
+    async (loadedRecord: LoadedInterviewRecord) => {
       const archive = await api.package(
-        { state: localRecord.state },
-        fixturesForSpecification(localRecord),
+        { state: loadedRecord.state },
+        fixturesForSpecification(loadedRecord),
       );
-      downloadArchive(archive);
+      saveFile(archive);
     },
     [],
   );
 
   const downloadCurrent = useCallback(
-    async (localRecord: LocalInterviewRecord) => {
-      await operations.run(localRecord.id, async () => {
+    async (loadedRecord: LoadedInterviewRecord) => {
+      await operations.run(loadedRecord.id, async () => {
         try {
-          await packageAndDownload(localRecord);
+          await packageAndDownload(loadedRecord);
         } catch (cause) {
-          operations.report(localRecord.id, errorMessage(cause), () =>
-            downloadCurrent(localRecord),
+          operations.report(loadedRecord.id, errorMessage(cause), () =>
+            downloadCurrent(loadedRecord),
           );
         }
       });
@@ -639,32 +572,75 @@ export function App() {
   const send = useCallback(
     async (
       response: UserResponse,
-      files: readonly File[] = [],
+      files: readonly AdmittedFile[] = [],
       removedFixtures: readonly string[] = [],
+      documents: readonly InterviewDocument[] = [],
     ) => {
       if (!record) return;
       const key = `${record.id}:${record.state.pending?.request_id ?? ""}`;
-      await operations.send(record, response, files, removedFixtures, () => {
-        if (response.type === "chat") drafts.current.delete(draftKey);
-        if (response.type === "choice" && response.feedback)
-          drafts.current.delete(composerKey);
-        formDrafts.current.delete(key);
-        setDraftRevision((value) => value + 1);
-      });
+      await operations.send(
+        record,
+        response,
+        files,
+        removedFixtures,
+        () => {
+          if (response.type === "chat") drafts.current.delete(draftKey);
+          if (response.type === "choice" && response.feedback)
+            drafts.current.delete(composerKey);
+          formDrafts.current.delete(key);
+          setDraftRevision((value) => value + 1);
+          if (documents.length > 0) resetTurnIntake();
+        },
+        documents,
+      );
     },
-    [operations, record, draftKey, composerKey],
+    [operations, record, draftKey, composerKey, resetTurnIntake],
+  );
+
+  // An answer file gets a name that no file of the Interview has, no document that waits in the
+  // composer, and no file that waits in the same input. The files of an answer that failed count too, because the store holds them. A
+  // refused file shows its reason and adds nothing.
+  const admitUploads = useCallback<AdmitUploads>(
+    (files, queued) => {
+      try {
+        return admitFiles(
+          files,
+          [...recordFileList, ...turnIntake.documents, ...queued],
+          documentLimits,
+        );
+      } catch (cause) {
+        setError(errorMessage(cause));
+        return [];
+      }
+    },
+    [recordFileList, turnIntake.documents, documentLimits, setError],
   );
 
   // Typed text goes to the pending request. A review takes it as feedback. The package accepts only
   // a form response while a form is open, so text typed then first cancels the form and then goes
   // to the review that the package sends back. The text stays in the composer until the feedback
   // itself is accepted: if the cancel fails, the user retries it and then sends the same text.
+  // The documents that wait in the composer go with the text, so the user says in the same
+  // message what the wizard must do with them.
   const sendText = useCallback(
     async (text: string) => {
       if (!record) return;
-      if (pending?.type === "chat") return send({ type: "chat", text });
+      const ready = documentsForRequest(
+        turnIntake.documents,
+        turnIntake.reads,
+        documentLimits,
+        record.state.context.documents ?? [],
+      );
+      if ("blocked" in ready) {
+        setError(ready.blocked);
+        return;
+      }
+      const files = turnIntake.documents;
+      const documents = ready.documents;
+      if (pending?.type === "chat")
+        return send({ type: "chat", text }, files, [], documents);
       if (pending?.type === "choice")
-        return send({ type: "choice", feedback: text });
+        return send({ type: "choice", feedback: text }, files, [], documents);
       if (pending?.type !== "form" || !pending.cancellable) return;
       await send({ type: "form", cancelled: true, values: {} });
       const latest = operations.latest.get(record.id);
@@ -674,15 +650,28 @@ export function App() {
       await operations.send(
         latest,
         { type: "choice", feedback: text },
-        [],
+        files,
         [],
         () => {
           drafts.current.delete(composerKey);
           setDraftRevision((value) => value + 1);
+          if (documents.length > 0) resetTurnIntake();
         },
+        documents,
       );
     },
-    [record, pending, send, operations, composerKey],
+    [
+      record,
+      pending,
+      send,
+      operations,
+      composerKey,
+      turnIntake.documents,
+      turnIntake.reads,
+      documentLimits,
+      resetTurnIntake,
+      setError,
+    ],
   );
 
   // Back from Run settings or Done reopens the last review of the completed Interview.
@@ -699,10 +688,7 @@ export function App() {
       record.id,
       async () => {
         const result = await api.end(record.state);
-        const next = applyEnd(record, result);
-        await operations.save(next);
-        // The run settings step comes first, so the first ZIP holds the chosen models.
-        if (result.outcome === "done") setRunSettingsFor(next.id);
+        await operations.save(applyEnd(record, result));
       },
       finish,
     );
@@ -761,42 +747,44 @@ export function App() {
       setConnectionStep(null);
     });
   }, [record, operations, connectionDraft, connectionResult, checkDraft]);
+  const savedConnection = record?.state.context.connection ?? null;
   const openAddConnection = useCallback(() => {
-    setConnectionDraft({ ...emptyConnectionDraft(), mode: "run" });
+    setConnectionDraft(
+      savedConnection
+        ? draftFromConnection(savedConnection)
+        : { ...emptyConnectionDraft(), mode: "run" },
+    );
     setConnectionResult(null);
     setConnectionStep("add");
-  }, []);
+  }, [savedConnection]);
 
   const remove = useCallback(
     async (id: string) => {
       if (operations.active.has(id) || operations.pendingSaves.has(id)) return;
       try {
-        await repository.delete(id);
+        await deleteTarget(id);
         operations.latest.delete(id);
-        if (
-          destinationRef.current?.destination.kind === "interview" &&
-          destinationRef.current.destination.id === id
-        )
-          setRecord(null);
+        if (targetRef.current === id)
+          navigate(paths.newTarget(), { replace: true });
         await refreshList();
       } catch (cause) {
         operations.report(id, errorMessage(cause));
       }
     },
-    [operations, refreshList],
+    [navigate, operations, refreshList],
   );
 
-  // Save the model names, if the user changed any, then start the download. With no change,
-  // the record and the ZIP are the same as before the step.
+  // Save the model names that the fields show, then start the download.
   const continueToDownload = useCallback(async () => {
     if (!record) return;
-    let next = record;
+    const state = withRunModels(
+      record.state,
+      runModelDrafts ??
+        filledRunModels(record.state.specification, modelStatuses),
+    );
+    const next = { ...record, updated_at: Date.now(), state };
     await operations.run(record.id, async () => {
-      const state = stateForDownload(record.state, runModelDrafts);
-      if (state !== record.state) {
-        next = { ...record, updated_at: Date.now(), state };
-        await operations.save(next);
-      }
+      await operations.save(next);
       setRunSettingsFor(null);
       setRunModelDrafts(null);
       try {
@@ -807,31 +795,61 @@ export function App() {
         );
       }
     });
-  }, [record, runModelDrafts, operations, packageAndDownload, downloadCurrent]);
+  }, [
+    record,
+    runModelDrafts,
+    modelStatuses,
+    operations,
+    packageAndDownload,
+    downloadCurrent,
+  ]);
 
-  if (!loaded) return null;
+  const profileToolbar = view && (
+    <ProfileToolbar
+      mode={view.done ? profileMode : "document"}
+      onMode={setProfileMode}
+      done={view.done}
+      busy={busy || operations.pendingSaves.has(view.id)}
+      onDownload={() => {
+        if (record) void downloadCurrent(record);
+      }}
+    />
+  );
 
   return (
     <div className="flex h-full w-full overflow-hidden">
+      {experimentDialogOpen && record && view?.done && (
+        <ExperimentDialog
+          targetId={record.id}
+          choices={[
+            {
+              id: record.id,
+              name: record.title,
+              savedAt: record.updated_at,
+              specification: exportedSpecification(record.state),
+            },
+          ]}
+          onCancel={() => setExperimentDialogOpen(false)}
+          onStarted={(experiment) => {
+            setExperimentDialogOpen(false);
+            navigate(paths.experiment(record.id, experiment.experiment_id));
+          }}
+        />
+      )}
       {railOpen ? (
-        <InterviewRail
-          interviews={interviews}
+        <TargetRail
+          targets={targets}
           problems={storageProblems}
-          currentId={record?.id ?? null}
+          selectedId={targetId}
           activeIds={
             new Set([...operations.active, ...operations.pendingSaves.keys()])
           }
-          onOpen={open}
           onNew={startNew}
           onDelete={remove}
           onCollapse={() => setRailOpen(false)}
         />
       ) : (
-        <EdgeStrip
-          side="left"
-          label="Show interviews"
-          onClick={() => setRailOpen(true)}
-        />
+        <CollapsedRail onExpand={() => setRailOpen(true)} />
       )}
       <main className="flex min-w-0 flex-1 flex-col">
         {error && (
@@ -843,7 +861,20 @@ export function App() {
             }
           />
         )}
-        {manualOpen ? (
+        {(place.page === "new-target" ||
+          (place.page === "target" && view && !redirect)) && (
+          <TargetTabs
+            targetId={place.page === "target" ? place.targetId : null}
+            tab={
+              place.page === "target"
+                ? (place.tab ?? "specification")
+                : "specification"
+            }
+            done={view?.done ?? false}
+            onStartExperiment={() => setExperimentDialogOpen(true)}
+          />
+        )}
+        {manualOpen && place.page === "new-target" ? (
           <ManualForm
             onBack={() => setManualOpen(false)}
             connectionDraft={connectionDraft}
@@ -859,7 +890,10 @@ export function App() {
             }
             checkConnection={checkDraft}
           />
-        ) : connectionStep === "add" && view !== null ? (
+        ) : connectionStep === "add" &&
+          view !== null &&
+          place.page === "target" &&
+          place.tab === "specification" ? (
           <AddConnection
             draft={connectionDraft}
             onDraft={(next) => {
@@ -876,15 +910,34 @@ export function App() {
             onSave={() => void saveConnection()}
             onCancel={() => setConnectionStep(null)}
           />
-        ) : view === null && destination?.destination.kind === "interview" ? (
+        ) : place.page === "not-found" ? (
+          <NotFound onNew={startNew} />
+        ) : place.page === "experiments" ? (
+          <AllExperimentsPage />
+        ) : place.page === "admin" ? (
+          <AdminRoute fallback={<NotFound onNew={startNew} />} />
+        ) : view === null && targetId !== null ? (
           <div className="m-auto flex flex-col gap-4 p-8" role="status">
             <p>
               {loadingRecord
-                ? "Loading Interview…"
-                : "This local Interview is unavailable. Choose an Interview from History or start a new evaluation."}
+                ? "Loading target…"
+                : "This Target is unavailable. Choose a Target from the list or make a new one."}
             </p>
-            <Button onClick={startNew}>New evaluation</Button>
+            <NewTargetLink onClick={startNew} />
           </div>
+        ) : redirect ? null : place.page === "target" &&
+          place.tab === "experiments" ? (
+          <ExperimentsTab targetId={place.targetId} />
+        ) : place.page === "experiment" && record ? (
+          <ExperimentPage
+            targetId={place.targetId}
+            targetTitle={record.title}
+            experimentId={place.experimentId}
+            part={place}
+            specification={exportedSpecification(record.state)}
+          />
+        ) : place.page === "compare" && record ? (
+          <ComparePage targetId={place.targetId} targetTitle={record.title} />
         ) : view === null ? (
           <OpeningRoute
             configState={wizardConfig}
@@ -895,16 +948,11 @@ export function App() {
             onDescription={setOpeningDescription}
             perspective={selectedPerspective}
             onPerspective={setSelectedPerspective}
-            documents={openingDocuments}
-            documentTrayOpen={documentTrayOpen}
-            onDocumentTrayOpen={(open) => {
-              if (open) setOpeningControl(null);
-              setDocumentTrayOpen(open);
-            }}
-            documentReads={openingDocumentReads}
-            onAddDocuments={addOpeningDocuments}
-            onRemoveDocument={removeOpeningDocument}
-            onKeepDocumentUnread={keepOpeningDocumentWithoutReading}
+            documents={openingIntake.documents}
+            documentReads={openingIntake.reads}
+            onAddDocuments={openingIntake.add}
+            onRemoveDocument={openingIntake.remove}
+            onKeepDocumentUnread={openingIntake.keepUnread}
             capabilityEvidence={capabilityEvidence}
             onCapabilityEvidence={setCapabilityEvidence}
             onBegin={(description, perspective, evidence) =>
@@ -925,155 +973,221 @@ export function App() {
             openControl={openingControl}
             onOpenControl={(control) => {
               if (control === "perspective") setPerspectiveSeen(true);
-              if (control !== null) setDocumentTrayOpen(false);
               setOpeningControl(control);
             }}
             perspectiveSeen={perspectiveSeen}
           />
         ) : (
-          <div
-            ref={panesRef}
-            className="flex min-h-0 flex-1 flex-col md:flex-row"
-            style={{ "--chat-width": `${chatWidth}%` } as CSSProperties}
-          >
-            <div className="flex h-[35vh] min-h-40 min-w-0 shrink-0 flex-col md:h-auto md:min-h-0 md:w-[var(--chat-width)]">
-              <div
-                key={view.id}
-                ref={conversationScrollRef}
-                onScroll={(event) => {
-                  const element = event.currentTarget;
-                  nearFoot.current =
-                    element.scrollHeight -
-                      element.scrollTop -
-                      element.clientHeight <
-                    100;
-                }}
-                className="quiet-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-8"
-              >
-                <Transcript
-                  requests={view.requests}
-                  entries={record?.transcript}
-                  formDrafts={formDrafts.current}
-                  draftPrefix={view.id}
-                  onRetry={() => {
-                    if (record) void operations.retry(record);
+          <UploadContext.Provider value={admitUploads}>
+            <div
+              ref={panesRef}
+              className="flex min-h-0 flex-1 flex-col md:flex-row"
+              style={{ "--chat-width": `${chatWidth}%` } as CSSProperties}
+            >
+              <div className="flex h-[35vh] min-h-40 min-w-0 shrink-0 flex-col md:h-auto md:min-h-0 md:w-[var(--chat-width)]">
+                <div
+                  key={view.id}
+                  ref={conversationScrollRef}
+                  onScroll={(event) => {
+                    const element = event.currentTarget;
+                    nearFoot.current =
+                      element.scrollHeight -
+                        element.scrollTop -
+                        element.clientHeight <
+                      100;
                   }}
-                  onEdit={() => {
-                    if (!record) return;
-                    const response = pendingEntry(record)?.response;
-                    if (response?.type === "chat")
-                      drafts.current.set(draftKey, response.text);
-                    if (response?.type === "choice" && response.feedback)
-                      drafts.current.set(composerKey, response.feedback);
-                    if (response?.type === "form")
-                      formDrafts.current.set(draftKey, response.values ?? {});
-                    void operations.edit(record);
-                  }}
-                  busy={busy}
-                  onRespond={send}
-                  profileForm={profileForm?.request_id ?? null}
-                />
-                {busy && <ThinkingLine message={workingStatus} />}
-                {view.done && runSettingsFor === view.id ? (
-                  <RunSettings
-                    roles={runRoles(view.specification)}
-                    statuses={modelStatuses}
-                    values={runModelDrafts ?? runModels(view.specification)}
-                    busy={busy || operations.pendingSaves.has(view.id)}
-                    onChange={(role, value) => {
-                      setRunModelDrafts((current) => ({
-                        ...(current ?? runModels(view.specification)),
-                        [role]: value,
-                      }));
+                  className="quiet-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-8"
+                >
+                  <Transcript
+                    requests={view.requests}
+                    entries={record?.transcript}
+                    formDrafts={formDrafts.current}
+                    draftPrefix={view.id}
+                    onRetry={() => {
+                      if (record) void operations.retry(record);
                     }}
-                    onContinue={() => void continueToDownload()}
-                    onBack={() => void backFromDone()}
+                    onEdit={() => {
+                      if (!record) return;
+                      const outbound = pendingEntry(record)?.outbound;
+                      if (outbound?.documents?.length)
+                        turnIntake.restore(
+                          outbound.files.map(readmitSavedFile),
+                          outbound.documents,
+                        );
+                      const response = pendingEntry(record)?.response;
+                      if (response?.type === "chat")
+                        drafts.current.set(draftKey, response.text);
+                      if (response?.type === "choice" && response.feedback)
+                        drafts.current.set(composerKey, response.feedback);
+                      if (response?.type === "form")
+                        formDrafts.current.set(draftKey, response.values ?? {});
+                      void operations.edit(record);
+                    }}
+                    busy={busy}
+                    onRespond={send}
+                    profileForm={profileForm?.request_id ?? null}
                   />
-                ) : (
-                  view.done && (
-                    <Done
-                      connection={record?.state.context.connection ?? null}
-                      onConnect={openAddConnection}
-                      busy={replyBusy}
+                  {busy && <ThinkingLine message={workingStatus} />}
+                  {/* The end of the Interview stands clear of the last message. */}
+                  {view.done && <div aria-hidden className="h-4 shrink-0" />}
+                  {view.done && runSettingsFor === view.id ? (
+                    <RunSettings
+                      roles={runRoles(view.specification)}
+                      statuses={modelStatuses}
+                      values={
+                        runModelDrafts ??
+                        filledRunModels(view.specification, modelStatuses)
+                      }
+                      busy={busy || operations.pendingSaves.has(view.id)}
+                      onChange={(role, value) => {
+                        setRunModelDrafts((current) =>
+                          withRunModel(
+                            current ??
+                              filledRunModels(
+                                view.specification,
+                                modelStatuses,
+                              ),
+                            role,
+                            value,
+                            modelStatuses,
+                          ),
+                        );
+                      }}
+                      onContinue={() => void continueToDownload()}
                       onBack={() => void backFromDone()}
                     />
-                  )
-                )}
+                  ) : (
+                    view.done && (
+                      <Done
+                        connection={record?.state.context.connection ?? null}
+                        onConnect={openAddConnection}
+                        busy={replyBusy}
+                        onBack={() => void backFromDone()}
+                      />
+                    )
+                  )}
+                </div>
+                <Composer
+                  key={composerKey}
+                  request={review ?? pending}
+                  sourceControl={
+                    <AddButton
+                      expanded={turnAddOpen}
+                      controls="turn-add"
+                      disabled={replyBusy || !acceptsChat(review ?? pending)}
+                      onClick={() => setTurnAddOpen(!turnAddOpen)}
+                    />
+                  }
+                  panel={
+                    turnAddOpen &&
+                    acceptsChat(review ?? pending) && (
+                      <UnderBoxSurface
+                        id="turn-add"
+                        label="Add"
+                        compact
+                        above
+                        onClose={() => setTurnAddOpen(false)}
+                      >
+                        <AddOptions
+                          limits={documentLimits}
+                          disabled={replyBusy}
+                          onAdd={turnIntake.add}
+                          onDone={() => setTurnAddOpen(false)}
+                        />
+                      </UnderBoxSurface>
+                    )
+                  }
+                  attachments={
+                    <DocumentList
+                      documents={turnIntake.documents}
+                      reads={turnIntake.reads}
+                      limits={documentLimits}
+                      heldText={documentTextLength(
+                        record?.state.context.documents ?? [],
+                      )}
+                      disabled={replyBusy}
+                      onRemove={turnIntake.remove}
+                      onUseNameOnly={turnIntake.keepUnread}
+                    />
+                  }
+                  value={drafts.current.get(composerKey) ?? ""}
+                  onValueChange={(value) => {
+                    drafts.current.set(composerKey, value);
+                    setDraftRevision((revision) => revision + 1);
+                  }}
+                  busy={replyBusy}
+                  sendBlockedReason={
+                    review && pending?.type === "form" && !pending.cancellable
+                      ? "Save the form first"
+                      : undefined
+                  }
+                  onSend={(text) => void sendText(text)}
+                />
               </div>
-              <Composer
-                key={composerKey}
-                request={review ?? pending}
-                value={drafts.current.get(composerKey) ?? ""}
-                onValueChange={(value) => {
-                  drafts.current.set(composerKey, value);
-                  setDraftRevision((revision) => revision + 1);
-                }}
-                busy={replyBusy}
-                sendBlockedReason={
-                  review && pending?.type === "form" && !pending.cancellable
-                    ? "Save the form first"
-                    : undefined
-                }
-                onSend={(text) => void sendText(text)}
+              <PaneDivider
+                rowRef={panesRef}
+                width={chatWidth}
+                onWidth={setChatWidth}
               />
+              <aside
+                className="min-h-0 min-w-0 flex-1 bg-muted"
+                aria-label="Profile"
+              >
+                {view.done && profileMode === "yaml" && record ? (
+                  <div className="flex h-full min-h-0 flex-col p-4">
+                    <ProfileHeading toolbar={profileToolbar} />
+                    <div className="min-h-0 flex-1">
+                      <YamlView state={record.state} />
+                    </div>
+                  </div>
+                ) : (
+                  <SpecificationView
+                    toolbar={profileToolbar}
+                    footDownload={false}
+                    key={view.id}
+                    specification={view.specification}
+                    excludedTasks={record?.state.excluded_tasks}
+                    position={stepPosition(view.requests)}
+                    interviewStep={view.stage}
+                    busy={busy || operations.pendingSaves.has(view.id)}
+                    graderByFqn={graderByFqn}
+                    gradersError={graderState === "error"}
+                    done={view.done}
+                    onFinish={() => void finish()}
+                    onDownload={() => {
+                      if (record) void downloadCurrent(record);
+                    }}
+                    activeSections={review ? reviewParts(review) : []}
+                    renderReview={(part) =>
+                      review && (
+                        <ActiveReview
+                          key={`${view.id}:${part}`}
+                          request={review}
+                          part={part}
+                          busy={replyBusy}
+                          onRespond={send}
+                          form={profileForm}
+                          formFailure={profileFailure}
+                          formDrafts={formDrafts.current}
+                          draftPrefix={view.id}
+                        />
+                      )
+                    }
+                    renderSectionActions={(part) =>
+                      review && (
+                        <ReviewSectionActions
+                          request={review}
+                          part={part}
+                          busy={replyBusy}
+                          onRespond={send}
+                        />
+                      )
+                    }
+                  />
+                )}
+              </aside>
             </div>
-            <PaneDivider
-              rowRef={panesRef}
-              width={chatWidth}
-              onWidth={setChatWidth}
-            />
-            <aside
-              className="min-h-0 min-w-0 flex-1 bg-muted"
-              aria-label="Profile"
-            >
-              <SpecificationView
-                key={view.id}
-                specification={view.specification}
-                excludedTasks={record?.state.excluded_tasks}
-                position={stepPosition(view.requests)}
-                interviewStep={view.stage}
-                busy={busy || operations.pendingSaves.has(view.id)}
-                showGraders={showGraders}
-                onShowGradersChange={setShowGraders}
-                graderByFqn={graderByFqn}
-                gradersLoading={
-                  graderState === "idle" || graderState === "loading"
-                }
-                gradersError={graderState === "error"}
-                done={view.done}
-                onFinish={() => void finish()}
-                onDownload={() => {
-                  if (record) void downloadCurrent(record);
-                }}
-                activeSections={review ? reviewParts(review) : []}
-                renderReview={(part) =>
-                  review && (
-                    <ActiveReview
-                      key={`${view.id}:${part}`}
-                      request={review}
-                      part={part}
-                      busy={replyBusy}
-                      onRespond={send}
-                      form={profileForm}
-                      formFailure={profileFailure}
-                      formDrafts={formDrafts.current}
-                      draftPrefix={view.id}
-                    />
-                  )
-                }
-                renderSectionActions={(part) =>
-                  review && (
-                    <ReviewSectionActions
-                      request={review}
-                      part={part}
-                      busy={replyBusy}
-                      onRespond={send}
-                    />
-                  )
-                }
-              />
-            </aside>
-          </div>
+          </UploadContext.Provider>
         )}
       </main>
     </div>
@@ -1090,9 +1204,7 @@ type OpeningScreenProps = {
   perspective: Perspective;
   onPerspective: (perspective: Perspective) => void;
   documents: File[];
-  documentTrayOpen: boolean;
-  onDocumentTrayOpen: (open: boolean) => void;
-  documentReads: Record<string, OpeningDocumentRead>;
+  documentReads: DocumentReads;
   onAddDocuments: (files: readonly File[]) => void;
   onRemoveDocument: (name: string) => void;
   onKeepDocumentUnread: (name: string) => void;
@@ -1213,8 +1325,9 @@ function AddConnection({
 }
 
 // The opening is one view. The description box holds the setup controls along its bottom edge:
-// documents, the Perspective, the capabilities, and the mode. Each control opens a panel under the
-// box. Enter and Send both start the Interview. In run mode, Send first checks the binding.
+// the plus button, the Perspective, the capabilities, and the mode. Each control opens a panel
+// under the box. The documents show in the box, above the text. Enter and Send both start the
+// Interview. In run mode, Send first checks the binding.
 export function OpeningScreen(props: OpeningScreenProps) {
   const {
     config,
@@ -1223,8 +1336,6 @@ export function OpeningScreen(props: OpeningScreenProps) {
     onDescription,
     perspective,
     documents,
-    documentTrayOpen,
-    onDocumentTrayOpen,
     capabilityEvidence,
     onCapabilityEvidence,
     openControl,
@@ -1240,6 +1351,7 @@ export function OpeningScreen(props: OpeningScreenProps) {
     (item) => item.id === perspective,
   );
   const PerspectiveIcon = PERSPECTIVE_ICONS[perspective];
+  const addOpen = openControl === "add";
   const perspectiveOpen = openControl === "perspective";
   const capabilitiesOpen = openControl === "capabilities";
   const runMode = connectionDraft.mode === "run";
@@ -1279,23 +1391,24 @@ export function OpeningScreen(props: OpeningScreenProps) {
                 placeholder="A support bot for a retail bank…"
                 onSend={start}
                 sendBlockedReason={canStart ? undefined : START_BLOCKED}
+                attachments={
+                  <DocumentList
+                    documents={documents}
+                    reads={props.documentReads}
+                    limits={config.document_limits ?? undefined}
+                    disabled={busy}
+                    onRemove={props.onRemoveDocument}
+                    onUseNameOnly={props.onKeepDocumentUnread}
+                  />
+                }
                 sourceControl={
                   <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                    <AddDocuments
-                      onOpen={() => onDocumentTrayOpen(!documentTrayOpen)}
+                    <AddButton
+                      expanded={addOpen}
+                      controls="opening-add"
                       disabled={busy}
-                      expanded={documentTrayOpen}
+                      onClick={() => onOpenControl(addOpen ? null : "add")}
                     />
-                    {documents.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => onDocumentTrayOpen(true)}
-                        className="text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        {documents.length}{" "}
-                        {documents.length === 1 ? "document" : "documents"}
-                      </button>
-                    )}
                     <FooterChip
                       ariaLabel={`Perspective: ${currentPerspective?.label ?? perspective}`}
                       value={currentPerspective?.label ?? perspective}
@@ -1338,18 +1451,20 @@ export function OpeningScreen(props: OpeningScreenProps) {
             </div>
             {/* The cards under the box share one column. Only the first card starts under the box. */}
             <div className="under-box-stack relative z-0 mx-auto flex w-[95%] flex-col gap-2">
-              {documentTrayOpen && (
-                <DocumentTray onClose={() => onDocumentTrayOpen(false)}>
-                  <InitialDocumentPicker
-                    config={config}
-                    documents={documents}
-                    documentReads={props.documentReads}
+              {addOpen && (
+                <UnderBoxSurface
+                  id="opening-add"
+                  label="Add"
+                  compact
+                  onClose={() => onOpenControl(null)}
+                >
+                  <AddOptions
+                    limits={config.document_limits ?? undefined}
                     disabled={busy}
                     onAdd={props.onAddDocuments}
-                    onRemove={props.onRemoveDocument}
-                    onKeepWithoutReading={props.onKeepDocumentUnread}
+                    onDone={() => onOpenControl(null)}
                   />
-                </DocumentTray>
+                </UnderBoxSurface>
               )}
               {perspectiveOpen && (
                 <UnderBoxSurface
@@ -1357,8 +1472,8 @@ export function OpeningScreen(props: OpeningScreenProps) {
                   label="Perspective"
                   onClose={() => onOpenControl(null)}
                 >
-                  {/* Equal side space keeps the cards clear of the close button and centred. */}
-                  <div className="px-6">
+                  {/* The cards leave a right column for the close button. */}
+                  <div className="pr-4">
                     <PerspectivePicker
                       perspectives={config.perspectives}
                       selected={perspective}
@@ -1430,156 +1545,27 @@ export function OpeningScreen(props: OpeningScreenProps) {
   );
 }
 
-export function InitialDocumentPicker({
-  config,
-  documents,
-  documentReads,
-  disabled,
-  onAdd,
-  onRemove,
-  onKeepWithoutReading,
-}: {
-  config: WizardConfig;
-  documents: readonly File[];
-  documentReads: Record<string, OpeningDocumentRead>;
-  disabled: boolean;
-  onAdd: (files: readonly File[]) => void;
-  onRemove: (name: string) => void;
-  onKeepWithoutReading: (name: string) => void;
-}) {
-  const limits = config.document_limits;
-  if (!limits || !limits.fixture_extensions || !limits.extraction_extensions)
-    return (
-      <p role="alert" className="text-sm text-destructive">
-        Document limits are not available. Try again before adding files.
-      </p>
-    );
-  const fixtureExtensions = limits.fixture_extensions;
-  const totalText = documents.reduce((total, file) => {
-    const read = documentReads[file.name];
-    return total + (read?.status === "read" ? unicodeLength(read.text) : 0);
-  }, 0);
-  const textLimitExceeded = totalText > limits.max_text_characters_total;
-
+function NewTargetLink({ onClick }: { onClick: () => void }) {
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <label
-          className={cn(
-            "relative inline-flex items-center rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-within:ring-2 focus-within:ring-ring",
-            disabled ? "cursor-not-allowed opacity-45" : "cursor-pointer",
-          )}
-        >
-          Choose documents
-          <input
-            type="file"
-            multiple
-            aria-label="Choose documents"
-            disabled={disabled}
-            accept={fixtureExtensions
-              .map((extension) => `.${extension}`)
-              .join(",")}
-            onChange={(event) => {
-              onAdd([...(event.currentTarget.files ?? [])]);
-              event.currentTarget.value = "";
-            }}
-            className="sr-only"
-          />
-        </label>
-        {documents.length === 0 && (
-          <span className="text-xs text-muted-foreground">No files chosen</span>
-        )}
-      </div>
-      {documents.length > 0 && (
-        <ul className="flex flex-col divide-y divide-border">
-          {documents.map((file) => {
-            const read = documentReads[file.name] ?? { status: "not_read" };
-            return (
-              <li
-                key={file.name}
-                className="flex flex-wrap items-center gap-x-4 gap-y-2 py-2"
-              >
-                <span
-                  className="min-w-0 flex-1 truncate text-sm text-foreground"
-                  title={file.name}
-                >
-                  {file.name}
-                </span>
-                <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 text-xs text-muted-foreground">
-                  {read.status === "failed" ? (
-                    <span className="max-w-full text-destructive">
-                      Could not read: {read.message}
-                    </span>
-                  ) : (
-                    <span aria-live="polite">
-                      {read.status === "reading"
-                        ? "Reading…"
-                        : read.status === "read"
-                          ? "Read"
-                          : read.status === "kept"
-                            ? "Kept without reading"
-                            : "Not read"}
-                    </span>
-                  )}
-                  {(read.status === "failed" ||
-                    (textLimitExceeded && read.status === "read")) && (
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => onKeepWithoutReading(file.name)}
-                      className="rounded-md px-2 py-1 text-foreground underline decoration-border underline-offset-2 hover:bg-background disabled:opacity-40"
-                    >
-                      Keep without reading
-                    </button>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  disabled={disabled || read.status === "reading"}
-                  onClick={() => onRemove(file.name)}
-                  aria-label={`Remove ${file.name}`}
-                  className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-background hover:text-foreground disabled:opacity-40"
-                >
-                  <X size={14} strokeWidth={1.75} aria-hidden />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-        <p>Accepted file types: {fixtureExtensions.join(", ")}.</p>
-        <p>File size: {limits.max_initial_bytes / 1_000_000} MB total.</p>
-      </div>
+    <Link
+      href={paths.newTarget()}
+      onClick={onClick}
+      className={cn(buttonClass("primary"), "w-fit")}
+    >
+      New target
+    </Link>
+  );
+}
+
+function NotFound({ onNew }: { onNew: () => void }) {
+  return (
+    <div className="m-auto flex flex-col gap-4 p-8" role="status">
+      <p>This page does not exist.</p>
+      <NewTargetLink onClick={onNew} />
     </div>
   );
 }
 
-function EdgeStrip({
-  side,
-  label,
-  onClick,
-}: {
-  side: "left" | "right";
-  label: string;
-  onClick: () => void;
-}) {
-  const Icon = side === "left" ? PanelLeft : PanelRight;
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      className={cn(
-        "flex h-full w-8 shrink-0 items-start justify-center bg-muted/30 pt-4 text-muted-foreground hover:bg-muted hover:text-foreground",
-        side === "left" ? "border-r border-border" : "border-l border-border",
-      )}
-    >
-      <Icon size={16} strokeWidth={1.75} aria-hidden />
-    </button>
-  );
-}
 function ThinkingLine({ message }: { message: string }) {
   return (
     <div

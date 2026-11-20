@@ -115,7 +115,9 @@ required field asks again until you type a value. In **More information**, a bla
 keeps the current details, and `-` removes them all.
 
 Enter `/feedback` to give a written change request for the review. The chat can also select
-Behaviours and set Trials when you ask it to. Clear corrections update the content automatically.
+Behaviours, set Trials, and set grader settings when you ask it to. See
+[What the chat can change](../wizard.md#what-the-chat-can-change). When a change is not made, the
+reply at the top of the review says what did not change and why. Clear corrections update the content automatically.
 Form-written content and unrelated selections are preserved. Enter `/cancel` in a form field to
 return without saving, or `/back` to close the form and go to the step before.
 
@@ -192,13 +194,28 @@ Clarify has no Back, because it is the first step. To correct the description, s
 answer, for example "The target is for staff only." To change the capabilities, start again with
 `init --restart`.
 
-The CLI saves state after each accepted turn in
-`experiments/design/YYYYMMDD-HHMMSS-interview/inputs/interview_state.json`. The date and time are local to the
-machine when `init` starts. Use `--out-dir` to select an exact experiment root:
+The CLI writes two folders with the same `<id>`, in the `evaluations/` folder of the project.
+`interviews/<id>/` holds the Interview, and `specifications/<id>/` holds the Specification that it
+makes. The CLI saves state after each accepted turn in `interviews/<id>/interview_state.json`.
+
+`init` makes a new `<id>` of the form `YYYYMMDD-HHMMSS-interview-<random>`, for example
+`20261117-143000-interview-k7mwp`. The date and time are local to the machine when `init` starts.
+The random part is five characters. To choose the `<id>` yourself, give `--id`. An `<id>` must
+be 1 to 64 letters, digits, `-` or `_`. The CLI refuses any other `--id` before it writes a file.
+
+The project folder is the nearest folder at or above the working directory that has a
+`pyproject.toml`, else the working directory. The engine and the API find it by the same rule, so
+`metis wizard init` in a subfolder of the project writes to the same `evaluations/` folder that
+`metis engine run` uses. To use a different project, give the wizard its `evaluations/` folder
+with `--out-dir`:
 
 ```bash
-metis wizard init --out-dir my-eval
+metis wizard init --out-dir ~/work/evaluations
 ```
+
+The engine and the API always use `<project>/evaluations/`. A wizard `--out-dir` with another
+name, such as `~/evals`, works for the wizard, but the engine then writes its Experiments to
+`<project>/evaluations/experiments/` and not to `~/evals/experiments/`.
 
 ## Add documents
 
@@ -224,7 +241,7 @@ When a file could not be read, the CLI asks `Keep unread files without text?` Th
 Answer Yes to keep the file by name only. Answer No to stop. Then remove the file from the
 command and run `init` again. A run with no terminal, such as a script, stops with exit code 1.
 
-The CLI keeps a copy of each document in `inputs/documents/`. A Test Case can send an opening
+The CLI keeps a copy of each document in `interviews/<id>/documents/`. A Test Case can send an opening
 document to the target as a fixture file. `resume` uses this copy, so you can move the source
 files after `init`.
 
@@ -255,55 +272,80 @@ Without `--mode`, a terminal asks for the mode. When no terminal is available, t
 To add or replace the binding later, run:
 
 ```bash
-metis wizard connect --out-dir my-eval
-metis wizard connect --out-dir my-eval --binding my-binding.yaml
+metis wizard connect --id 20261117-143000-interview-k7mwp
+metis wizard connect --id 20261117-143000-interview-k7mwp --binding my-binding.yaml
 ```
+
+`connect` writes `specifications/<id>/target-binding.yaml`. It reads
+`interviews/<id>/interview_state.json`, so it works for an Interview and for an Interview download,
+but not for a manual-form download.
 
 For a complete export, `connect` writes the Specification, `review.md`, and the binding again.
 For an Interview in progress, it saves the connection, and `resume` writes the binding at the end.
 
 ## Resume or restart
 
-Resume requires `--out-dir`, including when the Interview continues on another day. The CLI
-prints the complete resume command when an Interview starts.
+`resume` and `connect` find the Interview by its `<id>`, so they require `--id`, including when the
+Interview continues on another day. The CLI prints the complete resume command when an Interview
+starts. Give `--out-dir` too when the Interview is not in the default `evaluations/` folder.
 
 | To | Command |
 |---|---|
-| Resume a saved Interview | `metis wizard resume --out-dir my-eval` |
-| Discard the Interview in progress and start again | `metis wizard init --out-dir my-eval --restart` |
+| Resume a saved Interview | `metis wizard resume --id 20261117-143000-interview-k7mwp` |
+| Discard the Interview in progress and start again | `metis wizard init --id 20261117-143000-interview-k7mwp --restart` |
+
+`resume` has nothing to do for a complete export, such as an Interview download. It prints
+"This export is complete."
 
 Without `--restart`, `init` does not overwrite an Interview in progress. It directs you to
 `resume`.
 
 ## Output files
 
-When the Interview is complete, the CLI retains its final state and writes this layout:
+When the Interview is complete, the CLI retains its final state and writes this layout in
+`evaluations/`:
 
-| File | Contents |
-|---|---|
-| `outputs/specification.yaml` | Target, Features, Behaviours, Criteria and Grader settings, Personas, Scenarios, and Tasks |
-| `outputs/review.md` | A human-readable review of the specification |
-| `outputs/target-binding.yaml` | The target binding, in run mode only. It names environment variables and holds no secret value. |
-| `inputs/interview_state.json` | The final state used to compile the Specification |
-| `inputs/documents/` | A copy of the documents given to `init` |
-| `outputs/fixtures/` | The documents that a Test Case uses. The CLI copies them from `inputs/documents/`. |
+```text
+evaluations/
+├── interviews/20261117-143000-interview-k7mwp/
+│   ├── interview_state.json   the final state used to compile the Specification
+│   └── documents/             a copy of the documents given to init
+└── specifications/20261117-143000-interview-k7mwp/
+    ├── specification.yaml     the Target, Features, Behaviours, Criteria and Grader settings,
+    │                          Personas, Scenarios, and Tasks
+    ├── review.md              a human-readable review of the specification
+    ├── target-binding.yaml    the target binding, in run mode only
+    └── fixtures/              the documents that a Test Case uses
+```
 
-When a Test Case uses a file that is not in `inputs/documents/`, the CLI names the file. Put
-that file in `outputs/fixtures/` before you run the Experiment.
+`init` copies each opening document into `documents/` and into `fixtures/` at the start, so
+`specifications/<id>/` exists before the Interview is done. The Specification is complete when it
+has `specification.yaml`. The target binding names environment variables and holds no secret
+value. The Interview folder is kept after the Interview ends: the CLI compiles the Specification
+again from it on each save.
 
-The CLI removes a file from `outputs/fixtures/` when the file is a copy of a document in
-`inputs/documents/` and no Test Case uses it. A copy has the same name and the same bytes as the
-document. Other files in `outputs/fixtures/` stay there.
+When a Test Case uses a file that is not in `interviews/<id>/documents/`, the CLI names the file.
+Put that file in `specifications/<id>/fixtures/` before you run the Experiment.
 
-The CLI publishes `outputs/specification.yaml` after the other export files are saved.
-Its presence marks a completed export. `resume` reports completion even though the final state
-is retained. Use `--restart` to start again in the same directory. If export fails before the
+The CLI removes a file from `fixtures/` when the file is a copy of a document in `documents/` and
+no Test Case uses it. A copy has the same name and the same bytes as the document. Other files in
+`fixtures/` stay there.
+
+The CLI publishes `specification.yaml` after the other export files are saved.
+An export is complete when this file is present and the saved state is done. `resume` reports
+completion even though the final state is retained. An Interview that the web app opened again
+keeps its last `specification.yaml`, and `resume` continues that Interview. Use `--restart` to start again with the same `<id>`. If export fails before the
 Specification is published, `resume` can retry from the saved final state.
 
-The CLI also shows the total trial count. For an Interview started on 2026-10-16 at 22:30:45, run the result with:
+The CLI also shows the total trial count and the command to run the result:
 
 ```bash
-metis engine run --input-dir experiments/design/20261016-223045-interview/outputs/
+metis engine run --input-dir evaluations/specifications/20261117-143000-interview-k7mwp
 ```
+
+The engine names the Experiment folder after the `id` in `specification.yaml` and its start time,
+for example `evaluations/experiments/toy-app-eval-20261117-150212/`. Each run makes a new
+Experiment folder with its own frozen copy of the Specification, so a later edit of the Interview
+does not change an earlier Experiment.
 
 See the [Engine guide](../engine.md) for the next steps.

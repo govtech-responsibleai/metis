@@ -5,8 +5,9 @@ the Engine.
 
 - The web client uses the Wizard API to process answers and build the download. The
   [API guide](api.md) shows how to use the same features in your own client.
-- The browser stores Interview records, original documents, fixture files, and the display
-  transcript in its IndexedDB database.
+- The API saves Interview records, original documents, fixture files, and the display
+  transcript in its store. Another browser that uses the same API opens the same Interviews.
+  See [Where the API saves your work](#where-the-api-saves-your-work).
 
 See the [Wizard overview](../wizard.md) for the shared Interview flow and output concepts.
 
@@ -48,11 +49,147 @@ The API runs at `http://localhost:8001` by default. If the API uses another addr
 `METIS_API_ORIGIN` before you start the web development server. The web development server
 forwards `/api` requests to that address.
 
+### Where the API saves your work
+
+The API saves each Interview in its project folder. The project folder is the nearest folder at
+or above the folder where you start the API that has a `pyproject.toml`. For `make run-web`, it is
+the repository folder. To use another folder, start the API with
+`metis-api --project-dir PATH`.
+
+- Everything is in the `evaluations/` folder of the project folder. The database is
+  `evaluations/metis.db`. To use another database, set `METIS_DATABASE_URL` to a SQLAlchemy URL.
+- The files of each Interview are in `evaluations/interviews/<id>/`, the same layout as the CLI
+  wizard. `documents/` holds the files that you upload, and `interview_state.json` holds the
+  state of the Interview. An Interview that you start with `metis wizard init` in this project
+  also shows in the web app, without a conversation.
+- The `<id>` is `YYYYMMDD-HHMMSS-interview-<random>`, in the local time when you send the first
+  message. For example, `20261112-101500-interview-k7mwp`. The random part is five characters,
+  so two people who start an Interview in the same second get different ids. A
+  `metis wizard init` id has the same form. When another Interview
+  already has the id, the web app adds `-2`, `-3`, and so on.
+- When an Interview is done, the API also writes its Specification to
+  `evaluations/specifications/<id>/`. Give that folder to `metis engine simulate --input-dir`.
+- Each Experiment that you start is a folder in `evaluations/experiments/`. When you delete a
+  Target, the API deletes its Interview folder and its Specification folder. Its Experiment
+  folders stay.
+- With login on, the files of each user account are in `users/<user id>/evaluations/`, and the
+  database stays in `evaluations/` of the server project folder.
+
+The repository ignores `evaluations/`, so Git does not save it.
+
+### Log in to a shared server
+
+On your own computer, the web app has no login. A server that many people use can have login
+on. Then the web app opens on a login page. Type the username and the password that you got for
+that server, and select **Log in**.
+
+The foot of the left rail shows your username. Select it, then select **Log out**. A login
+lasts 30 days. After that, the login page shows again, and you log in with the same username
+and password.
+
+To turn login on and to make a user account, see
+[Turn on login for a shared server](api.md#turn-on-login-for-a-shared-server).
+
+## Targets and their pages
+
+Each Interview makes one Target. The rail on the left lists the Targets, newest first. Select
+**New target** at the top of the rail to start a new Interview. To set the colour theme, select
+System, Light, or Dark. With login off, these are at the foot of the rail. With login on, select
+your username at the foot of the rail, and they are on the **Appearance** row of the menu.
+
+A new user account starts with one Target, the demo Target
+**Northstar Policy & Report Assistant**. See [The demo Target](#the-demo-target).
+
+A Target page has two tabs:
+
+- **Specification** holds the Interview and its Profile. A new Target opens this tab with the
+  opening screen.
+- **Experiments** lists the experiments of the Target, newest first. Each row shows when the
+  experiment started, its state, and how many trials are done. It is off until the Interview is
+  done.
+
+**Start an experiment**, on the right of the tab row, opens a dialog. Pick the Specification to run in
+**Specification**. Each entry shows its Test Cases, its trials, and when it was saved. A Target
+has one Specification for now. The dialog also runs the checks of `metis doctor` on the server. When every check passes,
+the dialog shows **Server ready**. Otherwise it lists each check that warns or fails, with the
+reason. **Start** stays off while a check fails. **Start** starts the simulation of the Specification and opens the experiment view.
+When the server cannot start it, for example because another experiment is running, the dialog
+shows why and stays open. The button is also off until the Interview is done. When you open a Target, the app shows Experiments for a done Interview and Specification
+for one that is not done.
+
+Each page has its own address, so you can bookmark a Target or open it in another browser
+that uses the same API:
+
+| Page | Address |
+|---|---|
+| New target | `/targets/new` |
+| Specification tab | `/targets/<id>/specification` |
+| Experiments tab | `/targets/<id>/experiments` |
+| An experiment | `/targets/<id>/experiments/<experiment>` |
+| The trials of an experiment | `/targets/<id>/experiments/<experiment>/trials` |
+| The trials of one test case | `/targets/<id>/experiments/<experiment>/trials/<test case>` |
+| The report of an experiment | `/targets/<id>/experiments/<experiment>/report` |
+| Compare experiments | `/targets/<id>/compare` |
+| All experiments | `/experiments` |
+
+An experiment page has two tabs, **Trials** and **Report**. `<experiment>` is the name of the
+experiment folder in `evaluations/experiments/`. The Report tab shows the results of `report.html`
+in the same layout: the score with the report date, the results for each
+Feature, Behaviour and Criterion, and the results for each test case. The specification results have a **List** view and a
+**Tree** view. Open a Behaviour and select a Criterion to see its Grader, its pass mark and its
+test cases in the panel. The tab is off until `metis engine evaluate` is done for the experiment,
+and a finished experiment opens on it. Select a test case in the panel to go to its row in the
+table. The table marks that row and the cell of the Criterion. Select a test case in the table
+to open its trials in a drawer. The drawer shows the pass rate and the 95% range of each
+Criterion, the trials, and for the trial that you select its conversation and what each Grader
+returned. The **report.html** button downloads the same page that `metis insights report`
+writes.
+
+The Trials tab shows the progress of the experiment and one row for each trial, with its Test
+Case, its trial number, its Persona, Scenario and status. A ring shows the progress of the whole
+experiment: its right half is simulate and its left half is evaluate. The steps under the
+percentage show which step runs, and the state of the experiment shows on the right, for example
+**Queued**, **Simulating** or **Stopped**. Hover over **Stopped** to see why the run stopped. A
+trial that has not started is **Waiting**. The rows keep their order while the experiment runs.
+The **Status** filter shows only the trials that you select. **Reason** says why a trial did not
+run, or why evaluate could not grade it. The tab shows no grades: the Report tab has them. The
+page reads the state again every two seconds while the experiment runs. When you open the page
+again, it rebuilds the rows from the start.
+
+The server runs a few experiments at the same time, for all users. When every place is taken, a
+new experiment is **Queued**, with the number of experiments before it, or **Starts next**. It
+starts on its own when a place frees. When simulate ends, the server starts evaluate, so you do
+not need to keep the page open. An experiment that is **Waiting for evaluate** completed
+simulate but has no evaluate, for example after the server restarted. A restart also empties the
+queue: a queued experiment then shows the state from before it, and Resume starts it again. Use
+the buttons above the tabs:
+
+- **Stop** stops the run. Each trial in flight ends at its next turn. A queued experiment
+  leaves the queue, and Resume starts it again.
+- **Resume** runs again the trials that did not finish. When simulate is done, it starts
+  evaluate, or it grades the trials with no grade when evaluate stopped.
+- **Delete** removes the experiment from the app after you confirm. Its experiment folder
+  stays on disk. Delete is off while the experiment runs or is queued.
+
+When the server refuses an action, for example because the experiment changed in another tab,
+the message shows next to the buttons. When evaluate completes, the Report tab turns on. When
+the page shows the Trials tab at that moment, it moves to the Report tab. It stays on Trials
+when you selected the Trials tab yourself.
+
+The comparison does not show experiments yet. It says what it will show.
+
+### The demo Target
+
+The demo Target shows you a full end-to-end run before you make your own Target. It contains
+one complete run for the Northstar Policy & Report Assistant, the
+[agentic-eval toy app](https://github.com/govtech-responsibleai/agentic-eval-toyapp): the
+Interview, the Specification, one finished Experiment and its Report.
+
 ## Start a guided Interview
 
-The chat is on the left and the Profile is on the right. To change the chat width, drag the line
-between them. You can also focus the line and use the arrow keys. Double-click the line to
-return to the default width. The browser keeps the width for your next visit.
+On the Specification tab, the chat is on the left and the Profile is on the right. To change the
+chat width, drag the line between them. You can also focus the line and use the arrow keys.
+Double-click the line to return to the default width. The browser keeps the width for your next visit.
 
 Above the opening box, choose the mode: **Build Spec only**, or **Build Spec and connect
 target**. The bottom row of the box has the documents button, the Perspective control, and
@@ -101,7 +238,7 @@ content.
 
 Clarify has no Back, because it is the first step. To correct the description, say so in your
 answer, for example "The target is for staff only." To change the Perspective, capabilities, or
-documents, select **New evaluation**. The earlier Interview stays in History.
+documents, select **New target**. The earlier Interview stays in the rail.
 
 ## Connect the target
 
@@ -143,8 +280,10 @@ first and names them. A Feature takes its Behaviours and their Criteria. A Behav
 Criteria and leaves the Test Cases that cover it. A Persona or Scenario takes its Test Cases.
 The last Feature, Persona, or Scenario cannot be deleted.
 
-Use the chat for a written change request. The chat can also select Behaviours and set Trials
-when you ask it to. Content updates in place. Group expansion is retained. Corrections apply
+Use the chat for a written change request. The chat can also select Behaviours, set Trials, and
+set grader settings when you ask it to. See
+[What the chat can change](../wizard.md#what-the-chat-can-change). When a change is not made, the
+chat reply says what did not change and why. Content updates in place. Group expansion is retained. Corrections apply
 automatically and keep unrelated content and form-written entries.
 
 The Profile keeps earlier sections available. Criterion review uses the same Feature and Behaviour
@@ -181,25 +320,47 @@ download. Continue with no selected Test Case shows "Select at least one Test Ca
 
 A row shows its values only. To change a Test Case, select the pen. The row then shows the
 Persona and Scenario dropdowns, the Behaviour ID chips, the Trials number, and the Files cell. In
-the Files cell, open **Add file**. Choose **Upload a file**, or choose an opening document. Select
+the Files cell, open **Add file**. Choose **Upload a file**, or choose a document of the Interview. Select
 **Save** to keep the changes. Each pair can have one Test Case only, so a pair
 that is in use is not available. The **+** on Test Cases adds a row for a pair that has no Test
 Case yet.
 
 ## Add documents
 
-1. Select the plus button in the opening message.
+1. Select the plus button in the opening message. A panel opens under the box. Select
+   **Upload files**, and choose the files. The box shows each document above the text.
 2. If a file name does not make the purpose of a document clear, explain it in the same message.
-3. Check the reading status of each file. Remove an unreadable file, or keep it without extracted
+3. Check the status of each document. A document with no status was read. **Name only** shows
+   that the wizard gets the name of the file, without its text. For a file that could not be read,
+   select **Use name only**, or select the X to remove it.
+
+You can also add a document at each later step of the Interview:
+
+1. Select the plus button in the message box of the conversation. A panel opens above the box.
+2. Select **Upload files**. Choose the files and check the status of each document above the
    text.
+3. Type a message that says what the wizard must do with the documents, for example "Add
+   Criteria from the escalation policy". Then select **Send**.
+
+The documents go with that message, and the conversation shows their names under it. The
+conversation also shows the documents of the opening message under that message. From that
+message on, the wizard uses them together with the earlier documents. A new document alone does
+not change the Specification. The wizard makes only the change that your message asks for. The
+plus button is not available while a form is open or after the Interview is done.
 
 Document facts:
 
-- The browser shows the accepted file types and size limits.
+- **Upload files** shows the accepted file types and size limits when the pointer is on it.
 - The API extracts text from UTF-8 TXT, Markdown, YAML, JSON, CSV, PDF text layers, and DOCX files.
 - The API does not run OCR. Scanned PDFs give no text.
-- A Test Case has no files at first. Select its pen to add an opening document or upload a file
-  in its **Files** cell.
+- A Test Case has no files at first. Select its pen to add a document of the Interview or upload
+  a file in its **Files** cell.
+- All the documents of an Interview share the limits for the number of files and the size of the
+  text.
+- The browser never replaces a file. When you add a file with the name of a file that the
+  Interview already has, the new file gets a number before its extension, for example
+  `policy (2).pdf`. Names that differ only by case are the same name, so `POLICY.pdf` also gets a
+  number when the Interview has `policy.pdf`. The manual form uses the same rule.
 - The final package contains only files that a Test Case uses.
 
 ## Finish and download
@@ -207,40 +368,53 @@ Document facts:
 1. Answer each Interview screen.
 2. Review the final Personas, Scenarios, and Test Cases.
 3. Select **Continue** on the final review screen to complete the Interview.
-4. On the **Run settings** step, type the user agent, runner agent, and judge model names, or leave
-   a field empty to use the environment. These models affect scores, so the specification records
-   them. The step takes model names only. Keys stay in `.env`. See the
-   [model guide](../models.md).
-5. Select **Continue and download**. The browser downloads `YYYYMMDD-HHMMSS-interview.zip`, with
-   the models that you set. If you change no field, the download is the same as without the step.
+4. On the **Run settings** step, check the user agent, runner agent, and judge model names. The
+   fields start with the models that the specification records, else the models in `.env`. While
+   the runner agent field holds the user agent model, it follows the user agent field. These models
+   affect scores, so the specification records them. The step takes model names only. Keys stay in
+   `.env`. See the [model guide](../models.md).
+5. Select **Continue and download**. The browser downloads `YYYYMMDD-HHMMSS-interview-<random>.zip`, with
+   the models that the fields show.
 
-To download the specification again later, select **Download specification** in the document pane.
+To download the specification again later, select **Download** in the toolbar of the Profile.
+
+The toolbar also has the views **Document** and **YAML**. Document is the Profile. YAML shows the
+`specification.yaml` of the download, with a **Copy** button. Download and YAML are off until the
+Interview is done.
 
 To finish early, select **Skip interview and download specification**. The Wizard checks whether
 the specification is ready. It can ask for more information or a document review before it
 completes the Interview. Then the **Run settings** step comes before the download.
 
-The archive contains:
+The archive is named `<id>.zip`. It gets a new `<id>` from the time of the download, not the
+Target id of the web app, so two downloads never overwrite each other. For example, a download
+at 16:00:05 contains:
 
 ```text
-YYYYMMDD-HHMMSS-interview/
-├── inputs/
-│   └── interview_state.json
-└── outputs/
-    ├── specification.yaml
-    ├── target-binding.yaml   (run mode only)
-    └── fixtures/
+20261117-160005-interview-x9abc.zip
+├── interviews/
+│   └── 20261117-160005-interview-x9abc/
+│       └── interview_state.json
+└── specifications/
+    └── 20261117-160005-interview-x9abc/
+        ├── specification.yaml
+        ├── target-binding.yaml   (run mode only)
+        └── fixtures/
 ```
 
 The API compiles the Specification from the same final Interview state that it saves in the
 archive. This state keeps document names, extracted text, and limited recent history. The full
-display transcript stays in browser storage.
+display transcript stays in the API store.
 
-Extract the archive into `experiments/design/`. For an Interview exported on 2026-10-16 at 22:30:45, run:
+The archive holds no `documents/` folder: the files that a Test Case uses are in `fixtures/`.
+Extract the archive into `evaluations/`, then run:
 
 ```bash
-metis engine run --input-dir experiments/design/20261016-223045-interview/outputs/
+metis engine run --input-dir evaluations/specifications/20261117-160005-interview-x9abc
 ```
+
+To add a target binding with the CLI later, run
+`metis wizard connect --id 20261117-160005-interview-x9abc --binding target-binding.yaml`.
 
 The browser sends only the original fixture files that the current Tasks use. The API builds
 the archive for that request and does not keep the files.
@@ -264,7 +438,7 @@ This path does not use the Interview and creates no Interview record.
    screen. See [Connect the target](#connect-the-target).
 6. Select **Download specification** next to the mode picker. The mode picker and the download
    button stay at the top of the form while you scroll. Extract the download into
-   `experiments/design/`.
+   `evaluations/`.
 
 In run mode, the download needs a valid binding. Download uses the last test. If you change a
 field after the test, Download tests the binding again. If the binding is not valid, the
@@ -312,20 +486,22 @@ Editor rules:
   `["Rates rose in 2024."]` for `ground_truth`. A text setting stays text. An empty value is
   omitted, so the grader uses its default.
 
-The manual export uses `YYYYMMDD-HHMMSS-manual.zip` and a matching root folder. It contains an empty `inputs/` folder, `outputs/specification.yaml`, and the
-selected files under `outputs/fixtures/`. It contains no Interview state. In run mode, it also
-contains `outputs/target-binding.yaml`, and `outputs/specification.yaml` names the generic runner
-and the binding file. This is the same export as an Interview with the same binding.
+The manual export is named `YYYYMMDD-HHMMSS-manual-<random>.zip`, for example
+`20261117-160210-manual-r3xqa.zip`. It contains `specifications/<id>/specification.yaml` and the
+selected files under `specifications/<id>/fixtures/`. It has no Interview, so it contains no
+`interviews/` folder. In run mode, it also contains `specifications/<id>/target-binding.yaml`, and
+`specification.yaml` names the generic runner and the binding file. This is the same export as an Interview with the same binding.
 
-## Browser storage and current limits
+## Storage and current limits
 
 - Unsent drafts are lost on refresh or page closure.
 - Edit each Interview in one tab at a time.
 - Failed or interrupted replies require a manual retry. Use **Edit reply** to correct the input.
-- Browser data belongs to the exact web origin. For example, `http://localhost:5173` and
-  `http://127.0.0.1:5173` have separate Interview lists.
+- The list of Targets belongs to the API store. Each browser that uses the same API shows the same
+  list. For example, `http://localhost:5173` and `http://127.0.0.1:5173` show the same Targets.
+  An API with a different project folder or database has a different list.
 - The web client does not provide:
-  - hosted or cross-device Interview storage;
+  - hosted Interview storage, because the store is on the computer that runs the API;
   - authentication or multi-user access;
   - source-code or trace analysis; or
   - evaluation execution.

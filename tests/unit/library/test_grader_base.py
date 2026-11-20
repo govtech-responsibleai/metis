@@ -59,12 +59,12 @@ class TestGraderArgs:
 
     def test_override(self) -> None:
         assert FontSizeArgs.model_validate({"min_pt": 24}) == FontSizeArgs(
-            min_pt=24, threshold=0.5
+            min_pt=24, threshold=0.8
         )
 
     def test_defaults(self) -> None:
         args = FontSizeArgs.model_validate({})
-        assert (args.min_pt, args.threshold) == (18, 0.5)
+        assert (args.min_pt, args.threshold) == (18, 0.8)
 
     def test_misspelt_arg_is_rejected(self) -> None:
         with pytest.raises(ValidationError, match="min_pts"):
@@ -107,7 +107,7 @@ class TestGraderArgs:
     def test_dump_includes_defaults(self) -> None:
         """GraderRecord.grader_args records defaults, so the dump must include them."""
         assert FontSizeArgs.model_validate({}).model_dump() == {
-            "threshold": 0.5,
+            "threshold": 0.8,
             "min_pt": 18,
         }
 
@@ -285,7 +285,7 @@ class TestTaxonomyDeclarationCheck:
             class _Undefined(Grader[TwoScopeArgs]):
                 args_model = TwoScopeArgs
                 taxonomy: ClassVar[GraderTaxonomy] = _taxonomy(
-                    judgment_forms=(JudgmentForm.SCALAR,)
+                    judgment_forms=(JudgmentForm.ORDINAL,)
                 )
 
 

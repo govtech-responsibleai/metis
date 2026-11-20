@@ -5,11 +5,24 @@ import {
   TransportError,
   type InterviewState,
   type InterviewSuccess,
-  type LocalInterviewRecord,
+  type LoadedInterviewRecord,
 } from "../transport/api.ts";
-import { emptyRecord, InterviewRepository } from "../storage/repository.ts";
+import { emptyRecord } from "../storage/repository.ts";
+import { admitFiles } from "../fixture-policy.ts";
 import { startTranscript, toPresentation } from "./transcript.ts";
 import { InterviewOperations, pendingEntry } from "./operations.ts";
+
+// A durable copy of each saved record, so the tests read what a reload would read.
+class InterviewRepository {
+  private records = new Map<string, LoadedInterviewRecord>();
+  async put(record: LoadedInterviewRecord): Promise<void> {
+    this.records.set(record.id, structuredClone(record));
+  }
+  async read(id: string): Promise<LoadedInterviewRecord | undefined> {
+    const record = this.records.get(id);
+    return record && structuredClone(record);
+  }
+}
 
 const respond = api.respond;
 afterEach(() => {
@@ -128,17 +141,21 @@ test("saves a reply with its sender while another Interview remains operable", a
   assert.deepEqual((await repository.read(b.id))?.state, b.state);
 });
 
-test("failed replies retain exact files and retry once without duplicate receipts", async () => {
+test("failed replies retain exact files and documents and retry once without duplicate receipts", async () => {
   const repository = new InterviewRepository();
   let current = record("retry-files");
   const operations = new InterviewOperations(repository, (next) => {
     current = next;
   });
-  const file = new File(["policy"], "policy.txt", { type: "text/plain" });
+  const [file] = admitFiles(
+    [new File(["policy"], "policy.txt", { type: "text/plain" })],
+    [],
+  );
   api.respond = async () => {
     throw new TransportError("Unavailable", { retryable: true });
   };
-  await operations.send(current, reply, [file]);
+  const documents = [{ name: "policy.txt", text: "policy" }];
+  await operations.send(current, reply, [file!], [], undefined, documents);
   assert.equal(pendingEntry(current)?.status, "failed");
   assert.equal(current.fixtures.length, 0);
   assert.deepEqual(current.state, state);
@@ -148,10 +165,11 @@ test("failed replies retain exact files and retry once without duplicate receipt
     "policy",
   );
   let calls = 0;
-  api.respond = async (_state, id, response) => {
+  api.respond = async (_state, id, response, sent) => {
     calls++;
     assert.equal(id, "req-1");
     assert.deepEqual(response, reply);
+    assert.deepEqual(sent, documents);
     return result();
   };
   await operations.retry(reloaded);
@@ -163,10 +181,12 @@ test("failed replies retain exact files and retry once without duplicate receipt
     1,
   );
   assert.equal(await current.fixtures[0]?.blob.text(), "policy");
-  assert.equal(
-    current.transcript[1]?.kind === "interaction" &&
-      current.transcript[1].status,
-    "answered",
+  const answered = current.transcript[1];
+  assert.equal(answered?.kind === "interaction" && answered.status, "answered");
+  // The answered entry keeps the names for display and drops the text.
+  assert.deepEqual(
+    answered?.kind === "interaction" && [answered.documents, answered.outbound],
+    [["policy.txt"], undefined],
   );
 });
 
@@ -195,7 +215,7 @@ test("reload marks an unowned send interrupted and waits for manual retry", asyn
   assert.equal(calls, 1);
 });
 
-test("storage errors preserve the authoritative state and retry the local save", async () => {
+test("storage errors preserve the authoritative state and retry the save", async () => {
   let durable = record("save-failure");
   let visible = durable;
   let writes = 0,
@@ -252,7 +272,7 @@ test("failed submission storage prevents API calls and retains the draft", async
 });
 
 test("non-retryable replies preserve state and offer no retry", async () => {
-  let current: LocalInterviewRecord = record("invalid");
+  let current: LoadedInterviewRecord = record("invalid");
   const operations = new InterviewOperations(
     new InterviewRepository(),
     (next) => {

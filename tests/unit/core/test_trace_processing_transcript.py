@@ -240,6 +240,23 @@ def test_an_unreadable_reply_is_a_problem_that_render_passes_through() -> None:
     assert render_session(problem) is problem
 
 
+@pytest.mark.parametrize(
+    ("name", "media_type"),
+    [
+        ("report.md", "text/markdown"),
+        ("blob.unknownext", "application/octet-stream"),
+    ],
+)
+def test_a_rendered_file_is_typed_from_its_extension(
+    tmp_path: Path, name: str, media_type: str
+) -> None:
+    path = tmp_path / name
+    path.write_text("x", encoding="utf-8")
+    rendered = render_artifact(path)
+    assert isinstance(rendered, FileInput)
+    assert rendered.data_url == f"data:{media_type};base64,eA=="
+
+
 def test_select_by_window_ends_a_window_at_each_turn() -> None:
     selected = select_by_window(_turns(4), 3)
     assert not isinstance(selected, Problem)

@@ -12,6 +12,7 @@ import {
   Fragment,
   useContext,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -57,14 +58,36 @@ import {
   SelectBox,
   Tooltip,
 } from "./ui";
-import { groupTranscript } from "./wizard/transcript";
+import { DocumentChip } from "./Documents";
+import { addedDocuments, groupTranscript } from "./wizard/transcript";
+import type { AdmittedFile, FixtureFileLike } from "./fixture-policy";
 
 // What a block can send up. `null` from a resolved or read-only block.
 type Emit = (
   response: UserResponse,
-  files?: readonly File[],
+  files?: readonly AdmittedFile[],
   removedFixtures?: readonly string[],
 ) => void;
+
+// Admits the files that the user adds to an answer, against the files of the Interview and the
+// `queued` files that the same input has not sent yet. It returns no file when it refuses them.
+export type AdmitUploads = (
+  files: readonly File[],
+  queued: readonly FixtureFileLike[],
+) => AdmittedFile[];
+
+// The page that owns the Interview gives the upload controls its admission rule.
+export const UploadContext = createContext<AdmitUploads | null>(null);
+
+function useAdmitUploads(): AdmitUploads {
+  const admit = useContext(UploadContext);
+  return (
+    admit ??
+    (() => {
+      throw new Error("This view cannot add files.");
+    })
+  );
+}
 type CardFieldValue = number | string[];
 
 const FormDraftContext = createContext<{
@@ -108,6 +131,7 @@ export function Transcript({
         {!inProfile && (
           <RequestBlock request={request} busy={busy} onRespond={onRespond} />
         )}
+        <AddedDocuments names={addedDocuments(entry)} />
         {failed && !inProfile && (
           <div role="alert" className="mt-2 flex items-center gap-3">
             <p>{entry.failure?.message}</p>
@@ -263,7 +287,7 @@ function ChoiceBlock({
   const sendField = (
     key: string,
     value: CardFieldValue,
-    files?: readonly File[],
+    files?: readonly AdmittedFile[],
     removedFixtures?: readonly string[],
   ) =>
     onRespond(
@@ -531,7 +555,7 @@ export function ActiveReview({
     (
       key: string,
       value: CardFieldValue,
-      files?: readonly File[],
+      files?: readonly AdmittedFile[],
       removed?: readonly string[],
     ) =>
       respondFrom(anchor)(
@@ -726,7 +750,12 @@ export function ActiveReview({
                       grow
                       onClick={() => toggleGroup(id)}
                     >
-                      <span className="font-semibold">{title}</span>
+                      {/* A group heading names an item (a Feature), so its id leads the title
+                          the same way as the ids of the cards and rows under it. */}
+                      <span className="flex min-w-0 items-baseline gap-2">
+                        {heading && <Mono>{heading.id}</Mono>}
+                        <span className="font-semibold">{title}</span>
+                      </span>
                     </DisclosureButton>
                     <OptionControls
                       options={heading?.options ?? []}
@@ -744,7 +773,8 @@ export function ActiveReview({
                 const nested = formAt(card.id, "nested");
                 return [
                   <CardBlock
-                    key={card.id}
+                    // A card that changes to or from inactive starts again, closed or open.
+                    key={`${card.id}-${card.inactive}`}
                     card={card}
                     disabled={disabled}
                     onPick={pickFrom(card.id)}
@@ -784,11 +814,16 @@ export function ActiveReview({
                 <div
                   hidden={!open}
                   className={cn(
-                    "divide-y divide-border",
                     header && body.length > 0 && "border-t border-border",
                   )}
                 >
-                  {body}
+                  {/* Under a heading, the cards are indented, so the Feature, its Behaviours
+                      and their Criteria read as one hierarchy. */}
+                  <div
+                    className={cn("divide-y divide-border", header && "pl-6")}
+                  >
+                    {body}
+                  </div>
                 </div>
               </section>
             );
@@ -1009,7 +1044,8 @@ function RowEditor({
   const formId = `row-edit-${card.id}`;
   // Files the user uploads while the row is open. Each one becomes a selected choice of the
   // multi-choice field in the upload column, and the files go with the Save.
-  const [uploads, setUploads] = useState<File[]>([]);
+  const [uploads, setUploads] = useState<AdmittedFile[]>([]);
+  const admit = useAdmitUploads();
   const uploadColumn = columns.find((_, i) => kinds[i] === "upload")?.title;
   const fields = edit.request.fields.map((field) =>
     field.multiple && uploadColumn != null && field.column === uploadColumn
@@ -1035,16 +1071,14 @@ function RowEditor({
   );
   const addUploads = (files: File[]) => {
     if (!uploadField || files.length === 0) return;
-    setUploads((current) => [
-      ...current.filter(
-        (item) => !files.some((file) => file.name === item.name),
-      ),
-      ...files,
-    ]);
+    const admitted = admit(files, uploads);
+    if (admitted.length === 0) return;
+    setUploads([...uploads, ...admitted]);
     const chosen = (values[uploadField.id] ?? "").split(",").filter(Boolean);
-    for (const file of files)
-      if (!chosen.includes(file.name)) chosen.push(file.name);
-    setValue(uploadField.id, chosen.join(","));
+    setValue(
+      uploadField.id,
+      [...chosen, ...admitted.map((file) => file.name)].join(","),
+    );
   };
   const used = edit.request.used_combinations ?? [];
   const cellOf = (field: FormFieldSpec) => {
@@ -1473,7 +1507,7 @@ export function ColumnCell({ column }: { column: CardColumn }) {
           <span
             key={optionKey(option.id)}
             title={option.hint ?? option.label}
-            className="rounded border border-accent bg-accent/12 px-1 py-px font-mono text-[10px] leading-tight tracking-tight"
+            className="rounded border border-accent bg-accent/12 px-1 py-px font-mono text-xs leading-tight tracking-tight"
           >
             {option.label}
           </span>
@@ -1605,7 +1639,7 @@ interface RowEdit {
 type FieldChange = (
   key: string,
   value: CardFieldValue,
-  files?: readonly File[],
+  files?: readonly AdmittedFile[],
   removedFixtures?: readonly string[],
 ) => void;
 
@@ -1654,10 +1688,24 @@ function CardBlock({
   const actions = card.options.filter((o) => o !== tick);
   const icons = actions.filter((o) => o.icon);
   const buttons = actions.filter((o) => !o.icon);
+  // A card with rows (a Behaviour with its Criteria) opens and closes like the Feature above it
+  // and the Criteria below it. It starts open. An inactive card (a Behaviour that is not
+  // measured) also closes when it has no Criteria, and it starts closed.
+  const collapsible =
+    card.components.some(isRow) ||
+    (card.inactive && card.components.length > 0);
+  const [open, setOpen] = useState(!card.inactive);
+  const bodyId = useId();
   return (
     <div
       data-keep-anchor={card.id}
-      className={cn("px-4 py-3", card.blocking && "bg-destructive/5")}
+      className={cn(
+        "px-4 py-3",
+        card.blocking && "bg-destructive/5",
+        // An item out of this step (a Behaviour that is not measured) reads quieter, the same
+        // as in the document.
+        card.inactive && "opacity-45",
+      )}
     >
       {editing ? (
         <InlineEdit
@@ -1673,14 +1721,30 @@ function CardBlock({
           {box && <div className="flex h-6 items-center">{box}</div>}
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <div className="flex min-h-6 items-center justify-between gap-3">
-              <label
-                htmlFor={box ? `review-${card.id}` : undefined}
-                className="min-w-0 font-medium text-foreground"
-              >
-                {card.title}
-              </label>
+              {collapsible ? (
+                <DisclosureButton
+                  open={open}
+                  controls={bodyId}
+                  grow
+                  onClick={() => setOpen(!open)}
+                >
+                  <span className="flex min-w-0 items-baseline gap-2">
+                    {id}
+                    <span className="min-w-0 font-medium">{card.title}</span>
+                  </span>
+                </DisclosureButton>
+              ) : (
+                <div className="flex min-w-0 items-baseline gap-2">
+                  {id}
+                  <label
+                    htmlFor={box ? `review-${card.id}` : undefined}
+                    className="min-w-0 font-medium text-foreground"
+                  >
+                    {card.title}
+                  </label>
+                </div>
+              )}
               <div className="flex shrink-0 items-center gap-1">
-                {id}
                 <OptionControls
                   options={icons}
                   disabled={disabled}
@@ -1689,18 +1753,42 @@ function CardBlock({
               </div>
             </div>
 
-            {card.components.map((component, i) => (
-              <ComponentBlock
-                key={i}
-                component={component}
-                trialCount={"trials" in card ? card.trials : undefined}
-                disabled={disabled}
-                onPick={onPick}
-                onFieldChange={onFieldChange}
-                rowEdit={rowEdit}
-                nested
-              />
-            ))}
+            <div
+              id={bodyId}
+              hidden={collapsible && !open}
+              className={cn("flex flex-col gap-2", collapsible && "pl-5")}
+            >
+              {card.components
+                .filter((component) => !isRow(component))
+                .map((component, i) => (
+                  <ComponentBlock
+                    key={i}
+                    component={component}
+                    trialCount={"trials" in card ? card.trials : undefined}
+                    disabled={disabled}
+                    onPick={onPick}
+                    onFieldChange={onFieldChange}
+                    rowEdit={rowEdit}
+                    nested
+                  />
+                ))}
+              {collapsible && (
+                // The rows of a card (its Criteria) are indented under its description.
+                <div className="flex flex-col gap-1 pl-3">
+                  {card.components.filter(isRow).map((component, i) => (
+                    <ComponentBlock
+                      key={i}
+                      component={component}
+                      disabled={disabled}
+                      onPick={onPick}
+                      onFieldChange={onFieldChange}
+                      rowEdit={rowEdit}
+                      nested
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
 
             {card.note && (
               <p className="text-sm text-muted-foreground">{card.note}</p>
@@ -1728,6 +1816,11 @@ function quiet(component: CardComponent) {
   return component.muted === true;
 }
 
+// A row inside a card: a details block that is not muted (a Criterion).
+function isRow(component: CardComponent) {
+  return component.type === "details" && !quiet(component);
+}
+
 function ComponentBlock({
   component,
   trialCount,
@@ -1748,6 +1841,7 @@ function ComponentBlock({
   onPick: (key: string) => void;
   onFieldChange: FieldChange;
 }) {
+  const admit = useAdmitUploads();
   // The value alone, unlabelled. `FormRow` decides where the label goes: a labelled component
   // reads as a form field (label in a left column, value at the right), an unlabelled one runs
   // full-width. This is a *shape* choice — "does this component carry a label" — not a domain
@@ -1756,10 +1850,11 @@ function ComponentBlock({
   const value = (() => {
     switch (component.type) {
       case "details": {
-        // A row inside a card: an open details block that is not muted (a Criterion). Its
-        // icon-only option group moves to the end of its title line, the same place as the
-        // card's own actions, and an edit that one of those options opened takes the row.
-        const row = nested && component.expanded && !quiet(component);
+        // A row inside a card: a details block that is not muted (a Criterion). Its icon-only
+        // option group moves to the end of its title line, the same place as the card's own
+        // actions, so a closed row can still be edited. An edit that one of those options
+        // opened takes the row.
+        const row = nested && isRow(component);
         const iconGroup = (child: CardComponent) =>
           child.type === "options" &&
           child.options.length > 0 &&
@@ -1772,7 +1867,9 @@ function ComponentBlock({
         const children = row
           ? component.components.filter((child) => !iconGroup(child))
           : component.components;
-        const item = actions.find((option) => option.id.target)?.id.target;
+        // The item that the row shows. A row with no actions still names its item.
+        const item =
+          component.id ?? actions.find((option) => option.id.target)?.id.target;
         const editHere =
           row &&
           rowEdit != null &&
@@ -1798,12 +1895,16 @@ function ComponentBlock({
         return (
           <div
             data-keep-anchor={row ? item : undefined}
-            className={cn(row && "rounded-md bg-muted/50 px-3 py-2")}
+            className={cn(row && "py-1")}
           >
             <Disclosure
               summary={
-                <span className={cn(!quiet(component) && "font-medium")}>
-                  {component.title}
+                // A row names the item that its actions edit, so that id leads its title.
+                <span className="flex min-w-0 items-baseline gap-2">
+                  {row && item && <Mono>{item}</Mono>}
+                  <span className={cn(!quiet(component) && "font-medium")}>
+                    {component.title}
+                  </span>
                 </span>
               }
               trailing={
@@ -1894,6 +1995,7 @@ function ComponentBlock({
           <FixtureField
             component={component}
             disabled={disabled}
+            admit={admit}
             onChange={(names, files, removedFixtures) =>
               onFieldChange(
                 optionKey(component.id),
@@ -1923,13 +2025,15 @@ function ComponentBlock({
 export function FixtureField({
   component,
   disabled,
+  admit,
   onChange,
 }: {
   component: Extract<CardComponent, { type: "upload" }>;
   disabled: boolean;
+  admit: AdmitUploads;
   onChange: (
     names: string[],
-    files: readonly File[],
+    files: readonly AdmittedFile[],
     removedFixtures: readonly string[],
   ) => void;
 }) {
@@ -1950,11 +2054,13 @@ export function FixtureField({
 
   const upload = (files: File[]) => {
     if (files.length === 0) return;
-    const next = [...component.value];
-    for (const file of files) {
-      if (!next.includes(file.name)) next.push(file.name);
-    }
-    onChange(next, files, []);
+    const admitted = admit(files, []);
+    if (admitted.length === 0) return;
+    onChange(
+      [...component.value, ...admitted.map((file) => file.name)],
+      admitted,
+      [],
+    );
   };
 
   return (
@@ -2100,7 +2206,7 @@ function WarningBlock({
         "rounded-lg border p-2.5 text-sm",
         runtime
           ? "border-destructive/50 bg-destructive/8 text-foreground"
-          : "border-gold/50 bg-gold/10 text-foreground",
+          : "border-warning/50 bg-warning/10 text-foreground",
       )}
     >
       <p>{warning.text}</p>
@@ -2598,6 +2704,18 @@ export function InlineEdit({
 // which is plain foreground text flush to the left — by a tint, a left rule and an indent, so
 // the two sides of the exchange read as two sides without either being domain-aware. The
 // package composed the question; this is the only text in the transcript the user wrote.
+// The documents that the user added to the Interview with a message, under that message.
+function AddedDocuments({ names }: { names: readonly string[] }) {
+  if (names.length === 0) return null;
+  return (
+    <ul aria-label="Added documents" className="mt-2 flex flex-wrap gap-1.5">
+      {names.map((name) => (
+        <DocumentChip key={name} name={name} />
+      ))}
+    </ul>
+  );
+}
+
 function UserSaid({ text }: { text: string }) {
   return (
     <div className="border-l-2 border-accent/40 bg-muted/40 pl-3 pr-2 py-1.5">
@@ -2615,6 +2733,18 @@ export function acceptsChat(request: WizardRequest | undefined): boolean {
   if (!request) return false;
   if (request.type === "chat") return request.state === "pending";
   return request.type === "choice" && Boolean(request.feedback_placeholder);
+}
+
+// A new request mounts a new composer, so the focus of the old box falls to the page. A request
+// that the box answers takes the focus back. Focus that the user put on another control stays.
+export function takeReplyFocus(
+  field: Pick<HTMLTextAreaElement, "focus"> | null,
+  request: WizardRequest | undefined,
+  page: Pick<Document, "activeElement" | "body">,
+): void {
+  if (!field || !acceptsChat(request)) return;
+  if (page.activeElement && page.activeElement !== page.body) return;
+  field.focus({ preventScroll: true });
 }
 
 // The placeholder: the package's own words for how this screen wants to be answered.
@@ -2639,6 +2769,8 @@ export function Composer({
   leadingIcon = false,
   bare = false,
   sourceControl,
+  attachments,
+  panel,
   sendBlockedReason,
 }: {
   request: WizardRequest | undefined;
@@ -2665,6 +2797,10 @@ export function Composer({
   // it should fill that column and match their width rather than re-centre itself narrower.
   bare?: boolean;
   sourceControl?: ReactNode;
+  // The documents that wait for the next message. They show above the text.
+  attachments?: ReactNode;
+  // A surface that opens above the box. The box covers its bottom edge.
+  panel?: ReactNode;
   // When set, Send stays grey and shows this text on hover and focus. The user can still type.
   sendBlockedReason?: string;
 }) {
@@ -2700,6 +2836,11 @@ export function Composer({
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   }, [text]);
+
+  const requestId = request?.request_id;
+  useEffect(() => {
+    takeReplyFocus(field.current, request, document);
+  }, [requestId, enabled]);
 
   // Whether the field has been scrolled away from its first line. Once it has, the top edge takes
   // a short fade so the partial line at the cut reads as text continuing above rather than as text
@@ -2738,11 +2879,10 @@ export function Composer({
     <textarea
       ref={field}
       className={cn(
-        // Taller by default and a higher cap: the box showed barely a line, so a
-        // paragraph scrolled out of sight while being written. Three lines to start,
-        // grows to a comfortable draft before it scrolls.
+        // The docked box starts at one line and grows with the draft up to the cap, so it
+        // takes little room below the conversation until there is text to show.
         "max-h-64 flex-1 resize-none bg-transparent py-2.5",
-        roomy ? "min-h-32" : "min-h-[4.5rem]",
+        roomy && "min-h-32",
         "placeholder:text-muted-foreground focus:outline-none",
         "disabled:cursor-not-allowed",
         // A hairline thumb instead of the platform's default bar, which sat wide and opaque
@@ -2753,7 +2893,7 @@ export function Composer({
       placeholder={hint}
       value={text}
       disabled={!enabled}
-      rows={roomy ? 5 : 3}
+      rows={roomy ? 5 : 1}
       onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
       onChange={(e) => setText(e.target.value)}
       onKeyDown={(e) => {
@@ -2780,7 +2920,7 @@ export function Composer({
   const pill = (
     <div
       className={cn(
-        "flex rounded-2xl border border-input bg-card p-2 pl-4",
+        "relative z-10 flex rounded-2xl border border-input bg-card p-2 pl-4",
         sourceControl ? "flex-col gap-1" : "items-end gap-2",
         "transition-colors focus-within:border-accent",
         !enabled && "opacity-70",
@@ -2788,6 +2928,7 @@ export function Composer({
     >
       {sourceControl ? (
         <>
+          {attachments}
           <div className="flex w-full items-start gap-2">
             {leading}
             {textarea}
@@ -2807,13 +2948,17 @@ export function Composer({
     </div>
   );
 
-  // Bare: the caller owns width and spacing. Docked: float clear of the bottom edge, centred in an
-  // 80%-wide column so the 10% gutters on each side match the transcript's and the input sits over
-  // the same width as the conversation above it.
+  // Bare: the caller owns width and spacing. Docked: float clear of the bottom edge, with the
+  // transcript's side gutters so the input sits over the same width as the conversation above it.
   if (bare) return pill;
   return (
-    <div className="w-full pb-6 pt-2">
-      <div className="mx-auto w-4/5">{pill}</div>
+    <div className="w-full px-6 pb-6 pt-2">
+      {panel && (
+        <div className="above-box-stack relative z-0 mx-auto w-[95%]">
+          {panel}
+        </div>
+      )}
+      {pill}
     </div>
   );
 }
