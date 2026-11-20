@@ -232,6 +232,10 @@ talking to your target. Select **Continue**.
 
 ![Test Cases pairing personas with scenarios](./assets/wizard-test-cases.png)
 
+Next, you are able to configure your model for the user agent simulation and the llm-as-a-judge used in the run settings. We suggest leaving it as the current defaults for this workshop. Select **Continue and download** to move on.
+
+![Run settings for model configuration](./assets/web-run-settings.png)
+
 When the interview is done, the chat shows **Your specification is ready**.
 
 ![The specification ready panel](./assets/web-spec-ready.png)
