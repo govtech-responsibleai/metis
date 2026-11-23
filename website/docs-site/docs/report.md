@@ -23,6 +23,9 @@ their output.
 Go to the `outputs/reports/` folder of your experiment and open `report.html` in your browser.
 The page is built from `report.json`, which has the same data for your own tools.
 
+If you ran the experiment in the web app, open the experiment and select the **Report** tab, 
+which shows the same results. 
+
 ## 3. Results by Features and Expected Behaviours
 
 Select a Behaviour to open its Criteria. Select a Criterion to see its description, its grader,
@@ -50,7 +53,9 @@ Select a Test Case to see each Trial.
 ## 5. Drill down into the Test Case
 
 The panel shows the pass rate of each Criterion with its 95% range, and one row for each Trial.
-For the selected Trial, it shows the conversation and the results from each grader.
+For the selected Trial, it shows the conversation and the results from each grader. Select
+**Open in Langfuse** beside the Trial to read its traces in the Langfuse project of your
+application. The button shows when METIS can find that project.
 
 ![The Test Case panel of TC-002, with the 95% ranges, the first turn of Trial 2, and a failed result](./assets/report-test-case.png)
 

@@ -9,7 +9,7 @@ import {GraderCode, GraderTags} from '@site/src/components/Graders';
 
 <GraderTags name="CriterionDecisionGrader" />
 
-Return the probability that the whole session satisfies the criterion.
+Return the probability that the whole session satisfies the criterion. This Grader uses a decision model, so its grader type is `decision_model`. The `provider` argument selects the decision model API. Use `typesafe` for TypeSafe Jev with the model `jev-latest`, or `openai` for OpenAI Decisions.
 
 <GraderCode>
 

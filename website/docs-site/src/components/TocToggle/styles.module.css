@@ -109,6 +109,7 @@
     border-radius: 999px;
     background: var(--ifm-background-surface-color);
     color: var(--ifm-font-color-base);
+    font-family: var(--ifm-font-family-base);
     font-size: 0.8125rem;
     cursor: pointer;
   }

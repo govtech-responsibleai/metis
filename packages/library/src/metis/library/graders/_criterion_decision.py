@@ -60,6 +60,9 @@ class _TypeSafeResponse(BaseModel):
 
 class CriterionDecisionGrader(Grader[CriterionDecisionArgs]):
     """Return the probability that the whole session satisfies the criterion.
+    This Grader uses a decision model, so its grader type is ``decision_model``. The
+    ``provider`` argument selects the decision model API. Use ``typesafe`` for TypeSafe Jev
+    with the model ``jev-latest``, or ``openai`` for OpenAI Decisions.
 
     One request asks whether the criterion applies and whether it is satisfied. An
     applicability probability below 0.5 gives a skipped result. The satisfaction
