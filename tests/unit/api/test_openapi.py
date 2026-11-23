@@ -81,6 +81,18 @@ def test_each_interview_route_documents_its_service_statuses(
     assert {"200", "400", "422", "500"}.issubset(compile_responses)
 
 
+def test_each_route_has_a_tag_and_each_described_tag_has_routes(
+    client: TestClient,
+) -> None:
+    document = client.get("/openapi.json").json()
+    operations = [op for path in document["paths"].values() for op in path.values()]
+    used = {tag for op in operations for tag in op.get("tags", [])}
+    described = {tag["name"] for tag in document["tags"]}
+
+    assert all(op.get("tags") for op in operations)
+    assert described <= used
+
+
 def test_wizard_tag_explains_the_client_held_state_loop(client: TestClient) -> None:
     document = client.get("/openapi.json").json()
     wizard = next(tag for tag in document["tags"] if tag["name"] == "wizard")
