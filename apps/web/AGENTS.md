@@ -15,7 +15,7 @@ The experiment dialog runs the checks of `GET /api/v1/doctor`. It lists only the
 or fail, and shows one line when every check passes. `startExperiment` in
 `src/experiment-start.ts` starts an Experiment in three requests. It reads the `input_dir` of the
 Specification, sends it to `POST /api/v1/engine/simulate`, then saves the row with
-`PUT /api/v1/experiments/{experiment_id}`. The
+`PUT /api/v1/engine/experiments/{experiment_id}`. The
 Experiments tab and the All experiments page show the rows of the store routes. The All
 experiments page shows them with `ExperimentList` (`src/ExperimentList.tsx`). The Experiments tab
 shows them with `ExperimentTable` (`src/ExperimentTable.tsx`), which sorts by a column. Only

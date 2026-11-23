@@ -304,7 +304,7 @@ test("report reads report.json of the experiment", async () => {
   };
 
   assert.deepEqual(await api.report("run 1/a"), report);
-  assert.equal(path, "/api/v1/experiments/run%201%2Fa/report");
+  assert.equal(path, "/api/v1/insights/run%201%2Fa/report");
 });
 
 test("reportPage gives report.html with the name from the header", async () => {
@@ -321,7 +321,7 @@ test("reportPage gives report.html with the name from the header", async () => {
 
   const page = await api.reportPage("run 1");
 
-  assert.equal(path, "/api/v1/experiments/run%201/report.html");
+  assert.equal(path, "/api/v1/insights/run%201/report.html");
   assert.equal(page.filename, "run 1-report.html");
   assert.equal(await page.blob.text(), "<html></html>");
 });
@@ -383,7 +383,7 @@ test("the engine reads go to the routes of the experiment", async () => {
   await api.doctor();
 
   assert.deepEqual(paths, [
-    "/api/v1/targets/t%2F1/experiments",
+    "/api/v1/engine/experiments?target_id=t%2F1",
     "/api/v1/targets/t%2F1/specification",
     "/api/v1/engine/e%201",
     "/api/v1/engine/e%201/events",
@@ -414,9 +414,9 @@ test("the run actions and the row saves go to their routes", async () => {
     "POST /api/v1/engine/simulate/e1/resume",
     "POST /api/v1/engine/evaluate/e1",
     "POST /api/v1/engine/evaluate/e1/resume",
-    "GET /api/v1/experiments/e1",
-    'PUT /api/v1/experiments/e1 {"target_id":"t1","step":"evaluate"}',
-    "DELETE /api/v1/experiments/e1",
+    "GET /api/v1/engine/experiments/e1",
+    'PUT /api/v1/engine/experiments/e1 {"target_id":"t1","step":"evaluate"}',
+    "DELETE /api/v1/engine/experiments/e1",
   ]);
 });
 

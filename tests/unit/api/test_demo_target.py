@@ -112,13 +112,15 @@ def test_the_demo_experiment_shows_its_trials_and_its_report_with_no_new_run(
     browser = new_user_browser()
     [target] = _targets(browser)
 
-    listed = browser.get(f"{TARGETS}/{target['id']}/experiments").json()
+    listed = browser.get(
+        "/api/v1/engine/experiments", params={"target_id": target["id"]}
+    ).json()
     [experiment] = listed["experiments"]
     experiment_id = experiment["experiment_id"]
     status = browser.get(f"/api/v1/engine/{experiment_id}").json()
     events = browser.get(f"/api/v1/engine/{experiment_id}/events").json()
-    report = browser.get(f"/api/v1/experiments/{experiment_id}/report").json()
-    page = browser.get(f"/api/v1/experiments/{experiment_id}/report.html")
+    report = browser.get(f"/api/v1/insights/{experiment_id}/report").json()
+    page = browser.get(f"/api/v1/insights/{experiment_id}/report.html")
 
     trials = report["trials"]["items"]
     assert experiment_id.startswith("demo-toyapp-workshop-lite-")
@@ -250,12 +252,12 @@ def test_each_demo_trial_links_to_its_langfuse_session_and_has_its_traces(
 ) -> None:
     browser = new_user_browser()
     [target] = _targets(browser)
-    [experiment] = browser.get(f"{TARGETS}/{target['id']}/experiments").json()[
-        "experiments"
-    ]
+    [experiment] = browser.get(
+        "/api/v1/engine/experiments", params={"target_id": target["id"]}
+    ).json()["experiments"]
     experiment_id = experiment["experiment_id"]
     events = browser.get(f"/api/v1/engine/{experiment_id}/events").json()
-    report = browser.get(f"/api/v1/experiments/{experiment_id}/report").json()
+    report = browser.get(f"/api/v1/insights/{experiment_id}/report").json()
     [folder] = (DEMO_FILES / EXPERIMENTS).iterdir()
 
     ended = {

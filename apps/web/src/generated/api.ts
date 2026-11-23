@@ -394,7 +394,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/targets/{target_id}/experiments": {
+    "/api/v1/engine/experiments": {
         parameters: {
             query?: never;
             header?: never;
@@ -405,7 +405,7 @@ export interface paths {
          * List the Experiments of a Target
          * @description Return the Experiment rows of the Target, newest first.
          */
-        get: operations["list_target_experiments_api_v1_targets__target_id__experiments_get"];
+        get: operations["list_experiments_api_v1_engine_experiments_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -414,7 +414,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/experiments/{experiment_id}": {
+    "/api/v1/engine/experiments/{experiment_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -425,7 +425,7 @@ export interface paths {
          * Read an Experiment
          * @description Return the row of the Experiment.
          */
-        get: operations["read_experiment_api_v1_experiments__experiment_id__get"];
+        get: operations["read_experiment_api_v1_engine_experiments__experiment_id__get"];
         /**
          * Save an Experiment
          * @description Save the last engine step that the web app started for the Experiment.
@@ -433,19 +433,19 @@ export interface paths {
          *     The Experiment folder must exist under `evaluations/experiments/`, else the route gives 400. The
          *     first save keeps the start time.
          */
-        put: operations["put_experiment_api_v1_experiments__experiment_id__put"];
+        put: operations["put_experiment_api_v1_engine_experiments__experiment_id__put"];
         post?: never;
         /**
          * Delete an Experiment
          * @description Delete the row of the Experiment. The Experiment folder stays on disk.
          */
-        delete: operations["delete_experiment_api_v1_experiments__experiment_id__delete"];
+        delete: operations["delete_experiment_api_v1_engine_experiments__experiment_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/experiments/{experiment_id}/report": {
+    "/api/v1/insights/{experiment_id}/report": {
         parameters: {
             query?: never;
             header?: never;
@@ -457,7 +457,7 @@ export interface paths {
          * @description Return report.json of the experiment. The report is built when it is missing or older
          *     than results.json.
          */
-        get: operations["experiment_report_api_v1_experiments__experiment_id__report_get"];
+        get: operations["experiment_report_api_v1_insights__experiment_id__report_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -466,7 +466,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/experiments/{experiment_id}/report.html": {
+    "/api/v1/insights/{experiment_id}/report.html": {
         parameters: {
             query?: never;
             header?: never;
@@ -478,7 +478,7 @@ export interface paths {
          * @description Return report.html of the experiment, the same page as `metis insights report` writes.
          *     The report is built when it is missing or older than results.json.
          */
-        get: operations["experiment_report_page_api_v1_experiments__experiment_id__report_html_get"];
+        get: operations["experiment_report_page_api_v1_insights__experiment_id__report_html_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4798,13 +4798,14 @@ export interface operations {
             };
         };
     };
-    list_target_experiments_api_v1_targets__target_id__experiments_get: {
+    list_experiments_api_v1_engine_experiments_get: {
         parameters: {
-            query?: never;
-            header?: never;
-            path: {
+            query: {
+                /** @description The Target of the Experiments. */
                 target_id: string;
             };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -4856,7 +4857,7 @@ export interface operations {
             };
         };
     };
-    read_experiment_api_v1_experiments__experiment_id__get: {
+    read_experiment_api_v1_engine_experiments__experiment_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4914,7 +4915,7 @@ export interface operations {
             };
         };
     };
-    put_experiment_api_v1_experiments__experiment_id__put: {
+    put_experiment_api_v1_engine_experiments__experiment_id__put: {
         parameters: {
             query?: never;
             header?: never;
@@ -4976,7 +4977,7 @@ export interface operations {
             };
         };
     };
-    delete_experiment_api_v1_experiments__experiment_id__delete: {
+    delete_experiment_api_v1_engine_experiments__experiment_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -5032,7 +5033,7 @@ export interface operations {
             };
         };
     };
-    experiment_report_api_v1_experiments__experiment_id__report_get: {
+    experiment_report_api_v1_insights__experiment_id__report_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -5090,7 +5091,7 @@ export interface operations {
             };
         };
     };
-    experiment_report_page_api_v1_experiments__experiment_id__report_html_get: {
+    experiment_report_page_api_v1_insights__experiment_id__report_html_get: {
         parameters: {
             query?: never;
             header?: never;

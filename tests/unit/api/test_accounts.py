@@ -713,7 +713,7 @@ def _save_target(client: TestClient, target_id: str) -> None:
     folder = client.app.state.project_dir / "users" / user_id
     (folder / project_layout.EXPERIMENTS / experiment).mkdir(parents=True)
     saved = client.put(
-        f"/api/v1/experiments/{experiment}",
+        f"/api/v1/engine/experiments/{experiment}",
         json={"target_id": target_id, "step": "simulate"},
     )
     assert saved.status_code == 200, saved.text
