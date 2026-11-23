@@ -88,7 +88,6 @@ def test_specification_keeps_an_explicit_empty_fixtures_directory(
 
 def test_specification_can_include_a_portable_specification(tmp_path: Path) -> None:
     specification = research_assistant()
-    specification.id = "research-assistant"
     for task in specification.tasks:
         task.fixtures = []
     target = tmp_path / "specification.zip"
@@ -112,7 +111,9 @@ def test_specification_can_include_a_portable_specification(tmp_path: Path) -> N
             )
         )
 
-    assert saved == specification
+    assert saved == specification.model_copy(
+        update={"id": "20261016-223045-manual-k7mwp"}
+    )
 
 
 def test_specification_refuses_missing_referenced_file(tmp_path: Path) -> None:
@@ -127,7 +128,6 @@ def test_specification_refuses_missing_referenced_file(tmp_path: Path) -> None:
 
 def test_in_memory_packager_contains_specification_and_fixtures() -> None:
     specification = research_assistant()
-    specification.id = "research-assistant"
     archive_bytes = package_specification(
         specification,
         [SpecificationFixture("policy.pdf", BytesIO(b"policy bytes"))],
@@ -145,16 +145,13 @@ def test_in_memory_packager_contains_specification_and_fixtures() -> None:
             )
             == b"policy bytes"
         )
-        assert (
-            Specification.model_validate(
-                yaml.safe_load(
-                    archive.read(
-                        "specifications/20261016-223045-manual-k7mwp/specification.yaml"
-                    )
+        assert Specification.model_validate(
+            yaml.safe_load(
+                archive.read(
+                    "specifications/20261016-223045-manual-k7mwp/specification.yaml"
                 )
             )
-            == specification
-        )
+        ) == specification.model_copy(update={"id": "20261016-223045-manual-k7mwp"})
 
 
 def test_in_memory_packager_includes_unreferenced_fixtures() -> None:

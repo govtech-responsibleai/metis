@@ -201,6 +201,7 @@ def test_the_demo_interview_has_the_lite_example_with_the_demo_name(
 
     assert saved == {
         **_example_with_the_demo_name(),
+        "id": target.id,
         "target_binding": "target-binding.yaml",
     }
 

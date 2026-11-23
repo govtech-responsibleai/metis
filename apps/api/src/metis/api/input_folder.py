@@ -34,9 +34,12 @@ _PACKAGE_FILES = "specifications"
 
 
 def build(
-    state: InterviewState, fixtures: Iterable[tuple[str, bytes]]
+    state: InterviewState, fixtures: Iterable[tuple[str, bytes]], target_id: str
 ) -> dict[str, bytes]:
     """Package a done Interview and return the files of its input folder, by relative path.
+
+    The Target id is the `id` of the Specification, so an Experiment folder, which the engine
+    names `<Specification id>-<time>`, starts with the id of its Target.
 
     :raises CompilationError: The Specification is not runnable.
     :raises SpecificationError: A fixture is missing or not valid.
@@ -47,6 +50,7 @@ def build(
             SpecificationFixture(name=name, stream=io.BytesIO(content))
             for name, content in fixtures
         ],
+        export_id=target_id,
     )
     files: dict[str, bytes] = {}
     with zipfile.ZipFile(io.BytesIO(archive.content)) as bundle:

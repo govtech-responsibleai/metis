@@ -251,17 +251,16 @@ def _write_outputs(
         connected_specification,
     )
     from metis.wizard.application.readiness import selected_specification
-    from metis.wizard.application.turn import experiment_id
 
     connection = state.context.connection
     # Export only the Test Cases that the user kept selected.
     specification = connected_specification(
         selected_specification(state.specification, state.excluded_tasks), connection
     )
-    compiled = compile_specification(specification)
+    compiled = compile_specification(specification, specification_id=folders.id)
     review = render_review(
         specification,
-        experiment_id(specification),
+        folders.id,
         connection=connection,
         connection_skipped=connection_skipped,
     )

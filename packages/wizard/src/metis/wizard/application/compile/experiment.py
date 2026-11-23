@@ -25,7 +25,7 @@ def compile_experiment(
     specification: Specification, experiment_id: str
 ) -> dict[str, Any]:
     document = specification.model_copy(deep=True)
-    document.id = specification.id or experiment_id
+    document.id = experiment_id
     from metis.wizard.domain.materializer import assign_task_ids
 
     assign_task_ids(document)

@@ -320,6 +320,13 @@ def _package(archive_bytes: bytes) -> dict[str, bytes]:
         }
 
 
+def _without_id(package: dict[str, bytes]) -> dict[str, object]:
+    """The package with a parsed Specification that has no `id`, which is the export `<id>`."""
+    document = yaml.safe_load(package["specification.yaml"])
+    del document["id"]
+    return {**package, "specification.yaml": document}
+
+
 @pytest.mark.parametrize("transport", list(ConnectionTransport))
 def test_a_manual_specification_with_a_connection_exports_like_an_interview(
     transport: ConnectionTransport,
@@ -334,7 +341,9 @@ def test_a_manual_specification_with_a_connection_exports_like_an_interview(
     manual = package_specification(specification, _fixtures(), connection=target)
     interview = package_specification(state, _fixtures())
 
-    assert _package(manual.content) == _package(interview.content)
+    assert _without_id(_package(manual.content)) == _without_id(
+        _package(interview.content)
+    )
     exported = yaml.safe_load(_package(manual.content)["specification.yaml"])
     assert exported["runner_factory_ref"] == RUNNER_FACTORY_REFS[transport]
     assert "target-binding.yaml" in _package(manual.content)

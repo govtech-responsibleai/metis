@@ -76,7 +76,9 @@ def test_init_happy_path_writes_specification_and_review(
     )
     assert (
         specification_path.read_text()
-        == compile_specification(state.specification).specification_yaml
+        == compile_specification(
+            state.specification, specification_id=package.name
+        ).specification_yaml
     )
     assert (package / "fixtures").is_dir()
     collision = CliRunner().invoke(app, ["init", "A research assistant", *folder])
@@ -94,7 +96,9 @@ def test_init_happy_path_writes_specification_and_review(
         ).is_file()
         assert (
             specification_path.read_text()
-            == compile_specification(state.specification).specification_yaml
+            == compile_specification(
+                state.specification, specification_id=package.name
+            ).specification_yaml
         )
     export_clock(datetime(2026, 10, 17, 8, 15, 30))
     resumed = CliRunner().invoke(app, ["resume", *folder])

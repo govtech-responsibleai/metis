@@ -225,7 +225,9 @@ def test_interview_export_preserves_the_state_used_to_compile(
             )
         )
         assert saved == state
-        compiled = compile_specification(saved.specification)
+        compiled = compile_specification(
+            saved.specification, specification_id="20261016-223045-interview-k7mwp"
+        )
         assert yaml.safe_load(
             archive.read(
                 "specifications/20261016-223045-interview-k7mwp/specification.yaml"

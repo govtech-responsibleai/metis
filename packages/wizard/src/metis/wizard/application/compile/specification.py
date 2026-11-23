@@ -100,6 +100,7 @@ def build_specification_archive(
     *,
     interview_state_json: str | None = None,
     target_binding_yaml: str | None = None,
+    export_id: str | None = None,
 ) -> SpecificationArchive:
     """Build a complete specification ZIP from request-scoped fixture streams.
 
@@ -107,6 +108,9 @@ def build_specification_archive(
     holds `specifications/<id>/` with `specification.yaml` and `fixtures/`. An Interview export
     also holds `interviews/<id>/interview_state.json`. `target_binding_yaml` is written next to
     `specification.yaml` when the export has a target connection.
+
+    `<id>` is `export_id`, or a new id when it is not given. It is also the `id` of
+    `specification.yaml`, so the Specification and its folders have one id.
 
     The caller owns the input streams. This function validates every filename before it reads any
     body, reads at most one bounded chunk beyond the total fixture limit, and never writes a fixture
@@ -133,9 +137,10 @@ def build_specification_archive(
         joined = ", ".join(missing)
         raise SpecificationError(f"Missing fixture file(s): {joined}.")
 
-    export_id = export_layout.new_id(
+    export_id = export_id or export_layout.new_id(
         "interview" if interview_state_json is not None else "manual"
     )
+    document = {**document, "id": export_id}
     interview = export_layout.interview_dir(export_id)
     package = export_layout.specification_dir(export_id)
     output = io.BytesIO()
