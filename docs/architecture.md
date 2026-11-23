@@ -287,8 +287,8 @@ completion. The next state goes back whole in the response, so any instance serv
 and the wizard routes write no Interview file. Web clients drive the wizard through these HTTP
 lifecycle routes; they MUST NOT embed the wizard.
 
-**The store.** The store routes under `/api/v1/targets` and `/api/v1/engine/experiments` keep
-Targets, Interview records, Specifications, and Experiments. They do not change the wizard routes. The rows are in
+**The store.** The store routes under `/api/v1/targets` keep
+Targets, Interview records, and Specifications. They do not change the wizard routes. The rows are in
 a database that SQLAlchemy opens from `METIS_DATABASE_URL`. The default is a SQLite file at
 `<project>/evaluations/metis.db`. `metis-api --project-dir` names the project folder. Without it,
 the API finds the project folder with the rule of `metis engine simulate`: the nearest folder at
@@ -300,13 +300,12 @@ tables use portable SQL types. PostgreSQL support is later work.
 | `targets` | The Target id, its user account, its name, and its times. |
 | `interviews` | The web parts of the Interview record, as JSON: the transcript, the times, and the file references. |
 | `specifications` | The specification document of the Target's last Specification, and its SHA-256 hash. |
-| `experiments` | An Experiment folder name, its Target, its start time, and its last engine step. The key is the Target and the folder name together. |
 
 Each Target belongs to one user account, and the `targets` table is the one table that names
 it. An Interview, a Specification, and an Experiment belong to a user account through their
 Target. A Target id has a random part, so the Targets of two user accounts have different
-ids. Two user accounts can have an Experiment folder with the same name, so the key of an
-Experiment row is its Target and its folder name together. With login
+ids. The store keeps no row for an Experiment: the name of an Experiment folder starts with the
+id of its Target. With login
 off, each Target belongs to the local user account, which has the id `local` and no password.
 A request reads only the records of its own user account. A record of another user account gets
 the same 404 `not_found` as a record that does not exist. A save with the Target id of another
@@ -353,7 +352,7 @@ It holds `specification.yaml`, `fixtures/`, and `target-binding.yaml` when the I
 target connection. Each save of a done Interview compiles the Specification, meaning the package of
 the document, the fixtures, and the binding, and writes the row and the Specification folder again. When the Specification does not compile, the save gets 400
 `compilation_failed` and changes nothing. A save of an Interview that is not done keeps the last
-Specification. An Experiment row refers to an Experiment folder under `evaluations/experiments/`. The
+Specification. An Experiment is a folder under `evaluations/experiments/` with the name `<target_id>-<time>`. The
 engine copies the input folder into each Experiment folder, so a new Specification does not
 change an earlier Experiment.
 

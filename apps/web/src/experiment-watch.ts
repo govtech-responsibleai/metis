@@ -10,11 +10,8 @@ import {
 } from "./experiment-status.ts";
 import {
   api,
-  store,
   TransportError,
   type EngineStatus,
-  type ExperimentRecord,
-  type ExperimentSave,
   type PhaseEvent,
 } from "./transport/api.ts";
 
@@ -25,7 +22,6 @@ export type WatchLoad =
   | { status: "failed"; message: string }
   | {
       status: "ready";
-      record: ExperimentRecord;
       state: ExperimentState;
       events: readonly PhaseEvent[];
     };
@@ -35,10 +31,6 @@ export interface StepCalls {
   resumeSimulation: (experimentId: string) => Promise<void>;
   evaluate: (experimentId: string) => Promise<void>;
   resumeEvaluation: (experimentId: string) => Promise<void>;
-  putExperiment: (
-    experimentId: string,
-    body: ExperimentSave,
-  ) => Promise<ExperimentRecord>;
 }
 
 const STEP_CALLS: StepCalls = {
@@ -46,32 +38,15 @@ const STEP_CALLS: StepCalls = {
   resumeSimulation: api.resumeSimulation,
   evaluate: api.evaluate,
   resumeEvaluation: api.resumeEvaluation,
-  putExperiment: store.putExperiment,
 };
 
 const RESUME: Record<
   ResumeStep,
-  {
-    start: (calls: StepCalls) => (experimentId: string) => Promise<void>;
-    step: ExperimentRecord["step"];
-    phase: EngineStatus["phase"];
-  }
+  (calls: StepCalls) => (experimentId: string) => Promise<void>
 > = {
-  "resume-simulate": {
-    start: (calls) => calls.resumeSimulation,
-    step: "simulate",
-    phase: "simulating",
-  },
-  evaluate: {
-    start: (calls) => calls.evaluate,
-    step: "evaluate",
-    phase: "evaluating",
-  },
-  "resume-evaluate": {
-    start: (calls) => calls.resumeEvaluation,
-    step: "evaluate",
-    phase: "evaluating",
-  },
+  "resume-simulate": (calls) => calls.resumeSimulation,
+  evaluate: (calls) => calls.evaluate,
+  "resume-evaluate": (calls) => calls.resumeEvaluation,
 };
 
 export const STALE_STEP =
@@ -86,33 +61,27 @@ function isLiveStatus(status: EngineStatus): boolean {
   );
 }
 
-// Starts the engine step that a Resume was for, and saves the step of the row.
+// Starts the engine step that a Resume was for.
 //
 // The page acts on the state of its last poll, and polling stops when no run is alive. Another
 // tab can change the Experiment since then, so the status is read again first. When the state
 // now needs a different step, or none, nothing starts and the error is STALE_STEP.
 //
-// `run_in_progress` means that a run of this Experiment is alive. The step is saved only when
-// that run is of the phase of the step, so the row never names a step that is not running.
+// `run_in_progress` means that a run of this Experiment is alive already, so it is not an error:
+// the next poll shows that run.
 export async function startStep(
   step: ResumeStep,
-  record: ExperimentRecord,
+  experimentId: string,
   calls: StepCalls = STEP_CALLS,
-): Promise<ExperimentRecord> {
-  const id = record.experiment_id;
-  const now = experimentState(record.step, await calls.engineStatus(id), []);
+): Promise<void> {
+  const now = experimentState(await calls.engineStatus(experimentId), []);
   if (!("resume" in now) || now.resume !== step) throw new Error(STALE_STEP);
-  const { start, step: saved, phase } = RESUME[step];
   try {
-    await start(calls)(id);
+    await RESUME[step](calls)(experimentId);
   } catch (cause) {
     if (!(cause instanceof TransportError && cause.code === "run_in_progress"))
       throw cause;
-    const live = await calls.engineStatus(id);
-    if (!isLiveStatus(live) || live.phase !== phase) return record;
   }
-  if (record.step === saved) return record;
-  return calls.putExperiment(id, { target_id: record.target_id, step: saved });
 }
 
 function errorText(cause: unknown): string {
@@ -186,42 +155,14 @@ export function useExperimentWatch(experimentId: string): {
   resume: () => void;
 } {
   const [wake, setWake] = useState(0);
-  const [record, setRecord] = useState<ExperimentRecord | null>(null);
-  const [recordError, setRecordError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"stop" | "resume" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const { engine, failure } = useEngine(experimentId, wake);
 
-  useEffect(() => {
-    let current = true;
-    setRecord(null);
-    setRecordError(null);
-    store.experiment(experimentId).then(
-      (found) => {
-        if (current) setRecord(found);
-      },
-      (cause: unknown) => {
-        if (current) setRecordError(errorText(cause));
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [experimentId]);
+  const state = engine ? experimentState(engine.status, engine.events) : null;
 
-  const state =
-    record && engine
-      ? experimentState(record.step, engine.status, engine.events)
-      : null;
-
-  // A refused or stale start shows its message, and `act` polls again to show the new state.
-  const start = useCallback(
-    async (step: ResumeStep, current: ExperimentRecord) => {
-      setRecord(await startStep(step, current));
-    },
-    [],
-  );
-
+  // A refused or stale start shows its message, and the new `wake` polls again to show the new
+  // state.
   const act = useCallback(
     (action: "stop" | "resume", work: () => Promise<void>) => {
       setBusy(action);
@@ -242,13 +183,11 @@ export function useExperimentWatch(experimentId: string): {
   );
 
   const load: WatchLoad =
-    recordError !== null
-      ? { status: "failed", message: recordError }
-      : failure !== null
-        ? { status: "failed", message: failure }
-        : record && engine && state
-          ? { status: "ready", record, state, events: engine.events }
-          : { status: "loading" };
+    failure !== null
+      ? { status: "failed", message: failure }
+      : engine && state
+        ? { status: "ready", state, events: engine.events }
+        : { status: "loading" };
 
   return {
     load,
@@ -256,9 +195,9 @@ export function useExperimentWatch(experimentId: string): {
     actionError,
     stop: () => act("stop", () => api.stop(experimentId)),
     resume: () => {
-      if (record && state && "resume" in state) {
+      if (state && "resume" in state) {
         const step = state.resume;
-        act("resume", () => start(step, record));
+        act("resume", () => startStep(step, experimentId));
       }
     },
   };

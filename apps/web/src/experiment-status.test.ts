@@ -39,10 +39,8 @@ const event = (fields: Partial<PhaseEvent>): PhaseEvent =>
     ...fields,
   }) as PhaseEvent;
 
-const label = (
-  fields: Partial<EngineStatus>,
-  step: ExperimentRecord["step"] = "simulate",
-) => STATE_LABEL[experimentState(step, status(fields), []).kind];
+const label = (fields: Partial<EngineStatus>) =>
+  STATE_LABEL[experimentState(status(fields), []).kind];
 
 test("a live run shows its phase, also while it stops", () => {
   assert.equal(label({ phase: "simulating", status: "running" }), "Simulating");
@@ -54,16 +52,13 @@ test("a live run shows its phase, also while it stops", () => {
 });
 
 test("each step is half of the progress, and a step that ended is whole", () => {
-  const parts = (
-    step: ExperimentRecord["step"],
-    fields: Partial<EngineStatus>,
-    events: PhaseEvent[],
-  ) => stepParts(experimentState(step, status(fields), events));
+  const parts = (fields: Partial<EngineStatus>, events: PhaseEvent[]) =>
+    stepParts(experimentState(status(fields), events));
   const simulating = [
     event({ total: 4 }),
     event({ trial: "t1", status: "completed", attempt: 1 }),
   ];
-  assert.deepEqual(parts("simulate", {}, simulating), {
+  assert.deepEqual(parts({}, simulating), {
     simulate: 0.25,
     evaluate: 0,
   });
@@ -72,12 +67,12 @@ test("each step is half of the progress, and a step that ended is whole", () => 
     event({ phase: "evaluating", total: 2 }),
     event({ phase: "evaluating", trial: "t1", status: "completed" }),
   ];
-  assert.deepEqual(parts("evaluate", { phase: "evaluating" }, evaluating), {
+  assert.deepEqual(parts({ phase: "evaluating" }, evaluating), {
     simulate: 1,
     evaluate: 0.5,
   });
   assert.deepEqual(
-    parts("evaluate", { phase: "evaluating", status: "completed" }, evaluating),
+    parts({ phase: "evaluating", status: "completed" }, evaluating),
     { simulate: 1, evaluate: 1 },
   );
 });
@@ -88,7 +83,7 @@ test("a completed simulation waits for evaluate", () => {
 
 test("an Experiment is completed when evaluate completes", () => {
   assert.equal(
-    label({ phase: "evaluating", status: "completed" }, "evaluate"),
+    label({ phase: "evaluating", status: "completed" }),
     "Completed",
   );
 });
@@ -96,7 +91,6 @@ test("an Experiment is completed when evaluate completes", () => {
 test("a run that ended early is stopped and keeps its reason", () => {
   assert.deepEqual(
     experimentState(
-      "evaluate",
       status({ phase: "evaluating", status: "failed", reason: "No traces" }),
       [],
     ),
@@ -121,11 +115,7 @@ test("progress counts each trial that ended in the newest phase", () => {
     event({ phase: "evaluating", trial: "t2", status: "started" }),
     event({ phase: "evaluating", trial: "t2", status: "completed" }),
   ];
-  const state = experimentState(
-    "evaluate",
-    status({ phase: "evaluating" }),
-    events,
-  );
+  const state = experimentState(status({ phase: "evaluating" }), events);
 
   assert.equal(progressText(state.progress), "2 of 4 graded");
 });
@@ -138,51 +128,35 @@ test("a simulation shows its trials as simulated", () => {
   ];
 
   assert.equal(
-    progressText(experimentState("simulate", status({}), events).progress),
+    progressText(experimentState(status({}), events).progress),
     "5 of 16 simulated",
   );
 });
 
 test("an Experiment shows no progress before the engine counts its trials", () => {
-  assert.equal(
-    progressText(experimentState("simulate", status({}), []).progress),
-    null,
-  );
+  assert.equal(progressText(experimentState(status({}), []).progress), null);
 });
 
 test("Resume continues the step where the Experiment stopped", () => {
-  const resume = (
-    step: ExperimentRecord["step"],
-    fields: Partial<EngineStatus>,
-  ) => {
-    const state = experimentState(step, status(fields), []);
+  const resume = (fields: Partial<EngineStatus>) => {
+    const state = experimentState(status(fields), []);
     return "resume" in state ? state.resume : null;
   };
+  assert.equal(resume({ status: "interrupted" }), "resume-simulate");
+  assert.equal(resume({ status: "completed" }), "evaluate");
   assert.equal(
-    resume("simulate", { status: "interrupted" }),
-    "resume-simulate",
-  );
-  assert.equal(resume("simulate", { status: "completed" }), "evaluate");
-  assert.equal(resume("evaluate", { status: "completed" }), "evaluate");
-  assert.equal(
-    resume("evaluate", { phase: "evaluating", status: "interrupted" }),
+    resume({ phase: "evaluating", status: "interrupted" }),
     "resume-evaluate",
   );
-  assert.equal(
-    resume("evaluate", { phase: "evaluating", status: "completed" }),
-    null,
-  );
+  assert.equal(resume({ phase: "evaluating", status: "completed" }), null);
 });
 
 test("a stop shows on the live state until the run ends", () => {
-  assert.deepEqual(
-    experimentState("simulate", status({ status: "stopping" }), []),
-    {
-      kind: "simulating",
-      progress: null,
-      stopping: true,
-    },
-  );
+  assert.deepEqual(experimentState(status({ status: "stopping" }), []), {
+    kind: "simulating",
+    progress: null,
+    stopping: true,
+  });
 });
 
 test("only a live Experiment can stop, and only an ended one can be deleted", () => {
@@ -204,37 +178,28 @@ test("only a live Experiment can stop, and only an ended one can be deleted", ()
 });
 
 test("the phase steps show which step runs and which one stopped", () => {
-  const steps = (
-    step: ExperimentRecord["step"],
-    fields: Partial<EngineStatus>,
-  ) => phaseSteps(experimentState(step, status(fields), []));
-  assert.deepEqual(steps("simulate", {}), {
+  const steps = (fields: Partial<EngineStatus>) =>
+    phaseSteps(experimentState(status(fields), []));
+  assert.deepEqual(steps({}), {
     simulate: "live",
     evaluate: "next",
   });
-  assert.deepEqual(steps("simulate", { status: "interrupted" }), {
+  assert.deepEqual(steps({ status: "interrupted" }), {
     simulate: "paused",
     evaluate: "next",
   });
-  assert.deepEqual(
-    steps("evaluate", { phase: "evaluating", status: "failed" }),
-    {
-      simulate: "done",
-      evaluate: "paused",
-    },
-  );
-  assert.deepEqual(
-    steps("evaluate", { phase: "evaluating", status: "completed" }),
-    {
-      simulate: "done",
-      evaluate: "done",
-    },
-  );
+  assert.deepEqual(steps({ phase: "evaluating", status: "failed" }), {
+    simulate: "done",
+    evaluate: "paused",
+  });
+  assert.deepEqual(steps({ phase: "evaluating", status: "completed" }), {
+    simulate: "done",
+    evaluate: "done",
+  });
 });
 
 test("a queued Experiment shows its place", () => {
   const queued = experimentState(
-    "simulate",
     status({ status: "queued", queue_ahead: 3, total: null }),
     [],
   );
@@ -257,7 +222,6 @@ test("a queued Experiment can stop and cannot resume or be deleted", () => {
     delete: false,
   });
   const state = experimentState(
-    "simulate",
     status({ status: "queued", queue_ahead: 0 }),
     [],
   );
@@ -268,7 +232,6 @@ test("a queued step shows which step waits", () => {
   const steps = (fields: Partial<EngineStatus>) =>
     phaseSteps(
       experimentState(
-        "evaluate",
         status({ status: "queued", queue_ahead: 0, ...fields }),
         [],
       ),
@@ -283,33 +246,11 @@ test("a queued step shows which step waits", () => {
   });
 });
 
-test("an evaluate that the server started completes with the step simulate", () => {
-  assert.equal(
-    label({ phase: "evaluating", status: "completed" }, "simulate"),
-    "Completed",
-  );
-  assert.equal(
-    label({ phase: "evaluating", status: "running" }, "simulate"),
-    "Evaluating",
-  );
-});
-
-test("a simulate that completed with no evaluate still waits for evaluate", () => {
-  const state = experimentState(
-    "simulate",
-    status({ phase: "simulating", status: "completed" }),
-    [],
-  );
-  assert.equal(state.kind, "waiting");
-  assert.equal("resume" in state && state.resume, "evaluate");
-});
-
 test("an Experiment was last updated at its newest event, or at its start before any event", () => {
   const record: ExperimentRecord = {
     experiment_id: "e1",
     target_id: "t",
     started_at: "2026-11-19T10:00:00Z",
-    step: "simulate",
   };
 
   assert.equal(lastUpdated(record, []), "2026-11-19T10:00:00Z");

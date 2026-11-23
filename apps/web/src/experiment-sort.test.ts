@@ -22,7 +22,6 @@ const row = (id: string, started: string, load: RowLoad): ListRow => ({
     experiment_id: id,
     target_id: "t",
     started_at: at(started),
-    step: "simulate",
   },
   load,
 });

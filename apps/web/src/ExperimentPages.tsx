@@ -267,7 +267,7 @@ function RunControls({
       </Button>
       {confirm && (
         <ConfirmDialog
-          text="Delete this experiment? It goes from the app. Its experiment folder stays on disk."
+          text="Delete this Experiment? This permanently deletes its results."
           confirmLabel="Delete experiment"
           onCancel={() => setConfirm(false)}
           onConfirm={() => {

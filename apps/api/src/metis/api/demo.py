@@ -24,8 +24,6 @@ from pathlib import Path
 from sqlalchemy import select
 
 from metis.api.records import (
-    ExperimentSave,
-    ExperimentStep,
     FileRef,
     InterviewRecord,
 )
@@ -84,14 +82,12 @@ def add_demo_target(store: Store) -> str:
         ],
     )
     for source in sorted((DEMO_FILES / EXPERIMENTS).iterdir()):
-        folder = store.experiments_dir / source.name
+        # The name of an Experiment folder is `<Target id>-<time>`. Keep the time of the demo.
+        started = source.name[-len("YYYYmmdd-HHMMSS") :]
+        folder = store.experiments_dir / f"{target_id}-{started}"
         shutil.copytree(source, folder, dirs_exist_ok=True)
         for relative in _REPORT_ORDER:
             (folder / relative).touch()
-        store.put_experiment(
-            source.name,
-            ExperimentSave(target_id=target_id, step=ExperimentStep.EVALUATE),
-        )
     return target_id
 
 

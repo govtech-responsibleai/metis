@@ -123,7 +123,7 @@ def test_the_demo_experiment_shows_its_trials_and_its_report_with_no_new_run(
     page = browser.get(f"/api/v1/insights/{experiment_id}/report.html")
 
     trials = report["trials"]["items"]
-    assert experiment_id.startswith("demo-toyapp-workshop-lite-")
+    assert experiment_id.startswith(f"{target['id']}-")
     assert status["status"] == "completed"
     assert status["phase"] == "evaluating"
     assert status["total"] == 4

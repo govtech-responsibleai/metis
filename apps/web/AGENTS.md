@@ -13,10 +13,11 @@ the current place with `placeOf`. Do not write a path string in a component. The
 
 The experiment dialog runs the checks of `GET /api/v1/doctor`. It lists only the checks that warn
 or fail, and shows one line when every check passes. `startExperiment` in
-`src/experiment-start.ts` starts an Experiment in three requests. It reads the `input_dir` of the
-Specification, sends it to `POST /api/v1/engine/simulate`, then saves the row with
-`PUT /api/v1/engine/experiments/{experiment_id}`. The
-Experiments tab and the All experiments page show the rows of the store routes. The All
+`src/experiment-start.ts` starts an Experiment in two requests. It reads the `input_dir` of the
+Specification, then sends it to `POST /api/v1/engine/simulate`. The
+Experiments tab and the All experiments page show the Experiments of
+`GET /api/v1/engine/experiments`. Delete on the experiment view deletes the Experiment folder and
+its results with `DELETE /api/v1/engine/{experiment_id}`. The All
 experiments page shows them with `ExperimentList` (`src/ExperimentList.tsx`). The Experiments tab
 shows them with `ExperimentTable` (`src/ExperimentTable.tsx`), which sorts by a column. Only
 `SORT_COLUMNS` in `src/experiment-sort.ts` gives the sort rule of a column. The phase and the
@@ -27,8 +28,7 @@ them into the state that the app shows.
 The experiment view follows one Experiment with `useExperimentWatch` (`src/experiment-watch.ts`).
 It reads every event from seq 0 when the page opens, then the new events with `after`, every two
 seconds while the run is alive or queued. The server starts the evaluate after a simulate, so the
-page never starts one on its own. The step of the row is the step that the web app started, so
-a completed evaluate with the step `simulate` is Completed. A queued run shows "Queued" with its
+page never starts one on its own. A queued run shows "Queued" with its
 place (`queueText`): Stop is on, and Resume and Delete are off. "Waiting for evaluate" is a
 simulate that completed with no evaluate, for example after an API restart, and its Resume starts
 the evaluate. `ACTIONS` in `experiment-status.ts` gives the actions that are on in each state, and
@@ -36,7 +36,8 @@ the evaluate. `ACTIONS` in `experiment-status.ts` gives the actions that are on 
 alive, so another tab can change the Experiment after the last poll. `startStep` therefore reads
 the status again before it starts a step. When the state now needs a different step, or none, it
 starts nothing, and the page shows `STALE_STEP` and polls again. When the start gives
-`run_in_progress`, `startStep` saves the step only when the live run is of the phase of the step.
+`run_in_progress`, a run of the Experiment is alive already, so `startStep` gives no error and the
+next poll shows that run.
 The web app never sends `regrade` to the evaluate route. `trialRows` in `src/trials.ts`
 makes the rows of the Trials tab from the plan of the Specification and the events. It is a pure
 function: change it, not the component, when the events change. The Trials tab shows no grades.

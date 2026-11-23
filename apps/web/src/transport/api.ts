@@ -422,7 +422,6 @@ export type TargetList = JsonResponse<TargetsOperation>;
 export type Report = JsonResponse<ReportOperation>;
 export type ExperimentRecord = Schema["ExperimentRecord"];
 export type ExperimentList = JsonResponse<ExperimentsOperation>;
-export type ExperimentSave = Schema["ExperimentSave"];
 export type SpecificationRecord = JsonResponse<SpecificationOperation>;
 export type EngineRunAccepted = JsonResponse<SimulateOperation, 202>;
 export type EngineStatus = JsonResponse<EngineStatusOperation>;
@@ -882,23 +881,10 @@ export const store = {
         target_id: targetId,
       }),
     ),
-  experiment: (experimentId: string) =>
-    call<ExperimentRecord>(
-      route("/api/v1/engine/experiments/{experiment_id}", {
-        experiment_id: experimentId,
-      }),
-    ),
-  putExperiment: (experimentId: string, body: ExperimentSave) =>
-    call<ExperimentRecord>(
-      route("/api/v1/engine/experiments/{experiment_id}", {
-        experiment_id: experimentId,
-      }),
-      { ...JSON_POST, method: "PUT", body: JSON.stringify(body) },
-    ),
-  // Deletes the row only. The Experiment folder stays on disk.
+  // Deletes the Experiment folder and its results.
   deleteExperiment: async (experimentId: string) => {
     await responseFor(
-      route("/api/v1/engine/experiments/{experiment_id}", {
+      route("/api/v1/engine/{experiment_id}", {
         experiment_id: experimentId,
       }),
       { method: "DELETE" },

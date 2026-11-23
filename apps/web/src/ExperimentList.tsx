@@ -43,7 +43,7 @@ async function rowLoad(record: ExperimentRecord) {
     ]);
     return {
       status: "ready",
-      state: experimentState(record.step, status, events),
+      state: experimentState(status, events),
       updatedAt: lastUpdated(record, events),
     } as const;
   } catch {

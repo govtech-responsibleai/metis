@@ -46,17 +46,6 @@ specifications = Table(
     Column("updated_at", DateTime(timezone=True), nullable=False),
 )
 
-experiments = Table(
-    "experiments",
-    metadata,
-    # Two user accounts can have an Experiment folder with the same name, so the folder name
-    # is a key only together with the Target.
-    Column("target_id", String(64), ForeignKey("targets.id"), primary_key=True),
-    Column("experiment_id", String(200), primary_key=True),
-    Column("started_at", DateTime(timezone=True), nullable=False),
-    Column("step", String(16), nullable=False),
-)
-
 users = Table(
     "users",
     metadata,
@@ -88,7 +77,6 @@ login_sessions = Table(
 
 __all__ = [
     "admins",
-    "experiments",
     "interviews",
     "login_sessions",
     "metadata",
