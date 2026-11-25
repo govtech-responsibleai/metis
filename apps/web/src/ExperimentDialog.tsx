@@ -15,7 +15,7 @@ import { startExperiment } from "./experiment-start";
 import {
   api,
   type DoctorCheck,
-  type ExperimentRecord,
+  type EngineRunAccepted,
   type Specification,
 } from "./transport/api";
 import { relativeTime } from "./relative-time";
@@ -53,7 +53,7 @@ export function ExperimentDialog({
   targetId: string;
   choices: SpecificationChoice[];
   onCancel: () => void;
-  onStarted: (experiment: ExperimentRecord) => void;
+  onStarted: (experiment: EngineRunAccepted) => void;
 }) {
   const [attempt, setAttempt] = useState(0);
   const [doctor, setDoctor] = useState<DoctorLoad>({ status: "loading" });

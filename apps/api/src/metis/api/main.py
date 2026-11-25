@@ -94,9 +94,9 @@ _OPENAPI_TAGS = [
             "queues the rest, first in first out. A simulate start also grades the trials "
             "when the simulation completes. A start returns 202 at once. Poll the status "
             "route for the state, which is queued while the run waits, and the events route "
-            "for each trial. The experiments routes keep one row for each Experiment folder "
-            "under evaluations/experiments/. A delete removes the row. The Experiment folder "
-            "stays on disk."
+            "for each trial. The experiments route lists the Experiment folders of a Target, "
+            "which have the name <target_id>-<time>. A delete removes the Experiment folder, "
+            "with its results."
         ),
     },
     {

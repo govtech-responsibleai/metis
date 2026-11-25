@@ -145,19 +145,11 @@ def test_two_users_can_each_have_an_experiment_folder_with_the_same_name(
         folder = project_dir / "users" / user_id / "evaluations" / "experiments"
         (folder / EXPERIMENT).mkdir(parents=True)
 
-    path = f"/api/v1/engine/experiments/{EXPERIMENT}"
-    first = alice.put(path, json={"target_id": TARGET, "step": "simulate"})
-    second = bob.put(path, json={"target_id": OTHER_TARGET, "step": "evaluate"})
+    assert bob.delete(f"/api/v1/engine/{EXPERIMENT}").status_code == 204
 
-    assert first.status_code == 200, first.text
-    assert second.status_code == 200, second.text
-    assert alice.get(path).json()["step"] == "simulate"
-    assert bob.get(path).json()["step"] == "evaluate"
-
-    assert bob.delete(path).status_code == 204
-
-    assert bob.get(path).status_code == 404
-    assert alice.get(path).json()["step"] == "simulate"
+    experiments = Path("evaluations") / "experiments" / EXPERIMENT
+    assert not (project_dir / "users" / bob_id / experiments).exists()
+    assert (project_dir / "users" / alice_id / experiments).is_dir()
 
 
 def test_a_user_reaches_only_the_experiment_folders_of_their_account(
@@ -168,19 +160,14 @@ def test_a_user_reaches_only_the_experiment_folders_of_their_account(
     _save(bob, "Shop bot", b"policy", OTHER_TARGET)
     folder = project_dir / "users" / alice_id / "evaluations" / "experiments"
     (folder / EXPERIMENT).mkdir(parents=True)
-    path = f"/api/v1/engine/experiments/{EXPERIMENT}"
-    assert (
-        alice.put(path, json={"target_id": TARGET, "step": "simulate"}).status_code
-        == 200
-    )
 
-    saved = bob.put(path, json={"target_id": OTHER_TARGET, "step": "simulate"})
+    deleted = bob.delete(f"/api/v1/engine/{EXPERIMENT}")
     report_path = f"/api/v1/insights/{EXPERIMENT}/report"
     report = bob.get(report_path)
 
-    assert saved.status_code == 400
-    assert "does not exist" in saved.json()["message"]
-    assert bob.get(path).status_code == 404
+    assert deleted.status_code == 404
+    assert deleted.json()["code"] == "experiment_not_found"
+    assert (folder / EXPERIMENT).is_dir()
     assert report.status_code == 404
     assert report.json()["code"] == "experiment_not_found"
     assert alice.get(report_path).json()["code"] == "results_missing"

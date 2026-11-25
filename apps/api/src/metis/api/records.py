@@ -7,10 +7,8 @@ the store.
 
 from __future__ import annotations
 
-import re
 import unicodedata
 from datetime import datetime
-from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter
@@ -23,9 +21,6 @@ if TYPE_CHECKING:
 
 TARGET_ID = project_layout.ID
 """A Target id is the ``<id>`` of its Interview and Specification folders. The client makes it."""
-
-EXPERIMENT_ID = re.compile(r"^[A-Za-z0-9_-][A-Za-z0-9._-]{0,199}$")
-"""An Experiment id is the name of one Experiment folder under `evaluations/experiments/`."""
 
 
 def file_name_identity(name: str) -> str:
@@ -139,29 +134,16 @@ class SpecificationRecord(BaseModel):
     updated_at: datetime
 
 
-class ExperimentStep(StrEnum):
-    """The last engine step that the web app started for an Experiment."""
-
-    SIMULATE = "simulate"
-    EVALUATE = "evaluate"
-
-
-class ExperimentSave(BaseModel):
-    """The body of an Experiment save."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    target_id: str
-    step: ExperimentStep
-
-
 class ExperimentRecord(BaseModel):
-    """One Experiment of a Target. The phase and the progress come from the Experiment folder."""
+    """One Experiment of a Target, as the name of its Experiment folder gives it.
+
+    The engine names the folder `<Specification id>-<time>`, and the Specification id of a
+    Target is the Target id. The phase and the progress come from the engine status route.
+    """
 
     experiment_id: str
     target_id: str
     started_at: datetime
-    step: ExperimentStep
 
 
 class ExperimentList(BaseModel):
@@ -183,12 +165,9 @@ def record_problem(raw: Any) -> str | None:
 
 
 __all__ = [
-    "EXPERIMENT_ID",
     "TARGET_ID",
     "ExperimentList",
     "ExperimentRecord",
-    "ExperimentSave",
-    "ExperimentStep",
     "FileRef",
     "InterviewRecord",
     "SpecificationRecord",

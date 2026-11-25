@@ -22,33 +22,23 @@ function recording(simulate?: StartCalls["simulate"]) {
         calls.push(`simulate ${inputDir}`);
         return { experiment_id: "shop-20260102-030405" };
       }),
-    putExperiment: async (experimentId, body) => {
-      calls.push(`save ${experimentId} ${body.target_id} ${body.step}`);
-      return {
-        experiment_id: experimentId,
-        target_id: body.target_id,
-        started_at: "2026-01-02T03:04:05Z",
-        step: body.step,
-      };
-    },
   };
   return { calls, fake };
 }
 
-test("a start runs the input folder of the Target and saves the row", async () => {
+test("a start simulates the input folder of the Target and gives the Experiment id", async () => {
   const { calls, fake } = recording();
 
-  const row = await startExperiment("t1", fake);
+  const started = await startExperiment("t1", fake);
 
   assert.deepEqual(calls, [
     "specification t1",
     "simulate evaluations/specifications/t1",
-    "save shop-20260102-030405 t1 simulate",
   ]);
-  assert.equal(row.experiment_id, "shop-20260102-030405");
+  assert.equal(started.experiment_id, "shop-20260102-030405");
 });
 
-test("a refused simulate saves no row", async () => {
+test("a start gives the error of a refused simulate", async () => {
   const refused = new TransportError("The Specification id is not valid.", {
     status: 422,
     code: "invalid_inputs",

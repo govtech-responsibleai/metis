@@ -392,7 +392,7 @@ test("the engine reads go to the routes of the experiment", async () => {
   ]);
 });
 
-test("the run actions and the row saves go to their routes", async () => {
+test("the run actions and the delete of an Experiment go to their routes", async () => {
   const calls: string[] = [];
   globalThis.fetch = async (input, init) => {
     calls.push(
@@ -405,8 +405,6 @@ test("the run actions and the row saves go to their routes", async () => {
   await api.resumeSimulation("e1");
   await api.evaluate("e1");
   await api.resumeEvaluation("e1");
-  await store.experiment("e1");
-  await store.putExperiment("e1", { target_id: "t1", step: "evaluate" });
   await store.deleteExperiment("e1");
 
   assert.deepEqual(calls, [
@@ -414,9 +412,7 @@ test("the run actions and the row saves go to their routes", async () => {
     "POST /api/v1/engine/simulate/e1/resume",
     "POST /api/v1/engine/evaluate/e1",
     "POST /api/v1/engine/evaluate/e1/resume",
-    "GET /api/v1/engine/experiments/e1",
-    'PUT /api/v1/engine/experiments/e1 {"target_id":"t1","step":"evaluate"}',
-    "DELETE /api/v1/engine/experiments/e1",
+    "DELETE /api/v1/engine/e1",
   ]);
 });
 

@@ -896,7 +896,6 @@ test("all experiments shows the Target of each row", () => {
               experiment_id: "e2",
               target_id: "b",
               started_at: new Date().toISOString(),
-              step: "simulate",
             },
             targetTitle: "Shop bot",
             load: {

@@ -303,7 +303,7 @@ export interface paths {
         post?: never;
         /**
          * Delete a Target
-         * @description Delete the Target, its Interview, its Specification, and its Experiment rows.
+         * @description Delete the Target, its Interview, and its Specification.
          *
          *     The Experiment folders under `evaluations/experiments/` stay on disk.
          */
@@ -403,7 +403,7 @@ export interface paths {
         };
         /**
          * List the Experiments of a Target
-         * @description Return the Experiment rows of the Target, newest first.
+         * @description Return the Experiments of the Target, newest first, from the names of its Experiment folders.
          */
         get: operations["list_experiments_api_v1_engine_experiments_get"];
         put?: never;
@@ -414,7 +414,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/engine/experiments/{experiment_id}": {
+    "/api/v1/engine/{experiment_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -422,24 +422,19 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read an Experiment
-         * @description Return the row of the Experiment.
+         * Get the status of an experiment
+         * @description Return the phase, the status, and the counts of the experiment.
          */
-        get: operations["read_experiment_api_v1_engine_experiments__experiment_id__get"];
-        /**
-         * Save an Experiment
-         * @description Save the last engine step that the web app started for the Experiment.
-         *
-         *     The Experiment folder must exist under `evaluations/experiments/`, else the route gives 400. The
-         *     first save keeps the start time.
-         */
-        put: operations["put_experiment_api_v1_engine_experiments__experiment_id__put"];
+        get: operations["experiment_status_api_v1_engine__experiment_id__get"];
+        put?: never;
         post?: never;
         /**
          * Delete an Experiment
-         * @description Delete the row of the Experiment. The Experiment folder stays on disk.
+         * @description Delete the Experiment folder, with its results and its report.
+         *
+         *     A run of the Experiment that is alive or queued gives 409 `run_in_progress`. Stop it first.
          */
-        delete: operations["delete_experiment_api_v1_engine_experiments__experiment_id__delete"];
+        delete: operations["delete_experiment_api_v1_engine__experiment_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -596,26 +591,6 @@ export interface paths {
          *     within a fraction of a second. The events log then ends with interrupted.
          */
         post: operations["stop_run_api_v1_engine__experiment_id__stop_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/engine/{experiment_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get the status of an experiment
-         * @description Return the phase, the status, and the counts of the experiment.
-         */
-        get: operations["experiment_status_api_v1_engine__experiment_id__get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1838,7 +1813,10 @@ export interface components {
         };
         /**
          * ExperimentRecord
-         * @description One Experiment of a Target. The phase and the progress come from the Experiment folder.
+         * @description One Experiment of a Target, as the name of its Experiment folder gives it.
+         *
+         *     The engine names the folder `<Specification id>-<time>`, and the Specification id of a
+         *     Target is the Target id. The phase and the progress come from the engine status route.
          */
         ExperimentRecord: {
             /** Experiment Id */
@@ -1850,23 +1828,7 @@ export interface components {
              * Format: date-time
              */
             started_at: string;
-            step: components["schemas"]["ExperimentStep"];
         };
-        /**
-         * ExperimentSave
-         * @description The body of an Experiment save.
-         */
-        ExperimentSave: {
-            /** Target Id */
-            target_id: string;
-            step: components["schemas"]["ExperimentStep"];
-        };
-        /**
-         * ExperimentStep
-         * @description The last engine step that the web app started for an Experiment.
-         * @enum {string}
-         */
-        ExperimentStep: "simulate" | "evaluate";
         /**
          * ExtractedDocument
          * @description One extracted file returned to the caller that owns the original bytes.
@@ -4857,7 +4819,7 @@ export interface operations {
             };
         };
     };
-    read_experiment_api_v1_engine_experiments__experiment_id__get: {
+    experiment_status_api_v1_engine__experiment_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4874,16 +4836,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ExperimentRecord"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ServiceError"];
+                    "application/json": components["schemas"]["EngineStatus"];
                 };
             };
             /** @description Not Found */
@@ -4895,89 +4848,18 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceError"];
                 };
             };
-            /** @description Unprocessable Entity */
+            /** @description Validation Error */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ServiceError"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ServiceError"];
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
     };
-    put_experiment_api_v1_engine_experiments__experiment_id__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                experiment_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ExperimentSave"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ExperimentRecord"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ServiceError"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ServiceError"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ServiceError"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ServiceError"];
-                };
-            };
-        };
-    };
-    delete_experiment_api_v1_engine_experiments__experiment_id__delete: {
+    delete_experiment_api_v1_engine__experiment_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -5006,6 +4888,15 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5440,46 +5331,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServiceError"];
-                };
-            };
-        };
-    };
-    experiment_status_api_v1_engine__experiment_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                experiment_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EngineStatus"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ServiceError"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

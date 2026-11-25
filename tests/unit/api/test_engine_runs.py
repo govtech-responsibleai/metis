@@ -119,6 +119,20 @@ def test_a_stop_ends_the_run_with_interrupted(
     assert status["reason"] is None
 
 
+def test_a_delete_of_an_experiment_that_runs_gets_409_and_keeps_its_folder(
+    engine_client: TestClient, fake_engine: FakeEngine, experiment_dir: Path
+) -> None:
+    fake_engine.mode = "hold"
+    _resume(engine_client, experiment_dir.name)
+    wait_until(lambda: len(_statuses(experiment_dir)) == 1)
+
+    response = engine_client.delete(f"/api/v1/engine/{experiment_dir.name}")
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "run_in_progress"
+    assert experiment_dir.is_dir()
+
+
 def test_a_run_that_ends_is_completed(
     engine_client: TestClient, experiment_dir: Path
 ) -> None:

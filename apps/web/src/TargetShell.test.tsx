@@ -481,7 +481,6 @@ const row = (experimentId: string, startedAt: string, load: RowLoad) => ({
     experiment_id: experimentId,
     target_id: "a",
     started_at: startedAt,
-    step: "simulate" as const,
   },
   load,
 });

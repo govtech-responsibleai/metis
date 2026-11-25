@@ -18,7 +18,7 @@ from metis.api.main import create_app
 from metis.api.routes.accounts import users_router
 from metis.api.settings import Settings, SettingsError
 from metis.api.store import Store
-from metis.api.tables import experiments, login_sessions, targets, users
+from metis.api.tables import login_sessions, targets, users
 from metis.core import execution_layout, project_layout
 from tests.fixtures.api.engine import FakeEngine, write_input_dir
 from tests.fixtures.api.records import done_state, put_interview, ref, web_record
@@ -706,17 +706,12 @@ def _save_interview(client: TestClient, target_id: str) -> None:
 
 
 def _save_target(client: TestClient, target_id: str) -> None:
-    """Save a done Interview and an Experiment row for it, in the folder of the user."""
+    """Save a done Interview and make an Experiment folder, in the folder of the user."""
     _save_interview(client, target_id)
     user_id = client.get(ME).json()["user"]["id"]
     experiment = "test-exp-20260101-000000"
     folder = client.app.state.project_dir / "users" / user_id
     (folder / project_layout.EXPERIMENTS / experiment).mkdir(parents=True)
-    saved = client.put(
-        f"/api/v1/engine/experiments/{experiment}",
-        json={"target_id": target_id, "step": "simulate"},
-    )
-    assert saved.status_code == 200, saved.text
 
 
 def test_an_admin_deletes_a_user_account_with_its_records_and_folder(
@@ -744,9 +739,6 @@ def test_an_admin_deletes_a_user_account_with_its_records_and_folder(
             assert connection.execute(select(targets.c.user_id)).scalars().all() == [
                 kept["id"]
             ]
-            assert connection.execute(
-                select(experiments.c.target_id)
-            ).scalars().all() == ["20261114-101500-interview-x3r9t"]
         assert other.get("/api/v1/targets").json()["targets"][0]["id"] == (
             "20261114-101500-interview-x3r9t"
         )

@@ -66,7 +66,7 @@ def list_targets(store: Annotated[Store, Depends(get_store)]) -> TargetList:
 def delete_target(
     target_id: str, store: Annotated[Store, Depends(get_store)]
 ) -> Response:
-    """Delete the Target, its Interview, its Specification, and its Experiment rows.
+    """Delete the Target, its Interview, and its Specification.
 
     The Experiment folders under `evaluations/experiments/` stay on disk.
     """

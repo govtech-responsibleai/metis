@@ -41,9 +41,8 @@ The `targets` table is the one table that names the user account. The other tabl
 `targets.id`. `Store._owns` is the one place that finds a Target for a request, and it reads
 only the Targets of its user account. Thus a record of another user account gets 404
 `not_found`, as a record that does not exist. A save with the Target id of another user account
-gets 409 `target_exists`. Two user accounts can have an Experiment folder with the same name,
-so the key of an Experiment row is its Target and its folder name together. The report routes read the
-Experiment folders of the project folder of the user account.
+gets 409 `target_exists`. The store keeps no row for an Experiment. The engine routes and the
+report routes read the Experiment folders of the project folder of the user account.
 
 The store starts from a new database. It has no step that changes the tables of an earlier
 version.
@@ -60,19 +59,25 @@ wizard routes do not use the store.
 | `GET /api/v1/targets/{target_id}/interview/files/{name}` | Read one file of the record. |
 | `GET /api/v1/targets/{target_id}/specification` | Read the last Specification and its input folder. |
 | `GET /api/v1/engine/experiments?target_id=<id>` | List the Experiments of a Target. |
-| `GET`, `PUT`, `DELETE /api/v1/engine/experiments/{experiment_id}` | Read, save, or delete one Experiment row. |
+| `DELETE /api/v1/engine/{experiment_id}` | Delete the Experiment folder, with its results and its report. |
 
 The top-level API prefixes follow the parts of METIS: `/wizard`, `/engine`, and `/insights`. Targets
 and graders are general to METIS, so `/targets` and `/graders` have their own prefixes. The
-Experiment row routes are in `routes/experiments.py` under the `/engine` prefix, because an
-Experiment is an engine run. They use the store only, and the engine routes do not use the store.
-`main.py` adds the Experiment router before the engine router, so `/engine/experiments` does not
-match `/engine/{experiment_id}`.
+list and the delete of Experiments are in `routes/experiments.py` under the `/engine` prefix, because
+an Experiment is an engine run. The list uses the store only to check that the Target is a Target of
+the user account, and the other engine routes do not use the store. `main.py` adds the Experiment
+router before the engine router, so `GET /engine/experiments` does not match
+`GET /engine/{experiment_id}`.
 
-The web app starts an Experiment in two requests. It sends the `input_dir` of the Specification,
-a path relative to the project folder, to `POST /api/v1/engine/simulate`. Then it saves the row
-with `PUT /api/v1/engine/experiments/{experiment_id}` and the step `simulate`. The engine does not know
-the Target. The row is the only link between the Target and its Experiment.
+The name of an Experiment folder is its only link to its Target. The engine names the folder
+`<Specification id>-<YYYYmmdd-HHMMSS>`, and the Specification id of a Target is the Target id. So
+the list returns the folders whose name is the Target id and one time, newest first, and it reads
+the start time from the name. An Experiment folder with a different name, for example from a
+Specification that the CLI made, is in no list. A delete gives 409 `run_in_progress` while a run of
+the Experiment is alive or queued.
+
+The web app starts an Experiment in one request. It sends the `input_dir` of the Specification,
+a path relative to the project folder, to `POST /api/v1/engine/simulate`.
 
 The PUT of an Interview is a multipart form. The `record` part is a file that contains the
 record JSON. Each new file is a part named `files`, and its file name is the name in the record.
@@ -403,7 +408,7 @@ src/metis/api/
 ├── routes/reports.py  insights routes: the experiment report, as JSON and as the HTML page
 ├── routes/wizard.py   client config, Interview lifecycle, compile, and package routes
 ├── routes/targets.py  store routes for Targets, Interview records, files, and Specifications
-├── routes/experiments.py  store routes for Experiment rows, under /api/v1/engine/experiments
+├── routes/experiments.py  the list of the Experiments of a Target, and the delete of one
 ├── routes/engine.py   engine routes: start, resume, evaluate, stop, status, and events
 ├── routes/doctor.py   the checks of `metis doctor`
 ├── engine_runs.py     the live and queued engine jobs, their threads, and the events reader

@@ -128,7 +128,6 @@ export function isLive(state: ExperimentState): state is LiveState {
 }
 
 export function experimentState(
-  step: ExperimentRecord["step"],
   status: EngineStatus,
   events: readonly PhaseEvent[],
 ): ExperimentState {
@@ -146,12 +145,9 @@ export function experimentState(
     case "stopping":
       return { kind: phase, progress, stopping: status.status === "stopping" };
     case "completed":
-      // The server starts the evaluate after a simulate, so the step can be `simulate`.
-      if (phase === "evaluating") return { kind: "completed", progress };
-      // With the step `evaluate`, the app started evaluate and it wrote no line.
-      return step === "simulate"
-        ? { kind: "waiting", progress, resume: "evaluate" }
-        : { kind: "stopped", progress, reason: null, resume: "evaluate" };
+      return phase === "evaluating"
+        ? { kind: "completed", progress }
+        : { kind: "waiting", progress, resume: "evaluate" };
     case "failed":
     case "interrupted":
     case "unfinished":

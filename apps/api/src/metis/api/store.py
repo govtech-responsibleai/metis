@@ -80,10 +80,7 @@ from sqlalchemy.engine import make_url
 
 from metis.api import input_folder
 from metis.api.records import (
-    EXPERIMENT_ID,
     TARGET_ID,
-    ExperimentRecord,
-    ExperimentSave,
     FileRef,
     InterviewRecord,
     SpecificationRecord,
@@ -95,7 +92,6 @@ from metis.api.records import (
 )
 from metis.api.tables import (
     admins,
-    experiments,
     interviews,
     login_sessions,
     metadata,
@@ -118,7 +114,7 @@ if TYPE_CHECKING:
     from typing import BinaryIO
 
     from sqlalchemy import Table
-    from sqlalchemy.engine import Connection, Engine, RowMapping
+    from sqlalchemy.engine import Connection, Engine
 
 logger = get_logger(__name__)
 
@@ -198,12 +194,6 @@ def _target_id(target_id: str) -> str:
     if not TARGET_ID.fullmatch(target_id):
         raise _invalid("A Target id has 1 to 64 letters, digits, '-' or '_'.")
     return target_id
-
-
-def _experiment_id(experiment_id: str) -> str:
-    if not EXPERIMENT_ID.fullmatch(experiment_id):
-        raise _invalid("An Experiment id is the name of one Experiment folder.")
-    return experiment_id
 
 
 def _utc(value: datetime) -> datetime:
@@ -449,7 +439,7 @@ class Store:
             with self._engine.begin() as connection:
                 owned = self._owns(connection, target_id)
                 if owned:
-                    for table in (experiments, specifications, interviews):
+                    for table in (specifications, interviews):
                         connection.execute(
                             delete(table).where(table.c.target_id == target_id)
                         )
@@ -463,7 +453,7 @@ class Store:
         """Delete a user account with its login sessions and its records, then its folder.
 
         One transaction deletes the rows of the user account: its login sessions, its admin
-        row, the Experiment, Specification, and Interview rows of its Targets, its Targets, and
+        row, the Specification and Interview rows of its Targets, its Targets, and
         its ``users`` row. Then the store deletes `users/<user id>/` in the server project
         folder. A folder that the store cannot delete is logged, and the rows stay deleted.
 
@@ -477,7 +467,7 @@ class Store:
         owned = select(targets.c.id).where(targets.c.user_id == user_id)
         with self._lock:
             with self._engine.begin() as connection:
-                for table in (experiments, specifications, interviews):
+                for table in (specifications, interviews):
                     connection.execute(
                         delete(table).where(table.c.target_id.in_(owned))
                     )
@@ -556,81 +546,6 @@ class Store:
         )
 
     # Experiments.
-
-    def list_experiments(self, target_id: str) -> list[ExperimentRecord]:
-        self._require_target(target_id)
-        query = (
-            self._experiment_rows()
-            .where(targets.c.id == target_id)
-            .order_by(experiments.c.started_at.desc())
-        )
-        with self._engine.connect() as connection:
-            return [_experiment(row._mapping) for row in connection.execute(query)]
-
-    def read_experiment(self, experiment_id: str) -> ExperimentRecord:
-        query = self._experiment_rows().where(
-            experiments.c.experiment_id == _experiment_id(experiment_id)
-        )
-        with self._engine.connect() as connection:
-            row = connection.execute(query).first()
-        if row is None:
-            raise _not_found(f"The store has no Experiment {experiment_id}.")
-        return _experiment(row._mapping)
-
-    def put_experiment(
-        self, experiment_id: str, body: ExperimentSave
-    ) -> ExperimentRecord:
-        """Save the last step of an Experiment. The first save checks the Experiment folder."""
-        folder = self.experiments_dir / _experiment_id(experiment_id)
-        target_id = _target_id(body.target_id)
-        with self._lock, self._engine.begin() as connection:
-            owned = self._owns(connection, target_id)
-            if not owned:
-                raise _not_found(f"The store has no Target {target_id}.")
-            row = connection.execute(
-                self._experiment_rows().where(
-                    experiments.c.experiment_id == experiment_id
-                )
-            ).first()
-            if row is None:
-                if not folder.is_dir():
-                    raise _invalid(
-                        f"The Experiment folder {project_layout.EXPERIMENTS / experiment_id} "
-                        "does not exist."
-                    )
-                connection.execute(
-                    insert(experiments).values(
-                        target_id=target_id,
-                        experiment_id=experiment_id,
-                        started_at=datetime.now(UTC),
-                        step=body.step.value,
-                    )
-                )
-            elif row.target_id != target_id:
-                raise _invalid(
-                    f"The Experiment {experiment_id} belongs to another Target."
-                )
-            else:
-                connection.execute(
-                    update(experiments)
-                    .where(
-                        experiments.c.target_id == target_id,
-                        experiments.c.experiment_id == experiment_id,
-                    )
-                    .values(step=body.step.value)
-                )
-        return self.read_experiment(experiment_id)
-
-    def delete_experiment(self, experiment_id: str) -> None:
-        """Delete the row of an Experiment. The Experiment folder stays on disk."""
-        own = select(targets.c.id).where(targets.c.user_id == self.user_id)
-        with self._engine.begin() as connection:
-            connection.execute(
-                delete(experiments).where(
-                    experiments.c.experiment_id == _experiment_id(experiment_id),
-                    experiments.c.target_id.in_(own),
-                )
-            )
 
     # Internals.
 
@@ -711,7 +626,8 @@ class Store:
             return saved
         return {**saved, "state": state}
 
-    def _require_target(self, target_id: str) -> None:
+    def require_target(self, target_id: str) -> None:
+        """Raise 404 `not_found` when the user account has no Target ``target_id``."""
         if self._saved_record(_target_id(target_id)) is None:
             raise _not_found(f"The store has no Target {target_id}.")
 
@@ -738,19 +654,6 @@ class Store:
                 )
             ).first()
             is not None
-        )
-
-    def _experiment_rows(self) -> Any:
-        """The Experiment rows of this user account."""
-        return (
-            select(
-                experiments.c.experiment_id,
-                experiments.c.target_id,
-                experiments.c.started_at,
-                experiments.c.step,
-            )
-            .join(targets, experiments.c.target_id == targets.c.id)
-            .where(targets.c.user_id == self.user_id)
         )
 
     def _check_owner(self, target_id: str, record: InterviewRecord) -> bool:
@@ -891,15 +794,6 @@ def _upsert(
     """Update the row that ``where`` selects, or insert it. Portable to any database."""
     if connection.execute(update(table).where(where).values(**values)).rowcount == 0:
         connection.execute(insert(table).values(**keys, **values))
-
-
-def _experiment(row: RowMapping) -> ExperimentRecord:
-    return ExperimentRecord(
-        experiment_id=row["experiment_id"],
-        target_id=row["target_id"],
-        started_at=_utc(row["started_at"]),
-        step=row["step"],
-    )
 
 
 __all__ = [

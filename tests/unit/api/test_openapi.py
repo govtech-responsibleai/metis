@@ -39,7 +39,6 @@ def test_the_route_table_is_exactly_the_documented_routes(
         "/api/v1/insights/{experiment_id}/report",
         "/api/v1/insights/{experiment_id}/report.html",
         "/api/v1/engine/experiments",
-        "/api/v1/engine/experiments/{experiment_id}",
         "/api/v1/engine/simulate",
         "/api/v1/engine/simulate/{experiment_id}/resume",
         "/api/v1/engine/evaluate/{experiment_id}",
