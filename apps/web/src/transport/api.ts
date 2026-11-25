@@ -53,9 +53,9 @@ type InterviewReadOperation =
   operations["read_interview_api_v1_targets__target_id__interview_get"];
 type InterviewWireRecord = JsonResponse<InterviewReadOperation>;
 type ReportOperation =
-  operations["experiment_report_api_v1_experiments__experiment_id__report_get"];
+  operations["experiment_report_api_v1_insights__experiment_id__report_get"];
 type ExperimentsOperation =
-  operations["list_target_experiments_api_v1_targets__target_id__experiments_get"];
+  operations["list_experiments_api_v1_engine_experiments_get"];
 type SpecificationOperation =
   operations["read_specification_api_v1_targets__target_id__specification_get"];
 type SimulateOperation =
@@ -717,14 +717,14 @@ export const api = {
   // report.json of the experiment. The API builds the report when it is missing or old.
   report: (experimentId: string) =>
     call<Report>(
-      route("/api/v1/experiments/{experiment_id}/report", {
+      route("/api/v1/insights/{experiment_id}/report", {
         experiment_id: experimentId,
       }),
     ),
   // report.html of the experiment, the same page as `metis insights report` writes.
   reportPage: (experimentId: string) =>
     callFile(
-      route("/api/v1/experiments/{experiment_id}/report.html", {
+      route("/api/v1/insights/{experiment_id}/report.html", {
         experiment_id: experimentId,
       }),
       ".html",
@@ -874,7 +874,7 @@ export const store = {
   },
   experiments: (targetId: string) =>
     call<ExperimentList>(
-      route("/api/v1/targets/{target_id}/experiments", { target_id: targetId }),
+      `${route("/api/v1/engine/experiments", {})}?target_id=${encodeURIComponent(targetId)}` as RoutedPath,
     ),
   specification: (targetId: string) =>
     call<SpecificationRecord>(
@@ -884,13 +884,13 @@ export const store = {
     ),
   experiment: (experimentId: string) =>
     call<ExperimentRecord>(
-      route("/api/v1/experiments/{experiment_id}", {
+      route("/api/v1/engine/experiments/{experiment_id}", {
         experiment_id: experimentId,
       }),
     ),
   putExperiment: (experimentId: string, body: ExperimentSave) =>
     call<ExperimentRecord>(
-      route("/api/v1/experiments/{experiment_id}", {
+      route("/api/v1/engine/experiments/{experiment_id}", {
         experiment_id: experimentId,
       }),
       { ...JSON_POST, method: "PUT", body: JSON.stringify(body) },
@@ -898,7 +898,7 @@ export const store = {
   // Deletes the row only. The Experiment folder stays on disk.
   deleteExperiment: async (experimentId: string) => {
     await responseFor(
-      route("/api/v1/experiments/{experiment_id}", {
+      route("/api/v1/engine/experiments/{experiment_id}", {
         experiment_id: experimentId,
       }),
       { method: "DELETE" },

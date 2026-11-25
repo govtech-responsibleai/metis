@@ -410,11 +410,12 @@ def test_an_unsafe_target_id_or_experiment_id_gets_400_and_writes_nothing(
     record = web_record("bad.id", done_state())
     assert put_interview(client, record).status_code == 400
     response = client.put(
-        "/api/v1/experiments/..", json={"target_id": TARGET, "step": "simulate"}
+        "/api/v1/engine/experiments/..", json={"target_id": TARGET, "step": "simulate"}
     )
     assert response.status_code in (400, 404)
     response = client.put(
-        "/api/v1/experiments/.hidden", json={"target_id": TARGET, "step": "simulate"}
+        "/api/v1/engine/experiments/.hidden",
+        json={"target_id": TARGET, "step": "simulate"},
     )
     assert response.status_code == 400
     assert response.json()["code"] == "validation_error"
@@ -484,15 +485,15 @@ def test_an_experiment_row_keeps_its_step_and_needs_its_folder(
     _experiment_folder(project_dir, experiment_id)
 
     missing = client.put(
-        "/api/v1/experiments/no-such-experiment",
+        "/api/v1/engine/experiments/no-such-experiment",
         json={"target_id": TARGET, "step": "simulate"},
     )
     started = client.put(
-        f"/api/v1/experiments/{experiment_id}",
+        f"/api/v1/engine/experiments/{experiment_id}",
         json={"target_id": TARGET, "step": "simulate"},
     )
     evaluated = client.put(
-        f"/api/v1/experiments/{experiment_id}",
+        f"/api/v1/engine/experiments/{experiment_id}",
         json={"target_id": TARGET, "step": "evaluate"},
     )
 
@@ -501,8 +502,13 @@ def test_an_experiment_row_keeps_its_step_and_needs_its_folder(
     assert "evaluations/experiments/no-such-experiment" in missing.json()["message"]
     assert started.status_code == 200, started.text
     assert evaluated.json() == {**started.json(), "step": "evaluate"}
-    assert client.get(f"/api/v1/experiments/{experiment_id}").json() == evaluated.json()
-    listed = client.get(f"/api/v1/targets/{TARGET}/experiments").json()["experiments"]
+    assert (
+        client.get(f"/api/v1/engine/experiments/{experiment_id}").json()
+        == evaluated.json()
+    )
+    listed = client.get(f"/api/v1/engine/experiments?target_id={TARGET}").json()[
+        "experiments"
+    ]
     assert [row["experiment_id"] for row in listed] == [experiment_id]
 
 
@@ -513,15 +519,20 @@ def test_a_deleted_experiment_has_no_row_and_its_folder_stays(
     experiment_id = "research-assistant-20261110-101500"
     folder = _experiment_folder(project_dir, experiment_id)
     client.put(
-        f"/api/v1/experiments/{experiment_id}",
+        f"/api/v1/engine/experiments/{experiment_id}",
         json={"target_id": TARGET, "step": "simulate"},
     )
 
-    assert client.delete(f"/api/v1/experiments/{experiment_id}").status_code == 204
-
-    assert client.get(f"/api/v1/experiments/{experiment_id}").status_code == 404
     assert (
-        client.get(f"/api/v1/targets/{TARGET}/experiments").json()["experiments"] == []
+        client.delete(f"/api/v1/engine/experiments/{experiment_id}").status_code == 204
+    )
+
+    assert client.get(f"/api/v1/engine/experiments/{experiment_id}").status_code == 404
+    assert (
+        client.get(f"/api/v1/engine/experiments?target_id={TARGET}").json()[
+            "experiments"
+        ]
+        == []
     )
     assert (folder / "specification" / "specification.yaml").is_file()
 
@@ -533,7 +544,7 @@ def test_a_deleted_target_loses_its_rows_and_folders_and_keeps_its_experiments(
     experiment_id = "research-assistant-20261110-101500"
     folder = _experiment_folder(project_dir, experiment_id)
     client.put(
-        f"/api/v1/experiments/{experiment_id}",
+        f"/api/v1/engine/experiments/{experiment_id}",
         json={"target_id": TARGET, "step": "simulate"},
     )
 
@@ -542,7 +553,7 @@ def test_a_deleted_target_loses_its_rows_and_folders_and_keeps_its_experiments(
     assert client.get("/api/v1/targets").json() == {"targets": [], "problems": []}
     assert client.get(f"/api/v1/targets/{TARGET}/interview").status_code == 404
     assert client.get(f"/api/v1/targets/{TARGET}/specification").status_code == 404
-    assert client.get(f"/api/v1/experiments/{experiment_id}").status_code == 404
+    assert client.get(f"/api/v1/engine/experiments/{experiment_id}").status_code == 404
     assert not (project_dir / "evaluations" / "interviews" / TARGET).exists()
     assert not (project_dir / "evaluations" / "specifications" / TARGET).exists()
     assert (folder / "specification" / "specification.yaml").is_file()
@@ -562,7 +573,7 @@ def test_the_browser_starts_the_specification_and_saves_its_experiment_row(
     assert started.status_code == 202, started.text
     experiment_id = started.json()["experiment_id"]
     saved = engine_client.put(
-        f"/api/v1/experiments/{experiment_id}",
+        f"/api/v1/engine/experiments/{experiment_id}",
         json={"target_id": TARGET, "step": "simulate"},
     )
 
@@ -579,5 +590,5 @@ def test_the_browser_starts_the_specification_and_saves_its_experiment_row(
         experiment_dir,
         {"concurrency": 2},
     )
-    listed = engine_client.get(f"/api/v1/targets/{TARGET}/experiments").json()
+    listed = engine_client.get(f"/api/v1/engine/experiments?target_id={TARGET}").json()
     assert listed["experiments"] == [saved.json()]

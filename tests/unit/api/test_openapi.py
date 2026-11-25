@@ -27,8 +27,6 @@ def test_the_route_table_is_exactly_the_documented_routes(
         "/api/v1/targets/{target_id}/interview",
         "/api/v1/targets/{target_id}/interview/files/{name}",
         "/api/v1/targets/{target_id}/specification",
-        "/api/v1/targets/{target_id}/experiments",
-        "/api/v1/experiments/{experiment_id}",
         "/api/v1/wizard/config",
         "/api/v1/wizard/connection",
         "/api/v1/wizard/connection/check",
@@ -38,8 +36,10 @@ def test_the_route_table_is_exactly_the_documented_routes(
         "/api/v1/wizard/interview/turn",
         "/api/v1/wizard/interview/end",
         "/api/v1/wizard/compile",
-        "/api/v1/experiments/{experiment_id}/report",
-        "/api/v1/experiments/{experiment_id}/report.html",
+        "/api/v1/insights/{experiment_id}/report",
+        "/api/v1/insights/{experiment_id}/report.html",
+        "/api/v1/engine/experiments",
+        "/api/v1/engine/experiments/{experiment_id}",
         "/api/v1/engine/simulate",
         "/api/v1/engine/simulate/{experiment_id}/resume",
         "/api/v1/engine/evaluate/{experiment_id}",
@@ -79,6 +79,18 @@ def test_each_interview_route_documents_its_service_statuses(
 
     compile_responses = paths["/api/v1/wizard/compile"]["post"]["responses"]
     assert {"200", "400", "422", "500"}.issubset(compile_responses)
+
+
+def test_each_route_has_a_tag_and_each_described_tag_has_routes(
+    client: TestClient,
+) -> None:
+    document = client.get("/openapi.json").json()
+    operations = [op for path in document["paths"].values() for op in path.values()]
+    used = {tag for op in operations for tag in op.get("tags", [])}
+    described = {tag["name"] for tag in document["tags"]}
+
+    assert all(op.get("tags") for op in operations)
+    assert described <= used
 
 
 def test_wizard_tag_explains_the_client_held_state_loop(client: TestClient) -> None:

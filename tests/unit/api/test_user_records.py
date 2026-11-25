@@ -122,7 +122,7 @@ def test_a_record_of_another_user_is_a_record_that_does_not_exist(two_users) -> 
         f"{base}/interview",
         f"{base}/interview/files/policy.pdf",
         f"{base}/specification",
-        f"{base}/experiments",
+        f"/api/v1/engine/experiments?target_id={TARGET}",
     ):
         response = bob.get(path)
         assert response.status_code == 404, path
@@ -145,7 +145,7 @@ def test_two_users_can_each_have_an_experiment_folder_with_the_same_name(
         folder = project_dir / "users" / user_id / "evaluations" / "experiments"
         (folder / EXPERIMENT).mkdir(parents=True)
 
-    path = f"/api/v1/experiments/{EXPERIMENT}"
+    path = f"/api/v1/engine/experiments/{EXPERIMENT}"
     first = alice.put(path, json={"target_id": TARGET, "step": "simulate"})
     second = bob.put(path, json={"target_id": OTHER_TARGET, "step": "evaluate"})
 
@@ -168,21 +168,22 @@ def test_a_user_reaches_only_the_experiment_folders_of_their_account(
     _save(bob, "Shop bot", b"policy", OTHER_TARGET)
     folder = project_dir / "users" / alice_id / "evaluations" / "experiments"
     (folder / EXPERIMENT).mkdir(parents=True)
-    path = f"/api/v1/experiments/{EXPERIMENT}"
+    path = f"/api/v1/engine/experiments/{EXPERIMENT}"
     assert (
         alice.put(path, json={"target_id": TARGET, "step": "simulate"}).status_code
         == 200
     )
 
     saved = bob.put(path, json={"target_id": OTHER_TARGET, "step": "simulate"})
-    report = bob.get(f"{path}/report")
+    report_path = f"/api/v1/insights/{EXPERIMENT}/report"
+    report = bob.get(report_path)
 
     assert saved.status_code == 400
     assert "does not exist" in saved.json()["message"]
     assert bob.get(path).status_code == 404
     assert report.status_code == 404
     assert report.json()["code"] == "experiment_not_found"
-    assert alice.get(f"{path}/report").json()["code"] == "results_missing"
+    assert alice.get(report_path).json()["code"] == "results_missing"
 
 
 def test_a_user_sees_their_records_from_a_new_browser(

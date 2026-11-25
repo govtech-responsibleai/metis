@@ -46,7 +46,7 @@ def test_an_experiment_without_results_has_no_report(
 ) -> None:
     experiment_dir = make_experiment(evaluate=False)
 
-    response = client.get(f"/api/v1/experiments/{experiment_dir.name}/{route}")
+    response = client.get(f"/api/v1/insights/{experiment_dir.name}/{route}")
 
     assert response.status_code == 409
     assert response.json()["code"] == "results_missing"
@@ -62,7 +62,7 @@ def test_the_first_report_request_writes_the_report_files(
     html_path = experiment_dir / execution_layout.REPORT_HTML
     assert not json_path.exists() and not html_path.exists()
 
-    response = client.get(f"/api/v1/experiments/{experiment_dir.name}/report")
+    response = client.get(f"/api/v1/insights/{experiment_dir.name}/report")
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/json"
@@ -77,11 +77,11 @@ def test_a_second_request_keeps_a_current_report(
     client: TestClient, make_experiment: MakeExperiment
 ) -> None:
     experiment_dir = make_experiment()
-    client.get(f"/api/v1/experiments/{experiment_dir.name}/report")
+    client.get(f"/api/v1/insights/{experiment_dir.name}/report")
     json_path = experiment_dir / execution_layout.REPORT_JSON
     written = json_path.stat().st_mtime_ns
 
-    client.get(f"/api/v1/experiments/{experiment_dir.name}/report")
+    client.get(f"/api/v1/insights/{experiment_dir.name}/report")
 
     assert json_path.stat().st_mtime_ns == written
 
@@ -100,7 +100,7 @@ def test_a_report_file_older_than_the_results_is_rebuilt(
     fresh_file: str,
 ) -> None:
     experiment_dir = make_experiment()
-    client.get(f"/api/v1/experiments/{experiment_dir.name}/report")
+    client.get(f"/api/v1/insights/{experiment_dir.name}/report")
     stale_path = experiment_dir / stale_file
     results_time = (experiment_dir / execution_layout.RESULTS).stat().st_mtime_ns
     stale_path.write_text("stale", encoding="utf-8")
@@ -108,7 +108,7 @@ def test_a_report_file_older_than_the_results_is_rebuilt(
     os.utime(stale_path, ns=(older, older))
     os.utime(experiment_dir / fresh_file, ns=(newer, newer))
 
-    response = client.get(f"/api/v1/experiments/{experiment_dir.name}/report")
+    response = client.get(f"/api/v1/insights/{experiment_dir.name}/report")
 
     assert response.status_code == 200
     assert Report.model_validate_json(response.content).criteria["AC-1-1"].pass_ == 2
@@ -126,7 +126,7 @@ def test_an_unreadable_specification_fails_the_report_build(
         specification_text, encoding="utf-8"
     )
 
-    response = client.get(f"/api/v1/experiments/{experiment_dir.name}/report")
+    response = client.get(f"/api/v1/insights/{experiment_dir.name}/report")
 
     assert response.status_code == 409
     assert response.json()["code"] == "report_build_failed"
@@ -141,7 +141,7 @@ def test_a_report_build_failure_keeps_source_values_private(
         "target: {name: {credential: private-source-value}}\n", encoding="utf-8"
     )
 
-    response = client.get(f"/api/v1/experiments/{experiment_dir.name}/report")
+    response = client.get(f"/api/v1/insights/{experiment_dir.name}/report")
 
     assert response.status_code == 409
     assert response.json()["code"] == "report_build_failed"
@@ -162,8 +162,8 @@ def test_report_generation_methods_match(
     # The CLI sent structlog to the runner's stream, which is closed by now.
     structlog.reset_defaults()
 
-    report = client.get(f"/api/v1/experiments/{experiment_dir.name}/report")
-    page = client.get(f"/api/v1/experiments/{experiment_dir.name}/report.html")
+    report = client.get(f"/api/v1/insights/{experiment_dir.name}/report")
+    page = client.get(f"/api/v1/insights/{experiment_dir.name}/report.html")
 
     assert report.status_code == 200
     assert report.content == (copy / execution_layout.REPORT_JSON).read_bytes()
@@ -193,7 +193,7 @@ def test_both_report_formats_are_inline_with_their_file_name(
     experiment_id = built.name.replace("test-exp", specification_id, 1)
     built.rename(built.with_name(experiment_id))
 
-    response = client.get(f"/api/v1/experiments/{quote(experiment_id)}/{route}")
+    response = client.get(f"/api/v1/insights/{quote(experiment_id)}/{route}")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith(content_type)
@@ -213,7 +213,7 @@ def test_an_unknown_experiment_id_is_not_found(
 ) -> None:
     make_experiment()
 
-    response = client.get(f"/api/v1/experiments/{experiment_id}/report")
+    response = client.get(f"/api/v1/insights/{experiment_id}/report")
 
     assert response.status_code == 404
     assert response.json()["code"] == "experiment_not_found"

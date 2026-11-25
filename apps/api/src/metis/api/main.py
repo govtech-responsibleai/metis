@@ -71,15 +71,6 @@ logger = get_logger(__name__)
 
 _OPENAPI_TAGS = [
     {
-        "name": "wizard",
-        "description": (
-            "Drive one stateless Wizard Interview. Start returns client-held state. "
-            "For each turn, save the complete returned state, read its pending screen, and send "
-            "that state with the matching request id and response. End can return another "
-            "pending screen. Compile or package the Specification after outcome is done."
-        ),
-    },
-    {
         "name": "targets",
         "description": (
             "Keep the Interview of each Target, its files, and its Specification in the store. "
@@ -87,10 +78,12 @@ _OPENAPI_TAGS = [
         ),
     },
     {
-        "name": "experiments",
+        "name": "wizard",
         "description": (
-            "Keep one row for each Experiment folder under evaluations/experiments/. "
-            "A delete removes the row. The Experiment folder stays on disk."
+            "Drive one stateless Wizard Interview. Start returns client-held state. "
+            "For each turn, save the complete returned state, read its pending screen, and send "
+            "that state with the matching request id and response. End can return another "
+            "pending screen. Compile or package the Specification after outcome is done."
         ),
     },
     {
@@ -101,8 +94,22 @@ _OPENAPI_TAGS = [
             "queues the rest, first in first out. A simulate start also grades the trials "
             "when the simulation completes. A start returns 202 at once. Poll the status "
             "route for the state, which is queued while the run waits, and the events route "
-            "for each trial."
+            "for each trial. The experiments routes keep one row for each Experiment folder "
+            "under evaluations/experiments/. A delete removes the row. The Experiment folder "
+            "stays on disk."
         ),
+    },
+    {
+        "name": "insights",
+        "description": (
+            "Read the report of an experiment folder in the project folder, as JSON or "
+            "as the HTML report page. An experiment with no results.json returns 409 "
+            "results_missing."
+        ),
+    },
+    {
+        "name": "health",
+        "description": "Report that the API is up, with its version and the core version.",
     },
     {
         "name": "doctor",
@@ -131,14 +138,6 @@ _OPENAPI_TAGS = [
             "Read the variables that the operator gives to each participant, as the lines of "
             "a .env file for the METIS CLI. METIS_WORKSHOP_ENV names them. A server without "
             "it returns 404 not_found."
-        ),
-    },
-    {
-        "name": "reports",
-        "description": (
-            "Read the report of an experiment folder in the project folder, as JSON or "
-            "as the HTML report page. An experiment with no results.json returns 409 "
-            "results_missing."
         ),
     },
 ]
@@ -245,7 +244,7 @@ def create_app(
         app.state.store = store
     app.state.engine_runs = EngineRuns(engine_functions or EngineFunctions())
 
-    @app.get("/health")
+    @app.get("/health", tags=["health"])
     def health() -> dict[str, str]:
         return {"status": "ok", "version": __version__, "core_version": core_version}
 
@@ -253,6 +252,7 @@ def create_app(
     app.include_router(graders_router)
     app.include_router(models_router)
     app.include_router(targets_router)
+    # Before engine_router, so that /engine/experiments does not match /engine/{experiment_id}.
     app.include_router(experiments_router)
     app.include_router(reports_router)
     app.include_router(engine_router)

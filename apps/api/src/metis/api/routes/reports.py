@@ -1,4 +1,4 @@
-"""The report of each experiment folder in the project folder.
+"""The insights routes: the report of each experiment folder in the project folder.
 
 An experiment id is the name of an experiment folder under
 ``<project folder>/evaluations/experiments/``, the project folder of the user account when login
@@ -21,7 +21,7 @@ from metis.api.routes.wizard import ServiceError
 from metis.core.report import Report
 from metis.insights import ReportBuildError, ReportFiles, ResultsMissing, ensure_report
 
-router = APIRouter(prefix="/api/v1/experiments", tags=["reports"])
+router = APIRouter(prefix="/api/v1/insights", tags=["insights"])
 
 
 def _failure(status_code: int, code: str, message: str) -> JSONResponse:
