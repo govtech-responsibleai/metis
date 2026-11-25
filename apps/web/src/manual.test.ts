@@ -38,7 +38,7 @@ const selected = (grader: GraderSpec): ManualGrader => ({
   values: {},
 });
 const synthesis = {
-  id: " manual-research ",
+  name: " Manual research ",
   description: " Check research answers and recovery. ",
   personas: [
     { id: " analyst ", description: " A careful policy analyst. " },
@@ -101,7 +101,7 @@ test("explicit test cases produce the complete engine Specification", () => {
 
 test("each test case selects an existing Persona and Scenario and valid execution settings", () => {
   const invalid: ManualExperiment = {
-    id: "Not valid",
+    name: " ",
     description: " ",
     personas: [
       { id: "same", description: "ok" },
@@ -123,7 +123,7 @@ test("each test case selects an existing Persona and Scenario and valid executio
   };
   const fields = manualFieldErrors(invalid, []).map((error) => error.field);
   assert.deepEqual(fields, [
-    "experiment.id",
+    "experiment.name",
     "experiment.description",
     "persona.1.id",
     "persona.1.description",
@@ -140,7 +140,7 @@ test("each test case selects an existing Persona and Scenario and valid executio
   assert.deepEqual(
     manualFieldErrors(emptyManualExperiment(), []).map((error) => error.field),
     [
-      "experiment.id",
+      "experiment.name",
       "experiment.description",
       "personas",
       "scenarios",

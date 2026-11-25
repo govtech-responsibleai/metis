@@ -129,7 +129,8 @@ project folder of the command. The store builds its paths from the constants in 
 The files of a Target are in the layout that `metis wizard init` writes, in two folders with the
 Target id as their name: `<project>/evaluations/interviews/<target_id>/` and
 `<project>/evaluations/specifications/<target_id>/`. The Target id follows the `<id>` rule of
-`metis.core.project_layout.ID`. The web app gives a new Target the id
+`metis.core.project_layout.ID`. The Target id is also the `id` of `specification.yaml`, so the
+engine names each Experiment folder `<target_id>-<time>`. The web app gives a new Target the id
 `YYYYMMDD-HHMMSS-interview-<random>`, the same form as a `metis wizard init` id. The random
 part is five characters, so two people who start in the same second get different ids. When the id is
 taken, the web app adds `-2`, `-3`, and so on. The `created_at` of the record tells one Interview

@@ -20,11 +20,11 @@ Three properties hold the design together:
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from metis.core.logging import get_logger
+from metis.wizard.application import export_layout
 from metis.wizard.application.compile import (
     CompilationError,
     SpecificationArchive,
@@ -614,8 +614,13 @@ def _scope_signature(specification: Specification) -> object:
 # ── compilation ──────────────────────────────────────────────────────────────
 
 
-def compile_specification(specification: Specification) -> CompileResult:
+def compile_specification(
+    specification: Specification, *, specification_id: str | None = None
+) -> CompileResult:
     """Compile a confirmed Specification to the `specification.yaml` string, writing nothing to disk.
+
+    The `id` of the result is `specification_id`, the `<id>` of the folder that the caller
+    writes. Without it, the Specification keeps its id, or gets a new `<id>` when it has none.
 
     Reuses the same pure compile the CLI and golden-file test use; a caller that wants a file
     writes the returned string itself. Raises `CompilationError` when the Specification will not build
@@ -626,7 +631,10 @@ def compile_specification(specification: Specification) -> CompileResult:
         raise CompilationError(
             "Specification is not runnable: " + "; ".join(gap.message for gap in gaps)
         )
-    document = compile_experiment(specification, experiment_id(specification))
+    document = compile_experiment(
+        specification,
+        specification_id or specification.id or export_layout.new_id("manual"),
+    )
     return CompileResult.model_validate(
         {
             "specification.yaml": to_yaml(document),
@@ -640,6 +648,7 @@ def package_specification(
     fixtures: Iterable[SpecificationFixture],
     *,
     connection: TargetConnection | None = None,
+    export_id: str | None = None,
 ) -> SpecificationArchive:
     """Compile a manual Specification or final Interview state into a portable export.
 
@@ -647,6 +656,10 @@ def package_specification(
     names the generic runner and the binding file. An Interview takes its connection from its
     state. A manual Specification takes it from `connection`, so both give the same export for
     the same binding.
+
+    `export_id` is the `<id>` of the export folders and the `id` of `specification.yaml`. A
+    caller that has the folders already gives their `<id>`. Without it, the export gets a new
+    `<id>`.
 
     :raises ValueError: `connection` is given with an Interview state.
     """
@@ -668,7 +681,10 @@ def package_specification(
         raise CompilationError(
             "Specification is not runnable: " + "; ".join(gap.message for gap in gaps)
         )
-    document = compile_experiment(specification, experiment_id(specification))
+    export_id = export_id or export_layout.new_id(
+        "interview" if isinstance(source, InterviewState) else "manual"
+    )
+    document = compile_experiment(specification, export_id)
     return build_specification_archive(
         document,
         fixtures,
@@ -676,15 +692,8 @@ def package_specification(
         if isinstance(source, InterviewState)
         else None,
         target_binding_yaml=binding_yaml(connection) if connection else None,
+        export_id=export_id,
     )
-
-
-def experiment_id(specification: Specification) -> str:
-    """A filename-safe id from the target name, falling back when it is empty."""
-    if specification.id:
-        return specification.id
-    slug = re.sub(r"[^a-z0-9]+", "-", specification.target.name.lower()).strip("-")
-    return slug or "experiment"
 
 
 # ── result and state plumbing ──────────────────────────────────────────────
@@ -812,7 +821,6 @@ __all__ = [
     "compile_specification",
     "package_specification",
     "derive_stage",
-    "experiment_id",
     "configure_interview_dependencies",
     "handle_interview",
 ]

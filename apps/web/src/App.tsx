@@ -1137,7 +1137,7 @@ export function App() {
                   <div className="flex h-full min-h-0 flex-col p-4">
                     <ProfileHeading toolbar={profileToolbar} />
                     <div className="min-h-0 flex-1">
-                      <YamlView state={record.state} />
+                      <YamlView state={record.state} targetId={record.id} />
                     </div>
                   </div>
                 ) : (

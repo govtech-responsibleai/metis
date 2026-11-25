@@ -427,7 +427,7 @@ This path does not use the Interview and creates no Interview record.
 1. On the opening screen, choose the mode. Then select **Skip the interview and write it
    yourself**. The form keeps the mode that you chose. The mode toggle is also at the top of the
    form, so you can change the mode there.
-2. Set the Experiment ID and description.
+2. Set the Experiment name and description.
 3. Define Personas and Scenarios in their sections.
 4. Select **Add test case**. Select one Persona and one Scenario,
    and set its Trial count, graders, and fixtures. Fixtures are files that the target can use in

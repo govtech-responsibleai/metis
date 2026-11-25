@@ -81,11 +81,15 @@ type Compiled =
 // send the request again.
 const compiled = new WeakMap<InterviewState, Promise<string>>();
 
-function compileYaml(state: InterviewState): Promise<string> {
+// The Target id goes in as the `id`, so the view shows the `id` of the file on disk.
+export function compileYaml(
+  state: InterviewState,
+  targetId: string,
+): Promise<string> {
   let request = compiled.get(state);
   if (!request) {
     request = api
-      .compile(exportedSpecification(state))
+      .compile({ ...exportedSpecification(state), id: targetId })
       .then((result) => result["specification.yaml"]);
     request.catch(() => compiled.delete(state));
     compiled.set(state, request);
@@ -93,7 +97,13 @@ function compileYaml(state: InterviewState): Promise<string> {
   return request;
 }
 
-export function YamlView({ state }: { state: InterviewState }) {
+export function YamlView({
+  state,
+  targetId,
+}: {
+  state: InterviewState;
+  targetId: string;
+}) {
   const [compiledState, setCompiled] = useState<Compiled>({
     status: "loading",
   });
@@ -102,7 +112,7 @@ export function YamlView({ state }: { state: InterviewState }) {
   useEffect(() => {
     let current = true;
     setCompiled({ status: "loading" });
-    compileYaml(state).then(
+    compileYaml(state, targetId).then(
       (text) => {
         if (current) setCompiled({ status: "ready", text });
       },
@@ -120,7 +130,7 @@ export function YamlView({ state }: { state: InterviewState }) {
     return () => {
       current = false;
     };
-  }, [state, attempt]);
+  }, [state, targetId, attempt]);
 
   if (compiledState.status === "loading")
     return (

@@ -133,6 +133,7 @@ def _exercise(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, source: str) -> N
         with zipfile.ZipFile(io.BytesIO(archive.content)) as bundle:
             bundle.extractall(evaluations)
         input_dir = next((evaluations / "specifications").iterdir())
+        document["id"] = input_dir.name
     else:
         input_dir = tmp_path / "user-supplied"
         (input_dir / "fixtures").mkdir(parents=True)

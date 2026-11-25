@@ -876,7 +876,7 @@ class Store:
             if ref.name in referenced
         ]
         try:
-            return input_folder.build(state, fixtures)
+            return input_folder.build(state, fixtures, record.id)
         except (CompilationError, SpecificationError) as exc:
             raise StoreError(400, "compilation_failed", str(exc)) from exc
 

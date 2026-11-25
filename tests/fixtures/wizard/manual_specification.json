@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
-  "id": "manual-research",
+  "id": "",
   "runner_factory_ref": "metis.engine.simulation.runners.http.HttpRunnerFactory",
   "target": {
-    "name": "manual-research",
+    "name": "Manual research",
     "description": "Check research answers and recovery.",
     "users": "The personas defined in this manual experiment.",
     "detail": ""

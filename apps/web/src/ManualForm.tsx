@@ -610,16 +610,15 @@ export function ManualForm({
             title="Experiment details"
           >
             <div className={cn(CARD, "flex flex-col gap-3 p-4")}>
-              <Field label="ID" error={errorFor("experiment.id")}>
+              <Field label="Name" error={errorFor("experiment.name")}>
                 <TextInput
-                  id="manual-experiment-id"
-                  invalid={Boolean(errorFor("experiment.id"))}
-                  ariaLabel="Experiment ID"
-                  value={experiment.id}
-                  placeholder="research-assistant"
-                  spellCheck={false}
-                  onChange={(id) =>
-                    setExperiment((value) => ({ ...value, id }))
+                  id="manual-experiment-name"
+                  invalid={Boolean(errorFor("experiment.name"))}
+                  ariaLabel="Experiment name"
+                  value={experiment.name}
+                  placeholder="Research assistant"
+                  onChange={(name) =>
+                    setExperiment((value) => ({ ...value, name }))
                   }
                 />
               </Field>
