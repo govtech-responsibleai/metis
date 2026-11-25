@@ -229,7 +229,7 @@ test("packages a synthesized manual Specification and its fixtures as multipart"
   };
 
   const specification = synthesizeManualSpecification({
-    id: "manual-test",
+    name: "Manual test",
     description: "A manual experiment.",
     personas: [{ id: "reviewer", description: "A reviewer." }],
     scenarios: [{ id: "check-answer", description: "Check one answer." }],

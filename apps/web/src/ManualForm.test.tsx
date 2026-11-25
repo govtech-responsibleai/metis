@@ -59,7 +59,7 @@ function props(overrides: Partial<ManualFormProps> = {}): ManualFormProps {
 }
 
 const experiment: ManualExperiment = {
-  id: "manual-test",
+  name: "Manual test",
   description: "A manual experiment.",
   personas: [{ id: "reviewer", description: "A reviewer." }],
   scenarios: [{ id: "check-answer", description: "Check one answer." }],
@@ -129,14 +129,14 @@ function recordRequests() {
 test("the new manual form presents its Experiment sections in order", () => {
   const markup = renderToStaticMarkup(<ManualForm {...props()} />);
   assert.match(markup, /Return to the opening screen/);
-  assert.match(markup, /aria-label="Experiment ID"/);
+  assert.match(markup, /aria-label="Experiment name"/);
   assert.doesNotMatch(markup, />New Persona<\/h4>/);
   assert.doesNotMatch(markup, />New Scenario<\/h4>/);
   assert.match(markup, /aria-label="Add Persona"/);
   assert.match(markup, /aria-label="Add Scenario"/);
   assert.match(markup, /No Personas yet/);
   assert.match(markup, /aria-label="Add test case"/);
-  assert.match(markup, />ID<\/span>/);
+  assert.match(markup, />Name<\/span>/);
   assert.match(markup, />Description<\/span>/);
   assert.match(markup, /Download specification/);
   assert.doesNotMatch(markup, /Still needs/);

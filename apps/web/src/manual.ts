@@ -45,7 +45,7 @@ export interface ManualGrader {
 }
 
 export interface ManualExperiment {
-  id: string;
+  name: string;
   description: string;
   personas: ManualPersona[];
   scenarios: ManualScenario[];
@@ -60,7 +60,7 @@ export interface ManualFixture {
 
 export function emptyManualExperiment(): ManualExperiment {
   return {
-    id: "",
+    name: "",
     description: "",
     personas: [],
     scenarios: [],
@@ -216,11 +216,11 @@ export function synthesizeManualSpecification(
 
   return {
     schema_version: 1,
-    id: experiment.id.trim(),
+    id: "",
     runner_factory_ref:
       "metis.engine.simulation.runners.http.HttpRunnerFactory",
     target: {
-      name: experiment.id.trim(),
+      name: experiment.name.trim(),
       description,
       users: "The personas defined in this manual experiment.",
       detail: "",
@@ -269,7 +269,7 @@ export function synthesizeManualSpecification(
 
 /**
  * One incomplete field in the manual form. `field` names the control that shows the
- * message: `experiment.id`, `persona.0.description`, `task.1.graders`, and so on.
+ * message: `experiment.name`, `persona.0.description`, `task.1.graders`, and so on.
  * Collection keys (`personas`, `scenarios`, `tasks`) mark an empty collection.
  */
 export interface ManualFieldError {
@@ -316,13 +316,7 @@ export function manualFieldErrors(
   const add = (field: string, message: string) =>
     errors.push({ field, message });
 
-  const experimentId = experiment.id.trim();
-  if (!experimentId) add("experiment.id", "Enter an ID.");
-  else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(experimentId))
-    add(
-      "experiment.id",
-      "Use lowercase words joined by hyphens, such as research-assistant.",
-    );
+  if (!experiment.name.trim()) add("experiment.name", "Enter a name.");
   if (!experiment.description.trim())
     add("experiment.description", "Enter a description.");
 

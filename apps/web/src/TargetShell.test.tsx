@@ -11,9 +11,9 @@ import {
   startsAtFirstPage,
   type LoginSession,
 } from "./LoginGate";
-import { TransportError } from "./transport/api";
+import { TransportError, type InterviewState } from "./transport/api";
 import { at, control, tab, text } from "./markup.test-helper";
-import { ProfileToolbar } from "./ProfileToolbar";
+import { compileYaml, ProfileToolbar } from "./ProfileToolbar";
 import type { ListLoad, RowLoad } from "./ExperimentList";
 import { ExperimentsTabView, TargetTabs } from "./TargetPage";
 import {
@@ -442,6 +442,31 @@ test("the YAML view and Download wait for the end of the Interview", () => {
     /title="Finish the Interview first"/,
   );
   assert.doesNotMatch(control(markup, "Document"), /disabled=""/);
+});
+
+test("the YAML view compiles the Specification with the Target id", async () => {
+  const originalFetch = globalThis.fetch;
+  let sent: { id?: string } = {};
+  globalThis.fetch = async (_input, init) => {
+    sent = JSON.parse(String(init?.body));
+    return new Response(
+      JSON.stringify({ "specification.yaml": `id: ${sent.id}\n` }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  };
+  const state = {
+    specification: { id: "", tasks: [], scenarios: [] },
+    context: {},
+  } as unknown as InterviewState;
+
+  try {
+    const yaml = await compileYaml(state, "20261124-221223-interview-4539f056");
+
+    assert.equal(sent.id, "20261124-221223-interview-4539f056");
+    assert.equal(yaml, "id: 20261124-221223-interview-4539f056\n");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 const experimentsTab = (load: ListLoad) =>
