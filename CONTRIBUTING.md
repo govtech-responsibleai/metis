@@ -156,7 +156,8 @@ We follow a convention for commit messages [borrowed from Deis/CoreOS/AngularJS]
 **Rules:**
 
 - `{type}` is one of: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
-- `{scope}` is the affected package or app name (e.g., `core`, `engine`, `wizard`, `api`)
+- `{scope}` is the affected package or app name (e.g., `core`, `engine`, `wizard`, `api`), or
+  `release` for a release step that touches every package (see "Merging")
 - `{subject}` uses imperative present tense ("change", not "changed"), no capital first letter, no trailing dot
 - Subject line limited to **50 characters**; body lines limited to **72 characters**
 - `{body}` explains the motivation and contrasts with previous behavior
@@ -246,12 +247,34 @@ When adding a new workspace package:
 - [ ] `make check` passes locally
 - [ ] New code has tests
 - [ ] No unrelated changes bundled in
+- [ ] It links an issue, unless it is one of the pull requests that need none (see "Issues and
+      milestones")
 
 ### What Reviewers Look For
 
 - Adherence to the dependency DAG (no upward imports)
 - Type annotations on public APIs
 - Focused scope — one concern per PR
+
+### Issues and milestones
+
+Every pull request that changes behaviour or adds a feature links an issue, and the milestone is
+set on that issue, not on the pull request (see "Milestones"). A milestone then counts each piece
+of work once, and the link records which pull request delivered it.
+
+These pull requests need no issue, and get no milestone:
+
+| Pull request | Why |
+|--------------|-----|
+| Version bump (`chore/bump-1.0.0bN`) | It is a step of the release |
+| `next` into `main`, and `main` into `next` | It moves work that is already tracked |
+| Small fixes, such as typos and broken links | The pull request describes itself |
+
+A milestone lists planned work, and the GitHub release notes list everything that shipped, these
+pull requests included.
+
+`Closes #N` closes an issue only when the pull request targets the default branch, `main`. Close an
+issue by hand, with a link to the pull request, when its pull request merges into `next`.
 
 ### Merging
 
@@ -265,6 +288,13 @@ The exception is a PR that carries one long-lived branch into another. While v1 
 release merge of `next` into `main` and the merge of `main` into `next` are always merge commits,
 never squashes (see "Beta releases"). A squash would drop the link between the two branches, and
 the next merge between them would replay the same changes and raise conflicts.
+
+Release pull requests have two exceptions to the title rule. The release pull request from `next`
+into `main` is titled `release/vX.Y.Z`, matching its release issue (see "Milestones"). Its title
+does not become the first line of the commit, because it is merged with a merge commit. The
+`release` scope is reserved for release steps that touch every package: the version bump,
+`chore(release): bump the version to X.Y.Z`, and the merge back,
+`chore(release): merge main into next after vX.Y.Z`.
 
 ## Dependency Rules
 
@@ -305,16 +335,19 @@ Betas promise no compatibility with each other.
 A beta has no release branch. It is released in four steps:
 
 1. Open a pull request into `next` that bumps every `pyproject.toml` version and re-locks with
-   `uv lock`, for example from a `chore/bump-1.0.0bN` branch. Every beta needs this pull request,
+   `uv lock`, from a `chore/bump-1.0.0bN` branch and titled
+   `chore(release): bump the version to 1.0.0bN`. Every beta needs this pull request,
    because `metis --version`, `metis doctor` and the API docs page read the version from these
    files. Update the version in the Status section of `README.md` in the same pull request.
 2. Check the version on `next` after the pull request is merged.
    `git grep -n '^version = ' -- '*pyproject.toml'` must show `1.0.0bN` on each of its 8 lines,
    and `uv lock --check` must pass.
-3. Merge `next` into `main` with a merge commit, not a squash, so that `next` never diverges
-   from `main`. Tag the merge commit on `main` with an annotated `v1.0.0bN` tag. Do not tag a
-   commit whose files show a different version.
-4. Publish a GitHub prerelease for the tag.
+3. Merge `next` into `main` through a pull request titled `release/v1.0.0bN`, with a merge
+   commit, not a squash, so that `next` never diverges from `main`. Its body says
+   "Part of #N", naming the release issue, not "Closes #N", because the release issue stays open
+   until the last step. Tag the merge commit on `main` with an annotated `v1.0.0bN` tag. Do not
+   tag a commit whose files show a different version.
+4. Publish a GitHub prerelease for the tag, with "Generate release notes".
 
 ```
 feat/*, fix/*, chore/bump-* ──PR──▶ next ──●──●──●
@@ -328,29 +361,103 @@ flow.
 
 ### Milestones
 
-A git tag marks a commit that has shipped. A GitHub milestone groups the issues and pull requests
-that should land together, so it looks forward at work still to do. The two are linked only by
-name, and a tag does not need a milestone of its own.
+Each planned release has a milestone, which holds the plan, and a release issue, which points
+users to it. Every tag also gets a GitHub release, which records what shipped.
 
-Create one milestone per major or minor release you are planning, named `vMAJOR.MINOR`. Major
-releases are the ones ending in `.0`.
+| Term | What it is | Example |
+|------|------------|---------|
+| **Tag** | Marks a commit that has shipped | `v1.0.0b3` |
+| **GitHub release** | Publishes a tag with notes on what shipped | the `v1.0.0b3` prerelease |
+| **Milestone** | Groups the issues planned for one release, and holds the planned release notes | `v1.0.0b4` |
+| **Release issue** | Points users to the milestone, and tells its subscribers when the plan changes | `release/v1.0.0b4` |
 
-| Milestone | Collects | Closes when |
-|-----------|----------|-------------|
-| `v1.0` | work needed before 1.0.0 | `v1.0.0` is tagged |
-| `v1.1` | features planned for the next minor release | `v1.1.0` is tagged |
-| `v2.0` | breaking changes deferred to the next major release | `v2.0.0` is tagged |
-| `backlog` | triaged work with no release scheduled | never |
+#### One milestone per planned release
 
-- Create a milestone when you first assign an issue to it, not in advance.
-- Betas (`v1.0.0bN`) do not get their own milestones; they are snapshots on the way to `v1.0`.
-- Patch releases such as `v1.0.1` do not get a milestone, because they ship fixes that have
-  already landed.
+A release is planned when the work in it is chosen before it is tagged. Major, minor and beta
+releases are planned. Patch releases usually are not, because they ship fixes that have already
+landed.
 
-Assign a milestone to an issue or pull request when you decide which release it belongs to, and
-close the milestone when its release tag ships. If a beta needs a hard line between "must be in
-this beta" and "can wait", you may add a temporary `v1.0.0bN` milestone for it and close it with
-the tag.
+| Release | Example | Milestone | Release issue | GitHub release |
+|---------|---------|-----------|---------------|----------------|
+| Major | `v2.0.0` | yes | yes | yes |
+| Minor | `v1.1.0` | yes | yes | yes |
+| Beta | `v1.0.0b4` | yes | yes | yes, as a prerelease |
+| Patch | `v1.0.4` | only if planned | only if planned | yes |
+
+- A milestone has the same name as its tag: `v1.0.0b4`, `v1.0.0`, `v1.1.0`.
+- A patch that is planned ahead, such as a batch of fixes to announce, gets a milestone like any
+  other planned release.
+- Create a milestone when you first assign an issue to it.
+- Set its due date to the date the release is expected to ship, and change it when that date
+  moves.
+- Write the planned release notes in its description, in the shape below. The description is the
+  only copy of the notes, so a change of plan is made there and nowhere else. Its first line says
+  when the plan was last updated, because GitHub keeps no history of milestone descriptions.
+- Set milestones on issues, not on pull requests (see "Issues and milestones" under Pull
+  Requests).
+- Close a milestone when its tag ships. Move its unfinished issues to the next milestone first.
+- `backlog` is the one milestone that is not a tag. It holds triaged work with no release chosen,
+  and it never closes.
+
+The milestone description follows this skeleton:
+
+```markdown
+Plan last updated: YYYY-MM-DD. Discussion and updates: #N (the release issue).
+
+## What's coming
+
+Two to four sentences on the theme of this release and why it matters to users. Write for users:
+say what they will be able to do, not which files change.
+
+## Highlights
+
+The changes users will notice most, each with a sentence on what it does and a link to its issue.
+
+## Breaking changes
+
+What users must change when they upgrade, and how. Betas promise no compatibility with each other,
+so list every change that breaks a command, a file format or a config. Write "None." if there are
+none.
+```
+
+The issue list below the description is the full list of planned work, so the notes describe
+themes and changes rather than list every issue.
+
+#### One release issue per milestone
+
+The milestone holds the plan. The release issue gives users a place to find it, to be told when it
+changes, and to ask about it, none of which a milestone offers: it cannot be pinned or subscribed
+to, and it takes no comments.
+
+- Open it from the Release template, [`.github/ISSUE_TEMPLATE/release.md`](.github/ISSUE_TEMPLATE/release.md).
+  The template sets the title and label, but GitHub templates cannot set a milestone, so set it
+  after submitting. The template appears to everyone who opens a new issue, and its description
+  marks it as for maintainers only.
+- Title: `release/vX.Y.Z`, the same as its release pull request, with the `release` label and the
+  milestone of the same name.
+- Body: a sentence on what the release is for and a link to the milestone. The notes stay in the
+  milestone, so the issue body rarely changes.
+- When the plan changes in a way users would notice, update the milestone description and its
+  "Plan last updated" line, then post a one-line comment on the release issue that says what
+  changed, such as "Moved #273 to v1.0.0b5." The comment notifies subscribers, and the comments
+  together are the history of the plan.
+- Pin the release issue of the next release so that users see it first.
+- Assign it to the maintainer who runs the release. The assignee makes sure every box in its
+  Shipping checklist is ticked before closing the issue. Whoever does a step, such as the
+  version-bump pull request, may tick its box.
+- Close it when the tag ships, with a link to the GitHub release.
+- Its issues are not sub-issues of it. The milestone is the one list of planned work in a release.
+
+The template's Shipping checklist lists every step in "Beta releases", so that the release issue
+shows which steps are done. Change the two together.
+
+#### A GitHub release for every tag
+
+Publish a GitHub release for every tag, using "Generate release notes". Mark betas as
+prereleases. The release is how users learn what shipped: anyone who watches the repository's
+releases is notified, and a tag alone notifies no one.
+
+No `CHANGELOG.md` is kept during the beta, because the GitHub releases do that job.
 
 ### Release Make Target
 
